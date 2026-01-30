@@ -8,178 +8,73 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@400;600;700&display=swap');
         
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        :root {
-            --primary: #FF6B35;
-            --secondary: #F7931E;
-            --accent: #FDC830;
-            --dark: #1A1A2E;
-            --darker: #16213E;
-            --light: #FFFFFF;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
             font-family: 'Rajdhani', sans-serif;
-            background: var(--dark);
-            color: var(--light);
+            background: #1A1A2E;
+            color: #FFFFFF;
             min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
-        }
-        
-        /* Animated background - desert theme */
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: 
-                radial-gradient(circle at 30% 40%, rgba(255, 107, 53, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 70% 70%, rgba(247, 147, 30, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 50% 90%, rgba(253, 200, 48, 0.15) 0%, transparent 50%);
-            animation: pulse 10s ease-in-out infinite;
-            z-index: 0;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
+            padding: 20px;
         }
         
         .container {
-            position: relative;
-            z-index: 1;
             max-width: 1200px;
             margin: 0 auto;
-            padding: 40px 20px;
-        }
-        
-        header {
-            text-align: center;
-            margin-bottom: 60px;
-            animation: slideDown 0.8s ease-out;
-        }
-        
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-50px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
         
         h1 {
             font-family: 'Orbitron', sans-serif;
-            font-size: 3.5rem;
-            font-weight: 900;
-            background: linear-gradient(135deg, var(--primary), var(--secondary), var(--accent));
+            font-size: 3rem;
+            background: linear-gradient(135deg, #FF6B35, #F7931E, #FDC830);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-        
-        .subtitle {
-            font-size: 1.3rem;
-            color: var(--accent);
-            font-weight: 600;
-            letter-spacing: 4px;
+            text-align: center;
+            margin-bottom: 40px;
         }
         
         .upload-section {
-            background: var(--darker);
+            background: #16213E;
             border-radius: 20px;
-            padding: 50px;
-            margin-bottom: 40px;
+            padding: 40px;
+            margin-bottom: 30px;
             border: 2px solid rgba(253, 200, 48, 0.3);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            animation: fadeIn 1s ease-out 0.3s both;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
         
         .upload-area {
-            border: 3px dashed var(--accent);
+            border: 3px dashed #FDC830;
             border-radius: 15px;
-            padding: 60px 40px;
+            padding: 50px;
             text-align: center;
-            transition: all 0.3s ease;
             cursor: pointer;
-            background: rgba(253, 200, 48, 0.05);
+            transition: all 0.3s ease;
         }
         
         .upload-area:hover {
             background: rgba(253, 200, 48, 0.1);
-            border-color: var(--light);
             transform: scale(1.02);
-        }
-        
-        .upload-area.dragover {
-            background: rgba(253, 200, 48, 0.2);
-            border-color: var(--light);
-            transform: scale(1.05);
-        }
-        
-        .upload-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            animation: float 3s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
         }
         
         .upload-text {
             font-size: 1.5rem;
             font-weight: 700;
+            color: #FDC830;
             margin-bottom: 10px;
-            color: var(--accent);
         }
         
-        .upload-subtext {
-            font-size: 1.1rem;
-            color: rgba(255, 255, 255, 0.6);
-        }
-        
-        input[type="file"] {
-            display: none;
-        }
+        input[type="file"] { display: none; }
         
         .processing {
             display: none;
             text-align: center;
-            padding: 40px;
-            animation: fadeIn 0.5s ease-out;
+            padding: 30px;
         }
         
         .spinner {
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             border: 5px solid rgba(253, 200, 48, 0.2);
-            border-top-color: var(--accent);
+            border-top-color: #FDC830;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -189,53 +84,36 @@
             to { transform: rotate(360deg); }
         }
         
-        .processing-text {
-            font-size: 1.3rem;
-            color: var(--accent);
-            font-weight: 600;
-        }
-        
         .results {
             display: none;
-            animation: fadeIn 0.8s ease-out;
         }
         
         .result-card {
-            background: var(--darker);
+            background: #16213E;
             border-radius: 15px;
             padding: 30px;
             margin-bottom: 20px;
             border: 2px solid rgba(255, 107, 53, 0.3);
-            transition: all 0.3s ease;
-        }
-        
-        .result-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
-            border-color: var(--primary);
         }
         
         .result-title {
             font-size: 1.8rem;
             font-weight: 700;
-            color: var(--accent);
+            color: #FDC830;
             margin-bottom: 15px;
         }
         
         .download-btn {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: var(--light);
+            background: linear-gradient(135deg, #FF6B35, #F7931E);
+            color: #FFFFFF;
             border: none;
             padding: 15px 40px;
             border-radius: 10px;
             font-size: 1.2rem;
             font-weight: 700;
-            font-family: 'Rajdhani', sans-serif;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 5px 20px rgba(255, 107, 53, 0.4);
             text-transform: uppercase;
-            letter-spacing: 1px;
         }
         
         .download-btn:hover {
@@ -247,541 +125,73 @@
             background: rgba(22, 33, 62, 0.6);
             border-radius: 15px;
             padding: 30px;
-            margin-top: 40px;
-            border-left: 5px solid var(--accent);
+            margin-top: 30px;
+            border-left: 5px solid #FDC830;
         }
         
         .info-title {
             font-size: 1.5rem;
             font-weight: 700;
-            color: var(--accent);
+            color: #FDC830;
             margin-bottom: 15px;
-        }
-        
-        .info-list {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .info-list li {
-            padding: 10px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 1.1rem;
-        }
-        
-        .info-list li:before {
-            content: "🏜️";
-            margin-right: 10px;
-        }
-        
-        .error {
-            background: rgba(255, 107, 53, 0.2);
-            border: 2px solid var(--primary);
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 20px;
-            display: none;
-        }
-        
-        .error-text {
-            color: var(--light);
-            font-size: 1.1rem;
-        }
-        
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2rem;
-            }
-            
-            .subtitle {
-                font-size: 1rem;
-            }
-            
-            .upload-section {
-                padding: 30px 20px;
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🏜️ Desert Storm 🏜️</h1>
-            <p class="subtitle">Team Assignment Generator</p>
-        </header>
+        <h1>🏜️ Desert Storm 🏜️</h1>
         
         <div class="upload-section">
             <div class="upload-area" id="uploadArea">
-                <div class="upload-icon">📤</div>
-                <div class="upload-text">Upload Your Player Excel File</div>
-                <div class="upload-subtext">Click or drag & drop your player file here</div>
+                <div class="upload-text">📤 Upload Your Player Excel File</div>
+                <p style="opacity: 0.7;">Click or drag & drop UBS_players.xlsx here</p>
                 <input type="file" id="fileInput" accept=".xlsx,.xls">
-            </div>
-            <div class="error" id="error">
-                <p class="error-text" id="errorText"></p>
             </div>
         </div>
         
         <div class="processing" id="processing">
             <div class="spinner"></div>
-            <p class="processing-text">Processing assignments and generating infographics...</p>
+            <p style="font-size: 1.3rem; color: #FDC830;">Processing assignments and generating infographics with map...</p>
         </div>
         
         <div class="results" id="results">
             <div class="result-card">
                 <div class="result-title">📊 Team Assignments Excel</div>
-                <p style="margin-bottom: 20px; opacity: 0.8;">Complete player assignments for both Team A and Team B</p>
-                <button class="download-btn" id="downloadExcel">⬇️ Download Excel File</button>
+                <p style="margin-bottom: 20px;">Complete player assignments for both teams</p>
+                <button class="download-btn" id="downloadExcel">⬇️ Download Excel</button>
             </div>
             
             <div class="result-card">
-                <div class="result-title">📱 Team A Table Infographic</div>
-                <p style="margin-bottom: 20px; opacity: 0.8;">Professional table-style assignment sheet for Team A</p>
-                <button class="download-btn" id="downloadTeamA">⬇️ Download Team A Image</button>
+                <div class="result-title">📱 Team A Infographic (with Map)</div>
+                <p style="margin-bottom: 20px;">Professional assignment sheet with battlefield map</p>
+                <button class="download-btn" id="downloadTeamA">⬇️ Download Team A</button>
             </div>
             
             <div class="result-card">
-                <div class="result-title">📱 Team B Table Infographic</div>
-                <p style="margin-bottom: 20px; opacity: 0.8;">Professional table-style assignment sheet for Team B</p>
-                <button class="download-btn" id="downloadTeamB">⬇️ Download Team B Image</button>
+                <div class="result-title">📱 Team B Infographic (with Map)</div>
+                <p style="margin-bottom: 20px;">Professional assignment sheet with battlefield map</p>
+                <button class="download-btn" id="downloadTeamB">⬇️ Download Team B</button>
             </div>
         </div>
         
         <div class="info-section">
-            <div class="info-title">📥 Need the Excel Template?</div>
-            <p style="margin-bottom: 20px; opacity: 0.9; font-size: 1.1rem;">
-                Download the template and mark players for Desert Storm in columns J (Team A) and L (Team B)
-            </p>
-            <button class="download-btn" id="downloadTemplate" style="background: linear-gradient(135deg, var(--accent), var(--secondary));">
-                ⬇️ Download Excel Template
-            </button>
-        </div>
-        
-        <div class="info-section" style="margin-top: 30px;">
             <div class="info-title">ℹ️ How It Works</div>
-            <ul class="info-list">
-                <li>Download template or use your existing file</li>
-                <li>Mark "Y" in column J (Team A) or column L (Team B)</li>
-                <li>Upload completed file</li>
-                <li>Get strategic assignments + table infographics</li>
-                <li>Share with your teams!</li>
-            </ul>
+            <p>1. Upload your Excel file with player data</p>
+            <p>2. Mark "Y" in Desert Storm columns (J for Team A, L for Team B)</p>
+            <p>3. Get assignments + infographics with battlefield map!</p>
         </div>
     </div>
 
     <script>
-        let workbook = null;
         let teamAAssignments = [];
         let teamBAssignments = [];
+        let mapImage = null;
         
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const processing = document.getElementById('processing');
         const results = document.getElementById('results');
-        const errorDiv = document.getElementById('error');
-        const errorText = document.getElementById('errorText');
         
-        uploadArea.addEventListener('click', () => fileInput.click());
-        
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file) handleFile(file);
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) handleFile(file);
-        });
-        
-        function showError(message) {
-            errorText.textContent = message;
-            errorDiv.style.display = 'block';
-            setTimeout(() => {
-                errorDiv.style.display = 'none';
-            }, 5000);
-        }
-        
-        function handleFile(file) {
-            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-                showError('Please upload an Excel file (.xlsx or .xls)');
-                return;
-            }
-            
-            processing.style.display = 'block';
-            errorDiv.style.display = 'none';
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    workbook = XLSX.read(e.target.result, { type: 'binary' });
-                    processWorkbook();
-                } catch (error) {
-                    showError('Error reading Excel file: ' + error.message);
-                    processing.style.display = 'none';
-                }
-            };
-            reader.readAsBinaryString(file);
-        }
-        
-        function processWorkbook() {
-            try {
-                const playersSheet = workbook.Sheets['Players'];
-                const teamASheet = workbook.Sheets['Desert Storm- Team A'];
-                const teamBSheet = workbook.Sheets['Desert Storm- Team B'];
-                
-                if (!playersSheet || !teamASheet) {
-                    showError('Excel file must contain "Players" and "Desert Storm- Team A" sheets');
-                    processing.style.display = 'none';
-                    return;
-                }
-                
-                const players = XLSX.utils.sheet_to_json(playersSheet);
-                const teamABuildings = XLSX.utils.sheet_to_json(teamASheet);
-                const teamBBuildings = teamBSheet ? XLSX.utils.sheet_to_json(teamBSheet) : [];
-                
-                // Process Team A (column J)
-                teamAAssignments = assignPlayers(players, teamABuildings, 'Desert  Storm - Team A');
-                
-                // Process Team B (column L)
-                if (teamBBuildings.length > 0) {
-                    teamBAssignments = assignPlayers(players, teamBBuildings, 'Desert  Storm -Team B');
-                }
-                
-                setTimeout(() => {
-                    processing.style.display = 'none';
-                    results.style.display = 'block';
-                }, 1500);
-                
-            } catch (error) {
-                showError('Error processing file: ' + error.message);
-                processing.style.display = 'none';
-            }
-        }
-        
-        function assignPlayers(players, buildings, teamColumn) {
-            const eligible = players
-                .filter(p => p[teamColumn] === 'Y')
-                .map(p => ({
-                    name: p['Player Name'],
-                    power: p['E1 total power(M)'] || 0,
-                    troops: p['E1 troops'] || 'Unknown'
-                }))
-                .sort((a, b) => b.power - a.power);
-            
-            const assignments = [];
-            const available = [...eligible];
-            
-            // Sort buildings by priority
-            const sorted = buildings.sort((a, b) => a['Priority'] - b['Priority']);
-            
-            sorted.forEach(building => {
-                let player = null;
-                if (available.length > 0) {
-                    player = available.shift();
-                }
-                
-                assignments.push({
-                    building: building['Buildig Name'],
-                    priority: building['Priority'],
-                    player: player ? player.name : '',
-                    power: player ? player.power : 0,
-                    troops: player ? player.troops : ''
-                });
-            });
-            
-            return assignments;
-        }
-        
-        // Download Excel
-        document.getElementById('downloadExcel').addEventListener('click', () => {
-            const wb = XLSX.utils.book_new();
-            
-            const teamAData = teamAAssignments.map(a => ({
-                'Buildig Name': a.building,
-                'Priority': a.priority,
-                'Player name': a.player
-            }));
-            const wsA = XLSX.utils.json_to_sheet(teamAData);
-            XLSX.utils.book_append_sheet(wb, wsA, 'Desert Storm- Team A');
-            
-            if (teamBAssignments.length > 0) {
-                const teamBData = teamBAssignments.map(a => ({
-                    'Buildig Name': a.building,
-                    'Priority': a.priority,
-                    'Player name': a.player
-                }));
-                const wsB = XLSX.utils.json_to_sheet(teamBData);
-                XLSX.utils.book_append_sheet(wb, wsB, 'Desert Storm- Team B');
-            }
-            
-            XLSX.writeFile(wb, 'desert_storm_assignments.xlsx');
-        });
-        
-        // Download Team A Image
-        document.getElementById('downloadTeamA').addEventListener('click', () => {
-            generateInfographic(teamAAssignments, 'TEAM A');
-        });
-        
-        // Download Team B Image
-        document.getElementById('downloadTeamB').addEventListener('click', () => {
-            if (teamBAssignments.length > 0) {
-                generateInfographic(teamBAssignments, 'TEAM B');
-            } else {
-                showError('No Team B data available');
-            }
-        });
-        
-        function generateInfographic(assignments, teamName) {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            const width = 900;
-            const rowHeight = 45;
-            const headerHeight = 60;
-            const titleHeight = 80;
-            const numRows = assignments.length;
-            const mapHeight = 300; // Space for map
-            
-            const height = titleHeight + headerHeight + (numRows * rowHeight) + mapHeight + 100;
-            
-            canvas.width = width;
-            canvas.height = height;
-            
-            // Priority colors
-            const priorityColors = {
-                1: '#FFB6C1', 2: '#FFB6C1',
-                3: '#90EE90', 4: '#ADD8E6',
-                5: '#ADD8E6', 6: '#90EE90'
-            };
-            
-            // White background
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, width, height);
-            
-            // Title
-            const gradient = ctx.createLinearGradient(0, 0, width, titleHeight);
-            gradient.addColorStop(0, '#FF6B35');
-            gradient.addColorStop(0.5, '#F7931E');
-            gradient.addColorStop(1, '#FDC830');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, titleHeight);
-            
-            ctx.font = 'bold 36px Arial';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.textAlign = 'center';
-            ctx.fillText(`${teamName} - DESERT STORM`, width/2, titleHeight/2 + 12);
-            
-            let yPos = titleHeight;
-            
-            // Columns
-            const columns = [
-                {name: 'Buildig Name', width: 400, align: 'left'},
-                {name: 'Priority', width: 150, align: 'center'},
-                {name: 'Player name', width: 350, align: 'left'}
-            ];
-            
-            // Header
-            ctx.fillStyle = '#34495E';
-            ctx.fillRect(0, yPos, width, headerHeight);
-            
-            let xPos = 0;
-            ctx.font = 'bold 14px Arial';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#000000';
-            
-            columns.forEach(col => {
-                ctx.beginPath();
-                ctx.moveTo(xPos, yPos);
-                ctx.lineTo(xPos, yPos + headerHeight);
-                ctx.stroke();
-                
-                ctx.textAlign = col.align;
-                const textX = col.align === 'center' ? xPos + col.width/2 : xPos + 10;
-                ctx.fillText(col.name, textX, yPos + headerHeight/2 + 5);
-                
-                xPos += col.width;
-            });
-            
-            ctx.beginPath();
-            ctx.moveTo(width, yPos);
-            ctx.lineTo(width, yPos + headerHeight);
-            ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.moveTo(0, yPos + headerHeight);
-            ctx.lineTo(width, yPos + headerHeight);
-            ctx.stroke();
-            
-            yPos += headerHeight;
-            
-            // Data rows
-            ctx.font = '12px Arial';
-            ctx.lineWidth = 1;
-            ctx.fillStyle = '#000000';
-            
-            assignments.forEach(row => {
-                const bgColor = priorityColors[row.priority] || '#FFFFFF';
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, yPos, width, rowHeight);
-                
-                ctx.fillStyle = '#000000';
-                
-                const rowData = [
-                    {text: row.building || '', width: columns[0].width, align: columns[0].align},
-                    {text: row.priority ? String(row.priority) : '', width: columns[1].width, align: columns[1].align},
-                    {text: row.player || '', width: columns[2].width, align: columns[2].align}
-                ];
-                
-                xPos = 0;
-                rowData.forEach(cell => {
-                    ctx.beginPath();
-                    ctx.moveTo(xPos, yPos);
-                    ctx.lineTo(xPos, yPos + rowHeight);
-                    ctx.stroke();
-                    
-                    ctx.textAlign = cell.align;
-                    const textX = cell.align === 'center' ? xPos + cell.width/2 : xPos + 10;
-                    ctx.fillText(cell.text, textX, yPos + rowHeight/2 + 4);
-                    
-                    xPos += cell.width;
-                });
-                
-                ctx.beginPath();
-                ctx.moveTo(width, yPos);
-                ctx.lineTo(width, yPos + rowHeight);
-                ctx.stroke();
-                
-                ctx.beginPath();
-                ctx.moveTo(0, yPos + rowHeight);
-                ctx.lineTo(width, yPos + rowHeight);
-                ctx.stroke();
-                
-                yPos += rowHeight;
-            });
-            
-            // Add map at bottom
-            yPos += 20;
-            const mapImg = new Image();
-            mapImg.onload = function() {
-                const mapWidth = width - 100;
-                const mapAspectRatio = mapImg.height / mapImg.width;
-                const finalMapHeight = mapWidth * mapAspectRatio;
-                
-                ctx.drawImage(mapImg, 50, yPos, mapWidth, finalMapHeight);
-                
-                // Map title
-                ctx.font = 'bold 18px Arial';
-                ctx.fillStyle = '#34495E';
-                ctx.textAlign = 'center';
-                ctx.fillText('DESERT STORM BATTLEFIELD MAP', width/2, yPos - 5);
-                
-                // Download after map is loaded
-                canvas.toBlob(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${teamName.toLowerCase().replace(' ', '_')}_desert_storm.png`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                });
-            };
-            
-            // Base64 encoded map image
-            mapImg.src = 'data:image/jpeg;base64,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';
-        }
-        
-        // Download Template
-        document.getElementById('downloadTemplate').addEventListener('click', () => {
-            const wb = XLSX.utils.book_new();
-            
-            // Players sheet template
-            const playersData = [
-                ['INSTRUCTIONS FOR DESERT STORM:'],
-                ['Mark "Y" in column J (Desert  Storm - Team A) for Team A eligibility'],
-                ['Mark "Y" in column L (Desert  Storm -Team B) for Team B eligibility'],
-                ['Fill in E1 troops (Tank/Aero/Missile) and E1 total power'],
-                [''],
-                ['', 'Player Name', 'Total Hero Power(M)', 'E1 troops', 'E1 total power(M)', 'Canon Battlefield - Team A', 'Canon Battlefield - Team A(SUB)', 'Canon Battlefield - Team B', 'Canon Battlefield - Team B(SUB)', 'Desert  Storm - Team A', 'Desert  Storm - Team A(SUB)', 'Desert  Storm -Team B', 'Desert  Storm -Team B(SUB)'],
-                [1, 'Example Player', '', 'Tank', 65.0, '', '', '', '', 'Y', '', '', ''],
-            ];
-            const wsPlayers = XLSX.utils.aoa_to_sheet(playersData);
-            wsPlayers['!cols'] = [
-                {wch: 8}, {wch: 20}, {wch: 18}, {wch: 12}, {wch: 18},
-                {wch: 25}, {wch: 28}, {wch: 25}, {wch: 28}, {wch: 23},
-                {wch: 26}, {wch: 20}, {wch: 23}
-            ];
-            XLSX.utils.book_append_sheet(wb, wsPlayers, 'Players');
-            
-            // Team A sheet - exact structure
-            const teamAData = [
-                ['Buildig Name', 'Priority', 'Player name'],
-                ['Info center', 5, ''],
-                ['Info center', 6, ''],
-                ['Oil Rafinery 1', 3, ''],
-                ['Oil Rafinery 1', 4, ''],
-                ['Oil Rafinery 2', 3, ''],
-                ['Oil Rafinery 2', 4, ''],
-                ['Hopsital 1', 4, ''],
-                ['Hopsital 1', 5, ''],
-                ['Hopsital 2', 4, ''],
-                ['Hopsital 2', 5, ''],
-                ['Hopsital 3', 4, ''],
-                ['Hopsital 3', 5, ''],
-                ['Hopsital 4', 4, ''],
-                ['Hopsital 4', 5, ''],
-                ['Science Hub', 2, ''],
-                ['Science Hub', 2, ''],
-                ['Bomb Squad', 1, ''],
-                ['Bomb Squad', 1, ''],
-                ['Bomb Squad', 1, ''],
-                ['Bomb Squad', 1, ''],
-            ];
-            const wsTeamA = XLSX.utils.aoa_to_sheet(teamAData);
-            wsTeamA['!cols'] = [{wch: 20}, {wch: 10}, {wch: 25}];
-            XLSX.utils.book_append_sheet(wb, wsTeamA, 'Desert Storm- Team A');
-            
-            // Team B sheet - exact structure
-            const teamBData = [
-                ['Buildig Name', 'Priority', 'Player name'],
-                ['Info center', 5, ''],
-                ['Info center', 6, ''],
-                ['Oil Rafinery 1', 3, ''],
-                ['Oil Rafinery 1', 4, ''],
-                ['Oil Rafinery 2', 3, ''],
-                ['Oil Rafinery 2', 4, ''],
-                ['Hopsital 1', 4, ''],
-                ['Hopsital 1', 5, ''],
-                ['Hopsital 2', 4, ''],
-                ['Hopsital 2', 5, ''],
-                ['Hopsital 3', 4, ''],
-                ['Hopsital 3', 5, ''],
-                ['Hopsital 4', 4, ''],
-                ['Hopsital 4', 5, ''],
-                ['Science Hub', 2, ''],
-                ['Science Hub', 2, ''],
-                ['Bomb Squad', 1, ''],
-                ['Bomb Squad', 1, ''],
-                ['Bomb Squad', 1, ''],
-                ['Bomb Squad', 1, ''],
-            ];
-            const wsTeamB = XLSX.utils.aoa_to_sheet(teamBData);
-            wsTeamB['!cols'] = [{wch: 20}, {wch: 10}, {wch: 25}];
-            XLSX.utils.book_append_sheet(wb, wsTeamB, 'Desert Storm- Team B');
-            
-            XLSX.writeFile(wb, 'desert_storm_template.xlsx');
-        });
-    </script>
-</body>
-</html>
+        // Preload map image
+        mapImage = new Image();
+        mapImage.src = 'data:image/jpeg;base64,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
