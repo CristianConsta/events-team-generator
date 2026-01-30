@@ -69,7 +69,7 @@
         
         <div class="card">
             <h2>📥 Step 1: Download Template (Optional)</h2>
-            <p class="info">Or use your existing Excel file with Y markers</p>
+            <p class="info">Template has simplified columns. Your existing file will work as-is.</p>
             <button class="secondary" onclick="downloadTemplate()">⬇️ Download Template</button>
             <div id="templateStatus"></div>
         </div>
@@ -78,7 +78,7 @@
             <h2>📤 Step 2: Upload Your File</h2>
             <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
                 <h3>Click to Upload</h3>
-                <p>Upload your Excel file (must have Y markers in Desert Storm columns)</p>
+                <p>Upload your Excel file with Desert Storm team selections</p>
             </div>
             <input type="file" id="fileInput" accept=".xlsx,.xls">
             <div id="uploadStatus"></div>
@@ -132,12 +132,12 @@
                 const wb = XLSX.utils.book_new();
                 
                 const playersData = [
-                    ['Mark players with Y in column J (Team A) or L (Team B)'],
+                    ['Mark players with checkbox (1=checked) in column F (Team A) or G (Team B)'],
                     [''],
-                    ['', 'Player Name', 'Total Hero Power(M)', 'E1 troops', 'E1 total power(M)', 'Canon Battlefield - Team A', 'Canon Battlefield - Team A(SUB)', 'Canon Battlefield - Team B', 'Canon Battlefield - Team B(SUB)', 'Desert  Storm - Team A', 'Desert  Storm - Team A(SUB)', 'Desert  Storm -Team B', 'Desert  Storm -Team B(SUB)'],
-                    [1, 'Player 1', 95, 'Tank', 65, '', '', '', '', 'Y', '', '', ''],
-                    [2, 'Player 2', 88, 'Aero', 58, '', '', '', '', 'Y', '', '', ''],
-                    [3, 'Player 3', 82, 'Missile', 52, '', '', '', '', '', '', 'Y', ''],
+                    ['', 'Player Name', 'Total Hero Power(M)', 'E1 troops', 'E1 total power(M)', 'Desert  Storm - Team A', 'Desert  Storm -Team B'],
+                    [1, 'Player 1', 95, 'Tank', 65, 1, 0],
+                    [2, 'Player 2', 88, 'Aero', 58, 1, 0],
+                    [3, 'Player 3', 82, 'Missile', 52, 0, 1],
                 ];
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(playersData), 'Players');
                 
@@ -149,7 +149,7 @@
                     ['Science Hub', 2, ''], ['Science Hub', 2, ''],
                     ['Field Hospital 2', 3, ''], ['Field Hospital 2', 3, ''],
                     ['Field Hospital 3', 3, ''], ['Field Hospital 3', 3, ''],
-                    ['Field Hopsital 1', 3, ''],
+                    ['Field Hospital 1', 3, ''],
                     ['Field Hospital 1', 3, ''],
                     ['Field Hospital 4', 3, ''], ['Field Hospital 4', 3, ''],
                     ['Info center', 4, ''], ['Info center', 4, ''],
@@ -179,9 +179,17 @@
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
                     
-                    const players = XLSX.utils.sheet_to_json(workbook.Sheets['Players']);
+                    // Read Players sheet - skip first 2 rows, use row 3 as header
+                    const playersSheet = workbook.Sheets['Players'];
+                    const playersData = XLSX.utils.sheet_to_json(playersSheet, {range: 2}); // Start from row 3 (0-indexed = 2)
+                    
+                    const players = playersData;
                     const teamABuildings = XLSX.utils.sheet_to_json(workbook.Sheets['Desert Storm- Team A']);
                     const teamBBuildings = XLSX.utils.sheet_to_json(workbook.Sheets['Desert Storm- Team B']);
+                    
+                    console.log('Players loaded:', players.length);
+                    console.log('Sample player:', players[0]);
+                    console.log('Columns:', Object.keys(players[0]));
                     
                     assignmentsA = assignPlayers(players, teamABuildings, 'Desert  Storm - Team A');
                     assignmentsB = assignPlayers(players, teamBBuildings, 'Desert  Storm -Team B');
@@ -190,7 +198,7 @@
                     const countB = assignmentsB.filter(a => a.player).length;
                     
                     if (countA === 0 && countB === 0) {
-                        statusDiv.innerHTML = '<div class="message warning">⚠️ NO PLAYERS! Add Y markers in Desert Storm columns.</div>';
+                        statusDiv.innerHTML = '<div class="message warning">⚠️ NO PLAYERS! Mark players in Desert Storm - Team A or Team B columns.</div>';
                         return;
                     }
                     
@@ -209,8 +217,19 @@
         });
         
         function assignPlayers(players, buildings, teamColumn) {
-            const eligible = players.filter(p => p[teamColumn] === 'Y')
-                .sort((a, b) => (b['E1 total power(M)'] || 0) - (a['E1 total power(M)'] || 0));
+            console.log(`Checking ${teamColumn} for selected players...`);
+            
+            // Handle checkbox values: 1, true, 'Y', 'TRUE' = selected
+            const eligible = players.filter(p => {
+                const val = p[teamColumn];
+                const isSelected = val === 1 || val === true || val === 'Y' || val === 'TRUE' || val === 1.0;
+                if (isSelected) {
+                    console.log(`  ✓ ${p['Player Name']}: ${val} (${typeof val})`);
+                }
+                return isSelected;
+            }).sort((a, b) => (b['E1 total power(M)'] || 0) - (a['E1 total power(M)'] || 0));
+            
+            console.log(`Found ${eligible.length} eligible players for ${teamColumn}`);
             
             const sorted = buildings.sort((a, b) => a.Priority - b.Priority);
             return sorted.map((building, idx) => ({
