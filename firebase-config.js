@@ -33,7 +33,7 @@
 // YOUR FIREBASE CONFIGURATION
 // After regenerating, update the apiKey below with your NEW key
 const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyDUOzUfPpGPyPAGAgG3UC9bzzPGsRg3RKw",  // ⚠️ REGENERATE THIS KEY!
+    apiKey: "AIzaSyCRnf1_04bcwr4Kf8pOauWjnNEzKiQD2ik",  // ⚠️ REGENERATE THIS KEY!
     authDomain: "last-war-game-desert-storm.firebaseapp.com",
     projectId: "last-war-game-desert-storm",
     storageBucket: "last-war-game-desert-storm.firebasestorage.app",
