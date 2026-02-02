@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Desert Storm - Final Solution</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="firebase-module.js"></script>
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -64,6 +71,52 @@
     </style>
 </head>
 <body>
+<!-- Login Screen -->
+<div id="loginScreen" style="display: none;">
+    <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h1 style="text-align: center; color: #333;">🏜️ Desert Storm</h1>
+        <h3 style="text-align: center; color: #666; margin-bottom: 30px;">Sign in to continue</h3>
+        
+        <!-- Google Sign-In -->
+        <button onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
+            🔵 Sign in with Google
+        </button>
+        
+        <div style="text-align: center; margin: 20px 0; color: #999;">or</div>
+        
+        <!-- Email/Password Sign-In -->
+        <input type="email" id="emailInput" placeholder="Email" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+        <input type="password" id="passwordInput" placeholder="Password" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+        
+        <button onclick="handleEmailSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
+            Sign In
+        </button>
+        
+        <button onclick="showSignUpForm()" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
+            Create New Account
+        </button>
+        
+        <button onclick="handlePasswordReset()" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
+            Forgot Password?
+        </button>
+        
+        <div id="statusMessage" style="margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; display: none;"></div>
+    </div>
+</div>
+
+<div id="mainApp" style="display: none;">
+    <!-- User Header -->
+    <div style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; max-width: 900px; margin: 0 auto 20px auto;">
+        <div>
+            <span id="userEmail" style="color: #FDC830; font-weight: bold;"></span>
+            <span id="playerCount" style="color: #fff; margin-left: 20px;"></span>
+            <span id="syncStatus" style="color: #90EE90; margin-left: 20px;">☁️ Synced</span>
+        </div>
+        <button onclick="handleSignOut()" style="padding: 8px 20px; background: #FF6B35; color: white; border: none; border-radius: 8px; cursor: pointer;">
+            Sign Out
+        </button>
+    </div>
+
     <div class="container">
         <h1>🏜️ DESERT STORM</h1>
         
@@ -97,8 +150,96 @@
             <div id="downloadStatus"></div>
         </div>
     </div>
-
+</div>
     <script>
+
+// ============================================================
+// FIREBASE INTEGRATION
+// ============================================================
+
+FirebaseManager.setAuthCallback((isSignedIn, user) => {
+    if (isSignedIn) {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        document.getElementById('userEmail').textContent = user.email;
+        updatePlayerCount();
+    } else {
+        document.getElementById('loginScreen').style.display = 'block';
+        document.getElementById('mainApp').style.display = 'none';
+    }
+});
+
+async function handleGoogleSignIn() {
+    const result = await FirebaseManager.signInWithGoogle();
+    if (!result.success) {
+        alert('Sign-in failed: ' + result.error);
+    }
+}
+
+async function handleEmailSignIn() {
+    const email = document.getElementById('emailInput').value;
+    const password = document.getElementById('passwordInput').value;
+    if (!email || !password) {
+        alert('Please enter email and password');
+        return;
+    }
+    const result = await FirebaseManager.signInWithEmail(email, password);
+    if (!result.success) {
+        alert('Sign-in failed: ' + result.error);
+    }
+}
+
+function showSignUpForm() {
+    const email = document.getElementById('emailInput').value;
+    const password = document.getElementById('passwordInput').value;
+    if (!email || !password) {
+        alert('Please enter email and password');
+        return;
+    }
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+    }
+    if (confirm('Create new account with: ' + email)) {
+        handleSignUp(email, password);
+    }
+}
+
+async function handleSignUp(email, password) {
+    const result = await FirebaseManager.signUpWithEmail(email, password);
+    if (result.success) {
+        alert('Account created! Check your email for verification.');
+    } else {
+        alert('Sign-up failed: ' + result.error);
+    }
+}
+
+async function handlePasswordReset() {
+    const email = document.getElementById('emailInput').value;
+    if (!email) {
+        alert('Please enter your email address');
+        return;
+    }
+    const result = await FirebaseManager.resetPassword(email);
+    if (result.success) {
+        alert('Password reset email sent!');
+    } else {
+        alert('Failed: ' + result.error);
+    }
+}
+
+async function handleSignOut() {
+    if (confirm('Sign out?')) {
+        await FirebaseManager.signOut();
+    }
+}
+
+function updatePlayerCount() {
+    const count = FirebaseManager.getPlayerCount();
+    document.getElementById('playerCount').textContent = count + ' players stored';
+}
+
+// Continue with your existing JavaScript...
         let assignmentsA = [];
         let assignmentsB = [];
         let mapLoaded = false;
