@@ -275,7 +275,8 @@ const FirebaseManager = (function() {
                     }
                     
                     const sheet = workbook.Sheets['Players'];
-                    const players = XLSX.utils.sheet_to_json(sheet);
+                    // Headers at row 10, so start reading from row 10 (0-indexed = 9)
+                    const players = XLSX.utils.sheet_to_json(sheet, {range: 9});
                     
                     // Clear existing database
                     playerDatabase = {};
