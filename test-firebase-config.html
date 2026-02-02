@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Config Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .test { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #ccc; }
+        .pass { border-left-color: #4CAF50; }
+        .fail { border-left-color: #f44336; }
+        .warning { border-left-color: #ff9800; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        h2 { color: #333; }
+    </style>
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <h1>🔍 Firebase Configuration Diagnostic</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        const results = [];
+        
+        // Test 1: Check if FIREBASE_CONFIG exists
+        if (typeof FIREBASE_CONFIG !== 'undefined') {
+            results.push({
+                status: 'pass',
+                title: 'Test 1: Config File Loaded',
+                message: '✅ firebase-config.js is loaded successfully'
+            });
+        } else {
+            results.push({
+                status: 'fail',
+                title: 'Test 1: Config File Loaded',
+                message: '❌ firebase-config.js NOT found! Make sure it\'s in the same folder.'
+            });
+        }
+        
+        // Test 2: Check API key exists
+        if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey) {
+            const key = FIREBASE_CONFIG.apiKey;
+            results.push({
+                status: 'pass',
+                title: 'Test 2: API Key Present',
+                message: `✅ API Key found: ${key.substring(0, 20)}...`
+            });
+            
+            // Test 3: Check if it's the OLD exposed key
+            const exposedKey = 'AIzaSyDOpgLIoUwh5r3xFL9GultXkVaTrUq4xe0';
+            if (key === exposedKey) {
+                results.push({
+                    status: 'fail',
+                    title: 'Test 3: API Key Status',
+                    message: '❌ PROBLEM FOUND! You\'re still using the OLD EXPOSED API key!',
+                    detail: 'This is why authentication fails. You MUST create a NEW API key.'
+                });
+            } else {
+                results.push({
+                    status: 'pass',
+                    title: 'Test 3: API Key Status',
+                    message: '✅ Using a different API key (not the exposed one)'
+                });
+            }
+        } else {
+            results.push({
+                status: 'fail',
+                title: 'Test 2: API Key Present',
+                message: '❌ API Key not found in config'
+            });
+        }
+        
+        // Test 4: Check all required fields
+        if (typeof FIREBASE_CONFIG !== 'undefined') {
+            const required = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+            const missing = required.filter(field => !FIREBASE_CONFIG[field]);
+            
+            if (missing.length === 0) {
+                results.push({
+                    status: 'pass',
+                    title: 'Test 4: Config Complete',
+                    message: '✅ All required fields present'
+                });
+            } else {
+                results.push({
+                    status: 'fail',
+                    title: 'Test 4: Config Complete',
+                    message: `❌ Missing fields: ${missing.join(', ')}`
+                });
+            }
+        }
+        
+        // Test 5: Check project ID
+        if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.projectId) {
+            const expectedProject = 'last-war-game-desert-storm';
+            if (FIREBASE_CONFIG.projectId === expectedProject) {
+                results.push({
+                    status: 'pass',
+                    title: 'Test 5: Project ID',
+                    message: `✅ Correct project: ${expectedProject}`
+                });
+            } else {
+                results.push({
+                    status: 'warning',
+                    title: 'Test 5: Project ID',
+                    message: `⚠️ Different project: ${FIREBASE_CONFIG.projectId}`
+                });
+            }
+        }
+        
+        // Display results
+        const container = document.getElementById('results');
+        results.forEach(result => {
+            const div = document.createElement('div');
+            div.className = `test ${result.status}`;
+            div.innerHTML = `
+                <h2>${result.title}</h2>
+                <p><strong>${result.message}</strong></p>
+                ${result.detail ? `<p>${result.detail}</p>` : ''}
+            `;
+            container.appendChild(div);
+        });
+        
+        // Show complete config
+        if (typeof FIREBASE_CONFIG !== 'undefined') {
+            const configDiv = document.createElement('div');
+            configDiv.className = 'test';
+            configDiv.innerHTML = `
+                <h2>Complete Configuration:</h2>
+                <pre>${JSON.stringify(FIREBASE_CONFIG, null, 2)}</pre>
+            `;
+            container.appendChild(configDiv);
+        }
+        
+        // Show instructions
+        const hasOldKey = typeof FIREBASE_CONFIG !== 'undefined' && 
+                          FIREBASE_CONFIG.apiKey === 'AIzaSyDOpgLIoUwh5r3xFL9GultXkVaTrUq4xe0';
+        
+        if (hasOldKey) {
+            const instructionsDiv = document.createElement('div');
+            instructionsDiv.className = 'test fail';
+            instructionsDiv.innerHTML = `
+                <h2>🚨 REQUIRED ACTION:</h2>
+                <p><strong>You MUST create a NEW API key. The old one is expired/compromised.</strong></p>
+                <ol>
+                    <li>Go to: <a href="https://console.cloud.google.com/apis/credentials?project=last-war-game-desert-storm" target="_blank">Google Cloud Credentials</a></li>
+                    <li>Click <strong>"+ CREATE CREDENTIALS"</strong></li>
+                    <li>Select <strong>"API key"</strong></li>
+                    <li>Copy the NEW key immediately</li>
+                    <li>Click <strong>"RESTRICT KEY"</strong></li>
+                    <li>Set API restrictions to <strong>"Don't restrict key"</strong></li>
+                    <li>Click <strong>"SAVE"</strong></li>
+                    <li>Update <code>firebase-config.js</code> with the NEW key</li>
+                    <li>Refresh this page to verify</li>
+                </ol>
+            `;
+            container.appendChild(instructionsDiv);
+        }
+    </script>
+</body>
+</html>
