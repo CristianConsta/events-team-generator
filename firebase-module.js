@@ -17,15 +17,19 @@
 
 const FirebaseManager = (function() {
     
-    // Firebase configuration
-    const firebaseConfig = {
-        apiKey: "AIzaSyDOpgLIoUwh5r3xFL9GultXkVaTrUq4xe0",
-        authDomain: "last-war-game-desert-storm.firebaseapp.com",
-        projectId: "last-war-game-desert-storm",
-        storageBucket: "last-war-game-desert-storm.firebasestorage.app",
-        messagingSenderId: "481454789926",
-        appId: "1:481454789926:web:6b9be1afec0fa0d1045de7"
-    };
+    // Firebase configuration - loaded from firebase-config.js
+    // DO NOT hardcode your API key here - use firebase-config.js instead
+    let firebaseConfig = null;
+    
+    // Check if config is loaded from firebase-config.js
+    if (typeof FIREBASE_CONFIG !== 'undefined') {
+        firebaseConfig = FIREBASE_CONFIG;
+        console.log('✅ Firebase config loaded from firebase-config.js');
+    } else {
+        console.error('❌ Firebase config not found!');
+        console.error('Please create firebase-config.js with your Firebase credentials');
+        alert('Firebase configuration missing! Please create firebase-config.js file.');
+    }
     
     // Private variables
     let auth = null;
@@ -40,6 +44,10 @@ const FirebaseManager = (function() {
      */
     function init() {
         try {
+            if (!firebaseConfig) {
+                throw new Error('Firebase configuration not loaded. Please create firebase-config.js');
+            }
+            
             firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
             db = firebase.firestore();

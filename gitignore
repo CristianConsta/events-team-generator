@@ -1,0 +1,22 @@
+# Firebase Configuration (contains API keys)
+firebase-config.js
+firebase-config-YOUR-CREDENTIALS.js
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Editor Files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary Files
+*.tmp
+*.temp
