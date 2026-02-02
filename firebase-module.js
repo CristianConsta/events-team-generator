@@ -283,18 +283,26 @@ const FirebaseManager = (function() {
                     
                     // Add players to database
                     let addedCount = 0;
+                    let skippedCount = 0;
+                    const skippedPlayers = [];
+                    
                     players.forEach(row => {
                         const name = row['Player Name'];
                         const power = row['E1 Total Power(M)'];
                         const troops = row['E1 Troops'];
                         
-                        if (name && power && troops) {
+                        // Only require name (power and troops are optional)
+                        if (name) {
                             playerDatabase[name] = {
-                                power: parseFloat(power),
-                                troops: troops,
+                                power: power ? parseFloat(power) : 0, // Default to 0 if power missing
+                                troops: troops || 'Unknown', // Default to 'Unknown' if troops missing
                                 lastUpdated: new Date().toISOString()
                             };
                             addedCount++;
+                        } else {
+                            // Track skipped players (only if name is missing)
+                            skippedCount++;
+                            skippedPlayers.push(`Row with no name (power: ${power || 'none'}, troops: ${troops || 'none'})`);
                         }
                     });
                     
@@ -303,10 +311,20 @@ const FirebaseManager = (function() {
                     
                     if (saveResult.success) {
                         console.log(`✅ Uploaded ${addedCount} players`);
+                        if (skippedCount > 0) {
+                            console.warn(`⚠️ Skipped ${skippedCount} rows with no player name:`, skippedPlayers);
+                        }
+                        
+                        let message = `✅ ${addedCount} players stored in cloud`;
+                        if (skippedCount > 0) {
+                            message += ` (${skippedCount} skipped - missing name)`;
+                        }
+                        
                         resolve({ 
                             success: true, 
                             playerCount: addedCount,
-                            message: `✅ ${addedCount} players stored in cloud`
+                            skippedCount: skippedCount,
+                            message: message
                         });
                     } else {
                         reject(saveResult);
