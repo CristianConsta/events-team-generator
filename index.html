@@ -465,32 +465,49 @@
         
         // Load desert storm map
         const mapImage = new Image();
-        mapImage.crossOrigin = "anonymous"; // Try to handle CORS
+        mapImage.crossOrigin = "anonymous"; // Enable CORS
         let mapLoadRetries = 0;
         const maxRetries = 3;
         
-        mapImage.onload = () => { 
-            mapLoaded = true; 
-            console.log('✅ Map loaded successfully');
-        };
+        function loadMapImage() {
+            return new Promise((resolve, reject) => {
+                mapImage.onload = () => { 
+                    mapLoaded = true; 
+                    console.log('✅ Map loaded successfully');
+                    resolve(true);
+                };
+                
+                mapImage.onerror = () => {
+                    console.error('❌ Map failed to load, attempt:', mapLoadRetries + 1);
+                    
+                    if (mapLoadRetries < maxRetries) {
+                        mapLoadRetries++;
+                        console.log('Retrying map load...');
+                        setTimeout(() => {
+                            // Try without CORS first, then with
+                            if (mapLoadRetries === 1) {
+                                mapImage.crossOrigin = null;
+                            } else {
+                                mapImage.crossOrigin = "anonymous";
+                            }
+                            mapImage.src = 'https://i.imgur.com/9KYZXlG.png?' + Date.now();
+                        }, 1000 * mapLoadRetries);
+                    } else {
+                        alert('⚠️ Map image failed to load after ' + maxRetries + ' attempts. Downloads will not include the map background. Please check your internet connection or try refreshing the page.');
+                        console.error('Map loading failed after', maxRetries, 'attempts');
+                        reject(false);
+                    }
+                };
+                
+                // Start loading
+                mapImage.src = 'https://i.imgur.com/9KYZXlG.png';
+            });
+        }
         
-        mapImage.onerror = () => {
-            console.error('❌ Map failed to load, attempt:', mapLoadRetries + 1);
-            
-            if (mapLoadRetries < maxRetries) {
-                mapLoadRetries++;
-                console.log('Retrying map load...');
-                setTimeout(() => {
-                    mapImage.src = 'https://i.imgur.com/9KYZXlG.png?' + Date.now(); // Add cache buster
-                }, 1000 * mapLoadRetries);
-            } else {
-                alert('⚠️ Map image failed to load after ' + maxRetries + ' attempts. Downloads will not include the map background. Please check your internet connection or try refreshing the page.');
-                console.error('Map loading failed after', maxRetries, 'attempts');
-            }
-        };
-        
-        // Start loading the map
-        mapImage.src = 'https://i.imgur.com/9KYZXlG.png';
+        // Start loading map immediately
+        loadMapImage().catch(() => {
+            console.warn('Map failed to load, continuing without it');
+        });
         
         // Building positions and colors
         const buildingPositions = {
@@ -1072,14 +1089,101 @@
                 return;
             }
             
+            const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+            
             if (!mapLoaded) {
-                const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
-                showMessage(statusId, '⏳ Loading map image...', 'processing');
-                setTimeout(() => downloadTeamMap(team), 500);
+                showMessage(statusId, '⏳ Waiting for map to load...', 'processing');
+                // Wait up to 10 seconds for map to load
+                let waitTime = 0;
+                const checkInterval = setInterval(() => {
+                    waitTime += 500;
+                    if (mapLoaded) {
+                        clearInterval(checkInterval);
+                        generateMap(team, assignments, statusId);
+                    } else if (waitTime >= 10000) {
+                        clearInterval(checkInterval);
+                        if (confirm('Map image is still loading. Generate without map background?')) {
+                            generateMapWithoutBackground(team, assignments, statusId);
+                        } else {
+                            showMessage(statusId, '⚠️ Cancelled. Refresh page to retry loading map.', 'warning');
+                        }
+                    }
+                }, 500);
                 return;
             }
             
-            const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+            generateMap(team, assignments, statusId);
+        }
+        
+        function generateMapWithoutBackground(team, assignments, statusId) {
+            showMessage(statusId, `🎨 Generating Team ${team} map (no background)...`, 'processing');
+            
+            try {
+                const grouped = {};
+                const bombSquad = [];
+                
+                assignments.forEach(a => {
+                    if (!a.player) return;
+                    if (a.building === 'Bomb Squad') {
+                        bombSquad.push(a);
+                    } else {
+                        if (!grouped[a.building]) grouped[a.building] = [];
+                        grouped[a.building].push(a);
+                    }
+                });
+                
+                // Create simplified version without map
+                const canvas = document.createElement('canvas');
+                canvas.width = 1080;
+                canvas.height = 800;
+                const ctx = canvas.getContext('2d');
+                
+                // Background
+                ctx.fillStyle = team === 'A' ? '#E8F4FF' : '#FFE8E8';
+                ctx.fillRect(0, 0, 1080, 800);
+                
+                // Title
+                const grad = ctx.createLinearGradient(0, 0, 1080, 100);
+                grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
+                grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 1080, 100);
+                
+                ctx.font = 'bold 48px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.fillText(`TEAM ${team} - DESERT STORM`, 540, 60);
+                
+                // List assignments
+                ctx.fillStyle = '#333';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'left';
+                let y = 150;
+                
+                assignments.forEach((a, i) => {
+                    if (a.player) {
+                        ctx.fillText(`${i+1}. ${a.player} → ${a.building}`, 50, y);
+                        y += 30;
+                    }
+                });
+                
+                // Download
+                const dataURL = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = `team_${team}_desert_storm_nomap.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                showMessage(statusId, `✅ Team ${team} downloaded (list format - no map)`, 'success');
+            } catch (error) {
+                console.error(error);
+                showMessage(statusId, '❌ ' + error.message, 'error');
+            }
+        }
+        
+        function generateMap(team, assignments, statusId) {
             showMessage(statusId, `🎨 Generating Team ${team} map...`, 'processing');
             
             try {
