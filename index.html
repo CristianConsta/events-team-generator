@@ -10,6 +10,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
     <script src="firebase-module.js"></script>
 
     <style>
@@ -217,6 +218,31 @@
             box-shadow: none;
         }
         
+        /* Floating Generate Buttons */
+        .floating-buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(180deg, rgba(26, 26, 46, 0) 0%, rgba(26, 26, 46, 0.95) 20%, rgba(26, 26, 46, 1) 100%);
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            z-index: 1000;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .floating-buttons button {
+            min-width: 280px;
+            padding: 18px 40px;
+            font-size: 18px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        .floating-buttons button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+        }
+        
         .message { padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; font-weight: bold; }
         .success { background: rgba(144, 238, 144, 0.2); border: 2px solid #90EE90; color: #90EE90; }
         .error { background: rgba(255, 107, 53, 0.2); border: 2px solid #FF6B35; color: #FF6B35; }
@@ -360,20 +386,8 @@
                 </div>
             </div>
             
-            <!-- Team A Section -->
-            <div id="teamASection" class="card">
-                <div class="team-section team-a-section">
-                    <h2 style="color: #4169E1;">Team A Assignments</h2>
-                    <p style="opacity: 0.9; margin-bottom: 20px;"><span id="teamASelectedCount">0</span> players selected for Team A</p>
-                    
-                    <div class="generate-section">
-                        <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
-                            🚀 Generate Team A Assignments
-                        </button>
-                        <p style="font-size: 14px; opacity: 0.7; margin-top: 10px;">Select 1-20 players to generate</p>
-                    </div>
-                </div>
-            </div>
+            <!-- Team A & B Sections removed - replaced with floating buttons -->
+            
             
             <!-- Team A Download Section -->
             <div id="downloadSectionA" class="card hidden">
@@ -393,19 +407,17 @@
                 </div>
             </div>
             
-            <!-- Team B Section -->
-            <div id="teamBSection" class="card">
-                <div class="team-section team-b-section">
-                    <h2 style="color: #DC143C;">Team B Assignments</h2>
-                    <p style="opacity: 0.9; margin-bottom: 20px;"><span id="teamBSelectedCount">0</span> players selected for Team B</p>
-                    
-                    <div class="generate-section">
-                        <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
-                            🚀 Generate Team B Assignments
-                        </button>
-                        <p style="font-size: 14px; opacity: 0.7; margin-top: 10px;">Select 1-20 players to generate</p>
-                    </div>
-                </div>
+            
+            <!-- Floating Generate Buttons -->
+            <div class="floating-buttons" id="floatingButtons" style="display: none;">
+                <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
+                    <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
+                    🚀 Generate Team A
+                </button>
+                <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
+                    <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
+                    🚀 Generate Team B
+                </button>
             </div>
             
             <!-- Team B Download Section -->
@@ -425,6 +437,16 @@
                     <div id="downloadStatusB"></div>
                 </div>
             </div>
+        </div>
+        
+        <!-- Floating Generate Buttons -->
+        <div class="floating-buttons" id="floatingButtons" style="display: none;">
+            <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
+                🚀 Generate Team A (<span id="floatTeamACount">0</span>/20)
+            </button>
+            <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
+                🚀 Generate Team B (<span id="floatTeamBCount">0</span>/20)
+            </button>
         </div>
     </div>
 
@@ -464,8 +486,8 @@
         let uploadPanelExpanded = true;
         
         // Load desert storm map
+        // IMPORTANT: Put 'desert_storm_map.png' in the same folder as this HTML file
         const mapImage = new Image();
-        mapImage.crossOrigin = "anonymous"; // Enable CORS
         let mapLoadRetries = 0;
         const maxRetries = 3;
         
@@ -484,23 +506,17 @@
                         mapLoadRetries++;
                         console.log('Retrying map load...');
                         setTimeout(() => {
-                            // Try without CORS first, then with
-                            if (mapLoadRetries === 1) {
-                                mapImage.crossOrigin = null;
-                            } else {
-                                mapImage.crossOrigin = "anonymous";
-                            }
-                            mapImage.src = 'https://i.imgur.com/9KYZXlG.png?' + Date.now();
+                            mapImage.src = 'desert_storm_map.png?' + Date.now();
                         }, 1000 * mapLoadRetries);
                     } else {
-                        alert('⚠️ Map image failed to load after ' + maxRetries + ' attempts. Downloads will not include the map background. Please check your internet connection or try refreshing the page.');
+                        alert('⚠️ Map image not found! Please make sure "desert_storm_map.png" is in the same folder as this HTML file.');
                         console.error('Map loading failed after', maxRetries, 'attempts');
                         reject(false);
                     }
                 };
                 
-                // Start loading
-                mapImage.src = 'https://i.imgur.com/9KYZXlG.png';
+                // Load local map file (no CORS issues!)
+                mapImage.src = 'desert_storm_map.png';
             });
         }
         
@@ -509,28 +525,32 @@
             console.warn('Map failed to load, continuing without it');
         });
         
-        // Building positions and colors
+        // Building positions on the map (scaled for 1080px width from 2048x1446 original)
         const buildingPositions = {
-            'Info center': [308, 163],
-            'Oil Rafinery 1': [175, 274],
-            'Field Hospital 1': [167, 475],
-            'Field Hopsital 1': [167, 475],
-            'Field Hospital 3': [264, 587],
-            'Field Hospital 4': [794, 146],
-            'Field Hospital 2': [930, 247],
-            'Oil Rafinery 2': [920, 476],
-            'Science Hub': [820, 600],
+            'Info Center': [242, 95],
+            'Arsenal': [358, 111],
+            'Field Hospital 4': [474, 95],
+            'Oil Refinery 1': [137, 190],
+            'Nuclear Silo': [358, 242],
+            'Field Hospital 2': [527, 179],
+            'Oil Refinery 2': [580, 311],
+            'Field Hospital 1': [153, 311],
+            'Field Hospital 3': [200, 385],
+            'Mercenary Factory': [358, 385],
+            'Science Hub': [495, 395],
         };
         
         const buildingAnchors = {
-            'Info center': 'left',
-            'Oil Rafinery 1': 'left',
-            'Field Hospital 1': 'left',
-            'Field Hopsital 1': 'left',
-            'Field Hospital 3': 'left',
+            'Info Center': 'left',
+            'Arsenal': 'left',
             'Field Hospital 4': 'right',
+            'Oil Refinery 1': 'left',
+            'Nuclear Silo': 'left',
             'Field Hospital 2': 'right',
-            'Oil Rafinery 2': 'right',
+            'Oil Refinery 2': 'right',
+            'Field Hospital 1': 'left',
+            'Field Hospital 3': 'left',
+            'Mercenary Factory': 'left',
             'Science Hub': 'right',
         };
         
@@ -538,17 +558,19 @@
         const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)', 
                           4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' };
         
-        // Building definitions with priorities
+        // Building definitions with priorities (20 players total)
         const buildings = [
             { name: 'Bomb Squad', priority: 1, slots: 4 },
-            { name: 'Oil Rafinery 1', priority: 2, slots: 2 },
-            { name: 'Oil Rafinery 2', priority: 2, slots: 2 },
-            { name: 'Science Hub', priority: 2, slots: 2 },
-            { name: 'Field Hospital 2', priority: 3, slots: 2 },
-            { name: 'Field Hospital 3', priority: 3, slots: 2 },
-            { name: 'Field Hospital 1', priority: 3, slots: 2 },
-            { name: 'Field Hospital 4', priority: 3, slots: 2 },
-            { name: 'Info center', priority: 4, slots: 2 },
+            { name: 'Arsenal', priority: 2, slots: 2 },
+            { name: 'Nuclear Silo', priority: 2, slots: 2 },
+            { name: 'Oil Refinery 1', priority: 3, slots: 2 },
+            { name: 'Oil Refinery 2', priority: 3, slots: 2 },
+            { name: 'Field Hospital 1', priority: 4, slots: 2 },
+            { name: 'Field Hospital 2', priority: 4, slots: 2 },
+            { name: 'Field Hospital 3', priority: 4, slots: 1 },
+            { name: 'Field Hospital 4', priority: 4, slots: 1 },
+            { name: 'Info Center', priority: 5, slots: 1 },
+            { name: 'Science Hub', priority: 5, slots: 1 },
         ];
         
         // ============================================================
@@ -800,8 +822,7 @@
         
         function showSelectionInterface() {
             document.getElementById('selectionSection').classList.remove('hidden');
-            document.getElementById('teamASection').classList.remove('hidden');
-            document.getElementById('teamBSection').classList.remove('hidden');
+            document.getElementById('floatingButtons').style.display = 'flex';
             renderPlayersTable();
             updateTeamCounters();
         }
@@ -953,8 +974,8 @@
             
             document.getElementById('teamACount').textContent = teamACount;
             document.getElementById('teamBCount').textContent = teamBCount;
-            document.getElementById('teamASelectedCount').textContent = teamACount;
-            document.getElementById('teamBSelectedCount').textContent = teamBCount;
+            document.getElementById('teamAFloatCount').textContent = teamACount;
+            document.getElementById('teamBFloatCount').textContent = teamBCount;
             
             const teamACounter = document.querySelector('.counter.team-a');
             const teamBCounter = document.querySelector('.counter.team-b');
