@@ -486,7 +486,8 @@ const FirebaseManager = (function() {
         const wsMeta = XLSX.utils.aoa_to_sheet(metadata);
         XLSX.utils.book_append_sheet(wb, wsMeta, 'Metadata');
         
-        const filename = `backup_${currentUser.email.replace('@', '_')}_${Date.now()}.xlsx`;
+        const emailSlug = currentUser && currentUser.email ? currentUser.email.replace('@', '_') : 'unknown';
+        const filename = `backup_${emailSlug}_${Date.now()}.xlsx`;
         XLSX.writeFile(wb, filename);
         
         console.log('✅ Backup exported:', filename);

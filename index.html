@@ -837,6 +837,12 @@
             }, 100);
         }
         
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(String(str)));
+            return div.innerHTML;
+        }
+
         let googleSignInInProgress = false;
 
         async function handleGoogleSignIn() {
@@ -1431,30 +1437,30 @@
                 const teamADisabled = teamSelections.teamA.length >= 20 && !isTeamA;
                 const teamBDisabled = teamSelections.teamB.length >= 20 && !isTeamB;
                 
-                // Escape player name for use in onclick
-                const escapedName = player.name.replace(/'/g, "\\'");
-                
                 row.innerHTML = `
-                    <td><strong>${player.name}</strong></td>
+                    <td><strong>${escapeHtml(player.name)}</strong></td>
                     <td>${player.power}M</td>
-                    <td>${player.troops}</td>
+                    <td>${escapeHtml(player.troops)}</td>
                     <td>
                         <div class="team-buttons">
-                            <button class="team-btn team-a-btn ${isTeamA ? 'active' : ''}" 
-                                    onclick="toggleTeam('${escapedName}', 'A')"
+                            <button class="team-btn team-a-btn ${isTeamA ? 'active' : ''}"
                                     ${teamADisabled ? 'disabled' : ''}>
                                 Team A
                             </button>
-                            <button class="team-btn team-b-btn ${isTeamB ? 'active' : ''}" 
-                                    onclick="toggleTeam('${escapedName}', 'B')"
+                            <button class="team-btn team-b-btn ${isTeamB ? 'active' : ''}"
                                     ${teamBDisabled ? 'disabled' : ''}>
                                 Team B
                             </button>
-                            ${(isTeamA || isTeamB) ? '<button class="clear-btn" onclick="clearPlayerSelection(\'' + escapedName + '\')">Clear</button>' : ''}
+                            ${(isTeamA || isTeamB) ? '<button class="clear-btn">Clear</button>' : ''}
                         </div>
                     </td>
                 `;
-                
+
+                row.querySelector('.team-a-btn').addEventListener('click', () => toggleTeam(player.name, 'A'));
+                row.querySelector('.team-b-btn').addEventListener('click', () => toggleTeam(player.name, 'B'));
+                const clearBtn = row.querySelector('.clear-btn');
+                if (clearBtn) clearBtn.addEventListener('click', () => clearPlayerSelection(player.name));
+
                 tbody.appendChild(row);
             });
         }
