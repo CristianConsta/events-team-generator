@@ -264,204 +264,1108 @@
     </style>
 </head>
 <body>
-  <!-- Login Screen -->
-  <div id="loginScreen" style="display: none;">
-    <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-      <h1 style="text-align: center; color: #333;">🏜️ Desert Storm</h1>
-      <h3 style="text-align: center; color: #666; margin-bottom: 30px;">Sign in to continue</h3>
-      <button onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
-        🔵 Sign in with Google
-      </button>
-      <div style="text-align: center; margin: 20px 0; color: #999;">or</div>
-      <input type="email" id="emailInput" placeholder="Email" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-      <input type="password" id="passwordInput" placeholder="Password" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-      <button onclick="handleEmailSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
-        Sign In
-      </button>
-      <button onclick="showSignUpForm()" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
-        Create New Account
-      </button>
-      <button onclick="handlePasswordReset()" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
-        Forgot Password?
-      </button>
-      <div id="statusMessage" style="margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; display: none;"></div>
-    </div>
-  </div>
-
-  <!-- Main App -->
-  <div id="mainApp" style="display: none;">
-    <!-- User Header -->
-    <div style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 20px auto;">
-      <div>
-        <span id="userEmail" style="color: #FDC830; font-weight: bold;"></span>
-        <span id="playerCount" style="color: #fff; margin-left: 20px;"></span>
-        <span id="syncStatus" style="color: #90EE90; margin-left: 20px;">☁️ Synced</span>
-      </div>
-      <button onclick="handleSignOut()" style="padding: 8px 20px; background: #FF6B35; color: white; border: none; border-radius: 8px; cursor: pointer;">
-        Sign Out
-      </button>
+    <!-- Login Screen -->
+    <div id="loginScreen" style="display: none;">
+        <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h1 style="text-align: center; color: #333;">🏜️ Desert Storm</h1>
+            <h3 style="text-align: center; color: #666; margin-bottom: 30px;">Sign in to continue</h3>
+            
+            <button onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
+                🔵 Sign in with Google
+            </button>
+            
+            <div style="text-align: center; margin: 20px 0; color: #999;">or</div>
+            
+            <input type="email" id="emailInput" placeholder="Email" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+            <input type="password" id="passwordInput" placeholder="Password" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+            
+            <button onclick="handleEmailSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
+                Sign In
+            </button>
+            
+            <button onclick="showSignUpForm()" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
+                Create New Account
+            </button>
+            
+            <button onclick="handlePasswordReset()" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
+                Forgot Password?
+            </button>
+            
+            <div id="statusMessage" style="margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; display: none;"></div>
+        </div>
     </div>
 
-    <div class="container">
-      <h1>🏜️ DESERT STORM</h1>
-
-      <!-- Upload Section (Collapsible when players exist) -->
-      <div id="uploadSection" class="card">
-        <div class="collapsible-header" onclick="toggleUploadPanel()">
-          <div>
-            <h2 style="display: inline; margin: 0;">📊 Player Database</h2>
-            <span id="uploadHint" style="margin-left: 15px; opacity: 0.7; font-size: 14px;"></span>
-          </div>
-          <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
-        </div>
-        <div class="collapsible-content" id="uploadContent">
-          <p style="opacity: 0.9; margin-bottom: 20px;">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
-          <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-            <button class="secondary" onclick="downloadPlayerTemplate()">📥 Download Template</button>
-            <button onclick="document.getElementById('playerFileInput').click()">📤 Upload Player Data</button>
-            <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
-          </div>
-          <div id="uploadMessage"></div>
-        </div>
-      </div>
-
-      <!-- Player Selection Section -->
-      <div id="selectionSection" class="card hidden">
-        <h2>⚔️ Select Teams</h2>
-        <p style="opacity: 0.9; margin-bottom: 20px;">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
-
-        <!-- Team Counters -->
-        <div class="team-counters">
-          <div class="counter team-a">
-            Team A: <span id="teamACount">0</span>/20
-          </div>
-          <div class="counter team-b">
-            Team B: <span id="teamBCount">0</span>/20
-          </div>
-        </div>
-
-        <!-- Filters -->
-        <div class="filters">
-          <input type="text" id="searchFilter" placeholder="🔍 Search player name..." onkeyup="filterPlayers()">
-          <select id="troopsFilter" onchange="filterPlayers()">
-            <option value="">All Troop Types</option>
-            <option value="Tank">Tank</option>
-            <option value="Aero">Aero</option>
-            <option value="Missile">Missile</option>
-          </select>
-          <select id="sortFilter" onchange="filterPlayers()">
-            <option value="power-desc">Sort by Power (High to Low)</option>
-            <option value="power-asc">Sort by Power (Low to High)</option>
-            <option value="name-asc">Sort by Name (A-Z)</option>
-            <option value="name-desc">Sort by Name (Z-A)</option>
-          </select>
-          <button class="secondary" onclick="clearAllSelections()">Clear All Selections</button>
-        </div>
-
-        <!-- Players Table -->
-        <div style="overflow-x: auto;">
-          <table class="players-table" id="playersTable">
-            <thead>
-              <tr>
-                <th>Player Name</th>
-                <th>E1 Power (M)</th>
-                <th>Troop Type</th>
-                <th>Team Selection</th>
-              </tr>
-            </thead>
-            <tbody id="playersTableBody">
-              <!-- Players will be dynamically inserted here -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Team A Download Section -->
-      <div id="downloadSectionA" class="card hidden">
-        <div class="team-section team-a-section">
-          <h2 style="color: #4169E1;">✅ Team A Downloads</h2>
-          <p style="opacity: 0.9; margin-bottom: 20px;">Team A assignments are ready!</p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-            <button style="background: linear-gradient(135deg, #4169E1, #1E90FF); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('A')">
-              🗺️ Team A Map
+    <!-- Main App -->
+    <div id="mainApp" style="display: none;">
+        <!-- User Header -->
+        <div style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 20px auto;">
+            <div>
+                <span id="userEmail" style="color: #FDC830; font-weight: bold;"></span>
+                <span id="playerCount" style="color: #fff; margin-left: 20px;"></span>
+                <span id="syncStatus" style="color: #90EE90; margin-left: 20px;">☁️ Synced</span>
+            </div>
+            <button onclick="handleSignOut()" style="padding: 8px 20px; background: #FF6B35; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                Sign Out
             </button>
-            <button style="background: linear-gradient(135deg, #4169E1, #1E90FF);" onclick="downloadTeamExcel('A')">
-              📊 Team A Excel
-            </button>
-          </div>
-          <div id="downloadStatusA"></div>
         </div>
-      </div>
 
-      <!-- Team B Download Section -->
-      <div id="downloadSectionB" class="card hidden">
-        <div class="team-section team-b-section">
-          <h2 style="color: #DC143C;">✅ Team B Downloads</h2>
-          <p style="opacity: 0.9; margin-bottom: 20px;">Team B assignments are ready!</p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-            <button style="background: linear-gradient(135deg, #DC143C, #FF6347); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('B')">
-              🗺️ Team B Map
-            </button>
-            <button style="background: linear-gradient(135deg, #DC143C, #FF6347);" onclick="downloadTeamExcel('B')">
-              📊 Team B Excel
-            </button>
-          </div>
-          <div id="downloadStatusB"></div>
+        <div class="container">
+            <h1>🏜️ DESERT STORM</h1>
+            
+            <!-- Upload Section (Collapsible when players exist) -->
+            <div id="uploadSection" class="card">
+                <div class="collapsible-header" onclick="toggleUploadPanel()">
+                    <div>
+                        <h2 style="display: inline; margin: 0;">📊 Player Database</h2>
+                        <span id="uploadHint" style="margin-left: 15px; opacity: 0.7; font-size: 14px;"></span>
+                    </div>
+                    <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
+                </div>
+                
+                <div class="collapsible-content" id="uploadContent">
+                    <p style="opacity: 0.9; margin-bottom: 20px;">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
+                    
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <button class="secondary" onclick="downloadPlayerTemplate()">📥 Download Template</button>
+                        <button onclick="document.getElementById('playerFileInput').click()">📤 Upload Player Data</button>
+                        <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
+                    </div>
+                    
+                    <div id="uploadMessage"></div>
+                </div>
+            </div>
+            
+            <!-- Player Selection Section -->
+            <div id="selectionSection" class="card hidden">
+                <h2>⚔️ Select Teams</h2>
+                <p style="opacity: 0.9; margin-bottom: 20px;">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
+                
+                <!-- Team Counters -->
+                <div class="team-counters">
+                    <div class="counter team-a">
+                        Team A: <span id="teamACount">0</span>/20
+                    </div>
+                    <div class="counter team-b">
+                        Team B: <span id="teamBCount">0</span>/20
+                    </div>
+                </div>
+                
+                <!-- Filters -->
+                <div class="filters">
+                    <input type="text" id="searchFilter" placeholder="🔍 Search player name..." onkeyup="filterPlayers()">
+                    <select id="troopsFilter" onchange="filterPlayers()">
+                        <option value="">All Troop Types</option>
+                        <option value="Tank">Tank</option>
+                        <option value="Aero">Aero</option>
+                        <option value="Missile">Missile</option>
+                    </select>
+                    <select id="sortFilter" onchange="filterPlayers()">
+                        <option value="power-desc">Sort by Power (High to Low)</option>
+                        <option value="power-asc">Sort by Power (Low to High)</option>
+                        <option value="name-asc">Sort by Name (A-Z)</option>
+                        <option value="name-desc">Sort by Name (Z-A)</option>
+                    </select>
+                    <button class="secondary" onclick="clearAllSelections()">Clear All Selections</button>
+                </div>
+                
+                <!-- Players Table -->
+                <div style="overflow-x: auto;">
+                    <table class="players-table" id="playersTable">
+                        <thead>
+                            <tr>
+                                <th>Player Name</th>
+                                <th>E1 Power (M)</th>
+                                <th>Troop Type</th>
+                                <th>Team Selection</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playersTableBody">
+                            <!-- Players will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Team A & B Sections removed - replaced with floating buttons -->
+            
+            
+            <!-- Team A Download Section -->
+            <div id="downloadSectionA" class="card hidden">
+                <div class="team-section team-a-section">
+                    <h2 style="color: #4169E1;">✅ Team A Downloads</h2>
+                    <p style="opacity: 0.9; margin-bottom: 20px;">Team A assignments are ready!</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <button style="background: linear-gradient(135deg, #4169E1, #1E90FF); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('A')">
+                            🗺️ Team A Map
+                        </button>
+                        <button style="background: linear-gradient(135deg, #4169E1, #1E90FF);" onclick="downloadTeamExcel('A')">
+                            📊 Team A Excel
+                        </button>
+                    </div>
+                    <div id="downloadStatusA"></div>
+                </div>
+            </div>
+            
+            
+            <!-- Floating Generate Buttons -->
+            <div class="floating-buttons" id="floatingButtons" style="display: none;">
+                <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
+                    <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
+                    🚀 Generate Team A
+                </button>
+                <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
+                    <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
+                    🚀 Generate Team B
+                </button>
+            </div>
+            
+            <!-- Team B Download Section -->
+            <div id="downloadSectionB" class="card hidden">
+                <div class="team-section team-b-section">
+                    <h2 style="color: #DC143C;">✅ Team B Downloads</h2>
+                    <p style="opacity: 0.9; margin-bottom: 20px;">Team B assignments are ready!</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <button style="background: linear-gradient(135deg, #DC143C, #FF6347); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('B')">
+                            🗺️ Team B Map
+                        </button>
+                        <button style="background: linear-gradient(135deg, #DC143C, #FF6347);" onclick="downloadTeamExcel('B')">
+                            📊 Team B Excel
+                        </button>
+                    </div>
+                    <div id="downloadStatusB"></div>
+                </div>
+            </div>
         </div>
-      </div>
+        
+        <!-- Floating Generate Buttons -->
+        <div class="floating-buttons" id="floatingButtons" style="display: none;">
+            <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
+                🚀 Generate Team A (<span id="floatTeamACount">0</span>/20)
+            </button>
+            <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
+                🚀 Generate Team B (<span id="floatTeamBCount">0</span>/20)
+            </button>
+        </div>
     </div>
-  </div>
 
-  <!-- Single Floating Generate Bar (keep only ONE instance) -->
-  <div class="floating-buttons" id="floatingButtons" style="display: none;">
-    <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
-      <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
-      🚀 Generate Team A
-    </button>
-    <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
-      <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
-      🚀 Generate Team B
-    </button>
-  </div>
-
-  <script>
-    // --- Dynamic bottom padding so the fixed bar won't hide content ---
-    function reserveSpaceForFooter() {
-      const bar = document.getElementById('floatingButtons');
-      if (!bar) return;
-      // Only reserve space when the bar is visible
-      const visible = bar.style.display !== 'none';
-      document.body.style.paddingBottom = visible ? (bar.getBoundingClientRect().height + 20) + 'px' : '';
-    }
-    window.addEventListener('resize', reserveSpaceForFooter);
-
-    // --- Hook into your existing showSelectionInterface to show the bar + reserve space ---
-    const __orig_showSelectionInterface = (typeof showSelectionInterface === 'function') ? showSelectionInterface : null;
-    showSelectionInterface = function () {
-      document.getElementById('selectionSection').classList.remove('hidden');
-      const bar = document.getElementById('floatingButtons');
-      bar.style.display = 'flex';
-      reserveSpaceForFooter(); // ensure bottom padding matches actual bar height
-      if (typeof renderPlayersTable === 'function') renderPlayersTable();
-      if (typeof updateTeamCounters === 'function') updateTeamCounters();
-    };
-
-    // --- Safer scroll position: land in view, not under footer ---
-    const __orig_generateTeamAssignments = (typeof generateTeamAssignments === 'function') ? generateTeamAssignments : null;
-    generateTeamAssignments = function (team) {
-      // delegate to the original implementation first (if it exists)
-      if (__orig_generateTeamAssignments) __orig_generateTeamAssignments(team);
-
-      // then adjust the final scroll target to center (avoids footer overlap)
-      const targetId = team === 'A' ? 'downloadSectionA' : 'downloadSectionB';
-      const el = document.getElementById(targetId);
-      if (el) {
-        // If the section was hidden -> just revealed, give layout a beat before scroll
-        requestAnimationFrame(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    <script>
+        // ============================================================
+        // INITIALIZATION CHECK
+        // ============================================================
+        
+        // Check if Firebase modules are loaded
+        if (typeof firebase === 'undefined') {
+            alert('❌ Firebase SDK not loaded! Make sure you have internet connection.');
+            console.error('Firebase SDK failed to load from CDN');
+        }
+        
+        if (typeof XLSX === 'undefined') {
+            alert('❌ XLSX library not loaded! Make sure you have internet connection.');
+            console.error('XLSX library failed to load from CDN');
+        }
+        
+        if (typeof FirebaseManager === 'undefined') {
+            alert('❌ firebase-module.js not found! Make sure firebase-module.js is in the same folder as this HTML file.');
+            console.error('FirebaseManager not defined - firebase-module.js not loaded');
+        }
+        
+        // ============================================================
+        // GLOBAL STATE
+        // ============================================================
+        
+        let allPlayers = [];
+        let teamSelections = {
+            teamA: [],
+            teamB: []
+        };
+        let assignmentsA = [];
+        let assignmentsB = [];
+        let mapLoaded = false;
+        let uploadPanelExpanded = true;
+        
+        // Load desert storm map
+        // IMPORTANT: Put 'desert_storm_map.png' in the same folder as this HTML file
+        const mapImage = new Image();
+        let mapLoadRetries = 0;
+        const maxRetries = 3;
+        
+        function loadMapImage() {
+            return new Promise((resolve, reject) => {
+                mapImage.onload = () => { 
+                    mapLoaded = true; 
+                    console.log('✅ Map loaded successfully');
+                    resolve(true);
+                };
+                
+                mapImage.onerror = () => {
+                    console.error('❌ Map failed to load, attempt:', mapLoadRetries + 1);
+                    
+                    if (mapLoadRetries < maxRetries) {
+                        mapLoadRetries++;
+                        console.log('Retrying map load...');
+                        setTimeout(() => {
+                            mapImage.src = 'desert_storm_map.png?' + Date.now();
+                        }, 1000 * mapLoadRetries);
+                    } else {
+                        alert('⚠️ Map image not found! Please make sure "desert_storm_map.png" is in the same folder as this HTML file.');
+                        console.error('Map loading failed after', maxRetries, 'attempts');
+                        reject(false);
+                    }
+                };
+                
+                // Load local map file (no CORS issues!)
+                mapImage.src = 'desert_storm_map.png';
+            });
+        }
+        
+        // Start loading map immediately
+        loadMapImage().catch(() => {
+            console.warn('Map failed to load, continuing without it');
         });
-      }
-    };
-  </script>
+        
+        // Building positions on the map (scaled for 1080px width from 2048x1446 original)
+        const buildingPositions = {
+            'Info Center': [242, 95],
+            'Arsenal': [358, 111],
+            'Field Hospital 4': [474, 95],
+            'Oil Refinery 1': [137, 190],
+            'Nuclear Silo': [358, 242],
+            'Field Hospital 2': [527, 179],
+            'Oil Refinery 2': [580, 311],
+            'Field Hospital 1': [153, 311],
+            'Field Hospital 3': [200, 385],
+            'Mercenary Factory': [358, 385],
+            'Science Hub': [495, 395],
+        };
+        
+        const buildingAnchors = {
+            'Info Center': 'left',
+            'Arsenal': 'left',
+            'Field Hospital 4': 'right',
+            'Oil Refinery 1': 'left',
+            'Nuclear Silo': 'left',
+            'Field Hospital 2': 'right',
+            'Oil Refinery 2': 'right',
+            'Field Hospital 1': 'left',
+            'Field Hospital 3': 'left',
+            'Mercenary Factory': 'left',
+            'Science Hub': 'right',
+        };
+        
+        const textColors = { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' };
+        const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)', 
+                          4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' };
+        
+        // Building definitions with priorities (20 players total)
+        const buildings = [
+            { name: 'Bomb Squad', priority: 1, slots: 4 },
+            { name: 'Arsenal', priority: 2, slots: 2 },
+            { name: 'Nuclear Silo', priority: 2, slots: 2 },
+            { name: 'Oil Refinery 1', priority: 3, slots: 2 },
+            { name: 'Oil Refinery 2', priority: 3, slots: 2 },
+            { name: 'Field Hospital 1', priority: 4, slots: 2 },
+            { name: 'Field Hospital 2', priority: 4, slots: 2 },
+            { name: 'Field Hospital 3', priority: 4, slots: 1 },
+            { name: 'Field Hospital 4', priority: 4, slots: 1 },
+            { name: 'Info Center', priority: 5, slots: 1 },
+            { name: 'Science Hub', priority: 5, slots: 1 },
+        ];
+        
+        // ============================================================
+        // FIREBASE INTEGRATION
+        // ============================================================
+        
+        // Initialize Firebase only if FirebaseManager is available
+        if (typeof FirebaseManager !== 'undefined') {
+            FirebaseManager.setAuthCallback((isSignedIn, user) => {
+                if (isSignedIn) {
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('mainApp').style.display = 'block';
+                    document.getElementById('userEmail').textContent = user.email;
+                    loadPlayerData();
+                } else {
+                    document.getElementById('loginScreen').style.display = 'block';
+                    document.getElementById('mainApp').style.display = 'none';
+                }
+            });
+            
+            FirebaseManager.setDataLoadCallback((playerDatabase) => {
+                console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
+                loadPlayerData();
+            });
+        } else {
+            console.error('FirebaseManager not available - cannot initialize callbacks');
+            // Show error message to user
+            setTimeout(() => {
+                const loginScreen = document.getElementById('loginScreen');
+                if (loginScreen) {
+                    loginScreen.innerHTML = '<div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><h1 style="text-align: center; color: #DC143C;">❌ Error Loading Application</h1><p style="color: #333; text-align: center; margin: 20px 0;">The firebase-module.js file is missing or not in the same folder as this HTML file.</p><p style="color: #666; text-align: center; font-size: 14px;">Please ensure both files are in the same directory:</p><ul style="color: #666; margin: 20px 40px;"><li>desert_storm_final.html</li><li>firebase-module.js</li></ul><p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">Then refresh the page.</p></div>';
+                    loginScreen.style.display = 'block';
+                }
+            }, 100);
+        }
+        
+        async function handleGoogleSignIn() {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            const result = await FirebaseManager.signInWithGoogle();
+            if (!result.success) {
+                alert('Sign-in failed: ' + result.error);
+            }
+        }
+        
+        async function handleEmailSignIn() {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            if (!email || !password) {
+                alert('Please enter email and password');
+                return;
+            }
+            const result = await FirebaseManager.signInWithEmail(email, password);
+            if (!result.success) {
+                alert('Sign-in failed: ' + result.error);
+            }
+        }
+        
+        function showSignUpForm() {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            if (!email || !password) {
+                alert('Please enter email and password');
+                return;
+            }
+            if (password.length < 6) {
+                alert('Password must be at least 6 characters');
+                return;
+            }
+            if (confirm('Create new account with: ' + email)) {
+                handleSignUp(email, password);
+            }
+        }
+        
+        async function handleSignUp(email, password) {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            const result = await FirebaseManager.signUpWithEmail(email, password);
+            if (result.success) {
+                alert('Account created! Check your email for verification.');
+            } else {
+                alert('Sign-up failed: ' + result.error);
+            }
+        }
+        
+        async function handlePasswordReset() {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            const email = document.getElementById('emailInput').value;
+            if (!email) {
+                alert('Please enter your email address');
+                return;
+            }
+            const result = await FirebaseManager.resetPassword(email);
+            if (result.success) {
+                alert('Password reset email sent!');
+            } else {
+                alert('Failed: ' + result.error);
+            }
+        }
+        
+        async function handleSignOut() {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            if (confirm('Sign out?')) {
+                await FirebaseManager.signOut();
+            }
+        }
+        
+        // ============================================================
+        // COLLAPSIBLE PANEL
+        // ============================================================
+        
+        function toggleUploadPanel() {
+            uploadPanelExpanded = !uploadPanelExpanded;
+            const content = document.getElementById('uploadContent');
+            const icon = document.getElementById('uploadExpandIcon');
+            
+            if (uploadPanelExpanded) {
+                content.classList.remove('collapsed');
+                icon.classList.add('rotated');
+            } else {
+                content.classList.add('collapsed');
+                icon.classList.remove('rotated');
+            }
+        }
+        
+        // ============================================================
+        // TEMPLATE GENERATION
+        // ============================================================
+        
+        function downloadPlayerTemplate() {
+            const wb = XLSX.utils.book_new();
+            
+            const instructions = [
+                ['PLAYER DATABASE TEMPLATE'],
+                [''],
+                ['Instructions:'],
+                ['1. Fill Player Name column with exact names from game'],
+                ['2. Fill E1 Total Power(M) column with numeric value (e.g., 65.0)'],
+                ['3. Fill E1 Troops column with: Tank, Aero, or Missile'],
+                ['4. Upload this file to the system'],
+                ['5. Select teams in the web interface'],
+                [''],
+                ['Player Name', 'E1 Total Power(M)', 'E1 Troops']
+            ];
+            
+            const examples = [
+                ['Player1', 65.0, 'Tank'],
+                ['Player2', 68.0, 'Aero'],
+                ['Player3', 64.0, 'Missile'],
+                ['', '', ''],
+                ['', '', '']
+            ];
+            
+            const data = [...instructions, ...examples];
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}];
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'Players');
+            XLSX.writeFile(wb, 'player_database_template.xlsx');
+            
+            showMessage('uploadMessage', '✅ Template downloaded! Headers start at row 10.', 'success');
+        }
+        
+        // ============================================================
+        // PLAYER DATA MANAGEMENT
+        // ============================================================
+        
+        async function uploadPlayerData() {
+            if (typeof FirebaseManager === 'undefined') {
+                showMessage('uploadMessage', '❌ Firebase not loaded. Please refresh the page.', 'error');
+                return;
+            }
+            
+            const fileInput = document.getElementById('playerFileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) return;
+            
+            showMessage('uploadMessage', '⏳ Processing file...', 'processing');
+            
+            try {
+                // Use Firebase module's upload function which reads from row 10
+                const result = await FirebaseManager.uploadPlayerDatabase(file);
+                
+                if (result.success) {
+                    showMessage('uploadMessage', result.message, 'success');
+                    loadPlayerData();
+                } else {
+                    showMessage('uploadMessage', '❌ Upload failed: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('uploadMessage', '❌ Upload failed: ' + (error.error || error.message), 'error');
+            }
+            
+            fileInput.value = '';
+        }
+        
+        function loadPlayerData() {
+            if (typeof FirebaseManager === 'undefined') {
+                console.error('FirebaseManager not available');
+                return;
+            }
+            
+            const playerDB = FirebaseManager.getPlayerDatabase();
+            const count = Object.keys(playerDB).length;
+            
+            document.getElementById('playerCount').textContent = count + ' players stored';
+            
+            if (count > 0) {
+                allPlayers = Object.keys(playerDB).map(name => ({
+                    name: name,
+                    power: playerDB[name].power,
+                    troops: playerDB[name].troops
+                }));
+                
+                // Collapse upload panel and show selection
+                uploadPanelExpanded = false;
+                document.getElementById('uploadContent').classList.add('collapsed');
+                document.getElementById('uploadExpandIcon').classList.remove('rotated');
+                document.getElementById('uploadHint').textContent = '(Click to expand if you need to update player data)';
+                
+                showSelectionInterface();
+            } else {
+                // Keep upload panel expanded
+                uploadPanelExpanded = true;
+                document.getElementById('uploadContent').classList.remove('collapsed');
+                document.getElementById('uploadExpandIcon').classList.add('rotated');
+                document.getElementById('uploadHint').textContent = '';
+            }
+        }
+        
+        function showSelectionInterface() {
+            document.getElementById('selectionSection').classList.remove('hidden');
+            document.getElementById('floatingButtons').style.display = 'flex';
+            renderPlayersTable();
+            updateTeamCounters();
+        }
+        
+        // ============================================================
+        // PLAYER SELECTION INTERFACE
+        // ============================================================
+        
+        function renderPlayersTable() {
+            const tbody = document.getElementById('playersTableBody');
+            tbody.innerHTML = '';
+            
+            let displayPlayers = [...allPlayers];
+            
+            // Apply filters
+            const searchTerm = document.getElementById('searchFilter').value.toLowerCase();
+            const troopsFilter = document.getElementById('troopsFilter').value;
+            const sortFilter = document.getElementById('sortFilter').value;
+            
+            if (searchTerm) {
+                displayPlayers = displayPlayers.filter(p => 
+                    p.name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            if (troopsFilter) {
+                displayPlayers = displayPlayers.filter(p => p.troops === troopsFilter);
+            }
+            
+            switch(sortFilter) {
+                case 'power-desc':
+                    displayPlayers.sort((a, b) => b.power - a.power);
+                    break;
+                case 'power-asc':
+                    displayPlayers.sort((a, b) => a.power - b.power);
+                    break;
+                case 'name-asc':
+                    displayPlayers.sort((a, b) => a.name.localeCompare(b.name));
+                    break;
+                case 'name-desc':
+                    displayPlayers.sort((a, b) => b.name.localeCompare(a.name));
+                    break;
+            }
+            
+            displayPlayers.forEach(player => {
+                const row = document.createElement('tr');
+                
+                const isTeamA = teamSelections.teamA.includes(player.name);
+                const isTeamB = teamSelections.teamB.includes(player.name);
+                
+                if (isTeamA) row.classList.add('selected-a');
+                if (isTeamB) row.classList.add('selected-b');
+                
+                const teamADisabled = teamSelections.teamA.length >= 20 && !isTeamA;
+                const teamBDisabled = teamSelections.teamB.length >= 20 && !isTeamB;
+                
+                // Escape player name for use in onclick
+                const escapedName = player.name.replace(/'/g, "\\'");
+                
+                row.innerHTML = `
+                    <td><strong>${player.name}</strong></td>
+                    <td>${player.power}M</td>
+                    <td>${player.troops}</td>
+                    <td>
+                        <div class="team-buttons">
+                            <button class="team-btn team-a-btn ${isTeamA ? 'active' : ''}" 
+                                    onclick="toggleTeam('${escapedName}', 'A')"
+                                    ${teamADisabled ? 'disabled' : ''}>
+                                Team A
+                            </button>
+                            <button class="team-btn team-b-btn ${isTeamB ? 'active' : ''}" 
+                                    onclick="toggleTeam('${escapedName}', 'B')"
+                                    ${teamBDisabled ? 'disabled' : ''}>
+                                Team B
+                            </button>
+                            ${(isTeamA || isTeamB) ? '<button class="clear-btn" onclick="clearPlayerSelection(\'' + escapedName + '\')">Clear</button>' : ''}
+                        </div>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function toggleTeam(playerName, team) {
+            if (team === 'A') {
+                const index = teamSelections.teamA.indexOf(playerName);
+                if (index > -1) {
+                    teamSelections.teamA.splice(index, 1);
+                } else {
+                    const bIndex = teamSelections.teamB.indexOf(playerName);
+                    if (bIndex > -1) {
+                        teamSelections.teamB.splice(bIndex, 1);
+                    }
+                    if (teamSelections.teamA.length < 20) {
+                        teamSelections.teamA.push(playerName);
+                    }
+                }
+            } else {
+                const index = teamSelections.teamB.indexOf(playerName);
+                if (index > -1) {
+                    teamSelections.teamB.splice(index, 1);
+                } else {
+                    const aIndex = teamSelections.teamA.indexOf(playerName);
+                    if (aIndex > -1) {
+                        teamSelections.teamA.splice(aIndex, 1);
+                    }
+                    if (teamSelections.teamB.length < 20) {
+                        teamSelections.teamB.push(playerName);
+                    }
+                }
+            }
+            
+            updateTeamCounters();
+            renderPlayersTable();
+        }
+        
+        function clearPlayerSelection(playerName) {
+            const aIndex = teamSelections.teamA.indexOf(playerName);
+            if (aIndex > -1) teamSelections.teamA.splice(aIndex, 1);
+            
+            const bIndex = teamSelections.teamB.indexOf(playerName);
+            if (bIndex > -1) teamSelections.teamB.splice(bIndex, 1);
+            
+            updateTeamCounters();
+            renderPlayersTable();
+        }
+        
+        function clearAllSelections() {
+            if (confirm('Clear all team selections?')) {
+                teamSelections.teamA = [];
+                teamSelections.teamB = [];
+                assignmentsA = [];
+                assignmentsB = [];
+                document.getElementById('downloadSectionA').classList.add('hidden');
+                document.getElementById('downloadSectionB').classList.add('hidden');
+                updateTeamCounters();
+                renderPlayersTable();
+            }
+        }
+        
+        function filterPlayers() {
+            renderPlayersTable();
+        }
+        
+        function updateTeamCounters() {
+            const teamACount = teamSelections.teamA.length;
+            const teamBCount = teamSelections.teamB.length;
+            
+            document.getElementById('teamACount').textContent = teamACount;
+            document.getElementById('teamBCount').textContent = teamBCount;
+            document.getElementById('teamAFloatCount').textContent = teamACount;
+            document.getElementById('teamBFloatCount').textContent = teamBCount;
+            
+            const teamACounter = document.querySelector('.counter.team-a');
+            const teamBCounter = document.querySelector('.counter.team-b');
+            const generateBtnA = document.getElementById('generateBtnA');
+            const generateBtnB = document.getElementById('generateBtnB');
+            
+            // Team A handling
+            if (teamACount === 20) {
+                teamACounter.classList.add('full');
+            } else {
+                teamACounter.classList.remove('full');
+            }
+            
+            // Enable/disable Team A generate button (enable if at least 1 player selected)
+            if (teamACount > 0) {
+                generateBtnA.disabled = false;
+            } else {
+                generateBtnA.disabled = true;
+            }
+            
+            // Team B handling
+            if (teamBCount === 20) {
+                teamBCounter.classList.add('full');
+            } else {
+                teamBCounter.classList.remove('full');
+            }
+            
+            // Enable/disable Team B generate button (enable if at least 1 player selected)
+            if (teamBCount > 0) {
+                generateBtnB.disabled = false;
+            } else {
+                generateBtnB.disabled = true;
+            }
+        }
+        
+        // ============================================================
+        // ASSIGNMENT GENERATION
+        // ============================================================
+        
+        function generateTeamAssignments(team) {
+            if (typeof FirebaseManager === 'undefined') {
+                alert('Firebase not loaded. Please refresh the page.');
+                return;
+            }
+            
+            const selections = team === 'A' ? teamSelections.teamA : teamSelections.teamB;
+            
+            if (selections.length === 0) {
+                alert(`Please select at least 1 player for Team ${team}!`);
+                return;
+            }
+            
+            if (selections.length > 20) {
+                alert(`Maximum 20 players per team! Currently selected: ${selections.length}`);
+                return;
+            }
+            
+            const playerDB = FirebaseManager.getPlayerDatabase();
+            
+            const teamPlayers = selections.map(name => ({
+                name: name,
+                power: playerDB[name].power,
+                troops: playerDB[name].troops
+            })).sort((a, b) => b.power - a.power);
+            
+            const assignments = assignTeamToBuildings(teamPlayers);
+            
+            if (team === 'A') {
+                assignmentsA = assignments;
+                document.getElementById('downloadSectionA').classList.remove('hidden');
+                document.getElementById('downloadSectionA').scrollIntoView({ behavior: 'smooth' });
+            } else {
+                assignmentsB = assignments;
+                document.getElementById('downloadSectionB').classList.remove('hidden');
+                document.getElementById('downloadSectionB').scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            console.log(`Team ${team} assignments generated for ${selections.length} players:`, assignments);
+        }
+        
+        function assignTeamToBuildings(players) {
+            const assignments = [];
+            let playerIndex = 0;
+            
+            buildings.forEach(building => {
+                for (let i = 0; i < building.slots; i++) {
+                    if (playerIndex < players.length) {
+                        assignments.push({
+                            building: building.name,
+                            priority: building.priority,
+                            player: players[playerIndex].name
+                        });
+                        playerIndex++;
+                    }
+                }
+            });
+            
+            return assignments;
+        }
+        
+        // ============================================================
+        // DOWNLOAD FUNCTIONS
+        // ============================================================
+        
+        function downloadTeamExcel(team) {
+            const wb = XLSX.utils.book_new();
+            const assignments = team === 'A' ? assignmentsA : assignmentsB;
+            
+            if (assignments.length === 0) {
+                alert('No assignments generated yet! Click "Generate Team ' + team + ' Assignments" first.');
+                return;
+            }
+            
+            const data = assignments.map(a => ({ 
+                'Building': a.building, 
+                'Priority': a.priority, 
+                'Player': a.player 
+            }));
+            
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), `Team ${team}`);
+            XLSX.writeFile(wb, `desert_storm_team_${team}_assignments.xlsx`);
+            
+            const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+            showMessage(statusId, '✅ Excel downloaded!', 'success');
+        }
+        
+        function downloadTeamMap(team) {
+            const assignments = team === 'A' ? assignmentsA : assignmentsB;
+            
+            if (assignments.length === 0) {
+                alert('No assignments generated yet! Click "Generate Team ' + team + ' Assignments" first.');
+                return;
+            }
+            
+            const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+            
+            if (!mapLoaded) {
+                showMessage(statusId, '⏳ Waiting for map to load...', 'processing');
+                // Wait up to 10 seconds for map to load
+                let waitTime = 0;
+                const checkInterval = setInterval(() => {
+                    waitTime += 500;
+                    if (mapLoaded) {
+                        clearInterval(checkInterval);
+                        generateMap(team, assignments, statusId);
+                    } else if (waitTime >= 10000) {
+                        clearInterval(checkInterval);
+                        if (confirm('Map image is still loading. Generate without map background?')) {
+                            generateMapWithoutBackground(team, assignments, statusId);
+                        } else {
+                            showMessage(statusId, '⚠️ Cancelled. Refresh page to retry loading map.', 'warning');
+                        }
+                    }
+                }, 500);
+                return;
+            }
+            
+            generateMap(team, assignments, statusId);
+        }
+        
+        function generateMapWithoutBackground(team, assignments, statusId) {
+            showMessage(statusId, `🎨 Generating Team ${team} map (no background)...`, 'processing');
+            
+            try {
+                const grouped = {};
+                const bombSquad = [];
+                
+                assignments.forEach(a => {
+                    if (!a.player) return;
+                    if (a.building === 'Bomb Squad') {
+                        bombSquad.push(a);
+                    } else {
+                        if (!grouped[a.building]) grouped[a.building] = [];
+                        grouped[a.building].push(a);
+                    }
+                });
+                
+                // Create simplified version without map
+                const canvas = document.createElement('canvas');
+                canvas.width = 1080;
+                canvas.height = 800;
+                const ctx = canvas.getContext('2d');
+                
+                // Background
+                ctx.fillStyle = team === 'A' ? '#E8F4FF' : '#FFE8E8';
+                ctx.fillRect(0, 0, 1080, 800);
+                
+                // Title
+                const grad = ctx.createLinearGradient(0, 0, 1080, 100);
+                grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
+                grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 1080, 100);
+                
+                ctx.font = 'bold 48px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.fillText(`TEAM ${team} - DESERT STORM`, 540, 60);
+                
+                // List assignments
+                ctx.fillStyle = '#333';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'left';
+                let y = 150;
+                
+                assignments.forEach((a, i) => {
+                    if (a.player) {
+                        ctx.fillText(`${i+1}. ${a.player} → ${a.building}`, 50, y);
+                        y += 30;
+                    }
+                });
+                
+                // Download
+                const dataURL = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = `team_${team}_desert_storm_nomap.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                showMessage(statusId, `✅ Team ${team} downloaded (list format - no map)`, 'success');
+            } catch (error) {
+                console.error(error);
+                showMessage(statusId, '❌ ' + error.message, 'error');
+            }
+        }
+        
+        function generateMap(team, assignments, statusId) {
+            showMessage(statusId, `🎨 Generating Team ${team} map...`, 'processing');
+            
+            try {
+                const grouped = {};
+                const bombSquad = [];
+                
+                assignments.forEach(a => {
+                    if (!a.player) return;
+                    if (a.building === 'Bomb Squad') {
+                        bombSquad.push(a);
+                    } else {
+                        if (!grouped[a.building]) grouped[a.building] = [];
+                        grouped[a.building].push(a);
+                    }
+                });
+                
+                const titleHeight = 100;
+                const bombHeight = 250;
+                const mapHeight = Math.floor(mapImage.height * (1080 / mapImage.width));
+                const totalHeight = titleHeight + mapHeight + bombHeight;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 1080;
+                canvas.height = totalHeight;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, 1080, totalHeight);
+                
+                const grad = ctx.createLinearGradient(0, 0, 1080, titleHeight);
+                grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
+                grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, 1080, titleHeight);
+                
+                ctx.font = 'bold 48px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`TEAM ${team} - DESERT STORM`, 540, titleHeight / 2);
+                
+                ctx.drawImage(mapImage, 0, titleHeight, 1080, mapHeight);
+                
+                let drawnCount = 0;
+                Object.keys(grouped).forEach(building => {
+                    if (!buildingPositions[building]) return;
+                    
+                    const [x, y_base] = buildingPositions[building];
+                    const y = y_base + titleHeight;
+                    const players = grouped[building];
+                    const anchor = buildingAnchors[building] || 'left';
+                    
+                    players.slice(0, 2).forEach((player, i) => {
+                        const name = player.player;
+                        
+                        ctx.font = 'bold 14px Arial';
+                        const metrics = ctx.measureText(name);
+                        const pad = 8;
+                        const boxW = metrics.width + pad * 2;
+                        const boxH = 24;
+                        
+                        const yPos = y + (i * 35) - 15;
+                        let boxX = anchor === 'left' ? x - boxW - 15 : x + 15;
+                        const boxY = yPos - boxH / 2;
+                        
+                        if (boxX < 5) boxX = 5;
+                        else if (boxX + boxW > 1075) boxX = 1075 - boxW;
+                        
+                        ctx.fillStyle = bgColors[player.priority] || 'rgba(255,255,255,0.9)';
+                        ctx.beginPath();
+                        ctx.roundRect(boxX, boxY, boxW, boxH, 8);
+                        ctx.fill();
+                        
+                        ctx.strokeStyle = 'black';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        
+                        ctx.fillStyle = textColors[player.priority] || '#000000';
+                        ctx.textAlign = 'left';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(name, boxX + pad, yPos);
+                        
+                        drawnCount++;
+                    });
+                });
+                
+                // Bomb Squad
+                const bombY = titleHeight + mapHeight + 30;
+                ctx.fillStyle = 'rgba(240,240,240,0.9)';
+                ctx.beginPath();
+                ctx.roundRect(240, bombY, 600, 180, 15);
+                ctx.fill();
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                
+                ctx.font = 'bold 20px Arial';
+                ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
+                ctx.textAlign = 'center';
+                ctx.fillText('BOMB SQUAD', 540, bombY + 25);
+                
+                let pY = bombY + 60;
+                bombSquad.forEach((player, i) => {
+                    const row = Math.floor(i / 2);
+                    const col = i % 2;
+                    const name = player.player;
+                    
+                    ctx.font = 'bold 14px Arial';
+                    const m = ctx.measureText(name);
+                    const bw = m.width + 12;
+                    const xPos = 540 - 140 + (col * 280);
+                    const yPos = pY + (row * 35);
+                    
+                    ctx.fillStyle = team === 'A' ? 'rgba(230,240,255,0.95)' : 'rgba(255,230,240,0.95)';
+                    ctx.beginPath();
+                    ctx.roundRect(xPos - bw/2, yPos - 10, bw, 20, 8);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = team === 'A' ? '#4169E1' : '#DC143C';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(name, xPos, yPos);
+                });
+                
+                ctx.font = '12px Arial';
+                ctx.fillStyle = 'gray';
+                ctx.fillText('Roam free, help others', 540, bombY + 160);
+                
+                const dataURL = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = dataURL;
+                a.download = `team_${team}_desert_storm.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                showMessage(statusId, `✅ Team ${team} map downloaded! (${drawnCount} players + ${bombSquad.length} bomb squad)`, 'success');
+            } catch (error) {
+                console.error(error);
+                const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+                showMessage(statusId, '❌ ' + error.message, 'error');
+            }
+        }
+        
+        // ============================================================
+        // UTILITY FUNCTIONS
+        // ============================================================
+        
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="message ${type}">${message}</div>`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.innerHTML = '';
+                }, 5000);
+            }
+        }
+    </script>
 </body>
 </html>
