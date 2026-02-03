@@ -342,6 +342,7 @@
             #playersTable tr, #buildingsTable tr {
                 display: flex;
                 flex-wrap: wrap;
+                align-items: center;
                 background: rgba(255,255,255,0.07);
                 border-radius: 10px;
                 padding: 12px;
@@ -357,32 +358,18 @@
                 padding: 5px 0;
             }
 
-            /* Players: name (full row), power + troops (side by side), buttons (full row) */
+            /* Players: name + power + troops on one line, buttons below */
             #playersTable td:first-child {
-                width: 100%;
-                padding-bottom: 8px;
-                border-bottom: 1px solid rgba(255,255,255,0.12);
-                margin-bottom: 4px;
+                flex: 1;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
             #playersTable td:first-child strong { font-size: 16px; }
 
-            #playersTable td:nth-child(2) { flex: 1; min-width: 0; }
-            #playersTable td:nth-child(2)::before {
-                content: "Power: ";
-                font-size: 11px;
-                text-transform: uppercase;
-                opacity: 0.55;
-                letter-spacing: 0.3px;
-            }
-
-            #playersTable td:nth-child(3) { flex: 1; min-width: 0; }
-            #playersTable td:nth-child(3)::before {
-                content: "Troops: ";
-                font-size: 11px;
-                text-transform: uppercase;
-                opacity: 0.55;
-                letter-spacing: 0.3px;
-            }
+            #playersTable td:nth-child(2) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; }
+            #playersTable td:nth-child(3) { flex: 0 0 auto; white-space: nowrap; }
 
             #playersTable td:nth-child(4) {
                 width: 100%;
@@ -405,35 +392,34 @@
 
             /* ── Buildings table → card layout ── */
             #buildingsTable td:first-child {
-                width: 100%;
-                padding-bottom: 8px;
-                border-bottom: 1px solid rgba(255,255,255,0.12);
-                margin-bottom: 4px;
-                font-weight: bold;
-            }
-            #buildingsTable td:nth-child(2) { flex: 1; min-width: 0; }
-            #buildingsTable td:nth-child(2)::before {
-                content: "Slots: ";
-                font-size: 11px;
-                text-transform: uppercase;
-                opacity: 0.55;
-            }
-            #buildingsTable td:nth-child(3) {
                 flex: 1;
                 min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-weight: bold;
+            }
+            #buildingsTable td:nth-child(2) {
+                flex: 0 0 auto;
+                white-space: nowrap;
+                font-size: 13px;
+                opacity: 0.75;
+            }
+            #buildingsTable td:nth-child(2)::before { content: "Slots: "; }
+            #buildingsTable td:nth-child(3) {
+                flex: 0 0 auto;
                 display: flex;
                 align-items: center;
+                gap: 4px;
             }
             #buildingsTable td:nth-child(3)::before {
-                content: "Priority: ";
-                font-size: 11px;
-                text-transform: uppercase;
-                opacity: 0.55;
+                content: "Pri: ";
+                font-size: 12px;
+                opacity: 0.6;
                 white-space: nowrap;
-                margin-right: 6px;
             }
             #buildingsTable input[type="number"] {
-                width: 56px !important;
+                width: 50px !important;
                 font-size: 16px;
             }
 
