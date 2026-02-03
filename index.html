@@ -905,9 +905,26 @@
             const stored = FirebaseManager.getBuildingConfig();
             buildingConfig = normalizeBuildingConfig(stored);
 
-            const normalizedJson = JSON.stringify(buildingConfig);
-            const storedJson = Array.isArray(stored) ? JSON.stringify(normalizeBuildingConfig(stored)) : null;
-            if (!stored || storedJson !== normalizedJson) {
+            const needsSave = !Array.isArray(stored) || stored.length !== buildingConfig.length || stored.some((item) => {
+                if (!item || !item.name) {
+                    return true;
+                }
+                const match = buildingConfig.find((b) => b.name === item.name);
+                if (!match) {
+                    return true;
+                }
+                const priority = Number(item.priority);
+                const slots = Number(item.slots);
+                if (!Number.isFinite(priority) || priority !== match.priority) {
+                    return true;
+                }
+                if (!Number.isFinite(slots) || slots !== match.slots) {
+                    return true;
+                }
+                return false;
+            });
+
+            if (needsSave) {
                 FirebaseManager.setBuildingConfig(buildingConfig);
                 FirebaseManager.saveUserData();
             }
