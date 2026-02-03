@@ -458,92 +458,6 @@ const FirebaseManager = (function() {
         return playerDatabase[name] || null;
     }
     
-    /**
-     * Match roster with player database
-     */
-    function matchRosterWithDatabase(roster) {
-        const teamA = [];
-        const teamB = [];
-        const missing = [];
-        
-        roster.forEach(row => {
-            const name = row['Player Name'];
-            const team = row['Team'];
-            const playerData = playerDatabase[name];
-            
-            if (playerData) {
-                const player = {
-                    name: name,
-                    power: playerData.power,
-                    troops: playerData.troops,
-                    team: team
-                };
-                
-                if (team === 'A') {
-                    teamA.push(player);
-                } else if (team === 'B') {
-                    teamB.push(player);
-                }
-            } else {
-                missing.push({ name, team });
-            }
-        });
-        
-        return {
-            teamA: teamA,
-            teamB: teamB,
-            missing: missing,
-            matchedCount: teamA.length + teamB.length,
-            missingCount: missing.length
-        };
-    }
-    
-    /**
-     * Add missing player to database
-     */
-    async function addPlayer(name, power, troops) {
-        playerDatabase[name] = {
-            power: parseFloat(power),
-            troops: troops,
-            lastUpdated: new Date().toISOString()
-        };
-        
-        return await saveUserData();
-    }
-    
-    /**
-     * Update player in database
-     */
-    async function updatePlayer(name, power, troops) {
-        if (playerDatabase[name]) {
-            playerDatabase[name].power = parseFloat(power);
-            playerDatabase[name].troops = troops;
-            playerDatabase[name].lastUpdated = new Date().toISOString();
-            
-            return await saveUserData();
-        }
-        return { success: false, error: 'Player not found' };
-    }
-    
-    /**
-     * Delete player from database
-     */
-    async function deletePlayer(name) {
-        if (playerDatabase[name]) {
-            delete playerDatabase[name];
-            return await saveUserData();
-        }
-        return { success: false, error: 'Player not found' };
-    }
-    
-    /**
-     * Clear entire player database
-     */
-    async function clearDatabase() {
-        playerDatabase = {};
-        return await saveUserData();
-    }
-    
     // ============================================================
     // BACKUP & RESTORE FUNCTIONS
     // ============================================================
@@ -753,11 +667,6 @@ const FirebaseManager = (function() {
         getPlayerDatabase: getPlayerDatabase,
         getPlayerCount: getPlayerCount,
         getPlayer: getPlayer,
-        matchRosterWithDatabase: matchRosterWithDatabase,
-        addPlayer: addPlayer,
-        updatePlayer: updatePlayer,
-        deletePlayer: deletePlayer,
-        clearDatabase: clearDatabase,
 
         // Building config
         getBuildingConfig: getBuildingConfig,
