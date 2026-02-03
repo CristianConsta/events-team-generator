@@ -85,9 +85,9 @@
         .collapsible-header:hover { opacity: 0.8; }
         .collapsible-content {
             margin-top: 20px;
-            max-height: 1000px;
+            max-height: 9999px;
             overflow: hidden;
-            transition: max-height 0.3s ease-out, margin-top 0.3s ease-out;
+            transition: max-height 0.4s ease-out, margin-top 0.3s ease-out;
         }
         .collapsible-content.collapsed {
             max-height: 0;
@@ -281,6 +281,188 @@
         }
         .team-section.team-b-section {
             border-left-color: #DC143C;
+        }
+
+        /* =============================================
+           TABLET  (≤ 768px)
+           ============================================= */
+        @media (max-width: 768px) {
+            body { padding: 15px; }
+            h1 { font-size: 2rem; margin-bottom: 20px; }
+            .card { padding: 22px; }
+
+            .filters input, .filters select, .filters button {
+                flex: 1 1 45%;
+                min-width: 0;
+            }
+            .filters input, .filters select { font-size: 16px; }
+
+            .floating-buttons button {
+                min-width: 200px;
+                padding: 16px 24px;
+                font-size: 16px;
+            }
+
+            .counter { padding: 12px 22px; font-size: 16px; }
+        }
+
+        /* =============================================
+           PHONE  (≤ 480px)
+           ============================================= */
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            h1 { font-size: 1.5rem; margin-bottom: 16px; }
+            .card { padding: 16px; margin: 12px 0; }
+            .card h2 { font-size: 1.2rem; }
+
+            /* Global button tweaks */
+            button { margin: 4px 0; touch-action: manipulation; }
+
+            /* Page header */
+            .page-header { gap: 8px; }
+
+            /* ── Filters — full-width stack ── */
+            .filters { gap: 10px; }
+            .filters input, .filters select, .filters button {
+                flex: 1 1 100%;
+                width: 100%;
+                min-width: 0;
+            }
+            .filters input, .filters select { font-size: 16px; }
+
+            /* ── Team counters ── */
+            .team-counters { gap: 10px; }
+            .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
+
+            /* ── Players table → card layout ── */
+            #playersTable, #buildingsTable { display: block; }
+            #playersTable thead, #buildingsTable thead { display: none; }
+            #playersTable tbody, #buildingsTable tbody { display: block; }
+
+            #playersTable tr, #buildingsTable tr {
+                display: flex;
+                flex-wrap: wrap;
+                background: rgba(255,255,255,0.07);
+                border-radius: 10px;
+                padding: 12px;
+                margin-bottom: 10px;
+                border: 1px solid rgba(255,255,255,0.12);
+            }
+            #playersTable tr:hover { background: rgba(255,255,255,0.07); }
+            #playersTable tr.selected-a { background: rgba(65,105,225,0.2); border-color: rgba(65,105,225,0.4); }
+            #playersTable tr.selected-b { background: rgba(220,20,60,0.2); border-color: rgba(220,20,60,0.4); }
+
+            #playersTable td, #buildingsTable td {
+                border-bottom: none;
+                padding: 5px 0;
+            }
+
+            /* Players: name (full row), power + troops (side by side), buttons (full row) */
+            #playersTable td:first-child {
+                width: 100%;
+                padding-bottom: 8px;
+                border-bottom: 1px solid rgba(255,255,255,0.12);
+                margin-bottom: 4px;
+            }
+            #playersTable td:first-child strong { font-size: 16px; }
+
+            #playersTable td:nth-child(2) { flex: 1; min-width: 0; }
+            #playersTable td:nth-child(2)::before {
+                content: "Power: ";
+                font-size: 11px;
+                text-transform: uppercase;
+                opacity: 0.55;
+                letter-spacing: 0.3px;
+            }
+
+            #playersTable td:nth-child(3) { flex: 1; min-width: 0; }
+            #playersTable td:nth-child(3)::before {
+                content: "Troops: ";
+                font-size: 11px;
+                text-transform: uppercase;
+                opacity: 0.55;
+                letter-spacing: 0.3px;
+            }
+
+            #playersTable td:nth-child(4) {
+                width: 100%;
+                padding-top: 8px;
+                border-top: 1px solid rgba(255,255,255,0.08);
+                margin-top: 2px;
+            }
+
+            /* Team buttons — touch-friendly */
+            .team-buttons { gap: 8px; }
+            .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
+            .clear-btn {
+                padding: 10px 12px;
+                font-size: 13px;
+                min-height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* ── Buildings table → card layout ── */
+            #buildingsTable td:first-child {
+                width: 100%;
+                padding-bottom: 8px;
+                border-bottom: 1px solid rgba(255,255,255,0.12);
+                margin-bottom: 4px;
+                font-weight: bold;
+            }
+            #buildingsTable td:nth-child(2) { flex: 1; min-width: 0; }
+            #buildingsTable td:nth-child(2)::before {
+                content: "Slots: ";
+                font-size: 11px;
+                text-transform: uppercase;
+                opacity: 0.55;
+            }
+            #buildingsTable td:nth-child(3) {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+            }
+            #buildingsTable td:nth-child(3)::before {
+                content: "Priority: ";
+                font-size: 11px;
+                text-transform: uppercase;
+                opacity: 0.55;
+                white-space: nowrap;
+                margin-right: 6px;
+            }
+            #buildingsTable input[type="number"] {
+                width: 56px !important;
+                font-size: 16px;
+            }
+
+            /* ── Floating generate buttons — vertical stack ── */
+            .floating-buttons {
+                flex-direction: column;
+                padding: 10px 14px;
+                gap: 10px;
+            }
+            .floating-buttons button {
+                min-width: unset;
+                width: 100%;
+                margin: 0;
+                padding: 14px 16px;
+                font-size: 16px;
+            }
+            .floating-buttons button span { font-size: 12px !important; }
+
+            /* ── Touch feedback on collapsible headers ── */
+            .collapsible-header:active { opacity: 0.7; }
+
+            /* ── Overlays — tighter padding on small screens ── */
+            .coord-overlay > div { padding: 16px !important; }
+
+            /* ── Download modal buttons ── */
+            #downloadMapBtn, #downloadExcelBtn { padding: 18px 16px !important; }
+
+            /* ── Login screen ── */
+            #loginScreen > div { padding: 24px !important; }
         }
     </style>
 </head>
