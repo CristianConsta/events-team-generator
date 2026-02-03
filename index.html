@@ -25,6 +25,15 @@
         }
         .container { max-width: 1200px; margin: 0 auto; }
         h1 { text-align: center; color: #FDC830; font-size: 2.5rem; margin-bottom: 30px; }
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .page-header h1 { margin: 0; }
         .card {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
@@ -311,7 +320,37 @@
         </div>
 
         <div class="container">
-            <h1>🏜️ DESERT STORM</h1>
+            <div class="page-header">
+                <h1>🏜️ DESERT STORM</h1>
+                <button class="secondary" onclick="toggleBuildingsPanel()">Buildings &amp; Priorities</button>
+            </div>
+
+            <div id="buildingsPanel" class="card hidden">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <h2 style="margin: 0;">Buildings &amp; Priorities</h2>
+                    <button class="clear-btn" onclick="toggleBuildingsPanel()">Close</button>
+                </div>
+                <p style="opacity: 0.9; margin: 15px 0;">Update building priorities. Names and slots are fixed to match the map.</p>
+                <div style="overflow-x: auto;">
+                    <table class="players-table" id="buildingsTable">
+                        <thead>
+                            <tr>
+                                <th>Building</th>
+                                <th>Slots</th>
+                                <th>Priority</th>
+                            </tr>
+                        </thead>
+                        <tbody id="buildingsTableBody">
+                            <!-- Building rows will be rendered here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                    <button class="secondary" onclick="resetBuildingsToDefault()">Reset to Default</button>
+                    <button onclick="saveBuildingConfig()">Save Changes</button>
+                </div>
+                <div id="buildingsStatus"></div>
+            </div>
             
             <!-- Upload Section (Collapsible when players exist) -->
             <div id="uploadSection" class="card">
@@ -550,7 +589,7 @@
                           4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' };
         
         // Building definitions with priorities (20 players total)
-        const buildings = [
+        const defaultBuildings = [
             { name: 'Bomb Squad', priority: 1, slots: 4 },
             { name: 'Arsenal', priority: 2, slots: 2 },
             { name: 'Nuclear Silo', priority: 2, slots: 2 },
@@ -563,6 +602,8 @@
             { name: 'Info Center', priority: 5, slots: 1 },
             { name: 'Science Hub', priority: 5, slots: 1 },
         ];
+
+        let buildingConfig = defaultBuildings.map((b) => ({ ...b }));
         
         // ============================================================
         // FIREBASE INTEGRATION
@@ -585,6 +626,7 @@
             FirebaseManager.setDataLoadCallback((playerDatabase) => {
                 console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
                 loadPlayerData();
+                loadBuildingConfig();
             });
         } else {
             console.error('FirebaseManager not available - cannot initialize callbacks');
@@ -836,6 +878,100 @@
             updateTeamCounters();
         }
 
+        function toggleBuildingsPanel() {
+            const panel = document.getElementById('buildingsPanel');
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                renderBuildingsTable();
+            }
+        }
+
+        function getDefaultBuildings() {
+            return defaultBuildings.map((b) => ({ ...b }));
+        }
+
+        function normalizeBuildingConfig(config) {
+            if (!Array.isArray(config)) {
+                return getDefaultBuildings();
+            }
+            const defaultsByName = new Map(defaultBuildings.map((b) => [b.name, b]));
+            return defaultBuildings.map((def) => {
+                const stored = config.find((b) => b && b.name === def.name);
+                const priority = stored && Number.isFinite(Number(stored.priority)) ? Number(stored.priority) : def.priority;
+                return { name: def.name, slots: def.slots, priority: priority };
+            });
+        }
+
+        function loadBuildingConfig() {
+            if (typeof FirebaseManager === 'undefined') {
+                buildingConfig = getDefaultBuildings();
+                renderBuildingsTable();
+                return;
+            }
+            const stored = FirebaseManager.getBuildingConfig();
+            buildingConfig = normalizeBuildingConfig(stored);
+
+            if (!stored) {
+                FirebaseManager.setBuildingConfig(buildingConfig);
+                FirebaseManager.saveUserData();
+            }
+
+            renderBuildingsTable();
+        }
+
+        function renderBuildingsTable() {
+            const tbody = document.getElementById('buildingsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            buildingConfig.forEach((b, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${b.name}</td>
+                    <td>${b.slots}</td>
+                    <td>
+                        <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" style="width: 80px;">
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function resetBuildingsToDefault() {
+            buildingConfig = getDefaultBuildings();
+            renderBuildingsTable();
+        }
+
+        async function saveBuildingConfig() {
+            const tbody = document.getElementById('buildingsTableBody');
+            const inputs = tbody.querySelectorAll('input[data-index]');
+            const updated = buildingConfig.map((b) => ({ ...b }));
+
+            inputs.forEach((input) => {
+                const index = Number(input.getAttribute('data-index'));
+                const value = Number(input.value);
+                if (Number.isFinite(value)) {
+                    updated[index].priority = Math.max(1, Math.min(6, Math.round(value)));
+                }
+            });
+
+            buildingConfig = updated;
+            renderBuildingsTable();
+
+            if (typeof FirebaseManager === 'undefined') {
+                showMessage('buildingsStatus', 'Firebase not loaded. Changes not saved.', 'error');
+                return;
+            }
+
+            FirebaseManager.setBuildingConfig(buildingConfig);
+            const result = await FirebaseManager.saveUserData();
+            if (result.success) {
+                showMessage('buildingsStatus', '✅ Buildings & priorities saved.', 'success');
+            } else {
+                showMessage('buildingsStatus', '❌ Save failed: ' + result.error, 'error');
+            }
+        }
+
         function reserveSpaceForFooter() {
             const bar = document.getElementById('floatingButtons');
             if (!bar) return;
@@ -1080,8 +1216,15 @@
         function assignTeamToBuildings(players) {
             const assignments = [];
             let playerIndex = 0;
+
+            const sortedBuildings = [...buildingConfig].sort((a, b) => {
+                if (a.priority !== b.priority) {
+                    return a.priority - b.priority;
+                }
+                return a.name.localeCompare(b.name);
+            });
             
-            buildings.forEach(building => {
+            sortedBuildings.forEach(building => {
                 for (let i = 0; i < building.slots; i++) {
                     if (playerIndex < players.length) {
                         assignments.push({

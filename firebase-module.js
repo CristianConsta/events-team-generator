@@ -36,6 +36,7 @@ const FirebaseManager = (function() {
     let db = null;
     let currentUser = null;
     let playerDatabase = {};
+    let buildingConfig = null;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
 
@@ -256,6 +257,7 @@ const FirebaseManager = (function() {
             if (doc.exists) {
                 const data = doc.data();
                 playerDatabase = data.playerDatabase || {};
+                buildingConfig = Array.isArray(data.buildingConfig) ? data.buildingConfig : null;
                 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
                 
@@ -271,6 +273,7 @@ const FirebaseManager = (function() {
             } else {
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
+                buildingConfig = null;
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
@@ -292,6 +295,7 @@ const FirebaseManager = (function() {
             
             await db.collection('users').doc(currentUser.uid).set({
                 playerDatabase: playerDatabase,
+                buildingConfig: buildingConfig,
                 metadata: {
                     email: currentUser.email || null,
                     totalPlayers: Object.keys(playerDatabase).length,
@@ -406,6 +410,20 @@ const FirebaseManager = (function() {
      */
     function getPlayerDatabase() {
         return playerDatabase;
+    }
+
+    /**
+     * Get building configuration
+     */
+    function getBuildingConfig() {
+        return buildingConfig;
+    }
+
+    /**
+     * Set building configuration
+     */
+    function setBuildingConfig(config) {
+        buildingConfig = config;
     }
     
     /**
@@ -722,6 +740,10 @@ const FirebaseManager = (function() {
         updatePlayer: updatePlayer,
         deletePlayer: deletePlayer,
         clearDatabase: clearDatabase,
+
+        // Building config
+        getBuildingConfig: getBuildingConfig,
+        setBuildingConfig: setBuildingConfig,
         
         // Backup & restore
         exportBackup: exportBackup,
