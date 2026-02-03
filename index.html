@@ -373,11 +373,12 @@
                         <button class="clear-btn" onclick="closeCoordinatesPicker()">Close</button>
                     </div>
                     <p style="opacity: 0.9; margin: 10px 0 15px;">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 10px;">
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
                         <strong id="coordBuildingLabel">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
-                        <span id="coordBuildingValue" style="opacity: 0.7;"></span>
                     </div>
+                    <div id="coordPrompt" style="opacity: 0.85; margin-bottom: 10px;">Click on the map to set coordinates.</div>
+                    <div id="coordBuildingValue" style="opacity: 0.7; margin-bottom: 10px;"></div>
                     <canvas id="coordCanvas" style="width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);"></canvas>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
                         <button class="secondary" onclick="prevCoordBuilding()">Prev</button>
@@ -632,7 +633,8 @@
         ];
 
         let buildingConfig = defaultBuildings.map((b) => ({ ...b }));
-        let buildingPositions = JSON.parse(JSON.stringify(defaultBuildingPositions));
+        // Only store user-picked coordinates here; defaults are used as fallback for rendering.
+        let buildingPositions = {};
         
         // ============================================================
         // FIREBASE INTEGRATION
@@ -941,11 +943,11 @@
         }
 
         function normalizeBuildingPositions(positions) {
-            const normalized = getDefaultBuildingPositions();
+            const normalized = {};
             if (!positions || typeof positions !== 'object') {
                 return normalized;
             }
-            Object.keys(normalized).forEach((name) => {
+            Object.keys(positions).forEach((name) => {
                 const value = positions[name];
                 if (Array.isArray(value) && value.length === 2) {
                     const x = Number(value[0]);
@@ -956,6 +958,10 @@
                 }
             });
             return normalized;
+        }
+
+        function getEffectiveBuildingPositions() {
+            return { ...getDefaultBuildingPositions(), ...buildingPositions };
         }
 
         function getEffectiveBuildingConfig() {
@@ -1000,18 +1006,11 @@
 
         function loadBuildingPositions() {
             if (typeof FirebaseManager === 'undefined') {
-                buildingPositions = getDefaultBuildingPositions();
+                buildingPositions = {};
                 return;
             }
             const stored = FirebaseManager.getBuildingPositions();
             buildingPositions = normalizeBuildingPositions(stored);
-
-            const normalizedJson = JSON.stringify(buildingPositions);
-            const storedJson = stored ? JSON.stringify(normalizeBuildingPositions(stored)) : null;
-            if (!stored || storedJson !== normalizedJson) {
-                FirebaseManager.setBuildingPositions(buildingPositions);
-                FirebaseManager.saveUserData();
-            }
         }
 
         function renderBuildingsTable() {
@@ -1099,7 +1098,7 @@
 
         function openCoordinatesPicker() {
             loadBuildingPositions();
-            coordBuildings = Object.keys(buildingPositions);
+            coordBuildings = buildingConfig.map((b) => b.name);
             if (coordBuildings.length === 0) {
                 showMessage('coordStatus', 'No buildings available for coordinates.', 'error');
                 return;
@@ -1119,7 +1118,8 @@
             const pos = buildingPositions[name];
             document.getElementById('coordBuildingLabel').textContent = name || '';
             document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
-            document.getElementById('coordBuildingValue').textContent = pos ? `x: ${pos[0]}, y: ${pos[1]}` : '';
+            document.getElementById('coordBuildingValue').textContent = pos ? `Current: x ${pos[0]}, y ${pos[1]}` : 'Current: not set';
+            document.getElementById('coordPrompt').textContent = `Select coordinates for ${name}`;
         }
 
         function drawCoordCanvas() {
@@ -1646,10 +1646,11 @@
                 ctx.drawImage(mapImage, 0, titleHeight, 1080, mapHeight);
                 
                 let drawnCount = 0;
+                const effectivePositions = getEffectiveBuildingPositions();
                 Object.keys(grouped).forEach(building => {
-                    if (!buildingPositions[building]) return;
+                    if (!effectivePositions[building]) return;
                     
-                    const [x, y_base] = buildingPositions[building];
+                    const [x, y_base] = effectivePositions[building];
                     const y = y_base + titleHeight;
                     const players = grouped[building];
                     const anchor = buildingAnchors[building] || 'left';
