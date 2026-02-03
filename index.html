@@ -1138,10 +1138,11 @@
             }
 
             const ctx = canvas.getContext('2d');
-            canvas.width = mapImage.width;
-            canvas.height = mapImage.height;
+            const mapHeight = Math.floor(mapImage.height * (1080 / mapImage.width));
+            canvas.width = 1080;
+            canvas.height = mapHeight;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(mapImage, 0, 0);
+            ctx.drawImage(mapImage, 0, 0, 1080, mapHeight);
 
             Object.entries(buildingPositions).forEach(([name, pos]) => {
                 if (!pos) return;
