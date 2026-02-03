@@ -271,7 +271,7 @@
             <h1 style="text-align: center; color: #333;">🏜️ Desert Storm</h1>
             <h3 style="text-align: center; color: #666; margin-bottom: 30px;">Sign in to continue</h3>
             
-            <button onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
+            <button id="googleSignInBtn" onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
                 🔵 Sign in with Google
             </button>
             
@@ -608,14 +608,31 @@
             }, 100);
         }
         
+        let googleSignInInProgress = false;
+
         async function handleGoogleSignIn() {
+            if (googleSignInInProgress) {
+                return;
+            }
             if (typeof FirebaseManager === 'undefined') {
                 alert('Firebase not loaded. Please refresh the page.');
                 return;
             }
-            const result = await FirebaseManager.signInWithGoogle();
-            if (!result.success) {
-                alert('Sign-in failed: ' + result.error);
+            const btn = document.getElementById('googleSignInBtn');
+            googleSignInInProgress = true;
+            if (btn) {
+                btn.disabled = true;
+            }
+            try {
+                const result = await FirebaseManager.signInWithGoogle();
+                if (!result.success) {
+                    alert('Sign-in failed: ' + result.error);
+                }
+            } finally {
+                googleSignInInProgress = false;
+                if (btn) {
+                    btn.disabled = false;
+                }
             }
         }
         
