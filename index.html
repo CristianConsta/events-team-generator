@@ -558,10 +558,8 @@
         // Building positions on the map (scaled for 1080px width from 2048x1446 original)
         const buildingPositions = {
             'Info Center': [242, 95],
-            'Arsenal': [358, 111],
             'Field Hospital 4': [474, 95],
             'Oil Refinery 1': [137, 190],
-            'Nuclear Silo': [358, 242],
             'Field Hospital 2': [527, 179],
             'Oil Refinery 2': [580, 311],
             'Field Hospital 1': [153, 311],
@@ -572,10 +570,8 @@
         
         const buildingAnchors = {
             'Info Center': 'left',
-            'Arsenal': 'left',
             'Field Hospital 4': 'right',
             'Oil Refinery 1': 'left',
-            'Nuclear Silo': 'left',
             'Field Hospital 2': 'right',
             'Oil Refinery 2': 'right',
             'Field Hospital 1': 'left',
@@ -591,8 +587,6 @@
         // Building definitions with priorities (20 players total)
         const defaultBuildings = [
             { name: 'Bomb Squad', priority: 1, slots: 4 },
-            { name: 'Arsenal', priority: 2, slots: 2 },
-            { name: 'Nuclear Silo', priority: 2, slots: 2 },
             { name: 'Oil Refinery 1', priority: 3, slots: 2 },
             { name: 'Oil Refinery 2', priority: 3, slots: 2 },
             { name: 'Field Hospital 1', priority: 4, slots: 2 },
@@ -911,7 +905,9 @@
             const stored = FirebaseManager.getBuildingConfig();
             buildingConfig = normalizeBuildingConfig(stored);
 
-            if (!stored) {
+            const normalizedJson = JSON.stringify(buildingConfig);
+            const storedJson = Array.isArray(stored) ? JSON.stringify(normalizeBuildingConfig(stored)) : null;
+            if (!stored || storedJson !== normalizedJson) {
                 FirebaseManager.setBuildingConfig(buildingConfig);
                 FirebaseManager.saveUserData();
             }
