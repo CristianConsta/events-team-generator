@@ -175,6 +175,15 @@
         .players-table tr.selected-b {
             background: rgba(220, 20, 60, 0.2);
         }
+        #buildingsTable input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.2);
+            color: #fff;
+            box-sizing: border-box;
+        }
         
         .team-buttons {
             display: flex;
@@ -349,6 +358,13 @@
                 margin-bottom: 10px;
                 border: 1px solid rgba(255,255,255,0.12);
             }
+            #buildingsTable tr {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto auto;
+                column-gap: 10px;
+                row-gap: 4px;
+                align-items: center;
+            }
             #playersTable tr:hover { background: rgba(255,255,255,0.07); }
             #playersTable tr.selected-a { background: rgba(65,105,225,0.2); border-color: rgba(65,105,225,0.4); }
             #playersTable tr.selected-b { background: rgba(220,20,60,0.2); border-color: rgba(220,20,60,0.4); }
@@ -356,6 +372,10 @@
             #playersTable td, #buildingsTable td {
                 border-bottom: none;
                 padding: 5px 0;
+            }
+            #buildingsTable td {
+                display: block;
+                min-width: 0;
             }
 
             /* Players: name + power + troops on one line, buttons below */
@@ -401,11 +421,16 @@
             }
             #buildingsTable td:nth-child(2) {
                 flex: 0 0 auto;
-                white-space: nowrap;
-                font-size: 13px;
-                opacity: 0.75;
+                display: flex;
+                align-items: center;
+                gap: 4px;
             }
-            #buildingsTable td:nth-child(2)::before { content: "Slots: "; }
+            #buildingsTable td:nth-child(2)::before {
+                content: "Slots: ";
+                font-size: 12px;
+                opacity: 0.6;
+                white-space: nowrap;
+            }
             #buildingsTable td:nth-child(3) {
                 flex: 0 0 auto;
                 display: flex;
@@ -512,7 +537,7 @@
                         <button class="clear-btn" onclick="toggleBuildingsPanel()">Close</button>
                     </div>
                 </div>
-                <p style="opacity: 0.9; margin: 15px 0;">Update building priorities. Names and slots are fixed to match the map.</p>
+                <p style="opacity: 0.9; margin: 15px 0;">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
                 <div style="overflow-x: auto;">
                     <table class="players-table" id="buildingsTable">
                         <thead>
@@ -770,7 +795,7 @@
         const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)', 
                           4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' };
         
-        // Building definitions with priorities (20 players total)
+        // Building definitions with priorities (total slots max 20)
         const defaultBuildings = [
             { name: 'Bomb Squad', priority: 1, slots: 4 },
             { name: 'Oil Refinery 1', priority: 3, slots: 2 },
@@ -782,6 +807,8 @@
             { name: 'Info Center', priority: 5, slots: 2 },
             { name: 'Science Hub', priority: 5, slots: 2 },
         ];
+        const MAX_BUILDING_SLOTS_TOTAL = 20;
+        const MIN_BUILDING_SLOTS = 0;
 
         let buildingConfig = defaultBuildings.map((b) => ({ ...b }));
         // Only store user-picked coordinates here; defaults are used as fallback for rendering.
@@ -1083,15 +1110,41 @@
             return defaultBuildings.map((b) => ({ ...b }));
         }
 
+        function clampPriority(value, fallback) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) {
+                return fallback;
+            }
+            return Math.max(1, Math.min(6, Math.round(number)));
+        }
+
+        function clampSlots(value, fallback) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) {
+                return fallback;
+            }
+            return Math.max(MIN_BUILDING_SLOTS, Math.min(MAX_BUILDING_SLOTS_TOTAL, Math.round(number)));
+        }
+
+        function getBuildingSlotsTotal(config) {
+            if (!Array.isArray(config)) {
+                return 0;
+            }
+            return config.reduce((sum, item) => {
+                const slots = Number(item && item.slots);
+                return sum + (Number.isFinite(slots) ? slots : 0);
+            }, 0);
+        }
+
         function normalizeBuildingConfig(config) {
             if (!Array.isArray(config)) {
                 return getDefaultBuildings();
             }
-            const defaultsByName = new Map(defaultBuildings.map((b) => [b.name, b]));
             return defaultBuildings.map((def) => {
                 const stored = config.find((b) => b && b.name === def.name);
-                const priority = stored && Number.isFinite(Number(stored.priority)) ? Number(stored.priority) : def.priority;
-                return { name: def.name, slots: def.slots, priority: priority };
+                const priority = clampPriority(stored && stored.priority, def.priority);
+                const slots = clampSlots(stored && stored.slots, def.slots);
+                return { name: def.name, slots: slots, priority: priority };
             });
         }
 
@@ -1133,8 +1186,14 @@
             }
             const stored = FirebaseManager.getBuildingConfig();
             buildingConfig = normalizeBuildingConfig(stored);
+            const totalSlots = getBuildingSlotsTotal(buildingConfig);
+            const slotsOverLimit = totalSlots > MAX_BUILDING_SLOTS_TOTAL;
+            if (slotsOverLimit) {
+                buildingConfig = getDefaultBuildings();
+                showMessage('buildingsStatus', `❌ Total slots exceeded ${MAX_BUILDING_SLOTS_TOTAL} in saved config. Reset to defaults.`, 'error');
+            }
 
-            const needsSave = !Array.isArray(stored) || stored.length !== buildingConfig.length || stored.some((item) => {
+            const needsSave = slotsOverLimit || !Array.isArray(stored) || stored.length !== buildingConfig.length || stored.some((item) => {
                 if (!item || !item.name) {
                     return true;
                 }
@@ -1179,13 +1238,41 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${b.name}</td>
-                    <td>${b.slots}</td>
                     <td>
-                        <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" style="width: 80px;">
+                        <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input">
+                    </td>
+                    <td>
+                        <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input">
                     </td>
                 `;
                 tbody.appendChild(row);
             });
+        }
+
+        function readBuildingConfigFromTable() {
+            const tbody = document.getElementById('buildingsTableBody');
+            const updated = buildingConfig.map((b) => ({ ...b }));
+            if (!tbody) {
+                return { updated, totalSlots: getBuildingSlotsTotal(updated) };
+            }
+            const inputs = tbody.querySelectorAll('input[data-index][data-field]');
+            inputs.forEach((input) => {
+                const index = Number(input.getAttribute('data-index'));
+                if (!Number.isFinite(index) || !updated[index]) {
+                    return;
+                }
+                const value = Number(input.value);
+                if (!Number.isFinite(value)) {
+                    return;
+                }
+                const field = input.getAttribute('data-field');
+                if (field === 'priority') {
+                    updated[index].priority = clampPriority(value, updated[index].priority);
+                } else if (field === 'slots') {
+                    updated[index].slots = clampSlots(value, updated[index].slots);
+                }
+            });
+            return { updated, totalSlots: getBuildingSlotsTotal(updated) };
         }
 
         function resetBuildingsToDefault() {
@@ -1194,17 +1281,11 @@
         }
 
         async function saveBuildingConfig() {
-            const tbody = document.getElementById('buildingsTableBody');
-            const inputs = tbody.querySelectorAll('input[data-index]');
-            const updated = buildingConfig.map((b) => ({ ...b }));
-
-            inputs.forEach((input) => {
-                const index = Number(input.getAttribute('data-index'));
-                const value = Number(input.value);
-                if (Number.isFinite(value)) {
-                    updated[index].priority = Math.max(1, Math.min(6, Math.round(value)));
-                }
-            });
+            const { updated, totalSlots } = readBuildingConfigFromTable();
+            if (totalSlots > MAX_BUILDING_SLOTS_TOTAL) {
+                showMessage('buildingsStatus', `❌ Total slots cannot exceed ${MAX_BUILDING_SLOTS_TOTAL}. Currently: ${totalSlots}.`, 'error');
+                return;
+            }
 
             buildingConfig = normalizeBuildingConfig(updated);
             renderBuildingsTable();
@@ -1217,7 +1298,7 @@
             FirebaseManager.setBuildingConfig(buildingConfig);
             const result = await FirebaseManager.saveUserData();
             if (result.success) {
-                showMessage('buildingsStatus', '✅ Buildings & priorities saved.', 'success');
+                showMessage('buildingsStatus', '✅ Buildings saved.', 'success');
             } else {
                 showMessage('buildingsStatus', '❌ Save failed: ' + result.error, 'error');
             }
@@ -1226,28 +1307,25 @@
         function refreshBuildingConfigForAssignments() {
             const panel = document.getElementById('buildingsPanel');
             if (panel && !panel.classList.contains('hidden')) {
-                syncBuildingConfigFromTable();
-            } else {
-                loadBuildingConfig();
+                return syncBuildingConfigFromTable();
             }
+            loadBuildingConfig();
+            return true;
         }
 
         function syncBuildingConfigFromTable() {
             const tbody = document.getElementById('buildingsTableBody');
             const panel = document.getElementById('buildingsPanel');
             if (!tbody || !panel || panel.classList.contains('hidden')) {
-                return;
+                return true;
             }
-            const inputs = tbody.querySelectorAll('input[data-index]');
-            const updated = buildingConfig.map((b) => ({ ...b }));
-            inputs.forEach((input) => {
-                const index = Number(input.getAttribute('data-index'));
-                const value = Number(input.value);
-                if (Number.isFinite(value)) {
-                    updated[index].priority = Math.max(1, Math.min(6, Math.round(value)));
-                }
-            });
+            const { updated, totalSlots } = readBuildingConfigFromTable();
+            if (totalSlots > MAX_BUILDING_SLOTS_TOTAL) {
+                showMessage('buildingsStatus', `❌ Total slots cannot exceed ${MAX_BUILDING_SLOTS_TOTAL}. Currently: ${totalSlots}.`, 'error');
+                return false;
+            }
             buildingConfig = normalizeBuildingConfig(updated);
+            return true;
         }
 
         let coordBuildingIndex = 0;
@@ -1564,7 +1642,11 @@
                 return;
             }
 
-            refreshBuildingConfigForAssignments();
+            const buildingConfigOk = refreshBuildingConfigForAssignments();
+            if (!buildingConfigOk) {
+                alert(`Total slots across all buildings cannot exceed ${MAX_BUILDING_SLOTS_TOTAL}.`);
+                return;
+            }
             
             const selections = team === 'A' ? teamSelections.teamA : teamSelections.teamB;
             
