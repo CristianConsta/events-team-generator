@@ -409,18 +409,6 @@
             </div>
             
             
-            <!-- Floating Generate Buttons -->
-            <div class="floating-buttons" id="floatingButtons" style="display: none;">
-                <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
-                    <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
-                    🚀 Generate Team A
-                </button>
-                <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
-                    <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
-                    🚀 Generate Team B
-                </button>
-            </div>
-            
             <!-- Team B Download Section -->
             <div id="downloadSectionB" class="card hidden">
                 <div class="team-section team-b-section">
@@ -439,14 +427,16 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Floating Generate Buttons -->
         <div class="floating-buttons" id="floatingButtons" style="display: none;">
             <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
-                🚀 Generate Team A (<span id="floatTeamACount">0</span>/20)
+                <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
+                🚀 Generate Team A
             </button>
             <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
-                🚀 Generate Team B (<span id="floatTeamBCount">0</span>/20)
+                <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
+                🚀 Generate Team B
             </button>
         </div>
     </div>
@@ -841,9 +831,20 @@
         function showSelectionInterface() {
             document.getElementById('selectionSection').classList.remove('hidden');
             document.getElementById('floatingButtons').style.display = 'flex';
+            reserveSpaceForFooter();
             renderPlayersTable();
             updateTeamCounters();
         }
+
+        function reserveSpaceForFooter() {
+            const bar = document.getElementById('floatingButtons');
+            if (!bar) return;
+            const visible = bar.style.display !== 'none';
+            const barHeight = visible ? bar.getBoundingClientRect().height : 0;
+            document.body.style.paddingBottom = visible ? (barHeight + 30) + 'px' : '';
+        }
+
+        window.addEventListener('resize', reserveSpaceForFooter);
         
         // ============================================================
         // PLAYER SELECTION INTERFACE
@@ -1064,11 +1065,13 @@
             if (team === 'A') {
                 assignmentsA = assignments;
                 document.getElementById('downloadSectionA').classList.remove('hidden');
-                document.getElementById('downloadSectionA').scrollIntoView({ behavior: 'smooth' });
+                reserveSpaceForFooter();
+                document.getElementById('downloadSectionA').scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else {
                 assignmentsB = assignments;
                 document.getElementById('downloadSectionB').classList.remove('hidden');
-                document.getElementById('downloadSectionB').scrollIntoView({ behavior: 'smooth' });
+                reserveSpaceForFooter();
+                document.getElementById('downloadSectionB').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
             
             console.log(`Team ${team} assignments generated for ${selections.length} players:`, assignments);
