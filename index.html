@@ -1098,7 +1098,7 @@
 
         function openCoordinatesPicker() {
             loadBuildingPositions();
-            coordBuildings = buildingConfig.map((b) => b.name);
+            coordBuildings = buildingConfig.filter((b) => b.name !== 'Bomb Squad').map((b) => b.name);
             if (coordBuildings.length === 0) {
                 showMessage('coordStatus', 'No buildings available for coordinates.', 'error');
                 return;
