@@ -1,0 +1,9 @@
+{
+  "name": "desert-storm-generator",
+  "private": true,
+  "description": "One-time tooling for Firebase data migration",
+  "dependencies": {
+    "@google-cloud/firestore": "^8.2.0",
+    "firebase-admin": "^12.7.0"
+  }
+}
