@@ -1458,21 +1458,56 @@
                 return a.name.localeCompare(b.name);
             });
 
+            // Group consecutive buildings by priority
+            const groups = [];
             sortedBuildings.forEach(building => {
-                const selected = [];
+                const last = groups[groups.length - 1];
+                if (last && last[0].priority === building.priority) {
+                    last.push(building);
+                } else {
+                    groups.push([building]);
+                }
+            });
 
-                for (let i = 0; i < building.slots; i += 2) {
-                    const pair = selectMixedPair(available);
-                    selected.push(...pair);
-                    const pairNames = new Set(pair.map(p => p.name));
-                    available = available.filter(p => !pairNames.has(p.name));
+            groups.forEach(group => {
+                const pairsNeeded = group.map(b => Math.floor(b.slots / 2));
+                const maxPairs = Math.max(...pairsNeeded);
+
+                // Phase 1: round-robin top player picks across the group.
+                // Each building claims one top player per round until it has
+                // enough (slots / 2). This ensures same-priority buildings
+                // each get an equally strong anchor player.
+                const topPicks = new Map();
+                group.forEach(b => topPicks.set(b.name, []));
+
+                for (let round = 0; round < maxPairs; round++) {
+                    group.forEach((building, idx) => {
+                        if (topPicks.get(building.name).length < pairsNeeded[idx] && available.length > 0) {
+                            topPicks.get(building.name).push(available[0]);
+                            available = available.slice(1);
+                        }
+                    });
                 }
 
-                selected.forEach(p => {
-                    assignments.push({
-                        building: building.name,
-                        priority: building.priority,
-                        player: p.name
+                // Phase 2: for each building, pair each top pick with a
+                // mix partner (search next 3 by power for a different troop).
+                group.forEach(building => {
+                    topPicks.get(building.name).forEach(top => {
+                        assignments.push({
+                            building: building.name,
+                            priority: building.priority,
+                            player: top.name
+                        });
+
+                        const partner = findMixPartner(top, available);
+                        if (partner) {
+                            assignments.push({
+                                building: building.name,
+                                priority: building.priority,
+                                player: partner.name
+                            });
+                            available = available.filter(p => p.name !== partner.name);
+                        }
                     });
                 });
             });
@@ -1480,21 +1515,13 @@
             return assignments;
         }
 
-        // Picks the highest power player, then searches the next 3 by power
-        // for a different troop type. Falls back to next by power if no mix
-        // is found within that window.
-        function selectMixedPair(available) {
-            if (available.length < 2) return available.slice();
-
-            const first = available[0];
-            const candidates = available.slice(1, 4); // next 3 by power
-            const mixIndex = candidates.findIndex(p => p.troops !== first.troops);
-
-            if (mixIndex !== -1) {
-                return [first, candidates[mixIndex]];
-            }
-
-            return [first, available[1]];
+        // Searches the next 3 available players by power for a different
+        // troop type than the given player. Falls back to next by power.
+        function findMixPartner(player, available) {
+            if (available.length === 0) return null;
+            const candidates = available.slice(0, 3);
+            const mixIndex = candidates.findIndex(p => p.troops !== player.troops);
+            return mixIndex !== -1 ? candidates[mixIndex] : available[0];
         }
         
         // ============================================================
