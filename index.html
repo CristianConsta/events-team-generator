@@ -58,7 +58,18 @@
         button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         button.secondary { background: linear-gradient(135deg, #FDC830, #F7931E); }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
+        .coord-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 12, 20, 0.7);
+            backdrop-filter: blur(3px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
         input[type="file"] { display: none; }
         
         /* Collapsible Panel */
@@ -355,7 +366,7 @@
                 <div id="buildingsStatus"></div>
             </div>
 
-            <div id="coordPickerOverlay" class="hidden" style="position: fixed; inset: 0; background: rgba(10, 12, 20, 0.7); backdrop-filter: blur(3px); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px;">
+            <div id="coordPickerOverlay" class="coord-overlay hidden">
                 <div style="width: min(1000px, 95vw); max-height: 90vh; overflow: auto; background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;">Map Coordinates Picker</h2>
