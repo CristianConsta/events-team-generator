@@ -466,40 +466,23 @@
             <!-- Team A & B Sections removed - replaced with floating buttons -->
             
             
-            <!-- Team A Download Section -->
-            <div id="downloadSectionA" class="card hidden">
-                <div class="team-section team-a-section">
-                    <h2 style="color: #4169E1;">✅ Team A Downloads</h2>
-                    <p style="opacity: 0.9; margin-bottom: 20px;">Team A assignments are ready!</p>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <button style="background: linear-gradient(135deg, #4169E1, #1E90FF); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('A')">
-                            🗺️ Team A Map
+            <!-- Download Modal -->
+            <div id="downloadModalOverlay" class="coord-overlay hidden">
+                <div style="width: min(480px, 90vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 30px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h2 id="downloadModalTitle" style="margin: 0;"></h2>
+                        <button class="clear-btn" onclick="closeDownloadModal()">Close</button>
+                    </div>
+                    <p id="downloadModalSubtitle" style="opacity: 0.9; margin: 0 0 25px;"></p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <button id="downloadMapBtn" style="font-size: 17px; padding: 16px 25px;">
+                            🗺️ Map
                         </button>
-                        <button style="background: linear-gradient(135deg, #4169E1, #1E90FF);" onclick="downloadTeamExcel('A')">
-                            📊 Team A Excel
+                        <button id="downloadExcelBtn" style="padding: 16px 25px;">
+                            📊 Excel
                         </button>
                     </div>
-                    <div id="downloadStatusA"></div>
-                </div>
-            </div>
-            
-            
-            <!-- Team B Download Section -->
-            <div id="downloadSectionB" class="card hidden">
-                <div class="team-section team-b-section">
-                    <h2 style="color: #DC143C;">✅ Team B Downloads</h2>
-                    <p style="opacity: 0.9; margin-bottom: 20px;">Team B assignments are ready!</p>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <button style="background: linear-gradient(135deg, #DC143C, #FF6347); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('B')">
-                            🗺️ Team B Map
-                        </button>
-                        <button style="background: linear-gradient(135deg, #DC143C, #FF6347);" onclick="downloadTeamExcel('B')">
-                            📊 Team B Excel
-                        </button>
-                    </div>
-                    <div id="downloadStatusB"></div>
+                    <div id="downloadStatus" style="margin-top: 15px;"></div>
                 </div>
             </div>
         </div>
@@ -1344,8 +1327,7 @@
                 teamSelections.teamB = [];
                 assignmentsA = [];
                 assignmentsB = [];
-                document.getElementById('downloadSectionA').classList.add('hidden');
-                document.getElementById('downloadSectionB').classList.add('hidden');
+                closeDownloadModal();
                 updateTeamCounters();
                 renderPlayersTable();
             }
@@ -1434,15 +1416,11 @@
             
             if (team === 'A') {
                 assignmentsA = assignments;
-                document.getElementById('downloadSectionA').classList.remove('hidden');
-                reserveSpaceForFooter();
-                document.getElementById('downloadSectionA').scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else {
                 assignmentsB = assignments;
-                document.getElementById('downloadSectionB').classList.remove('hidden');
-                reserveSpaceForFooter();
-                document.getElementById('downloadSectionB').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
+
+            openDownloadModal(team);
             
             console.log(`Team ${team} assignments generated for ${selections.length} players:`, assignments);
         }
@@ -1525,9 +1503,33 @@
         }
         
         // ============================================================
+        // DOWNLOAD MODAL
+        // ============================================================
+
+        function openDownloadModal(team) {
+            const isA = team === 'A';
+            const gradient = isA ? 'linear-gradient(135deg, #4169E1, #1E90FF)' : 'linear-gradient(135deg, #DC143C, #FF6347)';
+            const color = isA ? '#4169E1' : '#DC143C';
+
+            document.getElementById('downloadModalTitle').textContent = `Team ${team} Downloads`;
+            document.getElementById('downloadModalTitle').style.color = color;
+            document.getElementById('downloadModalSubtitle').textContent = `Team ${team} assignments are ready!`;
+            document.getElementById('downloadMapBtn').style.background = gradient;
+            document.getElementById('downloadMapBtn').onclick = () => downloadTeamMap(team);
+            document.getElementById('downloadExcelBtn').style.background = gradient;
+            document.getElementById('downloadExcelBtn').onclick = () => downloadTeamExcel(team);
+            document.getElementById('downloadStatus').innerHTML = '';
+            document.getElementById('downloadModalOverlay').classList.remove('hidden');
+        }
+
+        function closeDownloadModal() {
+            document.getElementById('downloadModalOverlay').classList.add('hidden');
+        }
+
+        // ============================================================
         // DOWNLOAD FUNCTIONS
         // ============================================================
-        
+
         function downloadTeamExcel(team) {
             const wb = XLSX.utils.book_new();
             const assignments = team === 'A' ? assignmentsA : assignmentsB;
@@ -1546,7 +1548,7 @@
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), `Team ${team}`);
             XLSX.writeFile(wb, `desert_storm_team_${team}_assignments.xlsx`);
             
-            const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+            const statusId = 'downloadStatus';
             showMessage(statusId, '✅ Excel downloaded!', 'success');
         }
         
@@ -1558,7 +1560,7 @@
                 return;
             }
             
-            const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+            const statusId = 'downloadStatus';
             
             if (!mapLoaded) {
                 showMessage(statusId, '⏳ Waiting for map to load...', 'processing');
@@ -1796,7 +1798,7 @@
                 showMessage(statusId, `✅ Team ${team} map downloaded! (${drawnCount} players + ${bombSquad.length} bomb squad)`, 'success');
             } catch (error) {
                 console.error(error);
-                const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
+                const statusId = 'downloadStatus';
                 showMessage(statusId, '❌ ' + error.message, 'error');
             }
         }
