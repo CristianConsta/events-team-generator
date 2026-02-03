@@ -872,8 +872,11 @@
 
         function toggleBuildingsPanel() {
             const panel = document.getElementById('buildingsPanel');
+            const opening = panel.classList.contains('hidden');
             panel.classList.toggle('hidden');
-            if (!panel.classList.contains('hidden')) {
+            if (opening) {
+                loadBuildingConfig();
+            } else {
                 renderBuildingsTable();
             }
         }
