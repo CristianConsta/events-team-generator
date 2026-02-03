@@ -134,7 +134,26 @@ const FirebaseManager = (function() {
             return { success: true, user: result.user };
         } catch (error) {
             console.error('❌ Google sign-in failed:', error);
-            return { success: false, error: error.message };
+            const popupErrorCodes = new Set([
+                'auth/popup-blocked',
+                'auth/popup-closed-by-user',
+                'auth/cancelled-popup-request',
+                'auth/operation-not-supported-in-this-environment',
+            ]);
+
+            if (error && popupErrorCodes.has(error.code)) {
+                try {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    await auth.signInWithRedirect(provider);
+                    console.log('🔁 Falling back to redirect sign-in');
+                    return { success: true, redirect: true };
+                } catch (redirectError) {
+                    console.error('❌ Redirect sign-in failed:', redirectError);
+                    return { success: false, error: redirectError.message || 'Redirect sign-in failed' };
+                }
+            }
+
+            return { success: false, error: error.message || 'Google sign-in failed' };
         }
     }
     
