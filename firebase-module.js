@@ -24,9 +24,9 @@ const FirebaseManager = (function() {
     // Check if config is loaded from firebase-config.js
     if (typeof FIREBASE_CONFIG !== 'undefined') {
         firebaseConfig = FIREBASE_CONFIG;
-        console.log('âœ… Firebase config loaded from firebase-config.js');
+        console.log('✅ Firebase config loaded from firebase-config.js');
     } else {
-        console.error('âŒ Firebase config not found!');
+        console.error('❌ Firebase config not found!');
         console.error('Please create firebase-config.js with your Firebase credentials');
         alert('Firebase configuration missing! Please create firebase-config.js file.');
     }
@@ -57,10 +57,10 @@ const FirebaseManager = (function() {
             // Set up auth state observer
             auth.onAuthStateChanged(handleAuthStateChanged);
             
-            console.log('âœ… Firebase initialized successfully');
+            console.log('✅ Firebase initialized successfully');
             return true;
         } catch (error) {
-            console.error('âŒ Firebase initialization failed:', error);
+            console.error('❌ Firebase initialization failed:', error);
             return false;
         }
     }
@@ -81,14 +81,14 @@ const FirebaseManager = (function() {
                 return;
             }
 
-            console.log('âœ… User signed in:', user.email);
+            console.log('✅ User signed in:', user.email);
             loadUserData(user);
             
             if (onAuthCallback) {
                 onAuthCallback(true, user);
             }
         } else {
-            console.log('â„¹ï¸ User signed out');
+            console.log('ℹ️ User signed out');
             playerDatabase = {};
             
             if (onAuthCallback) {
@@ -130,10 +130,10 @@ const FirebaseManager = (function() {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
             const result = await auth.signInWithPopup(provider);
-            console.log('âœ… Google sign-in successful');
+            console.log('✅ Google sign-in successful');
             return { success: true, user: result.user };
         } catch (error) {
-            console.error('âŒ Google sign-in failed:', error);
+            console.error('❌ Google sign-in failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -149,10 +149,10 @@ const FirebaseManager = (function() {
                 await auth.signOut();
                 return { success: false, error: 'Email not verified. Check your inbox.' };
             }
-            console.log('âœ… Email sign-in successful');
+            console.log('✅ Email sign-in successful');
             return { success: true, user: result.user };
         } catch (error) {
-            console.error('âŒ Email sign-in failed:', error);
+            console.error('❌ Email sign-in failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -164,14 +164,14 @@ const FirebaseManager = (function() {
         try {
             const result = await auth.createUserWithEmailAndPassword(email, password);
             await result.user.sendEmailVerification();
-            console.log('âœ… Account created successfully');
+            console.log('✅ Account created successfully');
             return { 
                 success: true, 
                 user: result.user,
                 message: 'Account created! Please check your email for verification.' 
             };
         } catch (error) {
-            console.error('âŒ Sign-up failed:', error);
+            console.error('❌ Sign-up failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -182,13 +182,13 @@ const FirebaseManager = (function() {
     async function resetPassword(email) {
         try {
             await auth.sendPasswordResetEmail(email);
-            console.log('âœ… Password reset email sent');
+            console.log('✅ Password reset email sent');
             return { 
                 success: true, 
                 message: 'Password reset email sent. Check your inbox.' 
             };
         } catch (error) {
-            console.error('âŒ Password reset failed:', error);
+            console.error('❌ Password reset failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -199,10 +199,10 @@ const FirebaseManager = (function() {
     async function signOut() {
         try {
             await auth.signOut();
-            console.log('âœ… User signed out');
+            console.log('✅ User signed out');
             return { success: true };
         } catch (error) {
-            console.error('âŒ Sign-out failed:', error);
+            console.error('❌ Sign-out failed:', error);
             return { success: false, error: error.message };
         }
     }
@@ -238,7 +238,7 @@ const FirebaseManager = (function() {
                 const data = doc.data();
                 playerDatabase = data.playerDatabase || {};
                 
-                console.log(`âœ… Loaded ${Object.keys(playerDatabase).length} players`);
+                console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
                 
                 if (onDataLoadCallback) {
                     onDataLoadCallback(playerDatabase);
@@ -250,12 +250,12 @@ const FirebaseManager = (function() {
                     playerCount: Object.keys(playerDatabase).length
                 };
             } else {
-                console.log('â„¹ï¸ No existing data found');
+                console.log('ℹ️ No existing data found');
                 playerDatabase = {};
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
-            console.error('âŒ Failed to load data:', error);
+            console.error('❌ Failed to load data:', error);
             return { success: false, error: error.message };
         }
     }
@@ -269,7 +269,7 @@ const FirebaseManager = (function() {
         }
         
         try {
-            console.log('ðŸ’¾ Saving data...');
+            console.log('💾 Saving data...');
             
             await db.collection('users').doc(currentUser.uid).set({
                 playerDatabase: playerDatabase,
@@ -281,10 +281,10 @@ const FirebaseManager = (function() {
                 }
             }, { merge: true });
             
-            console.log('âœ… Data saved successfully');
+            console.log('✅ Data saved successfully');
             return { success: true };
         } catch (error) {
-            console.error('âŒ Failed to save data:', error);
+            console.error('❌ Failed to save data:', error);
             return { success: false, error: error.message };
         }
     }
@@ -348,12 +348,12 @@ const FirebaseManager = (function() {
                     const saveResult = await saveUserData();
                     
                     if (saveResult.success) {
-                        console.log(`âœ… Uploaded ${addedCount} players`);
+                        console.log(`✅ Uploaded ${addedCount} players`);
                         if (skippedCount > 0) {
-                            console.warn(`âš ï¸ Skipped ${skippedCount} rows with no player name:`, skippedPlayers);
+                            console.warn(`⚠️ Skipped ${skippedCount} rows with no player name:`, skippedPlayers);
                         }
                         
-                        let message = `âœ… ${addedCount} players stored in cloud`;
+                        let message = `✅ ${addedCount} players stored in cloud`;
                         if (skippedCount > 0) {
                             message += ` (${skippedCount} skipped - missing name)`;
                         }
@@ -369,7 +369,7 @@ const FirebaseManager = (function() {
                     }
                     
                 } catch (error) {
-                    console.error('âŒ Failed to process Excel file:', error);
+                    console.error('❌ Failed to process Excel file:', error);
                     reject({ success: false, error: error.message });
                 }
             };
@@ -520,7 +520,7 @@ const FirebaseManager = (function() {
         const filename = `backup_${currentUser.email.replace('@', '_')}_${Date.now()}.xlsx`;
         XLSX.writeFile(wb, filename);
         
-        console.log('âœ… Backup exported:', filename);
+        console.log('✅ Backup exported:', filename);
         return { success: true, filename: filename };
     }
     
@@ -565,18 +565,18 @@ const FirebaseManager = (function() {
                     const saveResult = await saveUserData();
                     
                     if (saveResult.success) {
-                        console.log(`âœ… Restored ${Object.keys(restored).length} players`);
+                        console.log(`✅ Restored ${Object.keys(restored).length} players`);
                         resolve({ 
                             success: true, 
                             playerCount: Object.keys(restored).length,
-                            message: `âœ… Database restored: ${Object.keys(restored).length} players`
+                            message: `✅ Database restored: ${Object.keys(restored).length} players`
                         });
                     } else {
                         reject(saveResult);
                     }
                     
                 } catch (error) {
-                    console.error('âŒ Failed to restore backup:', error);
+                    console.error('❌ Failed to restore backup:', error);
                     reject({ success: false, error: error.message });
                 }
             };
@@ -628,7 +628,7 @@ const FirebaseManager = (function() {
         XLSX.utils.book_append_sheet(wb, ws, 'Players');
         XLSX.writeFile(wb, 'player_database_template.xlsx');
         
-        console.log('âœ… Player database template downloaded');
+        console.log('✅ Player database template downloaded');
     }
     
     /**
@@ -669,7 +669,7 @@ const FirebaseManager = (function() {
         XLSX.utils.book_append_sheet(wb, ws, 'Roster');
         XLSX.writeFile(wb, 'team_roster_template.xlsx');
         
-        console.log('âœ… Team roster template downloaded');
+        console.log('✅ Team roster template downloaded');
     }
     
     // ============================================================

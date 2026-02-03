@@ -268,11 +268,11 @@
     <!-- Login Screen -->
     <div id="loginScreen" style="display: none;">
         <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h1 style="text-align: center; color: #333;">ðŸœï¸ Desert Storm</h1>
+            <h1 style="text-align: center; color: #333;">🏜️ Desert Storm</h1>
             <h3 style="text-align: center; color: #666; margin-bottom: 30px;">Sign in to continue</h3>
             
             <button onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
-                ðŸ”µ Sign in with Google
+                🔵 Sign in with Google
             </button>
             
             <div style="text-align: center; margin: 20px 0; color: #999;">or</div>
@@ -303,7 +303,7 @@
             <div>
                 <span id="userEmail" style="color: #FDC830; font-weight: bold;"></span>
                 <span id="playerCount" style="color: #fff; margin-left: 20px;"></span>
-                <span id="syncStatus" style="color: #90EE90; margin-left: 20px;">â˜ï¸ Synced</span>
+                <span id="syncStatus" style="color: #90EE90; margin-left: 20px;">☁️ Synced</span>
             </div>
             <button onclick="handleSignOut()" style="padding: 8px 20px; background: #FF6B35; color: white; border: none; border-radius: 8px; cursor: pointer;">
                 Sign Out
@@ -311,24 +311,24 @@
         </div>
 
         <div class="container">
-            <h1>ðŸœï¸ DESERT STORM</h1>
+            <h1>🏜️ DESERT STORM</h1>
             
             <!-- Upload Section (Collapsible when players exist) -->
             <div id="uploadSection" class="card">
                 <div class="collapsible-header" onclick="toggleUploadPanel()">
                     <div>
-                        <h2 style="display: inline; margin: 0;">ðŸ“Š Player Database</h2>
+                        <h2 style="display: inline; margin: 0;">📊 Player Database</h2>
                         <span id="uploadHint" style="margin-left: 15px; opacity: 0.7; font-size: 14px;"></span>
                     </div>
-                    <span class="expand-icon rotated" id="uploadExpandIcon">â–¼</span>
+                    <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
                 </div>
                 
                 <div class="collapsible-content" id="uploadContent">
                     <p style="opacity: 0.9; margin-bottom: 20px;">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
                     
                     <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button class="secondary" onclick="downloadPlayerTemplate()">ðŸ“¥ Download Template</button>
-                        <button onclick="document.getElementById('playerFileInput').click()">ðŸ“¤ Upload Player Data</button>
+                        <button class="secondary" onclick="downloadPlayerTemplate()">📥 Download Template</button>
+                        <button onclick="document.getElementById('playerFileInput').click()">📤 Upload Player Data</button>
                         <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
                     </div>
                     
@@ -338,7 +338,7 @@
             
             <!-- Player Selection Section -->
             <div id="selectionSection" class="card hidden">
-                <h2>âš”ï¸ Select Teams</h2>
+                <h2>⚔️ Select Teams</h2>
                 <p style="opacity: 0.9; margin-bottom: 20px;">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
                 
                 <!-- Team Counters -->
@@ -353,7 +353,7 @@
                 
                 <!-- Filters -->
                 <div class="filters">
-                    <input type="text" id="searchFilter" placeholder="ðŸ” Search player name..." onkeyup="filterPlayers()">
+                    <input type="text" id="searchFilter" placeholder="🔍 Search player name..." onkeyup="filterPlayers()">
                     <select id="troopsFilter" onchange="filterPlayers()">
                         <option value="">All Troop Types</option>
                         <option value="Tank">Tank</option>
@@ -393,15 +393,15 @@
             <!-- Team A Download Section -->
             <div id="downloadSectionA" class="card hidden">
                 <div class="team-section team-a-section">
-                    <h2 style="color: #4169E1;">âœ… Team A Downloads</h2>
+                    <h2 style="color: #4169E1;">✅ Team A Downloads</h2>
                     <p style="opacity: 0.9; margin-bottom: 20px;">Team A assignments are ready!</p>
                     
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <button style="background: linear-gradient(135deg, #4169E1, #1E90FF); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('A')">
-                            ðŸ—ºï¸ Team A Map
+                            🗺️ Team A Map
                         </button>
                         <button style="background: linear-gradient(135deg, #4169E1, #1E90FF);" onclick="downloadTeamExcel('A')">
-                            ðŸ“Š Team A Excel
+                            📊 Team A Excel
                         </button>
                     </div>
                     <div id="downloadStatusA"></div>
@@ -413,26 +413,26 @@
             <div class="floating-buttons" id="floatingButtons" style="display: none;">
                 <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
                     <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
-                    ðŸš€ Generate Team A
+                    🚀 Generate Team A
                 </button>
                 <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
                     <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
-                    ðŸš€ Generate Team B
+                    🚀 Generate Team B
                 </button>
             </div>
             
             <!-- Team B Download Section -->
             <div id="downloadSectionB" class="card hidden">
                 <div class="team-section team-b-section">
-                    <h2 style="color: #DC143C;">âœ… Team B Downloads</h2>
+                    <h2 style="color: #DC143C;">✅ Team B Downloads</h2>
                     <p style="opacity: 0.9; margin-bottom: 20px;">Team B assignments are ready!</p>
                     
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <button style="background: linear-gradient(135deg, #DC143C, #FF6347); font-size: 17px; padding: 16px 35px;" onclick="downloadTeamMap('B')">
-                            ðŸ—ºï¸ Team B Map
+                            🗺️ Team B Map
                         </button>
                         <button style="background: linear-gradient(135deg, #DC143C, #FF6347);" onclick="downloadTeamExcel('B')">
-                            ðŸ“Š Team B Excel
+                            📊 Team B Excel
                         </button>
                     </div>
                     <div id="downloadStatusB"></div>
@@ -443,10 +443,10 @@
         <!-- Floating Generate Buttons -->
         <div class="floating-buttons" id="floatingButtons" style="display: none;">
             <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
-                ðŸš€ Generate Team A (<span id="floatTeamACount">0</span>/20)
+                🚀 Generate Team A (<span id="floatTeamACount">0</span>/20)
             </button>
             <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
-                ðŸš€ Generate Team B (<span id="floatTeamBCount">0</span>/20)
+                🚀 Generate Team B (<span id="floatTeamBCount">0</span>/20)
             </button>
         </div>
     </div>
@@ -458,17 +458,17 @@
         
         // Check if Firebase modules are loaded
         if (typeof firebase === 'undefined') {
-            alert('âŒ Firebase SDK not loaded! Make sure you have internet connection.');
+            alert('❌ Firebase SDK not loaded! Make sure you have internet connection.');
             console.error('Firebase SDK failed to load from CDN');
         }
         
         if (typeof XLSX === 'undefined') {
-            alert('âŒ XLSX library not loaded! Make sure you have internet connection.');
+            alert('❌ XLSX library not loaded! Make sure you have internet connection.');
             console.error('XLSX library failed to load from CDN');
         }
         
         if (typeof FirebaseManager === 'undefined') {
-            alert('âŒ firebase-module.js not found! Make sure firebase-module.js is in the same folder as this HTML file.');
+            alert('❌ firebase-module.js not found! Make sure firebase-module.js is in the same folder as this HTML file.');
             console.error('FirebaseManager not defined - firebase-module.js not loaded');
         }
         
@@ -496,12 +496,12 @@
             return new Promise((resolve, reject) => {
                 mapImage.onload = () => { 
                     mapLoaded = true; 
-                    console.log('âœ… Map loaded successfully');
+                    console.log('✅ Map loaded successfully');
                     resolve(true);
                 };
                 
                 mapImage.onerror = () => {
-                    console.error('âŒ Map failed to load, attempt:', mapLoadRetries + 1);
+                    console.error('❌ Map failed to load, attempt:', mapLoadRetries + 1);
                     
                     if (mapLoadRetries < maxRetries) {
                         mapLoadRetries++;
@@ -510,7 +510,7 @@
                             mapImage.src = 'desert_storm_map.png?' + Date.now();
                         }, 1000 * mapLoadRetries);
                     } else {
-                        alert('âš ï¸ Map image not found! Please make sure "desert_storm_map.png" is in the same folder as this HTML file.');
+                        alert('⚠️ Map image not found! Please make sure "desert_storm_map.png" is in the same folder as this HTML file.');
                         console.error('Map loading failed after', maxRetries, 'attempts');
                         reject(false);
                     }
@@ -602,7 +602,7 @@
             setTimeout(() => {
                 const loginScreen = document.getElementById('loginScreen');
                 if (loginScreen) {
-                    loginScreen.innerHTML = '<div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><h1 style="text-align: center; color: #DC143C;">âŒ Error Loading Application</h1><p style="color: #333; text-align: center; margin: 20px 0;">The firebase-module.js file is missing or not in the same folder as this HTML file.</p><p style="color: #666; text-align: center; font-size: 14px;">Please ensure both files are in the same directory:</p><ul style="color: #666; margin: 20px 40px;"><li>desert_storm_final.html</li><li>firebase-module.js</li></ul><p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">Then refresh the page.</p></div>';
+                    loginScreen.innerHTML = '<div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><h1 style="text-align: center; color: #DC143C;">❌ Error Loading Application</h1><p style="color: #333; text-align: center; margin: 20px 0;">The firebase-module.js file is missing or not in the same folder as this HTML file.</p><p style="color: #666; text-align: center; font-size: 14px;">Please ensure both files are in the same directory:</p><ul style="color: #666; margin: 20px 40px;"><li>desert_storm_final.html</li><li>firebase-module.js</li></ul><p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">Then refresh the page.</p></div>';
                     loginScreen.style.display = 'block';
                 }
             }, 100);
@@ -750,7 +750,7 @@
             XLSX.utils.book_append_sheet(wb, ws, 'Players');
             XLSX.writeFile(wb, 'player_database_template.xlsx');
             
-            showMessage('uploadMessage', 'âœ… Template downloaded! Headers start at row 10.', 'success');
+            showMessage('uploadMessage', '✅ Template downloaded! Headers start at row 10.', 'success');
         }
         
         // ============================================================
@@ -759,7 +759,7 @@
         
         async function uploadPlayerData() {
             if (typeof FirebaseManager === 'undefined') {
-                showMessage('uploadMessage', 'âŒ Firebase not loaded. Please refresh the page.', 'error');
+                showMessage('uploadMessage', '❌ Firebase not loaded. Please refresh the page.', 'error');
                 return;
             }
             
@@ -768,7 +768,7 @@
             
             if (!file) return;
             
-            showMessage('uploadMessage', 'â³ Processing file...', 'processing');
+            showMessage('uploadMessage', '⏳ Processing file...', 'processing');
             
             try {
                 // Use Firebase module's upload function which reads from row 10
@@ -778,10 +778,10 @@
                     showMessage('uploadMessage', result.message, 'success');
                     loadPlayerData();
                 } else {
-                    showMessage('uploadMessage', 'âŒ Upload failed: ' + result.error, 'error');
+                    showMessage('uploadMessage', '❌ Upload failed: ' + result.error, 'error');
                 }
             } catch (error) {
-                showMessage('uploadMessage', 'âŒ Upload failed: ' + (error.error || error.message), 'error');
+                showMessage('uploadMessage', '❌ Upload failed: ' + (error.error || error.message), 'error');
             }
             
             fileInput.value = '';
@@ -1100,7 +1100,7 @@
             XLSX.writeFile(wb, `desert_storm_team_${team}_assignments.xlsx`);
             
             const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
-            showMessage(statusId, 'âœ… Excel downloaded!', 'success');
+            showMessage(statusId, '✅ Excel downloaded!', 'success');
         }
         
         function downloadTeamMap(team) {
@@ -1114,7 +1114,7 @@
             const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
             
             if (!mapLoaded) {
-                showMessage(statusId, 'â³ Waiting for map to load...', 'processing');
+                showMessage(statusId, '⏳ Waiting for map to load...', 'processing');
                 // Wait up to 10 seconds for map to load
                 let waitTime = 0;
                 const checkInterval = setInterval(() => {
@@ -1127,7 +1127,7 @@
                         if (confirm('Map image is still loading. Generate without map background?')) {
                             generateMapWithoutBackground(team, assignments, statusId);
                         } else {
-                            showMessage(statusId, 'âš ï¸ Cancelled. Refresh page to retry loading map.', 'warning');
+                            showMessage(statusId, '⚠️ Cancelled. Refresh page to retry loading map.', 'warning');
                         }
                     }
                 }, 500);
@@ -1138,7 +1138,7 @@
         }
         
         function generateMapWithoutBackground(team, assignments, statusId) {
-            showMessage(statusId, `ðŸŽ¨ Generating Team ${team} map (no background)...`, 'processing');
+            showMessage(statusId, `🎨 Generating Team ${team} map (no background)...`, 'processing');
             
             try {
                 const grouped = {};
@@ -1184,7 +1184,7 @@
                 
                 assignments.forEach((a, i) => {
                     if (a.player) {
-                        ctx.fillText(`${i+1}. ${a.player} â†’ ${a.building}`, 50, y);
+                        ctx.fillText(`${i+1}. ${a.player} → ${a.building}`, 50, y);
                         y += 30;
                     }
                 });
@@ -1198,15 +1198,15 @@
                 a.click();
                 document.body.removeChild(a);
                 
-                showMessage(statusId, `âœ… Team ${team} downloaded (list format - no map)`, 'success');
+                showMessage(statusId, `✅ Team ${team} downloaded (list format - no map)`, 'success');
             } catch (error) {
                 console.error(error);
-                showMessage(statusId, 'âŒ ' + error.message, 'error');
+                showMessage(statusId, '❌ ' + error.message, 'error');
             }
         }
         
         function generateMap(team, assignments, statusId) {
-            showMessage(statusId, `ðŸŽ¨ Generating Team ${team} map...`, 'processing');
+            showMessage(statusId, `🎨 Generating Team ${team} map...`, 'processing');
             
             try {
                 const grouped = {};
@@ -1345,11 +1345,11 @@
                 a.click();
                 document.body.removeChild(a);
                 
-                showMessage(statusId, `âœ… Team ${team} map downloaded! (${drawnCount} players + ${bombSquad.length} bomb squad)`, 'success');
+                showMessage(statusId, `✅ Team ${team} map downloaded! (${drawnCount} players + ${bombSquad.length} bomb squad)`, 'success');
             } catch (error) {
                 console.error(error);
                 const statusId = team === 'A' ? 'downloadStatusA' : 'downloadStatusB';
-                showMessage(statusId, 'âŒ ' + error.message, 'error');
+                showMessage(statusId, '❌ ' + error.message, 'error');
             }
         }
         
