@@ -897,6 +897,14 @@
             });
         }
 
+        function getEffectiveBuildingConfig() {
+            if (typeof FirebaseManager !== 'undefined') {
+                const stored = FirebaseManager.getBuildingConfig();
+                return normalizeBuildingConfig(stored);
+            }
+            return normalizeBuildingConfig(buildingConfig);
+        }
+
         function loadBuildingConfig() {
             if (typeof FirebaseManager === 'undefined') {
                 buildingConfig = getDefaultBuildings();
@@ -969,7 +977,7 @@
                 }
             });
 
-            buildingConfig = updated;
+            buildingConfig = normalizeBuildingConfig(updated);
             renderBuildingsTable();
 
             if (typeof FirebaseManager === 'undefined') {
@@ -1231,7 +1239,7 @@
             const assignments = [];
             let playerIndex = 0;
 
-            const sortedBuildings = [...buildingConfig].sort((a, b) => {
+            const sortedBuildings = [...getEffectiveBuildingConfig()].sort((a, b) => {
                 if (a.priority !== b.priority) {
                     return a.priority - b.priority;
                 }
