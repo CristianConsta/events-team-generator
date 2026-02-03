@@ -1556,7 +1556,7 @@
         let currentLanguage = 'en';
 
         function interpolateText(text, params = {}) {
-            return text.replace(/\\{(\\w+)\\}/g, (match, key) => {
+            return text.replace(/\{(\w+)\}/g, (match, key) => {
                 if (Object.prototype.hasOwnProperty.call(params, key)) {
                     return params[key];
                 }
