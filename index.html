@@ -1056,6 +1056,15 @@
             }
         }
 
+        function refreshBuildingConfigForAssignments() {
+            const panel = document.getElementById('buildingsPanel');
+            if (panel && !panel.classList.contains('hidden')) {
+                syncBuildingConfigFromTable();
+            } else {
+                loadBuildingConfig();
+            }
+        }
+
         function syncBuildingConfigFromTable() {
             const tbody = document.getElementById('buildingsTableBody');
             const panel = document.getElementById('buildingsPanel');
@@ -1387,7 +1396,7 @@
                 return;
             }
 
-            syncBuildingConfigFromTable();
+            refreshBuildingConfigForAssignments();
             
             const selections = team === 'A' ? teamSelections.teamA : teamSelections.teamB;
             
