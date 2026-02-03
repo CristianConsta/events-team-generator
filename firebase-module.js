@@ -37,6 +37,7 @@ const FirebaseManager = (function() {
     let currentUser = null;
     let playerDatabase = {};
     let buildingConfig = null;
+    let buildingPositions = null;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
 
@@ -258,6 +259,7 @@ const FirebaseManager = (function() {
                 const data = doc.data();
                 playerDatabase = data.playerDatabase || {};
                 buildingConfig = Array.isArray(data.buildingConfig) ? data.buildingConfig : null;
+                buildingPositions = data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null;
                 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
                 
@@ -274,6 +276,7 @@ const FirebaseManager = (function() {
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
                 buildingConfig = null;
+                buildingPositions = null;
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
@@ -296,6 +299,7 @@ const FirebaseManager = (function() {
             await db.collection('users').doc(currentUser.uid).set({
                 playerDatabase: playerDatabase,
                 buildingConfig: buildingConfig,
+                buildingPositions: buildingPositions,
                 metadata: {
                     email: currentUser.email || null,
                     totalPlayers: Object.keys(playerDatabase).length,
@@ -424,6 +428,20 @@ const FirebaseManager = (function() {
      */
     function setBuildingConfig(config) {
         buildingConfig = config;
+    }
+
+    /**
+     * Get building positions
+     */
+    function getBuildingPositions() {
+        return buildingPositions;
+    }
+
+    /**
+     * Set building positions
+     */
+    function setBuildingPositions(positions) {
+        buildingPositions = positions;
     }
     
     /**
@@ -744,6 +762,8 @@ const FirebaseManager = (function() {
         // Building config
         getBuildingConfig: getBuildingConfig,
         setBuildingConfig: setBuildingConfig,
+        getBuildingPositions: getBuildingPositions,
+        setBuildingPositions: setBuildingPositions,
         
         // Backup & restore
         exportBackup: exportBackup,

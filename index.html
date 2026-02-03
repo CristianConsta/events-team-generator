@@ -328,7 +328,10 @@
             <div id="buildingsPanel" class="card hidden">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                     <h2 style="margin: 0;">Buildings &amp; Priorities</h2>
-                    <button class="clear-btn" onclick="toggleBuildingsPanel()">Close</button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="clear-btn" onclick="openCoordinatesPicker()">Map Coordinates</button>
+                        <button class="clear-btn" onclick="toggleBuildingsPanel()">Close</button>
+                    </div>
                 </div>
                 <p style="opacity: 0.9; margin: 15px 0;">Update building priorities. Names and slots are fixed to match the map.</p>
                 <div style="overflow-x: auto;">
@@ -350,6 +353,28 @@
                     <button onclick="saveBuildingConfig()">Save Changes</button>
                 </div>
                 <div id="buildingsStatus"></div>
+            </div>
+
+            <div id="coordPickerOverlay" class="hidden" style="position: fixed; inset: 0; background: rgba(10, 12, 20, 0.7); backdrop-filter: blur(3px); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px;">
+                <div style="width: min(1000px, 95vw); max-height: 90vh; overflow: auto; background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h2 style="margin: 0;">Map Coordinates Picker</h2>
+                        <button class="clear-btn" onclick="closeCoordinatesPicker()">Close</button>
+                    </div>
+                    <p style="opacity: 0.9; margin: 10px 0 15px;">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 10px;">
+                        <strong id="coordBuildingLabel">Building</strong>
+                        <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
+                        <span id="coordBuildingValue" style="opacity: 0.7;"></span>
+                    </div>
+                    <canvas id="coordCanvas" style="width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);"></canvas>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                        <button class="secondary" onclick="prevCoordBuilding()">Prev</button>
+                        <button class="secondary" onclick="nextCoordBuilding()">Next</button>
+                        <button onclick="saveBuildingPositions()">Save Coordinates</button>
+                    </div>
+                    <div id="coordStatus" style="margin-top: 10px;"></div>
+                </div>
             </div>
             
             <!-- Upload Section (Collapsible when players exist) -->
@@ -556,7 +581,7 @@
         });
         
         // Building positions on the map (scaled for 1080px width from 2048x1446 original)
-        const buildingPositions = {
+        const defaultBuildingPositions = {
             'Info Center': [242, 95],
             'Field Hospital 4': [474, 95],
             'Oil Refinery 1': [137, 190],
@@ -596,6 +621,7 @@
         ];
 
         let buildingConfig = defaultBuildings.map((b) => ({ ...b }));
+        let buildingPositions = JSON.parse(JSON.stringify(defaultBuildingPositions));
         
         // ============================================================
         // FIREBASE INTEGRATION
@@ -619,6 +645,7 @@
                 console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
                 loadPlayerData();
                 loadBuildingConfig();
+                loadBuildingPositions();
             });
         } else {
             console.error('FirebaseManager not available - cannot initialize callbacks');
@@ -876,6 +903,7 @@
             panel.classList.toggle('hidden');
             if (opening) {
                 loadBuildingConfig();
+                loadBuildingPositions();
             } else {
                 renderBuildingsTable();
             }
@@ -895,6 +923,28 @@
                 const priority = stored && Number.isFinite(Number(stored.priority)) ? Number(stored.priority) : def.priority;
                 return { name: def.name, slots: def.slots, priority: priority };
             });
+        }
+
+        function getDefaultBuildingPositions() {
+            return JSON.parse(JSON.stringify(defaultBuildingPositions));
+        }
+
+        function normalizeBuildingPositions(positions) {
+            const normalized = getDefaultBuildingPositions();
+            if (!positions || typeof positions !== 'object') {
+                return normalized;
+            }
+            Object.keys(normalized).forEach((name) => {
+                const value = positions[name];
+                if (Array.isArray(value) && value.length === 2) {
+                    const x = Number(value[0]);
+                    const y = Number(value[1]);
+                    if (Number.isFinite(x) && Number.isFinite(y)) {
+                        normalized[name] = [Math.round(x), Math.round(y)];
+                    }
+                }
+            });
+            return normalized;
         }
 
         function getEffectiveBuildingConfig() {
@@ -935,6 +985,22 @@
             }
 
             renderBuildingsTable();
+        }
+
+        function loadBuildingPositions() {
+            if (typeof FirebaseManager === 'undefined') {
+                buildingPositions = getDefaultBuildingPositions();
+                return;
+            }
+            const stored = FirebaseManager.getBuildingPositions();
+            buildingPositions = normalizeBuildingPositions(stored);
+
+            const normalizedJson = JSON.stringify(buildingPositions);
+            const storedJson = stored ? JSON.stringify(normalizeBuildingPositions(stored)) : null;
+            if (!stored || storedJson !== normalizedJson) {
+                FirebaseManager.setBuildingPositions(buildingPositions);
+                FirebaseManager.saveUserData();
+            }
         }
 
         function renderBuildingsTable() {
@@ -1006,6 +1072,115 @@
                 }
             });
             buildingConfig = normalizeBuildingConfig(updated);
+        }
+
+        let coordBuildingIndex = 0;
+        let coordBuildings = [];
+
+        function openCoordinatesPicker() {
+            loadBuildingPositions();
+            coordBuildings = Object.keys(buildingPositions);
+            if (coordBuildings.length === 0) {
+                showMessage('coordStatus', 'No buildings available for coordinates.', 'error');
+                return;
+            }
+            coordBuildingIndex = 0;
+            const overlay = document.getElementById('coordPickerOverlay');
+            overlay.classList.remove('hidden');
+            drawCoordCanvas();
+        }
+
+        function closeCoordinatesPicker() {
+            document.getElementById('coordPickerOverlay').classList.add('hidden');
+        }
+
+        function updateCoordLabel() {
+            const name = coordBuildings[coordBuildingIndex];
+            const pos = buildingPositions[name];
+            document.getElementById('coordBuildingLabel').textContent = name || '';
+            document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
+            document.getElementById('coordBuildingValue').textContent = pos ? `x: ${pos[0]}, y: ${pos[1]}` : '';
+        }
+
+        function drawCoordCanvas() {
+            const canvas = document.getElementById('coordCanvas');
+            if (!canvas) return;
+
+            updateCoordLabel();
+
+            if (!mapLoaded) {
+                loadMapImage()
+                    .then(() => drawCoordCanvas())
+                    .catch(() => {
+                        showMessage('coordStatus', 'Map image not loaded. Please verify desert-storm-map.png exists.', 'error');
+                    });
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = mapImage.width;
+            canvas.height = mapImage.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(mapImage, 0, 0);
+
+            Object.entries(buildingPositions).forEach(([name, pos]) => {
+                if (!pos) return;
+                const isActive = name === coordBuildings[coordBuildingIndex];
+                ctx.beginPath();
+                ctx.arc(pos[0], pos[1], isActive ? 8 : 5, 0, Math.PI * 2);
+                ctx.fillStyle = isActive ? '#FDC830' : 'rgba(255,255,255,0.7)';
+                ctx.fill();
+                ctx.strokeStyle = isActive ? '#000' : 'rgba(0,0,0,0.6)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+
+        function coordCanvasClick(event) {
+            const canvas = document.getElementById('coordCanvas');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.round((event.clientX - rect.left) * scaleX);
+            const y = Math.round((event.clientY - rect.top) * scaleY);
+            const name = coordBuildings[coordBuildingIndex];
+            buildingPositions[name] = [x, y];
+            updateCoordLabel();
+            drawCoordCanvas();
+            if (coordBuildingIndex < coordBuildings.length - 1) {
+                coordBuildingIndex += 1;
+                updateCoordLabel();
+                drawCoordCanvas();
+            }
+        }
+
+        function prevCoordBuilding() {
+            if (coordBuildingIndex > 0) {
+                coordBuildingIndex -= 1;
+                drawCoordCanvas();
+            }
+        }
+
+        function nextCoordBuilding() {
+            if (coordBuildingIndex < coordBuildings.length - 1) {
+                coordBuildingIndex += 1;
+                drawCoordCanvas();
+            }
+        }
+
+        async function saveBuildingPositions() {
+            if (typeof FirebaseManager === 'undefined') {
+                showMessage('coordStatus', 'Firebase not loaded. Changes not saved.', 'error');
+                return;
+            }
+            FirebaseManager.setBuildingPositions(buildingPositions);
+            const result = await FirebaseManager.saveUserData();
+            if (result.success) {
+                showMessage('coordStatus', '✅ Coordinates saved.', 'success');
+            } else {
+                showMessage('coordStatus', '❌ Save failed: ' + result.error, 'error');
+            }
         }
 
         function reserveSpaceForFooter() {
@@ -1568,6 +1743,12 @@
                 }, 5000);
             }
         }
+
+        document.addEventListener('click', (event) => {
+            if (event.target && event.target.id === 'coordCanvas') {
+                coordCanvasClick(event);
+            }
+        });
     </script>
 </body>
 </html>
