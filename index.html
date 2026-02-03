@@ -184,6 +184,24 @@
             color: #fff;
             box-sizing: border-box;
         }
+        .lang-select {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 20px;
+        }
+        .lang-select label {
+            font-size: 12px;
+            opacity: 0.75;
+        }
+        .lang-select select {
+            padding: 6px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 12px;
+        }
         
         .team-buttons {
             display: flex;
@@ -426,7 +444,7 @@
                 gap: 4px;
             }
             #buildingsTable td:nth-child(2)::before {
-                content: "Slots: ";
+                content: attr(data-label);
                 font-size: 12px;
                 opacity: 0.6;
                 white-space: nowrap;
@@ -438,7 +456,7 @@
                 gap: 4px;
             }
             #buildingsTable td:nth-child(3)::before {
-                content: "Pri: ";
+                content: attr(data-label);
                 font-size: 12px;
                 opacity: 0.6;
                 white-space: nowrap;
@@ -481,28 +499,28 @@
     <!-- Login Screen -->
     <div id="loginScreen" style="display: none;">
         <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h1 style="text-align: center; color: #333;">🏜️ Desert Storm</h1>
-            <h3 style="text-align: center; color: #666; margin-bottom: 30px;">Sign in to continue</h3>
+            <h1 style="text-align: center; color: #333;" data-i18n="login_title">🏜️ Desert Storm</h1>
+            <h3 style="text-align: center; color: #666; margin-bottom: 30px;" data-i18n="login_subtitle">Sign in to continue</h3>
             
             <button id="googleSignInBtn" onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
-                🔵 Sign in with Google
+                🔵 <span data-i18n="login_google">Sign in with Google</span>
             </button>
             
-            <div style="text-align: center; margin: 20px 0; color: #999;">or</div>
+            <div style="text-align: center; margin: 20px 0; color: #999;" data-i18n="login_or">or</div>
             
-            <input type="email" id="emailInput" placeholder="Email" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-            <input type="password" id="passwordInput" placeholder="Password" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+            <input type="email" id="emailInput" placeholder="Email" data-i18n-placeholder="login_email_placeholder" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+            <input type="password" id="passwordInput" placeholder="Password" data-i18n-placeholder="login_password_placeholder" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
             
             <button onclick="handleEmailSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
-                Sign In
+                <span data-i18n="login_sign_in">Sign In</span>
             </button>
             
             <button onclick="showSignUpForm()" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
-                Create New Account
+                <span data-i18n="login_create_account">Create New Account</span>
             </button>
             
             <button onclick="handlePasswordReset()" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
-                Forgot Password?
+                <span data-i18n="login_forgot_password">Forgot Password?</span>
             </button>
             
             <div id="statusMessage" style="margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; display: none;"></div>
@@ -516,35 +534,46 @@
             <div>
                 <span id="userEmail" style="color: #FDC830; font-weight: bold;"></span>
                 <span id="playerCount" style="color: #fff; margin-left: 20px;"></span>
-                <span id="syncStatus" style="color: #90EE90; margin-left: 20px;">☁️ Synced</span>
+                <span id="syncStatus" style="color: #90EE90; margin-left: 20px;" data-i18n="sync_status_synced">☁️ Synced</span>
+                <span class="lang-select">
+                    <label for="languageSelect" data-i18n="language_label">Language</label>
+                    <select id="languageSelect">
+                        <option value="en">English</option>
+                        <option value="fr">Français</option>
+                        <option value="de">Deutsch</option>
+                        <option value="it">Italiano</option>
+                        <option value="ko">한국어</option>
+                        <option value="ro">Română</option>
+                    </select>
+                </span>
             </div>
             <button onclick="handleSignOut()" style="padding: 8px 20px; background: #FF6B35; color: white; border: none; border-radius: 8px; cursor: pointer;">
-                Sign Out
+                <span data-i18n="sign_out">Sign Out</span>
             </button>
         </div>
 
         <div class="container">
             <div class="page-header">
-                <h1>🏜️ DESERT STORM</h1>
-                <button class="secondary" onclick="toggleBuildingsPanel()">Buildings &amp; Priorities</button>
+                <h1 data-i18n="main_title">🏜️ DESERT STORM</h1>
+                <button class="secondary" onclick="toggleBuildingsPanel()"><span data-i18n="buildings_button">Buildings &amp; Priorities</span></button>
             </div>
 
             <div id="buildingsPanel" class="card hidden">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <h2 style="margin: 0;">Buildings &amp; Priorities</h2>
+                    <h2 style="margin: 0;" data-i18n="buildings_panel_title">Buildings &amp; Priorities</h2>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button class="clear-btn" onclick="openCoordinatesPicker()">Map Coordinates</button>
-                        <button class="clear-btn" onclick="toggleBuildingsPanel()">Close</button>
+                        <button class="clear-btn" onclick="openCoordinatesPicker()"><span data-i18n="map_coordinates">Map Coordinates</span></button>
+                        <button class="clear-btn" onclick="toggleBuildingsPanel()"><span data-i18n="close">Close</span></button>
                     </div>
                 </div>
-                <p style="opacity: 0.9; margin: 15px 0;">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
+                <p style="opacity: 0.9; margin: 15px 0;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
                 <div style="overflow-x: auto;">
                     <table class="players-table" id="buildingsTable">
                         <thead>
                             <tr>
-                                <th>Building</th>
-                                <th>Slots</th>
-                                <th>Priority</th>
+                                <th data-i18n="buildings_table_building">Building</th>
+                                <th data-i18n="buildings_table_slots">Slots</th>
+                                <th data-i18n="buildings_table_priority">Priority</th>
                             </tr>
                         </thead>
                         <tbody id="buildingsTableBody">
@@ -553,8 +582,8 @@
                     </table>
                 </div>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
-                    <button class="secondary" onclick="resetBuildingsToDefault()">Reset to Default</button>
-                    <button onclick="saveBuildingConfig()">Save Changes</button>
+                    <button class="secondary" onclick="resetBuildingsToDefault()"><span data-i18n="reset_default">Reset to Default</span></button>
+                    <button onclick="saveBuildingConfig()"><span data-i18n="save_changes">Save Changes</span></button>
                 </div>
                 <div id="buildingsStatus"></div>
             </div>
@@ -562,21 +591,21 @@
             <div id="coordPickerOverlay" class="coord-overlay hidden">
                 <div style="width: min(1000px, 95vw); max-height: 90vh; overflow: auto; background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <h2 style="margin: 0;">Map Coordinates Picker</h2>
-                        <button class="clear-btn" onclick="closeCoordinatesPicker()">Close</button>
+                        <h2 style="margin: 0;" data-i18n="coord_picker_title">Map Coordinates Picker</h2>
+                        <button class="clear-btn" onclick="closeCoordinatesPicker()"><span data-i18n="close">Close</span></button>
                     </div>
-                    <p style="opacity: 0.9; margin: 10px 0 15px;">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
+                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
                     <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
-                        <strong id="coordBuildingLabel">Building</strong>
+                        <strong id="coordBuildingLabel" data-i18n="coord_label_building">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
                     </div>
-                    <div id="coordPrompt" style="opacity: 0.85; margin-bottom: 10px;">Click on the map to set coordinates.</div>
+                    <div id="coordPrompt" style="opacity: 0.85; margin-bottom: 10px;" data-i18n="coord_prompt_default">Click on the map to set coordinates.</div>
                     <div id="coordBuildingValue" style="opacity: 0.7; margin-bottom: 10px;"></div>
                     <canvas id="coordCanvas" style="width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);"></canvas>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
-                        <button class="secondary" onclick="prevCoordBuilding()">Prev</button>
-                        <button class="secondary" onclick="nextCoordBuilding()">Next</button>
-                        <button onclick="saveBuildingPositions()">Save Coordinates</button>
+                        <button class="secondary" onclick="prevCoordBuilding()"><span data-i18n="coord_prev">Prev</span></button>
+                        <button class="secondary" onclick="nextCoordBuilding()"><span data-i18n="coord_next">Next</span></button>
+                        <button onclick="saveBuildingPositions()"><span data-i18n="coord_save">Save Coordinates</span></button>
                     </div>
                     <div id="coordStatus" style="margin-top: 10px;"></div>
                 </div>
@@ -586,18 +615,18 @@
             <div id="uploadSection" class="card">
                 <div class="collapsible-header" onclick="toggleUploadPanel()">
                     <div>
-                        <h2 style="display: inline; margin: 0;">📊 Player Database</h2>
+                        <h2 style="display: inline; margin: 0;" data-i18n="player_db_title">📊 Player Database</h2>
                         <span id="uploadHint" style="margin-left: 15px; opacity: 0.7; font-size: 14px;"></span>
                     </div>
                     <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
                 </div>
                 
                 <div class="collapsible-content" id="uploadContent">
-                    <p style="opacity: 0.9; margin-bottom: 20px;">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
+                    <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_help">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
                     
                     <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button class="secondary" onclick="downloadPlayerTemplate()">📥 Download Template</button>
-                        <button onclick="document.getElementById('playerFileInput').click()">📤 Upload Player Data</button>
+                        <button class="secondary" onclick="downloadPlayerTemplate()">📥 <span data-i18n="download_template">Download Template</span></button>
+                        <button onclick="document.getElementById('playerFileInput').click()">📤 <span data-i18n="upload_player_data">Upload Player Data</span></button>
                         <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
                     </div>
                     
@@ -607,35 +636,35 @@
             
             <!-- Player Selection Section -->
             <div id="selectionSection" class="card hidden">
-                <h2>⚔️ Select Teams</h2>
-                <p style="opacity: 0.9; margin-bottom: 20px;">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
+                <h2 data-i18n="select_teams_title">⚔️ Select Teams</h2>
+                <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="select_teams_help">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
                 
                 <!-- Team Counters -->
                 <div class="team-counters">
                     <div class="counter team-a">
-                        Team A: <span id="teamACount">0</span>/20
+                        <span data-i18n="team_a_label">Team A</span>: <span id="teamACount">0</span><span data-i18n="team_count_suffix">/20</span>
                     </div>
                     <div class="counter team-b">
-                        Team B: <span id="teamBCount">0</span>/20
+                        <span data-i18n="team_b_label">Team B</span>: <span id="teamBCount">0</span><span data-i18n="team_count_suffix">/20</span>
                     </div>
                 </div>
                 
                 <!-- Filters -->
                 <div class="filters">
-                    <input type="text" id="searchFilter" placeholder="🔍 Search player name..." onkeyup="filterPlayers()">
+                    <input type="text" id="searchFilter" placeholder="🔍 Search player name..." data-i18n-placeholder="search_placeholder" onkeyup="filterPlayers()">
                     <select id="troopsFilter" onchange="filterPlayers()">
-                        <option value="">All Troop Types</option>
-                        <option value="Tank">Tank</option>
-                        <option value="Aero">Aero</option>
-                        <option value="Missile">Missile</option>
+                        <option value="" data-i18n="troops_filter_all">All Troop Types</option>
+                        <option value="Tank" data-i18n="troops_filter_tank">Tank</option>
+                        <option value="Aero" data-i18n="troops_filter_aero">Aero</option>
+                        <option value="Missile" data-i18n="troops_filter_missile">Missile</option>
                     </select>
                     <select id="sortFilter" onchange="filterPlayers()">
-                        <option value="power-desc">Sort by Power (High to Low)</option>
-                        <option value="power-asc">Sort by Power (Low to High)</option>
-                        <option value="name-asc">Sort by Name (A-Z)</option>
-                        <option value="name-desc">Sort by Name (Z-A)</option>
+                        <option value="power-desc" data-i18n="sort_power_desc">Sort by Power (High to Low)</option>
+                        <option value="power-asc" data-i18n="sort_power_asc">Sort by Power (Low to High)</option>
+                        <option value="name-asc" data-i18n="sort_name_asc">Sort by Name (A-Z)</option>
+                        <option value="name-desc" data-i18n="sort_name_desc">Sort by Name (Z-A)</option>
                     </select>
-                    <button class="secondary" onclick="clearAllSelections()">Clear All Selections</button>
+                    <button class="secondary" onclick="clearAllSelections()"><span data-i18n="clear_all_selections">Clear All Selections</span></button>
                 </div>
                 
                 <!-- Players Table -->
@@ -643,10 +672,10 @@
                     <table class="players-table" id="playersTable">
                         <thead>
                             <tr>
-                                <th>Player Name</th>
-                                <th>E1 Power (M)</th>
-                                <th>Troop Type</th>
-                                <th>Team Selection</th>
+                                <th data-i18n="table_header_player_name">Player Name</th>
+                                <th data-i18n="table_header_power">E1 Power (M)</th>
+                                <th data-i18n="table_header_troop">Troop Type</th>
+                                <th data-i18n="table_header_team_selection">Team Selection</th>
                             </tr>
                         </thead>
                         <tbody id="playersTableBody">
@@ -664,15 +693,15 @@
                 <div style="width: min(480px, 90vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 30px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <h2 id="downloadModalTitle" style="margin: 0;"></h2>
-                        <button class="clear-btn" onclick="closeDownloadModal()">Close</button>
+                        <button class="clear-btn" onclick="closeDownloadModal()"><span data-i18n="close">Close</span></button>
                     </div>
                     <p id="downloadModalSubtitle" style="opacity: 0.9; margin: 0 0 25px;"></p>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <button id="downloadMapBtn" style="font-size: 17px; padding: 16px 25px;">
-                            🗺️ Map
+                            🗺️ <span data-i18n="download_map">Map</span>
                         </button>
                         <button id="downloadExcelBtn" style="padding: 16px 25px;">
-                            📊 Excel
+                            📊 <span data-i18n="download_excel">Excel</span>
                         </button>
                     </div>
                     <div id="downloadStatus" style="margin-top: 15px;"></div>
@@ -683,34 +712,942 @@
         <!-- Floating Generate Buttons -->
         <div class="floating-buttons" id="floatingButtons" style="display: none;">
             <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
-                <span style="display: block; font-size: 14px; opacity: 0.9;">Team A (<span id="teamAFloatCount">0</span>/20)</span>
-                🚀 Generate Team A
+                <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_a_label">Team A</span> (<span id="teamAFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
+                🚀 <span data-i18n="generate_team_a">Generate Team A</span>
             </button>
             <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
-                <span style="display: block; font-size: 14px; opacity: 0.9;">Team B (<span id="teamBFloatCount">0</span>/20)</span>
-                🚀 Generate Team B
+                <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_b_label">Team B</span> (<span id="teamBFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
+                🚀 <span data-i18n="generate_team_b">Generate Team B</span>
             </button>
         </div>
     </div>
 
     <script>
         // ============================================================
+        // I18N
+        // ============================================================
+        const translations = {
+            en: {
+                app_title: 'Desert Storm - Player Selection',
+                login_title: '🏜️ Desert Storm',
+                login_subtitle: 'Sign in to continue',
+                login_google: 'Sign in with Google',
+                login_or: 'or',
+                login_email_placeholder: 'Email',
+                login_password_placeholder: 'Password',
+                login_sign_in: 'Sign In',
+                login_create_account: 'Create New Account',
+                login_forgot_password: 'Forgot Password?',
+                sync_status_synced: '☁️ Synced',
+                sync_status_not_synced: '⚠️ Not Synced',
+                language_label: 'Language',
+                sign_out: 'Sign Out',
+                main_title: '🏜️ DESERT STORM',
+                buildings_button: 'Buildings & Priorities',
+                buildings_panel_title: 'Buildings & Priorities',
+                map_coordinates: 'Map Coordinates',
+                close: 'Close',
+                buildings_intro: 'Update building slots and priorities. Total slots across all buildings must be 20 or less.',
+                buildings_table_building: 'Building',
+                buildings_table_slots: 'Slots',
+                buildings_table_priority: 'Priority',
+                slots_label: 'Slots: ',
+                priority_label: 'Pri: ',
+                reset_default: 'Reset to Default',
+                save_changes: 'Save Changes',
+                coord_picker_title: 'Map Coordinates Picker',
+                coord_picker_help: 'Click on the map to set the position for the selected building. Coordinates update one by one.',
+                coord_label_building: 'Building',
+                coord_prompt_default: 'Click on the map to set coordinates.',
+                coord_prev: 'Prev',
+                coord_next: 'Next',
+                coord_save: 'Save Coordinates',
+                player_db_title: '📊 Player Database',
+                upload_help: 'Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.',
+                download_template: 'Download Template',
+                upload_player_data: 'Upload Player Data',
+                template_title: 'PLAYER DATABASE TEMPLATE',
+                template_instructions: 'Instructions:',
+                template_step1: '1. Fill Player Name column with exact names from game',
+                template_step2: '2. Fill E1 Total Power(M) column with numeric value (e.g., 65.0)',
+                template_step3: '3. Fill E1 Troops column with: Tank, Aero, or Missile',
+                template_step4: '4. Upload this file to the system',
+                template_step5: '5. Select teams in the web interface',
+                template_header_player_name: 'Player Name',
+                template_header_power: 'E1 Total Power(M)',
+                template_header_troops: 'E1 Troops',
+                template_sheet_name: 'Players',
+                excel_header_building: 'Building',
+                excel_header_priority: 'Priority',
+                excel_header_player: 'Player',
+                excel_sheet_name: 'Team {team}',
+                select_teams_title: '⚔️ Select Teams',
+                select_teams_help: 'Select players for Team A and Team B independently. Maximum 20 players per team.',
+                team_a_label: 'Team A',
+                team_b_label: 'Team B',
+                team_count_suffix: '/20',
+                search_placeholder: '🔍 Search player name...',
+                troops_filter_all: 'All Troop Types',
+                troops_filter_tank: 'Tank',
+                troops_filter_aero: 'Aero',
+                troops_filter_missile: 'Missile',
+                sort_power_desc: 'Sort by Power (High to Low)',
+                sort_power_asc: 'Sort by Power (Low to High)',
+                sort_name_asc: 'Sort by Name (A-Z)',
+                sort_name_desc: 'Sort by Name (Z-A)',
+                clear_all_selections: 'Clear All Selections',
+                table_header_player_name: 'Player Name',
+                table_header_power: 'E1 Power (M)',
+                table_header_troop: 'Troop Type',
+                table_header_team_selection: 'Team Selection',
+                download_map: 'Map',
+                download_excel: 'Excel',
+                generate_team_a: 'Generate Team A',
+                generate_team_b: 'Generate Team B',
+                team_a_button: 'Team A',
+                team_b_button: 'Team B',
+                clear_button: 'Clear',
+                player_count: '{count} players stored',
+                upload_hint: '(Click to expand if you need to update player data)',
+                error_firebase_sdk_missing: '❌ Firebase SDK not loaded! Make sure you have internet connection.',
+                error_xlsx_missing: '❌ XLSX library not loaded! Make sure you have internet connection.',
+                error_firebase_module_missing: '❌ firebase-module.js not found! Make sure firebase-module.js is in the same folder as this HTML file.',
+                error_loading_title: '❌ Error Loading Application',
+                error_missing_firebase_line1: 'The firebase-module.js file is missing or not in the same folder as this HTML file.',
+                error_missing_firebase_line2: 'Please ensure both files are in the same directory:',
+                error_missing_firebase_file1: 'desert_storm_final.html',
+                error_missing_firebase_file2: 'firebase-module.js',
+                error_missing_firebase_line3: 'Then refresh the page.',
+                error_firebase_not_loaded: 'Firebase not loaded. Please refresh the page.',
+                error_sign_in_failed: 'Sign-in failed: {error}',
+                error_enter_email_password: 'Please enter email and password',
+                error_password_length: 'Password must be at least 6 characters',
+                success_account_created: 'Account created! Check your email for verification.',
+                error_sign_up_failed: 'Sign-up failed: {error}',
+                error_enter_email: 'Please enter your email address',
+                success_password_reset: 'Password reset email sent!',
+                error_failed: 'Failed: {error}',
+                confirm_create_account: 'Create new account with: {email}',
+                confirm_sign_out: 'Sign out?',
+                confirm_clear_all: 'Clear all team selections?',
+                message_template_downloaded: '✅ Template downloaded! Headers start at row 10.',
+                message_upload_processing: '⏳ Processing file...',
+                message_upload_failed: '❌ Upload failed: {error}',
+                buildings_slots_exceeded_saved: '❌ Total slots exceeded {max} in saved config. Reset to defaults.',
+                buildings_slots_exceeded: '❌ Total slots cannot exceed {max}. Currently: {total}.',
+                buildings_changes_not_saved: 'Firebase not loaded. Changes not saved.',
+                buildings_saved: '✅ Buildings saved.',
+                buildings_save_failed: '❌ Save failed: {error}',
+                coord_no_buildings: 'No buildings available for coordinates.',
+                coord_current: 'Current: x {x}, y {y}',
+                coord_current_not_set: 'Current: not set',
+                coord_select_prompt: 'Select coordinates for {name}',
+                coord_map_not_loaded: 'Map image not loaded. Please verify desert-storm-map.png exists.',
+                coord_changes_not_saved: 'Firebase not loaded. Changes not saved.',
+                coord_saved: '✅ Coordinates saved.',
+                coord_save_failed: '❌ Save failed: {error}',
+                alert_total_slots_exceed: 'Total slots across all buildings cannot exceed {max}.',
+                alert_select_at_least_one: 'Please select at least 1 player for Team {team}!',
+                alert_max_players: 'Maximum 20 players per team! Currently selected: {count}',
+                download_modal_title: 'Team {team} Downloads',
+                download_modal_subtitle: 'Team {team} assignments are ready!',
+                alert_no_assignments: 'No assignments generated yet! Click "Generate Team {team} Assignments" first.',
+                message_excel_downloaded: '✅ Excel downloaded!',
+                message_map_wait: '⏳ Waiting for map to load...',
+                confirm_map_without_background: 'Map image is still loading. Generate without map background?',
+                message_map_cancelled: '⚠️ Cancelled. Refresh page to retry loading map.',
+                message_generating_map_no_bg: '🎨 Generating Team {team} map (no background)...',
+                message_team_downloaded_list: '✅ Team {team} downloaded (list format - no map)',
+                message_generating_map: '🎨 Generating Team {team} map...',
+                message_team_map_downloaded: '✅ Team {team} map downloaded! ({drawnCount} players + {bombSquad} bomb squad)',
+                error_generic: '❌ {error}',
+                map_footer_text: 'Roam free, help others'
+            },
+            fr: {
+                app_title: 'Desert Storm - Sélection des joueurs',
+                login_title: '🏜️ Desert Storm',
+                login_subtitle: 'Connectez-vous pour continuer',
+                login_google: 'Se connecter avec Google',
+                login_or: 'ou',
+                login_email_placeholder: 'E-mail',
+                login_password_placeholder: 'Mot de passe',
+                login_sign_in: 'Se connecter',
+                login_create_account: 'Créer un compte',
+                login_forgot_password: 'Mot de passe oublié ?',
+                sync_status_synced: '☁️ Synchronisé',
+                sync_status_not_synced: '⚠️ Non synchronisé',
+                language_label: 'Langue',
+                sign_out: 'Se déconnecter',
+                main_title: '🏜️ DESERT STORM',
+                buildings_button: 'Bâtiments & Priorités',
+                buildings_panel_title: 'Bâtiments & Priorités',
+                map_coordinates: 'Coordonnées de la carte',
+                close: 'Fermer',
+                buildings_intro: 'Mettez à jour les emplacements et priorités des bâtiments. Le total des emplacements doit être de 20 ou moins.',
+                buildings_table_building: 'Bâtiment',
+                buildings_table_slots: 'Emplacements',
+                buildings_table_priority: 'Priorité',
+                slots_label: 'Slots : ',
+                priority_label: 'Prio : ',
+                reset_default: 'Réinitialiser',
+                save_changes: 'Enregistrer',
+                coord_picker_title: 'Sélecteur de coordonnées',
+                coord_picker_help: 'Cliquez sur la carte pour définir la position du bâtiment sélectionné. Les coordonnées se mettent à jour une par une.',
+                coord_label_building: 'Bâtiment',
+                coord_prompt_default: 'Cliquez sur la carte pour définir les coordonnées.',
+                coord_prev: 'Préc',
+                coord_next: 'Suiv',
+                coord_save: 'Enregistrer les coordonnées',
+                player_db_title: '📊 Base de joueurs',
+                upload_help: 'Téléversez vos données de joueurs. Les en-têtes du modèle commencent à la ligne 10 : Nom du joueur, Puissance E1 (M), Troupes E1.',
+                download_template: 'Télécharger le modèle',
+                upload_player_data: 'Téléverser les données',
+                template_title: 'MODÈLE DE BASE DE JOUEURS',
+                template_instructions: 'Instructions :',
+                template_step1: '1. Renseignez la colonne Nom du joueur avec les noms exacts du jeu',
+                template_step2: '2. Renseignez la colonne Puissance E1 (M) avec une valeur numérique (ex. 65.0)',
+                template_step3: '3. Renseignez la colonne Troupes E1 avec : Tank, Aéro ou Missile',
+                template_step4: '4. Téléversez ce fichier dans le système',
+                template_step5: '5. Sélectionnez les équipes dans l\'interface web',
+                template_header_player_name: 'Nom du joueur',
+                template_header_power: 'Puissance E1 (M)',
+                template_header_troops: 'Troupes E1',
+                template_sheet_name: 'Joueurs',
+                excel_header_building: 'Bâtiment',
+                excel_header_priority: 'Priorité',
+                excel_header_player: 'Joueur',
+                excel_sheet_name: 'Équipe {team}',
+                select_teams_title: '⚔️ Sélectionner les équipes',
+                select_teams_help: 'Sélectionnez des joueurs pour les équipes A et B indépendamment. Maximum 20 joueurs par équipe.',
+                team_a_label: 'Équipe A',
+                team_b_label: 'Équipe B',
+                team_count_suffix: '/20',
+                search_placeholder: '🔍 Rechercher un joueur...',
+                troops_filter_all: 'Tous les types',
+                troops_filter_tank: 'Tank',
+                troops_filter_aero: 'Aéro',
+                troops_filter_missile: 'Missile',
+                sort_power_desc: 'Trier par puissance (décroissant)',
+                sort_power_asc: 'Trier par puissance (croissant)',
+                sort_name_asc: 'Trier par nom (A-Z)',
+                sort_name_desc: 'Trier par nom (Z-A)',
+                clear_all_selections: 'Tout effacer',
+                table_header_player_name: 'Nom du joueur',
+                table_header_power: 'Puissance E1 (M)',
+                table_header_troop: 'Type de troupe',
+                table_header_team_selection: 'Sélection d\'équipe',
+                download_map: 'Carte',
+                download_excel: 'Excel',
+                generate_team_a: 'Générer l\'équipe A',
+                generate_team_b: 'Générer l\'équipe B',
+                team_a_button: 'Équipe A',
+                team_b_button: 'Équipe B',
+                clear_button: 'Effacer',
+                player_count: '{count} joueurs enregistrés',
+                upload_hint: '(Cliquez pour développer si vous devez mettre à jour les données)',
+                error_firebase_sdk_missing: '❌ SDK Firebase non chargé ! Vérifiez votre connexion Internet.',
+                error_xlsx_missing: '❌ Bibliothèque XLSX non chargée ! Vérifiez votre connexion Internet.',
+                error_firebase_module_missing: '❌ firebase-module.js introuvable ! Assurez-vous qu\'il est dans le même dossier que ce fichier HTML.',
+                error_loading_title: '❌ Erreur de chargement de l\'application',
+                error_missing_firebase_line1: 'Le fichier firebase-module.js est manquant ou pas dans le même dossier que ce fichier HTML.',
+                error_missing_firebase_line2: 'Veuillez vous assurer que les deux fichiers sont dans le même répertoire :',
+                error_missing_firebase_file1: 'desert_storm_final.html',
+                error_missing_firebase_file2: 'firebase-module.js',
+                error_missing_firebase_line3: 'Puis actualisez la page.',
+                error_firebase_not_loaded: 'Firebase non chargé. Veuillez actualiser la page.',
+                error_sign_in_failed: 'Échec de connexion : {error}',
+                error_enter_email_password: 'Veuillez saisir l\'e-mail et le mot de passe',
+                error_password_length: 'Le mot de passe doit contenir au moins 6 caractères',
+                success_account_created: 'Compte créé ! Vérifiez votre e-mail pour la confirmation.',
+                error_sign_up_failed: 'Échec de l\'inscription : {error}',
+                error_enter_email: 'Veuillez saisir votre adresse e-mail',
+                success_password_reset: 'E-mail de réinitialisation envoyé !',
+                error_failed: 'Échec : {error}',
+                confirm_create_account: 'Créer un compte avec : {email}',
+                confirm_sign_out: 'Se déconnecter ?',
+                confirm_clear_all: 'Effacer toutes les sélections d\'équipe ?',
+                message_template_downloaded: '✅ Modèle téléchargé ! Les en-têtes commencent à la ligne 10.',
+                message_upload_processing: '⏳ Traitement du fichier...',
+                message_upload_failed: '❌ Échec du téléversement : {error}',
+                buildings_slots_exceeded_saved: '❌ Le total des emplacements dépasse {max} dans la config enregistrée. Réinitialisé aux valeurs par défaut.',
+                buildings_slots_exceeded: '❌ Le total des emplacements ne peut pas dépasser {max}. Actuel : {total}.',
+                buildings_changes_not_saved: 'Firebase non chargé. Modifications non enregistrées.',
+                buildings_saved: '✅ Bâtiments enregistrés.',
+                buildings_save_failed: '❌ Échec de l\'enregistrement : {error}',
+                coord_no_buildings: 'Aucun bâtiment disponible pour les coordonnées.',
+                coord_current: 'Actuel : x {x}, y {y}',
+                coord_current_not_set: 'Actuel : non défini',
+                coord_select_prompt: 'Sélectionnez les coordonnées pour {name}',
+                coord_map_not_loaded: 'Image de carte non chargée. Vérifiez que desert-storm-map.png existe.',
+                coord_changes_not_saved: 'Firebase non chargé. Modifications non enregistrées.',
+                coord_saved: '✅ Coordonnées enregistrées.',
+                coord_save_failed: '❌ Échec de l\'enregistrement : {error}',
+                alert_total_slots_exceed: 'Le total des emplacements ne peut pas dépasser {max}.',
+                alert_select_at_least_one: 'Veuillez sélectionner au moins 1 joueur pour l\'équipe {team} !',
+                alert_max_players: 'Maximum 20 joueurs par équipe ! Actuel : {count}',
+                download_modal_title: 'Téléchargements équipe {team}',
+                download_modal_subtitle: 'Les affectations de l\'équipe {team} sont prêtes !',
+                alert_no_assignments: 'Aucune affectation générée ! Cliquez d\'abord sur « Générer l\'équipe {team} ».',
+                message_excel_downloaded: '✅ Excel téléchargé !',
+                message_map_wait: '⏳ En attente du chargement de la carte...',
+                confirm_map_without_background: 'L\'image de la carte charge encore. Générer sans fond ?',
+                message_map_cancelled: '⚠️ Annulé. Actualisez la page pour réessayer.',
+                message_generating_map_no_bg: '🎨 Génération de la carte de l\'équipe {team} (sans fond)...',
+                message_team_downloaded_list: '✅ Équipe {team} téléchargée (liste, sans carte)',
+                message_generating_map: '🎨 Génération de la carte de l\'équipe {team}...',
+                message_team_map_downloaded: '✅ Carte de l\'équipe {team} téléchargée ! ({drawnCount} joueurs + {bombSquad} bomb squad)',
+                error_generic: '❌ {error}',
+                map_footer_text: 'Soyez libres, aidez les autres'
+            },
+            de: {
+                app_title: 'Desert Storm – Spielerauswahl',
+                login_title: '🏜️ Desert Storm',
+                login_subtitle: 'Bitte anmelden, um fortzufahren',
+                login_google: 'Mit Google anmelden',
+                login_or: 'oder',
+                login_email_placeholder: 'E-Mail',
+                login_password_placeholder: 'Passwort',
+                login_sign_in: 'Anmelden',
+                login_create_account: 'Neues Konto erstellen',
+                login_forgot_password: 'Passwort vergessen?',
+                sync_status_synced: '☁️ Synchronisiert',
+                sync_status_not_synced: '⚠️ Nicht synchronisiert',
+                language_label: 'Sprache',
+                sign_out: 'Abmelden',
+                main_title: '🏜️ DESERT STORM',
+                buildings_button: 'Gebäude & Prioritäten',
+                buildings_panel_title: 'Gebäude & Prioritäten',
+                map_coordinates: 'Kartenkoordinaten',
+                close: 'Schließen',
+                buildings_intro: 'Gebäudeslots und Prioritäten aktualisieren. Gesamtslots über alle Gebäude müssen 20 oder weniger sein.',
+                buildings_table_building: 'Gebäude',
+                buildings_table_slots: 'Slots',
+                buildings_table_priority: 'Priorität',
+                slots_label: 'Slots: ',
+                priority_label: 'Prio: ',
+                reset_default: 'Zurücksetzen',
+                save_changes: 'Änderungen speichern',
+                coord_picker_title: 'Koordinaten-Auswahl',
+                coord_picker_help: 'Klicken Sie auf die Karte, um die Position des ausgewählten Gebäudes festzulegen. Die Koordinaten werden nacheinander aktualisiert.',
+                coord_label_building: 'Gebäude',
+                coord_prompt_default: 'Klicken Sie auf die Karte, um Koordinaten festzulegen.',
+                coord_prev: 'Zurück',
+                coord_next: 'Weiter',
+                coord_save: 'Koordinaten speichern',
+                player_db_title: '📊 Spielerdatenbank',
+                upload_help: 'Laden Sie Ihre Spielerdaten hoch. Vorlagenköpfe beginnen in Zeile 10: Spielername, E1 Power (M), E1 Truppen.',
+                download_template: 'Vorlage herunterladen',
+                upload_player_data: 'Spielerdaten hochladen',
+                template_title: 'SPIELERDATENBANK-VORLAGE',
+                template_instructions: 'Anleitung:',
+                template_step1: '1. Spalte Spielername mit den exakten Namen aus dem Spiel füllen',
+                template_step2: '2. Spalte E1 Power (M) mit numerischem Wert füllen (z. B. 65.0)',
+                template_step3: '3. Spalte E1 Truppen mit: Panzer, Aero oder Rakete füllen',
+                template_step4: '4. Diese Datei in das System hochladen',
+                template_step5: '5. Teams in der Weboberfläche auswählen',
+                template_header_player_name: 'Spielername',
+                template_header_power: 'E1 Power (M)',
+                template_header_troops: 'E1 Truppen',
+                template_sheet_name: 'Spieler',
+                excel_header_building: 'Gebäude',
+                excel_header_priority: 'Priorität',
+                excel_header_player: 'Spieler',
+                excel_sheet_name: 'Team {team}',
+                select_teams_title: '⚔️ Teams auswählen',
+                select_teams_help: 'Wählen Sie Spieler für Team A und Team B unabhängig aus. Maximal 20 Spieler pro Team.',
+                team_a_label: 'Team A',
+                team_b_label: 'Team B',
+                team_count_suffix: '/20',
+                search_placeholder: '🔍 Spielernamen suchen...',
+                troops_filter_all: 'Alle Truppentypen',
+                troops_filter_tank: 'Panzer',
+                troops_filter_aero: 'Aero',
+                troops_filter_missile: 'Rakete',
+                sort_power_desc: 'Nach Power sortieren (hoch → niedrig)',
+                sort_power_asc: 'Nach Power sortieren (niedrig → hoch)',
+                sort_name_asc: 'Nach Name sortieren (A–Z)',
+                sort_name_desc: 'Nach Name sortieren (Z–A)',
+                clear_all_selections: 'Alle Auswahlen löschen',
+                table_header_player_name: 'Spielername',
+                table_header_power: 'E1 Power (M)',
+                table_header_troop: 'Truppentyp',
+                table_header_team_selection: 'Team-Auswahl',
+                download_map: 'Karte',
+                download_excel: 'Excel',
+                generate_team_a: 'Team A generieren',
+                generate_team_b: 'Team B generieren',
+                team_a_button: 'Team A',
+                team_b_button: 'Team B',
+                clear_button: 'Löschen',
+                player_count: '{count} Spieler gespeichert',
+                upload_hint: '(Zum Erweitern klicken, wenn Sie Spielerdaten aktualisieren müssen)',
+                error_firebase_sdk_missing: '❌ Firebase SDK nicht geladen! Bitte Internetverbindung prüfen.',
+                error_xlsx_missing: '❌ XLSX-Bibliothek nicht geladen! Bitte Internetverbindung prüfen.',
+                error_firebase_module_missing: '❌ firebase-module.js nicht gefunden! Stellen Sie sicher, dass es im selben Ordner wie diese HTML-Datei liegt.',
+                error_loading_title: '❌ Fehler beim Laden der Anwendung',
+                error_missing_firebase_line1: 'Die Datei firebase-module.js fehlt oder befindet sich nicht im selben Ordner wie diese HTML-Datei.',
+                error_missing_firebase_line2: 'Bitte stellen Sie sicher, dass beide Dateien im selben Verzeichnis liegen:',
+                error_missing_firebase_file1: 'desert_storm_final.html',
+                error_missing_firebase_file2: 'firebase-module.js',
+                error_missing_firebase_line3: 'Dann Seite neu laden.',
+                error_firebase_not_loaded: 'Firebase nicht geladen. Bitte Seite aktualisieren.',
+                error_sign_in_failed: 'Anmeldung fehlgeschlagen: {error}',
+                error_enter_email_password: 'Bitte E-Mail und Passwort eingeben',
+                error_password_length: 'Passwort muss mindestens 6 Zeichen haben',
+                success_account_created: 'Konto erstellt! Bitte E-Mail zur Bestätigung prüfen.',
+                error_sign_up_failed: 'Registrierung fehlgeschlagen: {error}',
+                error_enter_email: 'Bitte E-Mail-Adresse eingeben',
+                success_password_reset: 'Passwort-Reset-E-Mail gesendet!',
+                error_failed: 'Fehlgeschlagen: {error}',
+                confirm_create_account: 'Neues Konto erstellen mit: {email}',
+                confirm_sign_out: 'Abmelden?',
+                confirm_clear_all: 'Alle Teamauswahlen löschen?',
+                message_template_downloaded: '✅ Vorlage heruntergeladen! Kopfzeilen beginnen in Zeile 10.',
+                message_upload_processing: '⏳ Datei wird verarbeitet...',
+                message_upload_failed: '❌ Upload fehlgeschlagen: {error}',
+                buildings_slots_exceeded_saved: '❌ Gesamtslots überschreiten {max} in der gespeicherten Konfiguration. Auf Standard zurückgesetzt.',
+                buildings_slots_exceeded: '❌ Gesamtslots dürfen {max} nicht überschreiten. Aktuell: {total}.',
+                buildings_changes_not_saved: 'Firebase nicht geladen. Änderungen nicht gespeichert.',
+                buildings_saved: '✅ Gebäude gespeichert.',
+                buildings_save_failed: '❌ Speichern fehlgeschlagen: {error}',
+                coord_no_buildings: 'Keine Gebäude für Koordinaten verfügbar.',
+                coord_current: 'Aktuell: x {x}, y {y}',
+                coord_current_not_set: 'Aktuell: nicht gesetzt',
+                coord_select_prompt: 'Koordinaten für {name} auswählen',
+                coord_map_not_loaded: 'Kartenbild nicht geladen. Bitte prüfen, ob desert-storm-map.png vorhanden ist.',
+                coord_changes_not_saved: 'Firebase nicht geladen. Änderungen nicht gespeichert.',
+                coord_saved: '✅ Koordinaten gespeichert.',
+                coord_save_failed: '❌ Speichern fehlgeschlagen: {error}',
+                alert_total_slots_exceed: 'Gesamtslots über alle Gebäude dürfen {max} nicht überschreiten.',
+                alert_select_at_least_one: 'Bitte mindestens 1 Spieler für Team {team} auswählen!',
+                alert_max_players: 'Maximal 20 Spieler pro Team! Aktuell ausgewählt: {count}',
+                download_modal_title: 'Team {team} Downloads',
+                download_modal_subtitle: 'Team-{team}-Zuweisungen sind bereit!',
+                alert_no_assignments: 'Keine Zuweisungen erzeugt! Klicken Sie zuerst auf „Team {team} generieren“.',
+                message_excel_downloaded: '✅ Excel heruntergeladen!',
+                message_map_wait: '⏳ Warte auf das Laden der Karte...',
+                confirm_map_without_background: 'Kartenbild lädt noch. Ohne Hintergrund generieren?',
+                message_map_cancelled: '⚠️ Abgebrochen. Seite neu laden, um erneut zu versuchen.',
+                message_generating_map_no_bg: '🎨 Team-{team}-Karte wird generiert (ohne Hintergrund)...',
+                message_team_downloaded_list: '✅ Team {team} heruntergeladen (Listenformat – ohne Karte)',
+                message_generating_map: '🎨 Team-{team}-Karte wird generiert...',
+                message_team_map_downloaded: '✅ Team-{team}-Karte heruntergeladen! ({drawnCount} Spieler + {bombSquad} Bomb Squad)',
+                error_generic: '❌ {error}',
+                map_footer_text: 'Frei umherziehen, anderen helfen'
+            },
+            it: {
+                app_title: 'Desert Storm - Selezione giocatori',
+                login_title: '🏜️ Desert Storm',
+                login_subtitle: 'Accedi per continuare',
+                login_google: 'Accedi con Google',
+                login_or: 'oppure',
+                login_email_placeholder: 'Email',
+                login_password_placeholder: 'Password',
+                login_sign_in: 'Accedi',
+                login_create_account: 'Crea nuovo account',
+                login_forgot_password: 'Password dimenticata?',
+                sync_status_synced: '☁️ Sincronizzato',
+                sync_status_not_synced: '⚠️ Non sincronizzato',
+                language_label: 'Lingua',
+                sign_out: 'Esci',
+                main_title: '🏜️ DESERT STORM',
+                buildings_button: 'Edifici e Priorità',
+                buildings_panel_title: 'Edifici e Priorità',
+                map_coordinates: 'Coordinate mappa',
+                close: 'Chiudi',
+                buildings_intro: 'Aggiorna slot e priorità degli edifici. Il totale degli slot deve essere 20 o meno.',
+                buildings_table_building: 'Edificio',
+                buildings_table_slots: 'Slot',
+                buildings_table_priority: 'Priorità',
+                slots_label: 'Slot: ',
+                priority_label: 'Prio: ',
+                reset_default: 'Ripristina predefiniti',
+                save_changes: 'Salva modifiche',
+                coord_picker_title: 'Selettore coordinate mappa',
+                coord_picker_help: 'Clicca sulla mappa per impostare la posizione dell\'edificio selezionato. Le coordinate si aggiornano una per volta.',
+                coord_label_building: 'Edificio',
+                coord_prompt_default: 'Clicca sulla mappa per impostare le coordinate.',
+                coord_prev: 'Prec',
+                coord_next: 'Succ',
+                coord_save: 'Salva coordinate',
+                player_db_title: '📊 Database giocatori',
+                upload_help: 'Carica i dati dei giocatori. Le intestazioni del modello iniziano alla riga 10: Nome giocatore, Potenza E1 (M), Truppe E1.',
+                download_template: 'Scarica modello',
+                upload_player_data: 'Carica dati giocatori',
+                template_title: 'MODELLO DATABASE GIOCATORI',
+                template_instructions: 'Istruzioni:',
+                template_step1: '1. Compila la colonna Nome giocatore con i nomi esatti del gioco',
+                template_step2: '2. Compila la colonna Potenza E1 (M) con un valore numerico (es. 65.0)',
+                template_step3: '3. Compila la colonna Truppe E1 con: Carro, Aereo o Missile',
+                template_step4: '4. Carica questo file nel sistema',
+                template_step5: '5. Seleziona le squadre nell\'interfaccia web',
+                template_header_player_name: 'Nome giocatore',
+                template_header_power: 'Potenza E1 (M)',
+                template_header_troops: 'Truppe E1',
+                template_sheet_name: 'Giocatori',
+                excel_header_building: 'Edificio',
+                excel_header_priority: 'Priorità',
+                excel_header_player: 'Giocatore',
+                excel_sheet_name: 'Squadra {team}',
+                select_teams_title: '⚔️ Seleziona squadre',
+                select_teams_help: 'Seleziona i giocatori per Team A e Team B indipendentemente. Massimo 20 giocatori per team.',
+                team_a_label: 'Team A',
+                team_b_label: 'Team B',
+                team_count_suffix: '/20',
+                search_placeholder: '🔍 Cerca nome giocatore...',
+                troops_filter_all: 'Tutti i tipi di truppa',
+                troops_filter_tank: 'Carro',
+                troops_filter_aero: 'Aereo',
+                troops_filter_missile: 'Missile',
+                sort_power_desc: 'Ordina per potenza (alta → bassa)',
+                sort_power_asc: 'Ordina per potenza (bassa → alta)',
+                sort_name_asc: 'Ordina per nome (A-Z)',
+                sort_name_desc: 'Ordina per nome (Z-A)',
+                clear_all_selections: 'Cancella tutte le selezioni',
+                table_header_player_name: 'Nome giocatore',
+                table_header_power: 'Potenza E1 (M)',
+                table_header_troop: 'Tipo di truppa',
+                table_header_team_selection: 'Selezione team',
+                download_map: 'Mappa',
+                download_excel: 'Excel',
+                generate_team_a: 'Genera Team A',
+                generate_team_b: 'Genera Team B',
+                team_a_button: 'Team A',
+                team_b_button: 'Team B',
+                clear_button: 'Cancella',
+                player_count: '{count} giocatori memorizzati',
+                upload_hint: '(Clicca per espandere se devi aggiornare i dati dei giocatori)',
+                error_firebase_sdk_missing: '❌ Firebase SDK non caricato! Verifica la connessione Internet.',
+                error_xlsx_missing: '❌ Libreria XLSX non caricata! Verifica la connessione Internet.',
+                error_firebase_module_missing: '❌ firebase-module.js non trovato! Assicurati che sia nella stessa cartella di questo file HTML.',
+                error_loading_title: '❌ Errore durante il caricamento dell\'applicazione',
+                error_missing_firebase_line1: 'Il file firebase-module.js manca o non è nella stessa cartella di questo file HTML.',
+                error_missing_firebase_line2: 'Assicurati che entrambi i file siano nella stessa directory:',
+                error_missing_firebase_file1: 'desert_storm_final.html',
+                error_missing_firebase_file2: 'firebase-module.js',
+                error_missing_firebase_line3: 'Poi aggiorna la pagina.',
+                error_firebase_not_loaded: 'Firebase non caricato. Aggiorna la pagina.',
+                error_sign_in_failed: 'Accesso non riuscito: {error}',
+                error_enter_email_password: 'Inserisci email e password',
+                error_password_length: 'La password deve avere almeno 6 caratteri',
+                success_account_created: 'Account creato! Controlla l\'email per la verifica.',
+                error_sign_up_failed: 'Registrazione non riuscita: {error}',
+                error_enter_email: 'Inserisci il tuo indirizzo email',
+                success_password_reset: 'Email di reset inviata!',
+                error_failed: 'Errore: {error}',
+                confirm_create_account: 'Creare un nuovo account con: {email}',
+                confirm_sign_out: 'Vuoi uscire?',
+                confirm_clear_all: 'Cancellare tutte le selezioni del team?',
+                message_template_downloaded: '✅ Modello scaricato! Le intestazioni iniziano alla riga 10.',
+                message_upload_processing: '⏳ Elaborazione file...',
+                message_upload_failed: '❌ Caricamento non riuscito: {error}',
+                buildings_slots_exceeded_saved: '❌ Il totale degli slot supera {max} nella configurazione salvata. Ripristinato ai valori predefiniti.',
+                buildings_slots_exceeded: '❌ Il totale degli slot non può superare {max}. Attuale: {total}.',
+                buildings_changes_not_saved: 'Firebase non caricato. Modifiche non salvate.',
+                buildings_saved: '✅ Edifici salvati.',
+                buildings_save_failed: '❌ Salvataggio non riuscito: {error}',
+                coord_no_buildings: 'Nessun edificio disponibile per le coordinate.',
+                coord_current: 'Attuale: x {x}, y {y}',
+                coord_current_not_set: 'Attuale: non impostato',
+                coord_select_prompt: 'Seleziona coordinate per {name}',
+                coord_map_not_loaded: 'Immagine mappa non caricata. Verifica che desert-storm-map.png esista.',
+                coord_changes_not_saved: 'Firebase non caricato. Modifiche non salvate.',
+                coord_saved: '✅ Coordinate salvate.',
+                coord_save_failed: '❌ Salvataggio non riuscito: {error}',
+                alert_total_slots_exceed: 'Il totale degli slot in tutti gli edifici non può superare {max}.',
+                alert_select_at_least_one: 'Seleziona almeno 1 giocatore per Team {team}!',
+                alert_max_players: 'Massimo 20 giocatori per team! Attualmente selezionati: {count}',
+                download_modal_title: 'Download Team {team}',
+                download_modal_subtitle: 'Le assegnazioni del Team {team} sono pronte!',
+                alert_no_assignments: 'Nessuna assegnazione generata! Clicca prima su "Genera Team {team}".',
+                message_excel_downloaded: '✅ Excel scaricato!',
+                message_map_wait: '⏳ In attesa del caricamento della mappa...',
+                confirm_map_without_background: 'L\'immagine della mappa è ancora in caricamento. Generare senza sfondo?',
+                message_map_cancelled: '⚠️ Annullato. Aggiorna la pagina per riprovare.',
+                message_generating_map_no_bg: '🎨 Generazione mappa Team {team} (senza sfondo)...',
+                message_team_downloaded_list: '✅ Team {team} scaricato (formato elenco - senza mappa)',
+                message_generating_map: '🎨 Generazione mappa Team {team}...',
+                message_team_map_downloaded: '✅ Mappa del Team {team} scaricata! ({drawnCount} giocatori + {bombSquad} bomb squad)',
+                error_generic: '❌ {error}',
+                map_footer_text: 'Muoviti liberamente, aiuta gli altri'
+            },
+            ko: {
+                app_title: 'Desert Storm - 플레이어 선택',
+                login_title: '🏜️ Desert Storm',
+                login_subtitle: '계속하려면 로그인하세요',
+                login_google: 'Google로 로그인',
+                login_or: '또는',
+                login_email_placeholder: '이메일',
+                login_password_placeholder: '비밀번호',
+                login_sign_in: '로그인',
+                login_create_account: '새 계정 만들기',
+                login_forgot_password: '비밀번호를 잊으셨나요?',
+                sync_status_synced: '☁️ 동기화됨',
+                sync_status_not_synced: '⚠️ 동기화 안 됨',
+                language_label: '언어',
+                sign_out: '로그아웃',
+                main_title: '🏜️ DESERT STORM',
+                buildings_button: '건물 및 우선순위',
+                buildings_panel_title: '건물 및 우선순위',
+                map_coordinates: '지도 좌표',
+                close: '닫기',
+                buildings_intro: '건물 슬롯과 우선순위를 업데이트하세요. 모든 건물의 총 슬롯은 20 이하입니다.',
+                buildings_table_building: '건물',
+                buildings_table_slots: '슬롯',
+                buildings_table_priority: '우선순위',
+                slots_label: '슬롯: ',
+                priority_label: '우선: ',
+                reset_default: '기본값으로 재설정',
+                save_changes: '변경사항 저장',
+                coord_picker_title: '지도 좌표 선택기',
+                coord_picker_help: '선택한 건물의 위치를 설정하려면 지도를 클릭하세요. 좌표는 하나씩 업데이트됩니다.',
+                coord_label_building: '건물',
+                coord_prompt_default: '좌표를 설정하려면 지도를 클릭하세요.',
+                coord_prev: '이전',
+                coord_next: '다음',
+                coord_save: '좌표 저장',
+                player_db_title: '📊 플레이어 데이터베이스',
+                upload_help: '플레이어 데이터를 업로드하세요. 템플릿 헤더는 10행부터 시작합니다: 플레이어 이름, E1 전투력(M), E1 병종.',
+                download_template: '템플릿 다운로드',
+                upload_player_data: '플레이어 데이터 업로드',
+                template_title: '플레이어 데이터베이스 템플릿',
+                template_instructions: '사용 방법:',
+                template_step1: '1. 플레이어 이름 열에 게임의 정확한 이름을 입력하세요',
+                template_step2: '2. E1 전투력(M) 열에 숫자 값(예: 65.0)을 입력하세요',
+                template_step3: '3. E1 병종 열에 탱크, 항공, 미사일 중 하나를 입력하세요',
+                template_step4: '4. 이 파일을 시스템에 업로드하세요',
+                template_step5: '5. 웹 인터페이스에서 팀을 선택하세요',
+                template_header_player_name: '플레이어 이름',
+                template_header_power: 'E1 전투력(M)',
+                template_header_troops: 'E1 병종',
+                template_sheet_name: '플레이어',
+                excel_header_building: '건물',
+                excel_header_priority: '우선순위',
+                excel_header_player: '플레이어',
+                excel_sheet_name: '팀 {team}',
+                select_teams_title: '⚔️ 팀 선택',
+                select_teams_help: '팀 A와 팀 B에 독립적으로 플레이어를 선택하세요. 팀당 최대 20명.',
+                team_a_label: '팀 A',
+                team_b_label: '팀 B',
+                team_count_suffix: '/20',
+                search_placeholder: '🔍 플레이어 이름 검색...',
+                troops_filter_all: '모든 병종',
+                troops_filter_tank: '탱크',
+                troops_filter_aero: '항공',
+                troops_filter_missile: '미사일',
+                sort_power_desc: '전투력 순 (높음 → 낮음)',
+                sort_power_asc: '전투력 순 (낮음 → 높음)',
+                sort_name_asc: '이름 순 (A-Z)',
+                sort_name_desc: '이름 순 (Z-A)',
+                clear_all_selections: '모든 선택 해제',
+                table_header_player_name: '플레이어 이름',
+                table_header_power: 'E1 전투력 (M)',
+                table_header_troop: '병종',
+                table_header_team_selection: '팀 선택',
+                download_map: '지도',
+                download_excel: '엑셀',
+                generate_team_a: '팀 A 생성',
+                generate_team_b: '팀 B 생성',
+                team_a_button: '팀 A',
+                team_b_button: '팀 B',
+                clear_button: '삭제',
+                player_count: '저장된 플레이어 {count}명',
+                upload_hint: '(플레이어 데이터를 업데이트하려면 클릭하여 확장)',
+                error_firebase_sdk_missing: '❌ Firebase SDK를 불러오지 못했습니다! 인터넷 연결을 확인하세요.',
+                error_xlsx_missing: '❌ XLSX 라이브러리를 불러오지 못했습니다! 인터넷 연결을 확인하세요.',
+                error_firebase_module_missing: '❌ firebase-module.js를 찾을 수 없습니다! 이 HTML 파일과 같은 폴더에 있는지 확인하세요.',
+                error_loading_title: '❌ 애플리케이션 로딩 오류',
+                error_missing_firebase_line1: 'firebase-module.js 파일이 없거나 이 HTML 파일과 같은 폴더에 있지 않습니다.',
+                error_missing_firebase_line2: '두 파일이 같은 디렉터리에 있는지 확인하세요:',
+                error_missing_firebase_file1: 'desert_storm_final.html',
+                error_missing_firebase_file2: 'firebase-module.js',
+                error_missing_firebase_line3: '그 후 페이지를 새로고침하세요.',
+                error_firebase_not_loaded: 'Firebase가 로드되지 않았습니다. 페이지를 새로고침하세요.',
+                error_sign_in_failed: '로그인 실패: {error}',
+                error_enter_email_password: '이메일과 비밀번호를 입력하세요',
+                error_password_length: '비밀번호는 최소 6자 이상이어야 합니다',
+                success_account_created: '계정이 생성되었습니다! 이메일을 확인하세요.',
+                error_sign_up_failed: '회원가입 실패: {error}',
+                error_enter_email: '이메일 주소를 입력하세요',
+                success_password_reset: '비밀번호 재설정 이메일을 보냈습니다!',
+                error_failed: '실패: {error}',
+                confirm_create_account: '다음 이메일로 새 계정을 만들까요? {email}',
+                confirm_sign_out: '로그아웃할까요?',
+                confirm_clear_all: '모든 팀 선택을 지울까요?',
+                message_template_downloaded: '✅ 템플릿 다운로드 완료! 헤더는 10행부터 시작합니다.',
+                message_upload_processing: '⏳ 파일 처리 중...',
+                message_upload_failed: '❌ 업로드 실패: {error}',
+                buildings_slots_exceeded_saved: '❌ 저장된 설정의 총 슬롯이 {max}를 초과했습니다. 기본값으로 재설정했습니다.',
+                buildings_slots_exceeded: '❌ 총 슬롯은 {max}를 초과할 수 없습니다. 현재: {total}.',
+                buildings_changes_not_saved: 'Firebase가 로드되지 않았습니다. 변경 사항이 저장되지 않았습니다.',
+                buildings_saved: '✅ 건물이 저장되었습니다.',
+                buildings_save_failed: '❌ 저장 실패: {error}',
+                coord_no_buildings: '좌표를 설정할 건물이 없습니다.',
+                coord_current: '현재: x {x}, y {y}',
+                coord_current_not_set: '현재: 설정되지 않음',
+                coord_select_prompt: '{name}의 좌표를 선택하세요',
+                coord_map_not_loaded: '지도 이미지를 불러오지 못했습니다. desert-storm-map.png가 있는지 확인하세요.',
+                coord_changes_not_saved: 'Firebase가 로드되지 않았습니다. 변경 사항이 저장되지 않았습니다.',
+                coord_saved: '✅ 좌표가 저장되었습니다.',
+                coord_save_failed: '❌ 저장 실패: {error}',
+                alert_total_slots_exceed: '모든 건물의 총 슬롯은 {max}를 초과할 수 없습니다.',
+                alert_select_at_least_one: '팀 {team}에 최소 1명의 플레이어를 선택하세요!',
+                alert_max_players: '팀당 최대 20명! 현재 선택: {count}',
+                download_modal_title: '팀 {team} 다운로드',
+                download_modal_subtitle: '팀 {team} 배치가 준비되었습니다!',
+                alert_no_assignments: '아직 배치가 생성되지 않았습니다! 먼저 "팀 {team} 생성"을 클릭하세요.',
+                message_excel_downloaded: '✅ 엑셀 다운로드 완료!',
+                message_map_wait: '⏳ 지도 로드를 기다리는 중...',
+                confirm_map_without_background: '지도 이미지가 아직 로드 중입니다. 배경 없이 생성할까요?',
+                message_map_cancelled: '⚠️ 취소됨. 다시 시도하려면 페이지를 새로고침하세요.',
+                message_generating_map_no_bg: '🎨 팀 {team} 지도 생성 중(배경 없음)...',
+                message_team_downloaded_list: '✅ 팀 {team} 다운로드 완료(목록 형식 - 지도 없음)',
+                message_generating_map: '🎨 팀 {team} 지도 생성 중...',
+                message_team_map_downloaded: '✅ 팀 {team} 지도 다운로드 완료! ({drawnCount}명 + {bombSquad} 봄 스쿼드)',
+                error_generic: '❌ {error}',
+                map_footer_text: '자유롭게 이동하며 다른 사람을 도와주세요'
+            },
+            ro: {
+                app_title: 'Desert Storm - Selecție jucători',
+                login_title: '🏜️ Desert Storm',
+                login_subtitle: 'Autentifică-te pentru a continua',
+                login_google: 'Conectare cu Google',
+                login_or: 'sau',
+                login_email_placeholder: 'Email',
+                login_password_placeholder: 'Parolă',
+                login_sign_in: 'Autentificare',
+                login_create_account: 'Creează cont nou',
+                login_forgot_password: 'Ai uitat parola?',
+                sync_status_synced: '☁️ Sincronizat',
+                sync_status_not_synced: '⚠️ Nesincronizat',
+                language_label: 'Limba',
+                sign_out: 'Deconectare',
+                main_title: '🏜️ DESERT STORM',
+                buildings_button: 'Clădiri și priorități',
+                buildings_panel_title: 'Clădiri și priorități',
+                map_coordinates: 'Coordonate hartă',
+                close: 'Închide',
+                buildings_intro: 'Actualizează sloturile și prioritățile clădirilor. Totalul sloturilor trebuie să fie 20 sau mai puțin.',
+                buildings_table_building: 'Clădire',
+                buildings_table_slots: 'Sloturi',
+                buildings_table_priority: 'Prioritate',
+                slots_label: 'Sloturi: ',
+                priority_label: 'Prio: ',
+                reset_default: 'Resetare la implicit',
+                save_changes: 'Salvează modificările',
+                coord_picker_title: 'Selector coordonate hartă',
+                coord_picker_help: 'Apasă pe hartă pentru a seta poziția clădirii selectate. Coordonatele se actualizează pe rând.',
+                coord_label_building: 'Clădire',
+                coord_prompt_default: 'Apasă pe hartă pentru a seta coordonatele.',
+                coord_prev: 'Înapoi',
+                coord_next: 'Înainte',
+                coord_save: 'Salvează coordonatele',
+                player_db_title: '📊 Baza de date jucători',
+                upload_help: 'Încarcă datele jucătorilor. Antetele șablonului încep la rândul 10: Nume jucător, Putere E1 (M), Trupe E1.',
+                download_template: 'Descarcă șablon',
+                upload_player_data: 'Încarcă datele jucătorilor',
+                template_title: 'ȘABLON BAZĂ DE DATE JUCĂTORI',
+                template_instructions: 'Instrucțiuni:',
+                template_step1: '1. Completează coloana Nume jucător cu numele exacte din joc',
+                template_step2: '2. Completează coloana Putere E1 (M) cu o valoare numerică (ex. 65.0)',
+                template_step3: '3. Completează coloana Trupe E1 cu: Tanc, Aero sau Rachetă',
+                template_step4: '4. Încarcă acest fișier în sistem',
+                template_step5: '5. Selectează echipele în interfața web',
+                template_header_player_name: 'Nume jucător',
+                template_header_power: 'Putere E1 (M)',
+                template_header_troops: 'Trupe E1',
+                template_sheet_name: 'Jucători',
+                excel_header_building: 'Clădire',
+                excel_header_priority: 'Prioritate',
+                excel_header_player: 'Jucător',
+                excel_sheet_name: 'Echipa {team}',
+                select_teams_title: '⚔️ Selectează echipele',
+                select_teams_help: 'Selectează jucători pentru Echipa A și Echipa B independent. Maxim 20 de jucători per echipă.',
+                team_a_label: 'Echipa A',
+                team_b_label: 'Echipa B',
+                team_count_suffix: '/20',
+                search_placeholder: '🔍 Caută nume jucător...',
+                troops_filter_all: 'Toate tipurile',
+                troops_filter_tank: 'Tanc',
+                troops_filter_aero: 'Aero',
+                troops_filter_missile: 'Rachetă',
+                sort_power_desc: 'Sortează după putere (mare → mică)',
+                sort_power_asc: 'Sortează după putere (mică → mare)',
+                sort_name_asc: 'Sortează după nume (A-Z)',
+                sort_name_desc: 'Sortează după nume (Z-A)',
+                clear_all_selections: 'Șterge toate selecțiile',
+                table_header_player_name: 'Nume jucător',
+                table_header_power: 'Putere E1 (M)',
+                table_header_troop: 'Tip de trupă',
+                table_header_team_selection: 'Selecție echipă',
+                download_map: 'Hartă',
+                download_excel: 'Excel',
+                generate_team_a: 'Generează Echipa A',
+                generate_team_b: 'Generează Echipa B',
+                team_a_button: 'Echipa A',
+                team_b_button: 'Echipa B',
+                clear_button: 'Șterge',
+                player_count: '{count} jucători salvați',
+                upload_hint: '(Apasă pentru a extinde dacă trebuie să actualizezi datele jucătorilor)',
+                error_firebase_sdk_missing: '❌ SDK Firebase neîncărcat! Verifică conexiunea la internet.',
+                error_xlsx_missing: '❌ Biblioteca XLSX neîncărcată! Verifică conexiunea la internet.',
+                error_firebase_module_missing: '❌ firebase-module.js nu a fost găsit! Asigură-te că este în același folder cu acest fișier HTML.',
+                error_loading_title: '❌ Eroare la încărcarea aplicației',
+                error_missing_firebase_line1: 'Fișierul firebase-module.js lipsește sau nu este în același folder cu acest fișier HTML.',
+                error_missing_firebase_line2: 'Asigură-te că ambele fișiere sunt în același director:',
+                error_missing_firebase_file1: 'desert_storm_final.html',
+                error_missing_firebase_file2: 'firebase-module.js',
+                error_missing_firebase_line3: 'Apoi reîmprospătează pagina.',
+                error_firebase_not_loaded: 'Firebase nu este încărcat. Reîmprospătează pagina.',
+                error_sign_in_failed: 'Autentificare eșuată: {error}',
+                error_enter_email_password: 'Introdu emailul și parola',
+                error_password_length: 'Parola trebuie să aibă cel puțin 6 caractere',
+                success_account_created: 'Cont creat! Verifică emailul pentru confirmare.',
+                error_sign_up_failed: 'Înregistrare eșuată: {error}',
+                error_enter_email: 'Introdu adresa de email',
+                success_password_reset: 'Email de resetare a parolei trimis!',
+                error_failed: 'Eșuat: {error}',
+                confirm_create_account: 'Creezi un cont nou cu: {email}',
+                confirm_sign_out: 'Te deconectezi?',
+                confirm_clear_all: 'Ștergi toate selecțiile de echipă?',
+                message_template_downloaded: '✅ Șablon descărcat! Antetele încep la rândul 10.',
+                message_upload_processing: '⏳ Se procesează fișierul...',
+                message_upload_failed: '❌ Încărcare eșuată: {error}',
+                buildings_slots_exceeded_saved: '❌ Totalul sloturilor depășește {max} în configurația salvată. Resetat la implicit.',
+                buildings_slots_exceeded: '❌ Totalul sloturilor nu poate depăși {max}. Curent: {total}.',
+                buildings_changes_not_saved: 'Firebase nu este încărcat. Modificările nu au fost salvate.',
+                buildings_saved: '✅ Clădirile au fost salvate.',
+                buildings_save_failed: '❌ Salvare eșuată: {error}',
+                coord_no_buildings: 'Nu există clădiri disponibile pentru coordonate.',
+                coord_current: 'Curent: x {x}, y {y}',
+                coord_current_not_set: 'Curent: nesetat',
+                coord_select_prompt: 'Selectează coordonatele pentru {name}',
+                coord_map_not_loaded: 'Imaginea hărții nu s-a încărcat. Verifică dacă există desert-storm-map.png.',
+                coord_changes_not_saved: 'Firebase nu este încărcat. Modificările nu au fost salvate.',
+                coord_saved: '✅ Coordonate salvate.',
+                coord_save_failed: '❌ Salvare eșuată: {error}',
+                alert_total_slots_exceed: 'Totalul sloturilor pentru toate clădirile nu poate depăși {max}.',
+                alert_select_at_least_one: 'Selectează cel puțin 1 jucător pentru Echipa {team}!',
+                alert_max_players: 'Maxim 20 de jucători per echipă! Selectați: {count}',
+                download_modal_title: 'Descărcări Echipa {team}',
+                download_modal_subtitle: 'Atribuirile pentru Echipa {team} sunt gata!',
+                alert_no_assignments: 'Nu există atribuiri generate încă! Apasă mai întâi pe „Generează Echipa {team}”.',
+                message_excel_downloaded: '✅ Excel descărcat!',
+                message_map_wait: '⏳ Se așteaptă încărcarea hărții...',
+                confirm_map_without_background: 'Imaginea hărții încă se încarcă. Generezi fără fundal?',
+                message_map_cancelled: '⚠️ Anulat. Reîmprospătează pagina pentru a reîncerca.',
+                message_generating_map_no_bg: '🎨 Se generează harta Echipei {team} (fără fundal)...',
+                message_team_downloaded_list: '✅ Echipa {team} descărcată (format listă - fără hartă)',
+                message_generating_map: '🎨 Se generează harta Echipei {team}...',
+                message_team_map_downloaded: '✅ Harta Echipei {team} descărcată! ({drawnCount} jucători + {bombSquad} bomb squad)',
+                error_generic: '❌ {error}',
+                map_footer_text: 'Explorați liber, ajutați-i pe alții'
+            }
+        };
+
+        const supportedLanguages = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+        let currentLanguage = 'en';
+
+        function interpolateText(text, params = {}) {
+            return text.replace(/\\{(\\w+)\\}/g, (match, key) => {
+                if (Object.prototype.hasOwnProperty.call(params, key)) {
+                    return params[key];
+                }
+                return match;
+            });
+        }
+
+        function t(key, params) {
+            const langPack = translations[currentLanguage] || translations.en;
+            const fallback = translations.en[key] || key;
+            const template = langPack[key] || fallback;
+            return interpolateText(template, params);
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = currentLanguage;
+            document.title = t('app_title');
+            document.querySelectorAll('[data-i18n]').forEach((element) => {
+                element.textContent = t(element.dataset.i18n);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
+                element.setAttribute('placeholder', t(element.dataset.i18nPlaceholder));
+            });
+            refreshLanguageDependentText();
+        }
+
+        function refreshLanguageDependentText() {
+            const playerCountEl = document.getElementById('playerCount');
+            if (playerCountEl && typeof allPlayers !== 'undefined') {
+                playerCountEl.textContent = t('player_count', { count: allPlayers.length });
+            }
+            const uploadHintEl = document.getElementById('uploadHint');
+            if (uploadHintEl && typeof allPlayers !== 'undefined') {
+                uploadHintEl.textContent = allPlayers.length > 0 ? t('upload_hint') : '';
+            }
+        }
+
+        function setLanguage(lang) {
+            if (!supportedLanguages.includes(lang)) {
+                return;
+            }
+            currentLanguage = lang;
+            try {
+                localStorage.setItem('ds_language', lang);
+            } catch (error) {
+                console.warn('Unable to persist language preference', error);
+            }
+            applyTranslations();
+            renderPlayersTable();
+            renderBuildingsTable();
+            updateTeamCounters();
+            const coordOverlay = document.getElementById('coordPickerOverlay');
+            if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
+                updateCoordLabel();
+            }
+            const downloadOverlay = document.getElementById('downloadModalOverlay');
+            if (downloadOverlay && !downloadOverlay.classList.contains('hidden') && activeDownloadTeam) {
+                const team = activeDownloadTeam;
+                document.getElementById('downloadModalTitle').textContent = t('download_modal_title', { team: team });
+                document.getElementById('downloadModalSubtitle').textContent = t('download_modal_subtitle', { team: team });
+            }
+        }
+
+        function initLanguage() {
+            let stored = null;
+            try {
+                stored = localStorage.getItem('ds_language');
+            } catch (error) {
+                stored = null;
+            }
+            currentLanguage = supportedLanguages.includes(stored) ? stored : 'en';
+            applyTranslations();
+            const languageSelect = document.getElementById('languageSelect');
+            if (languageSelect) {
+                languageSelect.value = currentLanguage;
+                languageSelect.addEventListener('change', (event) => {
+                    setLanguage(event.target.value);
+                });
+            }
+        }
+
+        // ============================================================
         // INITIALIZATION CHECK
         // ============================================================
         
         // Check if Firebase modules are loaded
         if (typeof firebase === 'undefined') {
-            alert('❌ Firebase SDK not loaded! Make sure you have internet connection.');
+            alert(t('error_firebase_sdk_missing'));
             console.error('Firebase SDK failed to load from CDN');
         }
         
         if (typeof XLSX === 'undefined') {
-            alert('❌ XLSX library not loaded! Make sure you have internet connection.');
+            alert(t('error_xlsx_missing'));
             console.error('XLSX library failed to load from CDN');
         }
         
         if (typeof FirebaseManager === 'undefined') {
-            alert('❌ firebase-module.js not found! Make sure firebase-module.js is in the same folder as this HTML file.');
+            alert(t('error_firebase_module_missing'));
             console.error('FirebaseManager not defined - firebase-module.js not loaded');
         }
         
@@ -727,6 +1664,7 @@
         let assignmentsB = [];
         let mapLoaded = false;
         let uploadPanelExpanded = true;
+        let activeDownloadTeam = null;
         
         // Load desert storm map
         // IMPORTANT: Put 'desert-storm-map.png' in the same folder as this HTML file
@@ -752,7 +1690,7 @@
                             mapImage.src = 'desert-storm-map.png?' + Date.now();
                         }, 1000 * mapLoadRetries);
                     } else {
-                        alert('⚠️ Map image not found! Please make sure "desert-storm-map.png" is in the same folder as this HTML file.');
+                        alert(t('coord_map_not_loaded'));
                         console.error('Map loading failed after', maxRetries, 'attempts');
                         reject(false);
                     }
@@ -844,7 +1782,18 @@
             setTimeout(() => {
                 const loginScreen = document.getElementById('loginScreen');
                 if (loginScreen) {
-                    loginScreen.innerHTML = '<div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><h1 style="text-align: center; color: #DC143C;">❌ Error Loading Application</h1><p style="color: #333; text-align: center; margin: 20px 0;">The firebase-module.js file is missing or not in the same folder as this HTML file.</p><p style="color: #666; text-align: center; font-size: 14px;">Please ensure both files are in the same directory:</p><ul style="color: #666; margin: 20px 40px;"><li>desert_storm_final.html</li><li>firebase-module.js</li></ul><p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">Then refresh the page.</p></div>';
+                    loginScreen.innerHTML = `
+                        <div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <h1 style="text-align: center; color: #DC143C;">${t('error_loading_title')}</h1>
+                            <p style="color: #333; text-align: center; margin: 20px 0;">${t('error_missing_firebase_line1')}</p>
+                            <p style="color: #666; text-align: center; font-size: 14px;">${t('error_missing_firebase_line2')}</p>
+                            <ul style="color: #666; margin: 20px 40px;">
+                                <li>${t('error_missing_firebase_file1')}</li>
+                                <li>${t('error_missing_firebase_file2')}</li>
+                            </ul>
+                            <p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">${t('error_missing_firebase_line3')}</p>
+                        </div>
+                    `;
                     loginScreen.style.display = 'block';
                 }
             }, 100);
@@ -856,6 +1805,19 @@
             return div.innerHTML;
         }
 
+        function getTroopLabel(troop) {
+            switch (troop) {
+                case 'Tank':
+                    return t('troops_filter_tank');
+                case 'Aero':
+                    return t('troops_filter_aero');
+                case 'Missile':
+                    return t('troops_filter_missile');
+                default:
+                    return troop;
+            }
+        }
+
         let googleSignInInProgress = false;
 
         async function handleGoogleSignIn() {
@@ -863,7 +1825,7 @@
                 return;
             }
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
             const btn = document.getElementById('googleSignInBtn');
@@ -874,7 +1836,7 @@
             try {
                 const result = await FirebaseManager.signInWithGoogle();
                 if (!result.success) {
-                    alert('Sign-in failed: ' + result.error);
+                    alert(t('error_sign_in_failed', { error: result.error }));
                 }
             } finally {
                 googleSignInInProgress = false;
@@ -886,78 +1848,78 @@
         
         async function handleEmailSignIn() {
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
             const email = document.getElementById('emailInput').value;
             const password = document.getElementById('passwordInput').value;
             if (!email || !password) {
-                alert('Please enter email and password');
+                alert(t('error_enter_email_password'));
                 return;
             }
             const result = await FirebaseManager.signInWithEmail(email, password);
             if (!result.success) {
-                alert('Sign-in failed: ' + result.error);
+                alert(t('error_sign_in_failed', { error: result.error }));
             }
         }
         
         function showSignUpForm() {
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
             const email = document.getElementById('emailInput').value;
             const password = document.getElementById('passwordInput').value;
             if (!email || !password) {
-                alert('Please enter email and password');
+                alert(t('error_enter_email_password'));
                 return;
             }
             if (password.length < 6) {
-                alert('Password must be at least 6 characters');
+                alert(t('error_password_length'));
                 return;
             }
-            if (confirm('Create new account with: ' + email)) {
+            if (confirm(t('confirm_create_account', { email: email }))) {
                 handleSignUp(email, password);
             }
         }
         
         async function handleSignUp(email, password) {
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
             const result = await FirebaseManager.signUpWithEmail(email, password);
             if (result.success) {
-                alert('Account created! Check your email for verification.');
+                alert(t('success_account_created'));
             } else {
-                alert('Sign-up failed: ' + result.error);
+                alert(t('error_sign_up_failed', { error: result.error }));
             }
         }
         
         async function handlePasswordReset() {
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
             const email = document.getElementById('emailInput').value;
             if (!email) {
-                alert('Please enter your email address');
+                alert(t('error_enter_email'));
                 return;
             }
             const result = await FirebaseManager.resetPassword(email);
             if (result.success) {
-                alert('Password reset email sent!');
+                alert(t('success_password_reset'));
             } else {
-                alert('Failed: ' + result.error);
+                alert(t('error_failed', { error: result.error }));
             }
         }
         
         async function handleSignOut() {
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
-            if (confirm('Sign out?')) {
+            if (confirm(t('confirm_sign_out'))) {
                 await FirebaseManager.signOut();
             }
         }
@@ -988,16 +1950,16 @@
             const wb = XLSX.utils.book_new();
             
             const instructions = [
-                ['PLAYER DATABASE TEMPLATE'],
+                [t('template_title')],
                 [''],
-                ['Instructions:'],
-                ['1. Fill Player Name column with exact names from game'],
-                ['2. Fill E1 Total Power(M) column with numeric value (e.g., 65.0)'],
-                ['3. Fill E1 Troops column with: Tank, Aero, or Missile'],
-                ['4. Upload this file to the system'],
-                ['5. Select teams in the web interface'],
+                [t('template_instructions')],
+                [t('template_step1')],
+                [t('template_step2')],
+                [t('template_step3')],
+                [t('template_step4')],
+                [t('template_step5')],
                 [''],
-                ['Player Name', 'E1 Total Power(M)', 'E1 Troops']
+                [t('template_header_player_name'), t('template_header_power'), t('template_header_troops')]
             ];
             
             const examples = [
@@ -1012,10 +1974,10 @@
             const ws = XLSX.utils.aoa_to_sheet(data);
             ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}];
             
-            XLSX.utils.book_append_sheet(wb, ws, 'Players');
+            XLSX.utils.book_append_sheet(wb, ws, t('template_sheet_name'));
             XLSX.writeFile(wb, 'player_database_template.xlsx');
             
-            showMessage('uploadMessage', '✅ Template downloaded! Headers start at row 10.', 'success');
+            showMessage('uploadMessage', t('message_template_downloaded'), 'success');
         }
         
         // ============================================================
@@ -1024,7 +1986,7 @@
         
         async function uploadPlayerData() {
             if (typeof FirebaseManager === 'undefined') {
-                showMessage('uploadMessage', '❌ Firebase not loaded. Please refresh the page.', 'error');
+                showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
                 return;
             }
             
@@ -1033,7 +1995,7 @@
             
             if (!file) return;
             
-            showMessage('uploadMessage', '⏳ Processing file...', 'processing');
+            showMessage('uploadMessage', t('message_upload_processing'), 'processing');
             
             try {
                 // Use Firebase module's upload function which reads from row 10
@@ -1043,10 +2005,10 @@
                     showMessage('uploadMessage', result.message, 'success');
                     loadPlayerData();
                 } else {
-                    showMessage('uploadMessage', '❌ Upload failed: ' + result.error, 'error');
+                    showMessage('uploadMessage', t('message_upload_failed', { error: result.error }), 'error');
                 }
             } catch (error) {
-                showMessage('uploadMessage', '❌ Upload failed: ' + (error.error || error.message), 'error');
+                showMessage('uploadMessage', t('message_upload_failed', { error: error.error || error.message }), 'error');
             }
             
             fileInput.value = '';
@@ -1061,7 +2023,7 @@
             const playerDB = FirebaseManager.getPlayerDatabase();
             const count = Object.keys(playerDB).length;
             
-            document.getElementById('playerCount').textContent = count + ' players stored';
+            document.getElementById('playerCount').textContent = t('player_count', { count: count });
             
             if (count > 0) {
                 allPlayers = Object.keys(playerDB).map(name => ({
@@ -1074,7 +2036,7 @@
                 uploadPanelExpanded = false;
                 document.getElementById('uploadContent').classList.add('collapsed');
                 document.getElementById('uploadExpandIcon').classList.remove('rotated');
-                document.getElementById('uploadHint').textContent = '(Click to expand if you need to update player data)';
+                document.getElementById('uploadHint').textContent = t('upload_hint');
                 
                 showSelectionInterface();
             } else {
@@ -1190,7 +2152,7 @@
             const slotsOverLimit = totalSlots > MAX_BUILDING_SLOTS_TOTAL;
             if (slotsOverLimit) {
                 buildingConfig = getDefaultBuildings();
-                showMessage('buildingsStatus', `❌ Total slots exceeded ${MAX_BUILDING_SLOTS_TOTAL} in saved config. Reset to defaults.`, 'error');
+                showMessage('buildingsStatus', t('buildings_slots_exceeded_saved', { max: MAX_BUILDING_SLOTS_TOTAL }), 'error');
             }
 
             const needsSave = slotsOverLimit || !Array.isArray(stored) || stored.length !== buildingConfig.length || stored.some((item) => {
@@ -1238,10 +2200,10 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${b.name}</td>
-                    <td>
+                    <td data-label="${t('slots_label')}">
                         <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input">
                     </td>
-                    <td>
+                    <td data-label="${t('priority_label')}">
                         <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input">
                     </td>
                 `;
@@ -1283,7 +2245,7 @@
         async function saveBuildingConfig() {
             const { updated, totalSlots } = readBuildingConfigFromTable();
             if (totalSlots > MAX_BUILDING_SLOTS_TOTAL) {
-                showMessage('buildingsStatus', `❌ Total slots cannot exceed ${MAX_BUILDING_SLOTS_TOTAL}. Currently: ${totalSlots}.`, 'error');
+                showMessage('buildingsStatus', t('buildings_slots_exceeded', { max: MAX_BUILDING_SLOTS_TOTAL, total: totalSlots }), 'error');
                 return;
             }
 
@@ -1291,16 +2253,16 @@
             renderBuildingsTable();
 
             if (typeof FirebaseManager === 'undefined') {
-                showMessage('buildingsStatus', 'Firebase not loaded. Changes not saved.', 'error');
+                showMessage('buildingsStatus', t('buildings_changes_not_saved'), 'error');
                 return;
             }
 
             FirebaseManager.setBuildingConfig(buildingConfig);
             const result = await FirebaseManager.saveUserData();
             if (result.success) {
-                showMessage('buildingsStatus', '✅ Buildings saved.', 'success');
+                showMessage('buildingsStatus', t('buildings_saved'), 'success');
             } else {
-                showMessage('buildingsStatus', '❌ Save failed: ' + result.error, 'error');
+                showMessage('buildingsStatus', t('buildings_save_failed', { error: result.error }), 'error');
             }
         }
 
@@ -1321,7 +2283,7 @@
             }
             const { updated, totalSlots } = readBuildingConfigFromTable();
             if (totalSlots > MAX_BUILDING_SLOTS_TOTAL) {
-                showMessage('buildingsStatus', `❌ Total slots cannot exceed ${MAX_BUILDING_SLOTS_TOTAL}. Currently: ${totalSlots}.`, 'error');
+                showMessage('buildingsStatus', t('buildings_slots_exceeded', { max: MAX_BUILDING_SLOTS_TOTAL, total: totalSlots }), 'error');
                 return false;
             }
             buildingConfig = normalizeBuildingConfig(updated);
@@ -1335,7 +2297,7 @@
             loadBuildingPositions();
             coordBuildings = buildingConfig.filter((b) => b.name !== 'Bomb Squad').map((b) => b.name);
             if (coordBuildings.length === 0) {
-                showMessage('coordStatus', 'No buildings available for coordinates.', 'error');
+                showMessage('coordStatus', t('coord_no_buildings'), 'error');
                 return;
             }
             coordBuildingIndex = 0;
@@ -1353,8 +2315,10 @@
             const pos = buildingPositions[name];
             document.getElementById('coordBuildingLabel').textContent = name || '';
             document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
-            document.getElementById('coordBuildingValue').textContent = pos ? `Current: x ${pos[0]}, y ${pos[1]}` : 'Current: not set';
-            document.getElementById('coordPrompt').textContent = `Select coordinates for ${name}`;
+            document.getElementById('coordBuildingValue').textContent = pos
+                ? t('coord_current', { x: pos[0], y: pos[1] })
+                : t('coord_current_not_set');
+            document.getElementById('coordPrompt').textContent = t('coord_select_prompt', { name: name });
         }
 
         function drawCoordCanvas() {
@@ -1367,7 +2331,7 @@
                 loadMapImage()
                     .then(() => drawCoordCanvas())
                     .catch(() => {
-                        showMessage('coordStatus', 'Map image not loaded. Please verify desert-storm-map.png exists.', 'error');
+                        showMessage('coordStatus', t('coord_map_not_loaded'), 'error');
                     });
                 return;
             }
@@ -1427,15 +2391,15 @@
 
         async function saveBuildingPositions() {
             if (typeof FirebaseManager === 'undefined') {
-                showMessage('coordStatus', 'Firebase not loaded. Changes not saved.', 'error');
+                showMessage('coordStatus', t('coord_changes_not_saved'), 'error');
                 return;
             }
             FirebaseManager.setBuildingPositions(buildingPositions);
             const result = await FirebaseManager.saveUserData();
             if (result.success) {
-                showMessage('coordStatus', '✅ Coordinates saved.', 'success');
+                showMessage('coordStatus', t('coord_saved'), 'success');
             } else {
-                showMessage('coordStatus', '❌ Save failed: ' + result.error, 'error');
+                showMessage('coordStatus', t('coord_save_failed', { error: result.error }), 'error');
             }
         }
 
@@ -1504,18 +2468,18 @@
                 row.innerHTML = `
                     <td><strong>${escapeHtml(player.name)}</strong></td>
                     <td>${player.power}M</td>
-                    <td>${escapeHtml(player.troops)}</td>
+                    <td>${escapeHtml(getTroopLabel(player.troops))}</td>
                     <td>
                         <div class="team-buttons">
                             <button class="team-btn team-a-btn ${isTeamA ? 'active' : ''}"
                                     ${teamADisabled ? 'disabled' : ''}>
-                                Team A
+                                ${t('team_a_button')}
                             </button>
                             <button class="team-btn team-b-btn ${isTeamB ? 'active' : ''}"
                                     ${teamBDisabled ? 'disabled' : ''}>
-                                Team B
+                                ${t('team_b_button')}
                             </button>
-                            ${(isTeamA || isTeamB) ? '<button class="clear-btn">Clear</button>' : ''}
+                            ${(isTeamA || isTeamB) ? `<button class="clear-btn">${t('clear_button')}</button>` : ''}
                         </div>
                     </td>
                 `;
@@ -1574,7 +2538,7 @@
         }
         
         function clearAllSelections() {
-            if (confirm('Clear all team selections?')) {
+            if (confirm(t('confirm_clear_all'))) {
                 teamSelections.teamA = [];
                 teamSelections.teamB = [];
                 assignmentsA = [];
@@ -1638,25 +2602,25 @@
         
         function generateTeamAssignments(team) {
             if (typeof FirebaseManager === 'undefined') {
-                alert('Firebase not loaded. Please refresh the page.');
+                alert(t('error_firebase_not_loaded'));
                 return;
             }
 
             const buildingConfigOk = refreshBuildingConfigForAssignments();
             if (!buildingConfigOk) {
-                alert(`Total slots across all buildings cannot exceed ${MAX_BUILDING_SLOTS_TOTAL}.`);
+                alert(t('alert_total_slots_exceed', { max: MAX_BUILDING_SLOTS_TOTAL }));
                 return;
             }
             
             const selections = team === 'A' ? teamSelections.teamA : teamSelections.teamB;
             
             if (selections.length === 0) {
-                alert(`Please select at least 1 player for Team ${team}!`);
+                alert(t('alert_select_at_least_one', { team: team }));
                 return;
             }
             
             if (selections.length > 20) {
-                alert(`Maximum 20 players per team! Currently selected: ${selections.length}`);
+                alert(t('alert_max_players', { count: selections.length }));
                 return;
             }
             
@@ -1766,10 +2730,11 @@
             const isA = team === 'A';
             const gradient = isA ? 'linear-gradient(135deg, #4169E1, #1E90FF)' : 'linear-gradient(135deg, #DC143C, #FF6347)';
             const color = isA ? '#4169E1' : '#DC143C';
+            activeDownloadTeam = team;
 
-            document.getElementById('downloadModalTitle').textContent = `Team ${team} Downloads`;
+            document.getElementById('downloadModalTitle').textContent = t('download_modal_title', { team: team });
             document.getElementById('downloadModalTitle').style.color = color;
-            document.getElementById('downloadModalSubtitle').textContent = `Team ${team} assignments are ready!`;
+            document.getElementById('downloadModalSubtitle').textContent = t('download_modal_subtitle', { team: team });
             document.getElementById('downloadMapBtn').style.background = gradient;
             document.getElementById('downloadMapBtn').onclick = () => downloadTeamMap(team);
             document.getElementById('downloadExcelBtn').style.background = gradient;
@@ -1779,6 +2744,7 @@
         }
 
         function closeDownloadModal() {
+            activeDownloadTeam = null;
             document.getElementById('downloadModalOverlay').classList.add('hidden');
         }
 
@@ -1791,35 +2757,35 @@
             const assignments = team === 'A' ? assignmentsA : assignmentsB;
             
             if (assignments.length === 0) {
-                alert('No assignments generated yet! Click "Generate Team ' + team + ' Assignments" first.');
+                alert(t('alert_no_assignments', { team: team }));
                 return;
             }
             
-            const data = assignments.map(a => ({ 
-                'Building': a.building, 
-                'Priority': a.priority, 
-                'Player': a.player 
+            const data = assignments.map(a => ({
+                [t('excel_header_building')]: a.building,
+                [t('excel_header_priority')]: a.priority,
+                [t('excel_header_player')]: a.player
             }));
             
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), `Team ${team}`);
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), t('excel_sheet_name', { team: team }));
             XLSX.writeFile(wb, `desert_storm_team_${team}_assignments.xlsx`);
             
             const statusId = 'downloadStatus';
-            showMessage(statusId, '✅ Excel downloaded!', 'success');
+            showMessage(statusId, t('message_excel_downloaded'), 'success');
         }
         
         function downloadTeamMap(team) {
             const assignments = team === 'A' ? assignmentsA : assignmentsB;
             
             if (assignments.length === 0) {
-                alert('No assignments generated yet! Click "Generate Team ' + team + ' Assignments" first.');
+                alert(t('alert_no_assignments', { team: team }));
                 return;
             }
             
             const statusId = 'downloadStatus';
             
             if (!mapLoaded) {
-                showMessage(statusId, '⏳ Waiting for map to load...', 'processing');
+                showMessage(statusId, t('message_map_wait'), 'processing');
                 // Wait up to 10 seconds for map to load
                 let waitTime = 0;
                 const checkInterval = setInterval(() => {
@@ -1829,10 +2795,10 @@
                         generateMap(team, assignments, statusId);
                     } else if (waitTime >= 10000) {
                         clearInterval(checkInterval);
-                        if (confirm('Map image is still loading. Generate without map background?')) {
+                        if (confirm(t('confirm_map_without_background'))) {
                             generateMapWithoutBackground(team, assignments, statusId);
                         } else {
-                            showMessage(statusId, '⚠️ Cancelled. Refresh page to retry loading map.', 'warning');
+                            showMessage(statusId, t('message_map_cancelled'), 'warning');
                         }
                     }
                 }, 500);
@@ -1843,7 +2809,7 @@
         }
         
         function generateMapWithoutBackground(team, assignments, statusId) {
-            showMessage(statusId, `🎨 Generating Team ${team} map (no background)...`, 'processing');
+            showMessage(statusId, t('message_generating_map_no_bg', { team: team }), 'processing');
             
             try {
                 const grouped = {};
@@ -1903,15 +2869,15 @@
                 a.click();
                 document.body.removeChild(a);
                 
-                showMessage(statusId, `✅ Team ${team} downloaded (list format - no map)`, 'success');
+                showMessage(statusId, t('message_team_downloaded_list', { team: team }), 'success');
             } catch (error) {
                 console.error(error);
-                showMessage(statusId, '❌ ' + error.message, 'error');
+                showMessage(statusId, t('error_generic', { error: error.message }), 'error');
             }
         }
         
         function generateMap(team, assignments, statusId) {
-            showMessage(statusId, `🎨 Generating Team ${team} map...`, 'processing');
+            showMessage(statusId, t('message_generating_map', { team: team }), 'processing');
             
             try {
                 const grouped = {};
@@ -2041,7 +3007,7 @@
                 
                 ctx.font = '12px Arial';
                 ctx.fillStyle = 'gray';
-                ctx.fillText('Roam free, help others', 540, bombY + 160);
+                ctx.fillText(t('map_footer_text'), 540, bombY + 160);
                 
                 const dataURL = canvas.toDataURL('image/png');
                 const a = document.createElement('a');
@@ -2051,11 +3017,11 @@
                 a.click();
                 document.body.removeChild(a);
                 
-                showMessage(statusId, `✅ Team ${team} map downloaded! (${drawnCount} players + ${bombSquad.length} bomb squad)`, 'success');
+                showMessage(statusId, t('message_team_map_downloaded', { team: team, drawnCount: drawnCount, bombSquad: bombSquad.length }), 'success');
             } catch (error) {
                 console.error(error);
                 const statusId = 'downloadStatus';
-                showMessage(statusId, '❌ ' + error.message, 'error');
+                showMessage(statusId, t('error_generic', { error: error.message }), 'error');
             }
         }
         
@@ -2073,6 +3039,8 @@
                 }, 5000);
             }
         }
+
+        initLanguage();
 
         document.addEventListener('click', (event) => {
             if (event.target && event.target.id === 'coordCanvas') {
