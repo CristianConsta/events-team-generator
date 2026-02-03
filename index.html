@@ -1459,11 +1459,13 @@
             });
 
             sortedBuildings.forEach(building => {
-                let selected;
-                if (building.name === 'Bomb Squad') {
-                    selected = available.slice(0, building.slots);
-                } else {
-                    selected = selectMixedPair(available);
+                const selected = [];
+
+                for (let i = 0; i < building.slots; i += 2) {
+                    const pair = selectMixedPair(available);
+                    selected.push(...pair);
+                    const pairNames = new Set(pair.map(p => p.name));
+                    available = available.filter(p => !pairNames.has(p.name));
                 }
 
                 selected.forEach(p => {
@@ -1473,27 +1475,26 @@
                         player: p.name
                     });
                 });
-
-                const selectedNames = new Set(selected.map(p => p.name));
-                available = available.filter(p => !selectedNames.has(p.name));
             });
 
             return assignments;
         }
 
-        // Picks two players for a building: one Tank + one non-Tank (Aero/Missile).
-        // Falls back to top 2 by power if one troop type is exhausted.
+        // Picks the highest power player, then searches the next 3 by power
+        // for a different troop type. Falls back to next by power if no mix
+        // is found within that window.
         function selectMixedPair(available) {
-            const tanks = available.filter(p => p.troops === 'Tank');
-            const nonTanks = available.filter(p => p.troops !== 'Tank');
+            if (available.length < 2) return available.slice();
 
-            if (tanks.length > 0 && nonTanks.length > 0) {
-                const pair = [tanks[0], nonTanks[0]];
-                pair.sort((a, b) => b.power - a.power);
-                return pair;
+            const first = available[0];
+            const candidates = available.slice(1, 4); // next 3 by power
+            const mixIndex = candidates.findIndex(p => p.troops !== first.troops);
+
+            if (mixIndex !== -1) {
+                return [first, candidates[mixIndex]];
             }
 
-            return available.slice(0, 2);
+            return [first, available[1]];
         }
         
         // ============================================================
