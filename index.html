@@ -898,10 +898,6 @@
         }
 
         function getEffectiveBuildingConfig() {
-            if (typeof FirebaseManager !== 'undefined') {
-                const stored = FirebaseManager.getBuildingConfig();
-                return normalizeBuildingConfig(stored);
-            }
             return normalizeBuildingConfig(buildingConfig);
         }
 
@@ -992,6 +988,24 @@
             } else {
                 showMessage('buildingsStatus', '❌ Save failed: ' + result.error, 'error');
             }
+        }
+
+        function syncBuildingConfigFromTable() {
+            const tbody = document.getElementById('buildingsTableBody');
+            const panel = document.getElementById('buildingsPanel');
+            if (!tbody || !panel || panel.classList.contains('hidden')) {
+                return;
+            }
+            const inputs = tbody.querySelectorAll('input[data-index]');
+            const updated = buildingConfig.map((b) => ({ ...b }));
+            inputs.forEach((input) => {
+                const index = Number(input.getAttribute('data-index'));
+                const value = Number(input.value);
+                if (Number.isFinite(value)) {
+                    updated[index].priority = Math.max(1, Math.min(6, Math.round(value)));
+                }
+            });
+            buildingConfig = normalizeBuildingConfig(updated);
         }
 
         function reserveSpaceForFooter() {
@@ -1197,6 +1211,8 @@
                 alert('Firebase not loaded. Please refresh the page.');
                 return;
             }
+
+            syncBuildingConfigFromTable();
             
             const selections = team === 'A' ? teamSelections.teamA : teamSelections.teamB;
             
