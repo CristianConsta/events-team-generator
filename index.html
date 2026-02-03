@@ -626,10 +626,10 @@
             { name: 'Oil Refinery 2', priority: 3, slots: 2 },
             { name: 'Field Hospital 1', priority: 4, slots: 2 },
             { name: 'Field Hospital 2', priority: 4, slots: 2 },
-            { name: 'Field Hospital 3', priority: 4, slots: 1 },
-            { name: 'Field Hospital 4', priority: 4, slots: 1 },
-            { name: 'Info Center', priority: 5, slots: 1 },
-            { name: 'Science Hub', priority: 5, slots: 1 },
+            { name: 'Field Hospital 3', priority: 4, slots: 2 },
+            { name: 'Field Hospital 4', priority: 4, slots: 2 },
+            { name: 'Info Center', priority: 5, slots: 2 },
+            { name: 'Science Hub', priority: 5, slots: 2 },
         ];
 
         let buildingConfig = defaultBuildings.map((b) => ({ ...b }));
@@ -1449,7 +1449,7 @@
         
         function assignTeamToBuildings(players) {
             const assignments = [];
-            let playerIndex = 0;
+            let available = [...players]; // already sorted by power desc
 
             const sortedBuildings = [...getEffectiveBuildingConfig()].sort((a, b) => {
                 if (a.priority !== b.priority) {
@@ -1457,21 +1457,43 @@
                 }
                 return a.name.localeCompare(b.name);
             });
-            
+
             sortedBuildings.forEach(building => {
-                for (let i = 0; i < building.slots; i++) {
-                    if (playerIndex < players.length) {
-                        assignments.push({
-                            building: building.name,
-                            priority: building.priority,
-                            player: players[playerIndex].name
-                        });
-                        playerIndex++;
-                    }
+                let selected;
+                if (building.name === 'Bomb Squad') {
+                    selected = available.slice(0, building.slots);
+                } else {
+                    selected = selectMixedPair(available);
                 }
+
+                selected.forEach(p => {
+                    assignments.push({
+                        building: building.name,
+                        priority: building.priority,
+                        player: p.name
+                    });
+                });
+
+                const selectedNames = new Set(selected.map(p => p.name));
+                available = available.filter(p => !selectedNames.has(p.name));
             });
-            
+
             return assignments;
+        }
+
+        // Picks two players for a building: one Tank + one non-Tank (Aero/Missile).
+        // Falls back to top 2 by power if one troop type is exhausted.
+        function selectMixedPair(available) {
+            const tanks = available.filter(p => p.troops === 'Tank');
+            const nonTanks = available.filter(p => p.troops !== 'Tank');
+
+            if (tanks.length > 0 && nonTanks.length > 0) {
+                const pair = [tanks[0], nonTanks[0]];
+                pair.sort((a, b) => b.power - a.power);
+                return pair;
+            }
+
+            return available.slice(0, 2);
         }
         
         // ============================================================
