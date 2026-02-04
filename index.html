@@ -618,10 +618,15 @@
     <div id="mainApp" style="display: none;">
         <!-- User Header -->
         <div style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 20px auto;">
-            <div>
-                <span id="userEmail" style="color: #FDC830; font-weight: bold;"></span>
-                <span id="playerCount" style="color: #fff; margin-left: 20px;"></span>
-                <span id="syncStatus" style="color: #90EE90; margin-left: 20px;" data-i18n="sync_status_synced">☁️ Synced</span>
+            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <div>
+                    <div id="userEmail" style="color: #FDC830; font-weight: bold;"></div>
+                    <div id="playerCount" style="color: rgba(255,255,255,0.65); font-size: 13px;"></div>
+                </div>
+                <span id="syncStatus" style="display: flex; align-items: center;" title="Synced">
+                    <svg id="syncIconSynced"    xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#90EE90" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.39 17.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="9 12 11 14 15 10"/></svg>
+                    <svg id="syncIconNotSynced" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><path d="M20.39 17.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><line x1="10" y1="10" x2="16" y2="16"/><line x1="16" y1="10" x2="10" y2="16"/></svg>
+                </span>
                 <span class="lang-select">
                     <label for="languageSelect" data-i18n="language_label">Language</label>
                     <select id="languageSelect">
@@ -833,10 +838,7 @@
                 login_sign_in: 'Sign In',
                 login_create_account: 'Create New Account',
                 login_forgot_password: 'Forgot Password?',
-                sync_status_synced: '☁️ Synced',
-                sync_status_not_synced: '⚠️ Not Synced',
                 language_label: 'Language',
-                sign_out: 'Sign Out',
                 main_title: '🏜️ DESERT STORM',
                 buildings_button: 'Buildings & Priorities',
                 buildings_panel_title: 'Buildings & Priorities',
@@ -981,10 +983,7 @@
                 login_sign_in: 'Se connecter',
                 login_create_account: 'Créer un compte',
                 login_forgot_password: 'Mot de passe oublié ?',
-                sync_status_synced: '☁️ Synchronisé',
-                sync_status_not_synced: '⚠️ Non synchronisé',
                 language_label: 'Langue',
-                sign_out: 'Se déconnecter',
                 main_title: '🏜️ DESERT STORM',
                 buildings_button: 'Bâtiments & Priorités',
                 buildings_panel_title: 'Bâtiments & Priorités',
@@ -1129,10 +1128,7 @@
                 login_sign_in: 'Anmelden',
                 login_create_account: 'Neues Konto erstellen',
                 login_forgot_password: 'Passwort vergessen?',
-                sync_status_synced: '☁️ Synchronisiert',
-                sync_status_not_synced: '⚠️ Nicht synchronisiert',
                 language_label: 'Sprache',
-                sign_out: 'Abmelden',
                 main_title: '🏜️ DESERT STORM',
                 buildings_button: 'Gebäude & Prioritäten',
                 buildings_panel_title: 'Gebäude & Prioritäten',
@@ -1277,10 +1273,7 @@
                 login_sign_in: 'Accedi',
                 login_create_account: 'Crea nuovo account',
                 login_forgot_password: 'Password dimenticata?',
-                sync_status_synced: '☁️ Sincronizzato',
-                sync_status_not_synced: '⚠️ Non sincronizzato',
                 language_label: 'Lingua',
-                sign_out: 'Esci',
                 main_title: '🏜️ DESERT STORM',
                 buildings_button: 'Edifici e Priorità',
                 buildings_panel_title: 'Edifici e Priorità',
@@ -1425,10 +1418,7 @@
                 login_sign_in: '로그인',
                 login_create_account: '새 계정 만들기',
                 login_forgot_password: '비밀번호를 잊으셨나요?',
-                sync_status_synced: '☁️ 동기화됨',
-                sync_status_not_synced: '⚠️ 동기화 안 됨',
                 language_label: '언어',
-                sign_out: '로그아웃',
                 main_title: '🏜️ DESERT STORM',
                 buildings_button: '건물 및 우선순위',
                 buildings_panel_title: '건물 및 우선순위',
@@ -1573,10 +1563,7 @@
                 login_sign_in: 'Autentificare',
                 login_create_account: 'Creează cont nou',
                 login_forgot_password: 'Ai uitat parola?',
-                sync_status_synced: '☁️ Sincronizat',
-                sync_status_not_synced: '⚠️ Nesincronizat',
                 language_label: 'Limba',
-                sign_out: 'Deconectare',
                 main_title: '🏜️ DESERT STORM',
                 buildings_button: 'Clădiri și priorități',
                 buildings_panel_title: 'Clădiri și priorități',
