@@ -413,7 +413,7 @@
             .card h2 { font-size: 1.2rem; }
 
             /* Global button tweaks */
-            button { margin: 4px 0; touch-action: manipulation; }
+            button { margin: 4px 0; touch-action: manipulation; padding: 12px 20px; font-size: 15px; }
 
             /* Page header */
             .page-header { gap: 8px; }
@@ -551,17 +551,49 @@
             }
             .floating-buttons button span { font-size: 12px !important; }
 
-            /* ── Touch feedback on collapsible headers ── */
+            /* ── Collapsible panels ── */
+            .collapsible-header        { padding: 10px 0; }
+            .collapsible-content       { margin-top: 14px; }
+            .expand-icon               { font-size: 18px; }
             .collapsible-header:active { opacity: 0.7; }
+
+            /* ── Upload section ── */
+            #uploadHint                { margin-left: 8px !important; font-size: 12px !important; }
+            #uploadContent > p         { margin-bottom: 12px !important; }
+            #uploadContent > div       { gap: 10px !important; }
+
+            /* ── Selection section ── */
+            #selectionSection > p      { margin-bottom: 12px !important; }
+
+            /* ── Buildings panel ── */
+            #buildingsPanel > p                    { margin: 10px 0 !important; }
+            #buildingsPanel > div:first-child      { gap: 8px !important; }
+            #buildingsPanel > div:first-child > div { gap: 6px !important; }
+            #buildingsActions                      { gap: 8px !important; margin-top: 10px !important; }
 
             /* ── Overlays — tighter padding on small screens ── */
             .coord-overlay > div { padding: 16px !important; }
 
-            /* ── Download modal buttons ── */
-            #downloadMapBtn, #downloadExcelBtn { padding: 18px 16px !important; }
+            /* ── Coordinate picker ── */
+            #coordHeader                           { gap: 8px !important; }
+            #coordPickerOverlay > div > p          { margin: 8px 0 10px !important; }
+            #coordBuildingRow                      { gap: 10px !important; margin-bottom: 4px !important; }
+            #coordPrompt                           { margin-bottom: 8px !important; }
+            #coordBuildingValue                    { margin-bottom: 8px !important; }
+            #coordActions                          { gap: 8px !important; margin-top: 10px !important; }
+            #coordStatus                           { margin-top: 8px !important; }
+
+            /* ── Download modal ── */
+            #downloadModalOverlay > div > div:first-child { margin-bottom: 6px !important; }
+            #downloadModalSubtitle                 { margin-bottom: 14px !important; }
+            #downloadBtnGrid                       { gap: 10px !important; }
+            #downloadMapBtn, #downloadExcelBtn     { padding: 16px !important; font-size: 15px !important; }
+            #downloadStatus                        { margin-top: 10px !important; }
 
             /* ── Login screen ── */
-            #loginScreen > div { padding: 24px !important; }
+            #loginScreen > div         { padding: 24px !important; margin: 30px auto !important; }
+            #loginScreen h3            { margin-bottom: 18px !important; }
+            #loginLanguageSelect       { margin-top: 14px !important; }
 
             /* ── User header ── */
             #userHeader                { padding: 10px !important; }
@@ -680,7 +712,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                <div id="buildingsActions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
                     <button class="secondary" onclick="resetBuildingsToDefault()"><span data-i18n="reset_default">Reset to Default</span></button>
                     <button onclick="saveBuildingConfig()"><span data-i18n="save_changes">Save Changes</span></button>
                 </div>
@@ -689,19 +721,19 @@
 
             <div id="coordPickerOverlay" class="coord-overlay hidden">
                 <div style="width: min(1000px, 95vw); max-height: 90vh; overflow: auto; background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div id="coordHeader" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;" data-i18n="coord_picker_title">Map Coordinates Picker</h2>
                         <button class="clear-btn" onclick="closeCoordinatesPicker()"><span data-i18n="close">Close</span></button>
                     </div>
                     <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
+                    <div id="coordBuildingRow" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
                         <strong id="coordBuildingLabel" data-i18n="coord_label_building">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
                     </div>
                     <div id="coordPrompt" style="opacity: 0.85; margin-bottom: 10px;" data-i18n="coord_prompt_default">Click on the map to set coordinates.</div>
                     <div id="coordBuildingValue" style="opacity: 0.7; margin-bottom: 10px;"></div>
                     <canvas id="coordCanvas" style="width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);"></canvas>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                    <div id="coordActions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
                         <button class="secondary" onclick="prevCoordBuilding()"><span data-i18n="coord_prev">Prev</span></button>
                         <button class="secondary" onclick="nextCoordBuilding()"><span data-i18n="coord_next">Next</span></button>
                         <button onclick="saveBuildingPositions()"><span data-i18n="coord_save">Save Coordinates</span></button>
@@ -795,7 +827,7 @@
                         <button class="clear-btn" onclick="closeDownloadModal()"><span data-i18n="close">Close</span></button>
                     </div>
                     <p id="downloadModalSubtitle" style="opacity: 0.9; margin: 0 0 25px;"></p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div id="downloadBtnGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <button id="downloadMapBtn" style="font-size: 17px; padding: 16px 25px;">
                             🗺️ <span data-i18n="download_map">Map</span>
                         </button>
