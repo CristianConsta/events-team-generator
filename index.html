@@ -16,6 +16,14 @@
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --gold: #FDC830;
+            --gold-rgb: 253, 200, 48;
+            --team-a: #4169E1;
+            --team-a-rgb: 65, 105, 225;
+            --team-b: #DC143C;
+            --team-b-rgb: 220, 20, 60;
+        }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213E 100%);
@@ -24,7 +32,7 @@
             padding: 20px;
         }
         .container { max-width: 1200px; margin: 0 auto; }
-        h1 { text-align: center; color: #FDC830; font-size: 2.5rem; margin-bottom: 30px; }
+        h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 30px; }
         .page-header {
             display: flex;
             align-items: center;
@@ -40,9 +48,9 @@
             padding: 30px;
             margin: 20px 0;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(253, 200, 48, 0.3);
+            border: 1px solid rgba(var(--gold-rgb), 0.3);
         }
-        .card h2 { color: #FDC830; margin-bottom: 15px; }
+        .card h2 { color: var(--gold); margin-bottom: 15px; }
         button {
             background: linear-gradient(135deg, #FF6B35, #F7931E);
             color: white;
@@ -57,7 +65,7 @@
         }
         button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        button.secondary { background: linear-gradient(135deg, #FDC830, #F7931E); }
+        button.secondary { background: linear-gradient(135deg, var(--gold), #F7931E); }
         .hidden { display: none !important; }
         .coord-overlay {
             position: fixed;
@@ -74,11 +82,11 @@
 
         /* ── Onboarding Tour Tooltip ── */
         @keyframes onboarding-pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(253, 200, 48, 0.6); }
-            50%      { box-shadow: 0 0 0 6px rgba(253, 200, 48, 0); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0.6); }
+            50%      { box-shadow: 0 0 0 6px rgba(var(--gold-rgb), 0); }
         }
         .onboarding-highlight {
-            outline: 2px solid #FDC830;
+            outline: 2px solid var(--gold);
             outline-offset: 3px;
             border-radius: 6px;
             animation: onboarding-pulse 1.8s ease-in-out infinite;
@@ -88,7 +96,7 @@
             z-index: 3000;
             max-width: 280px;
             background: rgba(26, 26, 46, 0.96);
-            border: 1px solid rgba(253, 200, 48, 0.45);
+            border: 1px solid rgba(var(--gold-rgb), 0.45);
             border-radius: 12px;
             padding: 18px 20px 14px;
             box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
@@ -96,7 +104,7 @@
             pointer-events: auto;
         }
         .onboarding-tooltip .onboarding-step-label {
-            color: #FDC830;
+            color: var(--gold);
             font-size: 11px;
             font-weight: 700;
             text-transform: uppercase;
@@ -104,7 +112,7 @@
             margin-bottom: 5px;
         }
         .onboarding-tooltip .onboarding-title {
-            color: #FDC830;
+            color: var(--gold);
             font-size: 15px;
             font-weight: 700;
             margin-bottom: 6px;
@@ -154,7 +162,7 @@
             align-items: center;
             cursor: pointer;
             padding: 15px 0;
-            border-bottom: 2px solid rgba(253, 200, 48, 0.3);
+            border-bottom: 2px solid rgba(var(--gold-rgb), 0.3);
             user-select: none;
         }
         .collapsible-header:hover { opacity: 0.8; }
@@ -219,7 +227,7 @@
             transform: none;
             box-shadow: none;
         }
-        .filter-icon-btn.active { border-color: #FDC830; }
+        .filter-icon-btn.active { border-color: var(--gold); }
         .filter-dropdown-panel {
             display: none;
             position: absolute;
@@ -243,7 +251,7 @@
             transition: background 0.15s;
         }
         .filter-option:hover { background: rgba(255,255,255,0.1); }
-        .filter-option.selected { color: #FDC830; background: rgba(253, 200, 48, 0.12); }
+        .filter-option.selected { color: var(--gold); background: rgba(var(--gold-rgb), 0.12); }
         
         .team-counters {
             display: flex;
@@ -257,8 +265,8 @@
             font-size: 18px;
             font-weight: bold;
         }
-        .counter.team-a { background: linear-gradient(135deg, #4169E1, #1E90FF); }
-        .counter.team-b { background: linear-gradient(135deg, #DC143C, #FF6347); }
+        .counter.team-a { background: linear-gradient(135deg, var(--team-a), #1E90FF); }
+        .counter.team-b { background: linear-gradient(135deg, var(--team-b), #FF6347); }
         .counter.full { animation: pulse 1s infinite; }
         
         @keyframes pulse {
@@ -272,11 +280,11 @@
             margin-top: 20px;
         }
         .players-table th {
-            background: rgba(253, 200, 48, 0.3);
+            background: rgba(var(--gold-rgb), 0.3);
             padding: 12px;
             text-align: left;
             font-weight: bold;
-            border-bottom: 2px solid #FDC830;
+            border-bottom: 2px solid var(--gold);
         }
         .players-table td {
             padding: 12px;
@@ -286,10 +294,10 @@
             background: rgba(255,255,255,0.05);
         }
         .players-table tr.selected-a {
-            background: rgba(65, 105, 225, 0.2);
+            background: rgba(var(--team-a-rgb), 0.2);
         }
         .players-table tr.selected-b {
-            background: rgba(220, 20, 60, 0.2);
+            background: rgba(var(--team-b-rgb), 0.2);
         }
         #playersTable td:nth-child(3)::before {
             content: '·';
@@ -335,17 +343,15 @@
             margin: 0;
         }
         .team-btn.team-a-btn {
-            border-color: #4169E1;
-            color: #4169E1;
+            border-color: var(--team-a);
+            color: var(--team-a);
         }
-        .team-btn.team-a-btn:hover { background: #4169E1; color: white; }
-        .team-btn.team-a-btn.active { background: #4169E1; color: white; }
+        .team-btn.team-a-btn:hover, .team-btn.team-a-btn.active { background: var(--team-a); color: white; }
         .team-btn.team-b-btn {
-            border-color: #DC143C;
-            color: #DC143C;
+            border-color: var(--team-b);
+            color: var(--team-b);
         }
-        .team-btn.team-b-btn:hover { background: #DC143C; color: white; }
-        .team-btn.team-b-btn.active { background: #DC143C; color: white; }
+        .team-btn.team-b-btn:hover, .team-btn.team-b-btn.active { background: var(--team-b); color: white; }
         .team-btn:disabled {
             opacity: 0.3;
             cursor: not-allowed;
@@ -411,7 +417,7 @@
         .success { background: rgba(144, 238, 144, 0.2); border: 2px solid #90EE90; color: #90EE90; }
         .error { background: rgba(255, 107, 53, 0.2); border: 2px solid #FF6B35; color: #FF6B35; }
         .warning { background: rgba(255, 193, 7, 0.2); border: 2px solid #FFC107; color: #FFC107; }
-        .processing { background: rgba(253, 200, 48, 0.2); border: 2px solid #FDC830; color: #FDC830; }
+        .processing { background: rgba(var(--gold-rgb), 0.2); border: 2px solid var(--gold); color: var(--gold); }
         
         /* Team specific sections */
         .team-section {
@@ -420,10 +426,10 @@
             margin-top: 20px;
         }
         .team-section.team-a-section {
-            border-left-color: #4169E1;
+            border-left-color: var(--team-a);
         }
         .team-section.team-b-section {
-            border-left-color: #DC143C;
+            border-left-color: var(--team-b);
         }
 
         /* =============================================
@@ -470,8 +476,8 @@
                 flex: 1 1 100%;
                 width: 100%;
                 min-width: 0;
+                font-size: 15px;
             }
-            .filters input { font-size: 15px; }
             .filter-dropdown { flex: 0 0 auto; }
             .filter-dropdown-panel { min-width: 160px; }
 
@@ -502,8 +508,8 @@
                 align-items: center;
             }
             #playersTable tr:hover { background: rgba(255,255,255,0.07); }
-            #playersTable tr.selected-a { background: rgba(65,105,225,0.2); border-color: rgba(65,105,225,0.4); }
-            #playersTable tr.selected-b { background: rgba(220,20,60,0.2); border-color: rgba(220,20,60,0.4); }
+            #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.2); border-color: rgba(var(--team-a-rgb),0.4); }
+            #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.2); border-color: rgba(var(--team-b-rgb),0.4); }
 
             #playersTable td, #buildingsTable td {
                 border-bottom: none;
@@ -555,25 +561,13 @@
                 white-space: nowrap;
                 font-weight: bold;
             }
-            #buildingsTable td:nth-child(2) {
+            #buildingsTable td:nth-child(2), #buildingsTable td:nth-child(3) {
                 flex: 0 0 auto;
                 display: flex;
                 align-items: center;
                 gap: 4px;
             }
-            #buildingsTable td:nth-child(2)::before {
-                content: attr(data-label);
-                font-size: 12px;
-                opacity: 0.6;
-                white-space: nowrap;
-            }
-            #buildingsTable td:nth-child(3) {
-                flex: 0 0 auto;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-            }
-            #buildingsTable td:nth-child(3)::before {
+            #buildingsTable td:nth-child(2)::before, #buildingsTable td:nth-child(3)::before {
                 content: attr(data-label);
                 font-size: 12px;
                 opacity: 0.6;
@@ -708,7 +702,7 @@
         <div id="userHeader" style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto 20px auto;">
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div>
-                    <div id="userEmail" style="color: #FDC830; font-weight: bold;"></div>
+                    <div id="userEmail" style="color: var(--gold); font-weight: bold;"></div>
                     <div id="playerCount" style="color: rgba(255,255,255,0.65); font-size: 13px;"></div>
                 </div>
                 <span id="syncStatus" style="display: flex; align-items: center;" title="Synced">
@@ -902,11 +896,11 @@
 
         <!-- Floating Generate Buttons -->
         <div class="floating-buttons" id="floatingButtons" style="display: none;">
-            <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, #4169E1, #1E90FF);" disabled>
+            <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, var(--team-a), #1E90FF);" disabled>
                 <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_a_label">Team A</span> (<span id="teamAFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
                 🚀 <span data-i18n="generate_team_a">Generate Team A</span>
             </button>
-            <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, #DC143C, #FF6347);" disabled>
+            <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, var(--team-b), #FF6347);" disabled>
                 <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_b_label">Team B</span> (<span id="teamBFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
                 🚀 <span data-i18n="generate_team_b">Generate Team B</span>
             </button>
@@ -2020,8 +2014,9 @@
         }
 
         // Keep tooltip pinned to target on scroll / resize
-        window.addEventListener('scroll', () => { if (onboardingActive) positionOnboardingTooltip(); }, { passive: true });
-        window.addEventListener('resize', () => { if (onboardingActive) positionOnboardingTooltip(); });
+        ['scroll', 'resize'].forEach(ev =>
+            window.addEventListener(ev, () => { if (onboardingActive) positionOnboardingTooltip(); }, { passive: true })
+        );
 
         // ── Dismiss event wiring (runs once DOM is ready) ──
         document.addEventListener('DOMContentLoaded', () => {
@@ -2912,10 +2907,7 @@
                     </td>
                 `;
 
-                row.querySelector('.team-a-btn').addEventListener('click', () => toggleTeam(player.name, 'A'));
-                row.querySelector('.team-b-btn').addEventListener('click', () => toggleTeam(player.name, 'B'));
-                const clearBtn = row.querySelector('.clear-btn');
-                if (clearBtn) clearBtn.addEventListener('click', () => clearPlayerSelection(player.name));
+                row.dataset.player = player.name;
 
                 tbody.appendChild(row);
             });
@@ -3031,6 +3023,17 @@
                 });
             });
         })();
+
+        // Delegated listener for team A / team B / clear buttons in player rows
+        document.getElementById('playersTableBody').addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const name = btn.closest('tr')?.dataset.player;
+            if (!name) return;
+            if (btn.classList.contains('team-a-btn'))  toggleTeam(name, 'A');
+            else if (btn.classList.contains('team-b-btn'))  toggleTeam(name, 'B');
+            else if (btn.classList.contains('clear-btn')) clearPlayerSelection(name);
+        });
 
         function updateTeamCounters() {
             const teamACount = teamSelections.teamA.length;
