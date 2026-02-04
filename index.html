@@ -71,7 +71,82 @@
             padding: 20px;
         }
         input[type="file"] { display: none; }
-        
+
+        /* ── Onboarding Tour Tooltip ── */
+        @keyframes onboarding-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(253, 200, 48, 0.6); }
+            50%      { box-shadow: 0 0 0 6px rgba(253, 200, 48, 0); }
+        }
+        .onboarding-highlight {
+            outline: 2px solid #FDC830;
+            outline-offset: 3px;
+            border-radius: 6px;
+            animation: onboarding-pulse 1.8s ease-in-out infinite;
+        }
+        .onboarding-tooltip {
+            position: fixed;
+            z-index: 3000;
+            max-width: 280px;
+            background: rgba(26, 26, 46, 0.96);
+            border: 1px solid rgba(253, 200, 48, 0.45);
+            border-radius: 12px;
+            padding: 18px 20px 14px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+        }
+        .onboarding-tooltip .onboarding-step-label {
+            color: #FDC830;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        .onboarding-tooltip .onboarding-title {
+            color: #FDC830;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .onboarding-tooltip .onboarding-desc {
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 13px;
+            line-height: 1.45;
+            margin-bottom: 10px;
+        }
+        .onboarding-tooltip .onboarding-skip {
+            display: block;
+            text-align: right;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .onboarding-tooltip .onboarding-skip:hover { color: rgba(255, 255, 255, 0.7); }
+        /* Arrow pointing down (tooltip is above target) */
+        .onboarding-tooltip[data-arrow="bottom"]::after {
+            content: '';
+            position: absolute;
+            bottom: -7px;
+            left: var(--arrow-offset, 50%);
+            width: 14px;
+            height: 7px;
+            background: rgba(26, 26, 46, 0.96);
+            clip-path: polygon(0 0, 100% 0, 50% 100%);
+        }
+        /* Arrow pointing up (tooltip is below target) */
+        .onboarding-tooltip[data-arrow="top"]::after {
+            content: '';
+            position: absolute;
+            top: -7px;
+            left: var(--arrow-offset, 50%);
+            width: 14px;
+            height: 7px;
+            background: rgba(26, 26, 46, 0.96);
+            clip-path: polygon(50% 0, 0 100%, 100% 100%);
+        }
+
         /* Collapsible Panel */
         .collapsible-header {
             display: flex;
@@ -499,6 +574,11 @@
 
             /* ── Login screen ── */
             #loginScreen > div { padding: 24px !important; }
+
+            /* ── Onboarding tooltip ── */
+            .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }
+            .onboarding-tooltip .onboarding-title { font-size: 14px; }
+            .onboarding-tooltip .onboarding-desc { font-size: 12px; }
         }
     </style>
 </head>
@@ -632,8 +712,8 @@
                     <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_help">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
                     
                     <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button class="secondary" onclick="downloadPlayerTemplate()">📥 <span data-i18n="download_template">Download Template</span></button>
-                        <button onclick="document.getElementById('playerFileInput').click()">📤 <span data-i18n="upload_player_data">Upload Player Data</span></button>
+                        <button id="downloadTemplateBtn" class="secondary" onclick="downloadPlayerTemplate()">📥 <span data-i18n="download_template">Download Template</span></button>
+                        <button id="uploadPlayerBtn" onclick="document.getElementById('playerFileInput').click()">📤 <span data-i18n="upload_player_data">Upload Player Data</span></button>
                         <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
                     </div>
                     
@@ -726,6 +806,14 @@
                 <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_b_label">Team B</span> (<span id="teamBFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
                 🚀 <span data-i18n="generate_team_b">Generate Team B</span>
             </button>
+        </div>
+
+        <!-- Onboarding Tour Tooltip (reused for each step) -->
+        <div id="onboardingTooltip" class="onboarding-tooltip hidden">
+            <div class="onboarding-step-label" id="onboardingStepLabel"></div>
+            <div class="onboarding-title"      id="onboardingTitle"></div>
+            <div class="onboarding-desc"       id="onboardingDesc"></div>
+            <div class="onboarding-skip"       id="onboardingSkip"></div>
         </div>
     </div>
 
@@ -868,7 +956,19 @@
                 message_generating_map: '🎨 Generating Team {team} map...',
                 message_team_map_downloaded: '✅ Team {team} map downloaded! ({drawnCount} players + {bombSquad} bomb squad)',
                 error_generic: '❌ {error}',
-                map_footer_text: 'Roam free, help others'
+                map_footer_text: 'Roam free, help others',
+                onboarding_step: 'Step {current} of {total}',
+                onboarding_skip: 'Skip tour',
+                onboarding_step1_title: 'Download Template',
+                onboarding_step1_desc: 'Start here — download the Excel template to prepare your player list.',
+                onboarding_step2_title: 'Upload Players',
+                onboarding_step2_desc: 'Upload your completed Excel file to load players into the database.',
+                onboarding_step3_title: 'Select Team A',
+                onboarding_step3_desc: 'Click "Team A" on each player you want on Team A (up to 20).',
+                onboarding_step4_title: 'Select Team B',
+                onboarding_step4_desc: 'Now click "Team B" on each player you want on Team B (up to 20).',
+                onboarding_step5_title: 'Generate & Download',
+                onboarding_step5_desc: 'You\'re all set! Click Generate to create assignments and download them.'
             },
             fr: {
                 app_title: 'Desert Storm - Sélection des joueurs',
@@ -1004,7 +1104,19 @@
                 message_generating_map: '🎨 Génération de la carte de l\'équipe {team}...',
                 message_team_map_downloaded: '✅ Carte de l\'équipe {team} téléchargée ! ({drawnCount} joueurs + {bombSquad} bomb squad)',
                 error_generic: '❌ {error}',
-                map_footer_text: 'Soyez libres, aidez les autres'
+                map_footer_text: 'Soyez libres, aidez les autres',
+                onboarding_step: 'Étape {current} sur {total}',
+                onboarding_skip: 'Ignorer la visite',
+                onboarding_step1_title: 'Télécharger le modèle',
+                onboarding_step1_desc: 'Commencez ici — téléchargez le modèle Excel pour préparer votre liste de joueurs.',
+                onboarding_step2_title: 'Télécharger les joueurs',
+                onboarding_step2_desc: 'Téléchargez votre fichier Excel complété pour charger les joueurs dans la base de données.',
+                onboarding_step3_title: 'Sélectionner l\'Équipe A',
+                onboarding_step3_desc: 'Cliquez sur « Équipe A » pour chaque joueur que vous souhaitez dans l\'Équipe A (jusqu\'à 20).',
+                onboarding_step4_title: 'Sélectionner l\'Équipe B',
+                onboarding_step4_desc: 'Cliquez maintenant sur « Équipe B » pour chaque joueur que vous souhaitez dans l\'Équipe B (jusqu\'à 20).',
+                onboarding_step5_title: 'Générer & Télécharger',
+                onboarding_step5_desc: 'Vous êtes prêt ! Cliquez sur Générer pour créer les attributions et les télécharger.'
             },
             de: {
                 app_title: 'Desert Storm – Spielerauswahl',
@@ -1140,7 +1252,19 @@
                 message_generating_map: '🎨 Team-{team}-Karte wird generiert...',
                 message_team_map_downloaded: '✅ Team-{team}-Karte heruntergeladen! ({drawnCount} Spieler + {bombSquad} Bomb Squad)',
                 error_generic: '❌ {error}',
-                map_footer_text: 'Frei umherziehen, anderen helfen'
+                map_footer_text: 'Frei umherziehen, anderen helfen',
+                onboarding_step: 'Schritt {current} von {total}',
+                onboarding_skip: 'Tour überspringen',
+                onboarding_step1_title: 'Vorlage herunterladen',
+                onboarding_step1_desc: 'Beginnen Sie hier — laden Sie die Excel-Vorlage herunter, um Ihre Spielerliste vorzubereiten.',
+                onboarding_step2_title: 'Spieler hochladen',
+                onboarding_step2_desc: 'Laden Sie Ihre ausgefüllte Excel-Datei hoch, um Spieler in die Datenbank zu laden.',
+                onboarding_step3_title: 'Team A auswählen',
+                onboarding_step3_desc: 'Klicken Sie auf „Team A" für jeden Spieler, den Sie in Team A haben möchten (bis zu 20).',
+                onboarding_step4_title: 'Team B auswählen',
+                onboarding_step4_desc: 'Klicken Sie jetzt auf „Team B" für jeden Spieler, den Sie in Team B haben möchten (bis zu 20).',
+                onboarding_step5_title: 'Generieren & Herunterladen',
+                onboarding_step5_desc: 'Sie sind bereit! Klicken Sie auf Generieren, um Zuweisungen zu erstellen und herunterzuladen.'
             },
             it: {
                 app_title: 'Desert Storm - Selezione giocatori',
@@ -1276,7 +1400,19 @@
                 message_generating_map: '🎨 Generazione mappa Team {team}...',
                 message_team_map_downloaded: '✅ Mappa del Team {team} scaricata! ({drawnCount} giocatori + {bombSquad} bomb squad)',
                 error_generic: '❌ {error}',
-                map_footer_text: 'Muoviti liberamente, aiuta gli altri'
+                map_footer_text: 'Muoviti liberamente, aiuta gli altri',
+                onboarding_step: 'Passo {current} di {total}',
+                onboarding_skip: 'Salta il tour',
+                onboarding_step1_title: 'Scarica il modello',
+                onboarding_step1_desc: 'Inizia qui — scarica il modello Excel per preparare la tua lista di giocatori.',
+                onboarding_step2_title: 'Carica i giocatori',
+                onboarding_step2_desc: 'Carica il tuo file Excel compilato per caricare i giocatori nel database.',
+                onboarding_step3_title: 'Seleziona il Team A',
+                onboarding_step3_desc: 'Clicca su «Team A» per ogni giocatore che vuoi nel Team A (fino a 20).',
+                onboarding_step4_title: 'Seleziona il Team B',
+                onboarding_step4_desc: 'Ora clicca su «Team B» per ogni giocatore che vuoi nel Team B (fino a 20).',
+                onboarding_step5_title: 'Genera & Scarica',
+                onboarding_step5_desc: 'Sei pronto! Clicca su Genera per creare le assegnazioni e scaricarle.'
             },
             ko: {
                 app_title: 'Desert Storm - 플레이어 선택',
@@ -1412,7 +1548,19 @@
                 message_generating_map: '🎨 팀 {team} 지도 생성 중...',
                 message_team_map_downloaded: '✅ 팀 {team} 지도 다운로드 완료! ({drawnCount}명 + {bombSquad} 봄 스쿼드)',
                 error_generic: '❌ {error}',
-                map_footer_text: '자유롭게 이동하며 다른 사람을 도와주세요'
+                map_footer_text: '자유롭게 이동하며 다른 사람을 도와주세요',
+                onboarding_step: '{current}단계 / {total}단계',
+                onboarding_skip: '튜토리얼 건너뛰기',
+                onboarding_step1_title: '템플릿 다운로드',
+                onboarding_step1_desc: '여기서 시작합니다 — 선수 목록을 준비하기 위해 Excel 템플릿을 다운로드합니다.',
+                onboarding_step2_title: '선수 업로드',
+                onboarding_step2_desc: '작성된 Excel 파일을 업로드하여 데이터베이스에 선수를 로드합니다.',
+                onboarding_step3_title: 'A팀 선수 선택',
+                onboarding_step3_desc: 'A팀에 원하는 선수마다 «A팀» 버튼을 클릭합니다 (최대 20명).',
+                onboarding_step4_title: 'B팀 선수 선택',
+                onboarding_step4_desc: '이제 B팀에 원하는 선수마다 «B팀» 버튼을 클릭합니다 (최대 20명).',
+                onboarding_step5_title: '생성 및 다운로드',
+                onboarding_step5_desc: '준비 완료! 생성 버튼을 클릭하여 배정을 생성하고 다운로드합니다.'
             },
             ro: {
                 app_title: 'Desert Storm - Selecție jucători',
@@ -1548,7 +1696,19 @@
                 message_generating_map: '🎨 Se generează harta Echipei {team}...',
                 message_team_map_downloaded: '✅ Harta Echipei {team} descărcată! ({drawnCount} jucători + {bombSquad} bomb squad)',
                 error_generic: '❌ {error}',
-                map_footer_text: 'Explorați liber, ajutați-i pe alții'
+                map_footer_text: 'Explorați liber, ajutați-i pe alții',
+                onboarding_step: 'Pasul {current} din {total}',
+                onboarding_skip: 'Sari turneul',
+                onboarding_step1_title: 'Descărcați șablonul',
+                onboarding_step1_desc: 'Începeți aici — descărcați șablonul Excel pentru a pregăti lista de jucători.',
+                onboarding_step2_title: 'Încărcați jucătorii',
+                onboarding_step2_desc: 'Încărcați fișierul Excel completat pentru a încărca jucătorii în base de date.',
+                onboarding_step3_title: 'Selectați Echipa A',
+                onboarding_step3_desc: 'Faceți clic pe «Echipa A» pentru fiecare jucător pe care îl doriți în Echipa A (până la 20).',
+                onboarding_step4_title: 'Selectați Echipa B',
+                onboarding_step4_desc: 'Faceți clic pe «Echipa B» pentru fiecare jucător pe care îl doriți în Echipa B (până la 20).',
+                onboarding_step5_title: 'Generați și Descărcați',
+                onboarding_step5_desc: 'Sunteți gata! Faceți clic pe Generați pentru a crea atribuțiile și a le descărca.'
             }
         };
 
@@ -1618,6 +1778,7 @@
                 document.getElementById('downloadModalTitle').textContent = t('download_modal_title', { team: team });
                 document.getElementById('downloadModalSubtitle').textContent = t('download_modal_subtitle', { team: team });
             }
+            updateOnboardingTooltip();
         }
 
         function initLanguage() {
@@ -1637,6 +1798,176 @@
                 });
             }
         }
+
+        // ============================================================
+        // ONBOARDING TOUR
+        // ============================================================
+        const ONBOARDING_STEPS = [
+            { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
+            { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
+            { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '.counter.team-a',       position: 'bottom' },
+            { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '.counter.team-b',       position: 'bottom' },
+            { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#floatingButtons',      position: 'top'    }
+        ];
+
+        let onboardingActive      = false;
+        let currentOnboardingStep = 0;
+        let pendingOnboardingStep = null;
+        let currentHighlightTarget = null;
+
+        function initOnboarding() {
+            try {
+                if (localStorage.getItem('ds_onboarding_done')) return;
+            } catch (e) { return; }
+            onboardingActive = true;
+            currentOnboardingStep = 0;
+            showOnboardingStep(0);
+        }
+
+        function showOnboardingStep(index) {
+            if (index >= ONBOARDING_STEPS.length) {
+                completeOnboarding();
+                return;
+            }
+            const step   = ONBOARDING_STEPS[index];
+            const target = document.querySelector(step.targetSelector);
+
+            // Target not in DOM or hidden — defer until it appears
+            if (!target || target.closest('.hidden') || getComputedStyle(target).display === 'none') {
+                pendingOnboardingStep = index;
+                return;
+            }
+            pendingOnboardingStep = null;
+            currentOnboardingStep = index;
+
+            // Remove previous highlight
+            if (currentHighlightTarget) {
+                currentHighlightTarget.classList.remove('onboarding-highlight');
+            }
+            currentHighlightTarget = target;
+            target.classList.add('onboarding-highlight');
+
+            // Populate tooltip text
+            document.getElementById('onboardingStepLabel').textContent = t('onboarding_step', { current: index + 1, total: ONBOARDING_STEPS.length });
+            document.getElementById('onboardingTitle').textContent      = t(step.titleKey);
+            document.getElementById('onboardingDesc').textContent       = t(step.descKey);
+            document.getElementById('onboardingSkip').textContent       = t('onboarding_skip');
+
+            // Show and position
+            const tooltip = document.getElementById('onboardingTooltip');
+            tooltip.classList.remove('hidden');
+            positionOnboardingTooltip();
+        }
+
+        function positionOnboardingTooltip() {
+            const tooltip = document.getElementById('onboardingTooltip');
+            if (!tooltip || tooltip.classList.contains('hidden')) return;
+
+            const step   = ONBOARDING_STEPS[currentOnboardingStep];
+            const target = document.querySelector(step.targetSelector);
+            if (!target) return;
+
+            const rect    = target.getBoundingClientRect();
+            const tWidth  = tooltip.offsetWidth  || 280;
+            const tHeight = tooltip.offsetHeight || 160;
+            const vw      = window.innerWidth;
+            const vh      = window.innerHeight;
+            const gap     = 10;
+
+            let place = step.position; // preferred: 'top' or 'bottom'
+
+            // Flip if not enough room
+            if (place === 'bottom' && rect.bottom + gap + tHeight > vh) place = 'top';
+            if (place === 'top'    && rect.top    - gap - tHeight < 0)  place = 'bottom';
+
+            let top, arrowOffset;
+            if (place === 'bottom') {
+                top = rect.bottom + gap;
+                tooltip.setAttribute('data-arrow', 'top');
+            } else {
+                top = rect.top - gap - tHeight;
+                tooltip.setAttribute('data-arrow', 'bottom');
+            }
+
+            // Horizontal: centre on target, clamp to viewport
+            let left = rect.left + rect.width / 2 - tWidth / 2;
+            left = Math.max(8, Math.min(left, vw - tWidth - 8));
+
+            // Arrow horizontal offset (relative to tooltip left edge)
+            arrowOffset = (rect.left + rect.width / 2) - left - 7; // 7 = half arrow width
+            arrowOffset = Math.max(12, Math.min(arrowOffset, tWidth - 26));
+
+            tooltip.style.top  = top  + 'px';
+            tooltip.style.left = left + 'px';
+            tooltip.style.setProperty('--arrow-offset', arrowOffset + 'px');
+        }
+
+        function dismissOnboardingStep() {
+            if (!onboardingActive) return;
+            // Remove highlight
+            if (currentHighlightTarget) {
+                currentHighlightTarget.classList.remove('onboarding-highlight');
+                currentHighlightTarget = null;
+            }
+            // Hide tooltip
+            document.getElementById('onboardingTooltip').classList.add('hidden');
+
+            const next = currentOnboardingStep + 1;
+            if (next >= ONBOARDING_STEPS.length) {
+                completeOnboarding();
+            } else {
+                showOnboardingStep(next);
+            }
+        }
+
+        function completeOnboarding() {
+            onboardingActive = false;
+            if (currentHighlightTarget) {
+                currentHighlightTarget.classList.remove('onboarding-highlight');
+                currentHighlightTarget = null;
+            }
+            document.getElementById('onboardingTooltip').classList.add('hidden');
+            try { localStorage.setItem('ds_onboarding_done', 'true'); } catch (e) { /* ignore */ }
+        }
+
+        function updateOnboardingTooltip() {
+            if (!onboardingActive) return;
+            const step = ONBOARDING_STEPS[currentOnboardingStep];
+            document.getElementById('onboardingStepLabel').textContent = t('onboarding_step', { current: currentOnboardingStep + 1, total: ONBOARDING_STEPS.length });
+            document.getElementById('onboardingTitle').textContent      = t(step.titleKey);
+            document.getElementById('onboardingDesc').textContent       = t(step.descKey);
+            document.getElementById('onboardingSkip').textContent       = t('onboarding_skip');
+        }
+
+        // Keep tooltip pinned to target on scroll / resize
+        window.addEventListener('scroll', () => { if (onboardingActive) positionOnboardingTooltip(); }, { passive: true });
+        window.addEventListener('resize', () => { if (onboardingActive) positionOnboardingTooltip(); });
+
+        // ── Dismiss event wiring (runs once DOM is ready) ──
+        document.addEventListener('DOMContentLoaded', () => {
+            // Step 1 — Download Template button
+            document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
+                if (onboardingActive && currentOnboardingStep === 0) dismissOnboardingStep();
+            });
+            // Step 2 — Upload Player Data button
+            document.getElementById('uploadPlayerBtn').addEventListener('click', () => {
+                if (onboardingActive && currentOnboardingStep === 1) dismissOnboardingStep();
+            });
+            // Steps 3 & 4 — delegated on players table body
+            document.getElementById('playersTableBody').addEventListener('click', (e) => {
+                if (!onboardingActive) return;
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                if (currentOnboardingStep === 2 && btn.classList.contains('team-a-btn')) dismissOnboardingStep();
+                if (currentOnboardingStep === 3 && btn.classList.contains('team-b-btn')) dismissOnboardingStep();
+            });
+            // Step 5 — floating generate buttons area
+            document.getElementById('floatingButtons').addEventListener('click', () => {
+                if (onboardingActive && currentOnboardingStep === 4) dismissOnboardingStep();
+            });
+            // Skip link
+            document.getElementById('onboardingSkip').addEventListener('click', completeOnboarding);
+        });
 
         // ============================================================
         // INITIALIZATION CHECK
@@ -1771,6 +2102,7 @@
                     document.getElementById('mainApp').style.display = 'block';
                     document.getElementById('userEmail').textContent = user.email;
                     loadPlayerData();
+                    initOnboarding();
                 } else {
                     document.getElementById('loginScreen').style.display = 'block';
                     document.getElementById('mainApp').style.display = 'none';
@@ -2061,6 +2393,11 @@
             reserveSpaceForFooter();
             renderPlayersTable();
             updateTeamCounters();
+            if (pendingOnboardingStep !== null) {
+                const pending = pendingOnboardingStep;
+                pendingOnboardingStep = null;
+                showOnboardingStep(pending);
+            }
         }
 
         function toggleBuildingsPanel() {
