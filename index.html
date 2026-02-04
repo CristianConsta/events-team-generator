@@ -598,6 +598,15 @@
                 <span data-i18n="login_forgot_password">Forgot Password?</span>
             </button>
             
+            <select id="loginLanguageSelect" style="display: block; margin: 18px auto 0; padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; background: #fff; color: #333; font-size: 13px; cursor: pointer;">
+                <option value="en">EN</option>
+                <option value="fr">FR</option>
+                <option value="de">DE</option>
+                <option value="it">IT</option>
+                <option value="ko">KO</option>
+                <option value="ro">RO</option>
+            </select>
+
             <div id="statusMessage" style="margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; display: none;"></div>
         </div>
     </div>
@@ -1733,6 +1742,7 @@
                 console.warn('Unable to persist language preference', error);
             }
             applyTranslations();
+            document.querySelectorAll('#languageSelect, #loginLanguageSelect').forEach((sel) => { sel.value = lang; });
             renderPlayersTable();
             renderBuildingsTable();
             updateTeamCounters();
@@ -1758,13 +1768,12 @@
             }
             currentLanguage = supportedLanguages.includes(stored) ? stored : 'en';
             applyTranslations();
-            const languageSelect = document.getElementById('languageSelect');
-            if (languageSelect) {
-                languageSelect.value = currentLanguage;
-                languageSelect.addEventListener('change', (event) => {
+            document.querySelectorAll('#languageSelect, #loginLanguageSelect').forEach((sel) => {
+                sel.value = currentLanguage;
+                sel.addEventListener('change', (event) => {
                     setLanguage(event.target.value);
                 });
-            }
+            });
         }
 
         // ============================================================
