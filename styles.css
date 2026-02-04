@@ -1,0 +1,638 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --gold: #FDC830;
+    --gold-rgb: 253, 200, 48;
+    --team-a: #4169E1;
+    --team-a-rgb: 65, 105, 225;
+    --team-b: #DC143C;
+    --team-b-rgb: 220, 20, 60;
+}
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213E 100%);
+    color: white;
+    min-height: 100vh;
+    padding: 20px;
+}
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 30px; }
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.page-header h1 { margin: 0; }
+.card {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 30px;
+    margin: 20px 0;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(var(--gold-rgb), 0.3);
+}
+.card h2 { color: var(--gold); margin-bottom: 15px; }
+button {
+    background: linear-gradient(135deg, #FF6B35, #F7931E);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin: 10px 5px;
+}
+button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5); }
+button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+button.secondary { background: linear-gradient(135deg, var(--gold), #F7931E); }
+.hidden { display: none !important; }
+.coord-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 20, 0.7);
+    backdrop-filter: blur(3px);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+input[type="file"] { display: none; }
+
+/* ── Onboarding Tour Tooltip ── */
+@keyframes onboarding-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0.6); }
+    50%      { box-shadow: 0 0 0 6px rgba(var(--gold-rgb), 0); }
+}
+.onboarding-highlight {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+    border-radius: 6px;
+    animation: onboarding-pulse 1.8s ease-in-out infinite;
+}
+.onboarding-tooltip {
+    position: fixed;
+    z-index: 3000;
+    max-width: 280px;
+    background: rgba(26, 26, 46, 0.96);
+    border: 1px solid rgba(var(--gold-rgb), 0.45);
+    border-radius: 12px;
+    padding: 18px 20px 14px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+}
+.onboarding-tooltip .onboarding-step-label {
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+}
+.onboarding-tooltip .onboarding-title {
+    color: var(--gold);
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.onboarding-tooltip .onboarding-desc {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 10px;
+}
+.onboarding-tooltip .onboarding-skip {
+    display: block;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+.onboarding-tooltip .onboarding-skip:hover { color: rgba(255, 255, 255, 0.7); }
+/* Arrow pointing down (tooltip is above target) */
+.onboarding-tooltip[data-arrow="bottom"]::after {
+    content: '';
+    position: absolute;
+    bottom: -7px;
+    left: var(--arrow-offset, 50%);
+    width: 14px;
+    height: 7px;
+    background: rgba(26, 26, 46, 0.96);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+/* Arrow pointing up (tooltip is below target) */
+.onboarding-tooltip[data-arrow="top"]::after {
+    content: '';
+    position: absolute;
+    top: -7px;
+    left: var(--arrow-offset, 50%);
+    width: 14px;
+    height: 7px;
+    background: rgba(26, 26, 46, 0.96);
+    clip-path: polygon(50% 0, 0 100%, 100% 100%);
+}
+
+/* Collapsible Panel */
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 15px 0;
+    border-bottom: 2px solid rgba(var(--gold-rgb), 0.3);
+    user-select: none;
+}
+.collapsible-header:hover { opacity: 0.8; }
+.collapsible-content {
+    margin-top: 20px;
+    max-height: 9999px;
+    overflow: hidden;
+    transition: max-height 0.4s ease-out, margin-top 0.3s ease-out;
+}
+.collapsible-content.collapsed {
+    max-height: 0;
+    margin-top: 0;
+}
+.expand-icon {
+    font-size: 24px;
+    transition: transform 0.3s;
+    display: inline-block;
+}
+.expand-icon.rotated {
+    transform: rotate(180deg);
+}
+
+/* Player Selection Interface */
+.filters {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filters input {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    font-size: 14px;
+}
+.filters input::placeholder { color: rgba(255,255,255,0.6); }
+#searchFilter { height: 36px; padding: 0 10px; box-sizing: border-box; }
+
+/* Custom filter dropdowns */
+.filter-dropdown { position: relative; }
+.filter-icon-btn {
+    width: 38px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin: 0;
+    font-weight: normal;
+    transition: background 0.2s, border-color 0.2s;
+}
+.filter-icon-btn:hover {
+    background: rgba(255,255,255,0.2);
+    transform: none;
+    box-shadow: none;
+}
+.filter-icon-btn.active { border-color: var(--gold); }
+.filter-dropdown-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: rgba(20, 20, 35, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    min-width: 180px;
+    z-index: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    overflow: hidden;
+}
+.filter-dropdown-panel.open { display: block; }
+.filter-option {
+    padding: 10px 14px;
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.15s;
+}
+.filter-option:hover { background: rgba(255,255,255,0.1); }
+.filter-option.selected { color: var(--gold); background: rgba(var(--gold-rgb), 0.12); }
+
+.team-counters {
+    display: flex;
+    gap: 30px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+.counter {
+    padding: 15px 30px;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: bold;
+}
+.counter.team-a { background: linear-gradient(135deg, var(--team-a), #1E90FF); }
+.counter.team-b { background: linear-gradient(135deg, var(--team-b), #FF6347); }
+.counter.full { animation: pulse 1s infinite; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.players-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+.players-table th {
+    background: rgba(var(--gold-rgb), 0.3);
+    padding: 12px;
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 2px solid var(--gold);
+}
+.players-table td {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.players-table tr:hover {
+    background: rgba(255,255,255,0.05);
+}
+.players-table tr.selected-a {
+    background: rgba(var(--team-a-rgb), 0.2);
+}
+.players-table tr.selected-b {
+    background: rgba(var(--team-b-rgb), 0.2);
+}
+#playersTable td:nth-child(3)::before {
+    content: '·';
+    margin: 0 6px;
+    opacity: 0.5;
+}
+#buildingsTable input[type="number"] {
+    width: 70px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.2);
+    color: #fff;
+    box-sizing: border-box;
+}
+#languageSelect {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+}
+#languageSelect option {
+    background: #2c2c2c;
+    color: white;
+}
+
+.team-buttons {
+    display: flex;
+    gap: 10px;
+}
+.team-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 2px solid;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.2s;
+    margin: 0;
+}
+.team-btn.team-a-btn {
+    border-color: var(--team-a);
+    color: var(--team-a);
+}
+.team-btn.team-a-btn:hover, .team-btn.team-a-btn.active { background: var(--team-a); color: white; }
+.team-btn.team-b-btn {
+    border-color: var(--team-b);
+    color: var(--team-b);
+}
+.team-btn.team-b-btn:hover, .team-btn.team-b-btn.active { background: var(--team-b); color: white; }
+.team-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.clear-btn {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.6);
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    margin: 0;
+}
+.clear-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: white;
+}
+
+.generate-section {
+    text-align: center;
+    padding: 30px;
+    margin-top: 20px;
+}
+.generate-btn {
+    background: linear-gradient(135deg, #00C853, #64DD17);
+    padding: 20px 50px;
+    font-size: 20px;
+    box-shadow: 0 4px 15px rgba(0, 200, 83, 0.4);
+}
+.generate-btn:disabled {
+    background: linear-gradient(135deg, #666, #888);
+    box-shadow: none;
+}
+
+/* Floating Generate Buttons */
+.floating-buttons {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, rgba(26, 26, 46, 0) 0%, rgba(26, 26, 46, 0.95) 20%, rgba(26, 26, 46, 1) 100%);
+    padding: 20px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    z-index: 1000;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+.floating-buttons button {
+    min-width: 280px;
+    padding: 18px 40px;
+    font-size: 18px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.floating-buttons button:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+}
+
+.message { padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; font-weight: bold; }
+.success { background: rgba(144, 238, 144, 0.2); border: 2px solid #90EE90; color: #90EE90; }
+.error { background: rgba(255, 107, 53, 0.2); border: 2px solid #FF6B35; color: #FF6B35; }
+.warning { background: rgba(255, 193, 7, 0.2); border: 2px solid #FFC107; color: #FFC107; }
+.processing { background: rgba(var(--gold-rgb), 0.2); border: 2px solid var(--gold); color: var(--gold); }
+
+/* Team specific sections */
+.team-section {
+    border-left: 4px solid;
+    padding-left: 20px;
+    margin-top: 20px;
+}
+.team-section.team-a-section {
+    border-left-color: var(--team-a);
+}
+.team-section.team-b-section {
+    border-left-color: var(--team-b);
+}
+
+/* =============================================
+   TABLET  (≤ 768px)
+   ============================================= */
+@media (max-width: 768px) {
+    body { padding: 15px; }
+    h1 { font-size: 2rem; margin-bottom: 20px; }
+    .card { padding: 22px; }
+
+    .filters input {
+        flex: 1 1 45%;
+        min-width: 0;
+        font-size: 16px;
+    }
+
+    .floating-buttons button {
+        min-width: 200px;
+        padding: 16px 24px;
+        font-size: 16px;
+    }
+
+    .counter { padding: 12px 22px; font-size: 16px; }
+}
+
+/* =============================================
+   PHONE  (≤ 480px)
+   ============================================= */
+@media (max-width: 480px) {
+    body { padding: 10px; }
+    h1 { font-size: 1.5rem; margin-bottom: 16px; }
+    .card { padding: 16px; margin: 12px 0; }
+    .card h2 { font-size: 1.2rem; }
+
+    /* Global button tweaks */
+    button { margin: 4px 0; touch-action: manipulation; padding: 12px 20px; font-size: 15px; }
+
+    /* Page header */
+    .page-header { gap: 8px; }
+
+    /* ── Filters — full-width stack ── */
+    .filters { gap: 10px; }
+    .filters input {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+        font-size: 15px;
+    }
+    .filter-dropdown { flex: 0 0 auto; }
+    .filter-dropdown-panel { min-width: 160px; }
+
+    /* ── Team counters ── */
+    .team-counters { gap: 10px; }
+    .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
+
+    /* ── Players table → card layout ── */
+    #playersTable, #buildingsTable { display: block; }
+    #playersTable thead, #buildingsTable thead { display: none; }
+    #playersTable tbody, #buildingsTable tbody { display: block; }
+
+    #playersTable tr, #buildingsTable tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        background: rgba(255,255,255,0.07);
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+        border: 1px solid rgba(255,255,255,0.12);
+    }
+    #buildingsTable tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        column-gap: 10px;
+        row-gap: 4px;
+        align-items: center;
+    }
+    #playersTable tr:hover { background: rgba(255,255,255,0.07); }
+    #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.2); border-color: rgba(var(--team-a-rgb),0.4); }
+    #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.2); border-color: rgba(var(--team-b-rgb),0.4); }
+
+    #playersTable td, #buildingsTable td {
+        border-bottom: none;
+        padding: 5px 0;
+    }
+    #buildingsTable td {
+        display: block;
+        min-width: 0;
+    }
+
+    /* Players: name + power + troops on one line, buttons below */
+    #playersTable td:first-child {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    #playersTable td:first-child strong { font-size: 14px; }
+
+    #playersTable td:nth-child(2) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
+    #playersTable td:nth-child(3) { flex: 0 0 auto; white-space: nowrap; font-size: 13px; }
+
+    #playersTable td:nth-child(4) {
+        width: 100%;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        margin-top: 2px;
+    }
+
+    /* Team buttons — touch-friendly */
+    .team-buttons { gap: 8px; }
+    .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
+    .clear-btn {
+        padding: 10px 12px;
+        font-size: 13px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* ── Buildings table → card layout ── */
+    #buildingsTable td:first-child {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: bold;
+    }
+    #buildingsTable td:nth-child(2), #buildingsTable td:nth-child(3) {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    #buildingsTable td:nth-child(2)::before, #buildingsTable td:nth-child(3)::before {
+        content: attr(data-label);
+        font-size: 12px;
+        opacity: 0.6;
+        white-space: nowrap;
+    }
+    #buildingsTable input[type="number"] {
+        width: 50px !important;
+        font-size: 16px;
+    }
+
+    /* ── Floating generate buttons — vertical stack ── */
+    .floating-buttons {
+        flex-direction: column;
+        padding: 10px 14px;
+        gap: 10px;
+    }
+    .floating-buttons button {
+        min-width: unset;
+        width: 100%;
+        margin: 0;
+        padding: 14px 16px;
+        font-size: 16px;
+    }
+    .floating-buttons button span { font-size: 12px !important; }
+
+    /* ── Collapsible panels ── */
+    .collapsible-header        { padding: 10px 0; }
+    .collapsible-content       { margin-top: 14px; }
+    .expand-icon               { font-size: 18px; }
+    .collapsible-header:active { opacity: 0.7; }
+
+    /* ── Upload section ── */
+    #uploadHint                { margin-left: 8px !important; font-size: 12px !important; }
+    #uploadContent > p         { margin-bottom: 12px !important; }
+    #uploadContent > div       { gap: 10px !important; }
+
+    /* ── Selection section ── */
+    #selectionSection > p      { margin-bottom: 12px !important; }
+
+    /* ── Buildings panel ── */
+    #buildingsPanel > p                    { margin: 10px 0 !important; }
+    #buildingsPanel > div:first-child      { gap: 8px !important; }
+    #buildingsPanel > div:first-child > div { gap: 6px !important; }
+    #buildingsActions                      { gap: 8px !important; margin-top: 10px !important; }
+
+    /* ── Overlays — tighter padding on small screens ── */
+    .coord-overlay > div { padding: 16px !important; }
+
+    /* ── Coordinate picker ── */
+    #coordHeader                           { gap: 8px !important; }
+    #coordPickerOverlay > div > p          { margin: 8px 0 10px !important; }
+    #coordBuildingRow                      { gap: 10px !important; margin-bottom: 4px !important; }
+    #coordPrompt                           { margin-bottom: 8px !important; }
+    #coordBuildingValue                    { margin-bottom: 8px !important; }
+    #coordActions                          { gap: 8px !important; margin-top: 10px !important; }
+    #coordStatus                           { margin-top: 8px !important; }
+
+    /* ── Download modal ── */
+    #downloadModalOverlay > div > div:first-child { margin-bottom: 6px !important; }
+    #downloadModalSubtitle                 { margin-bottom: 14px !important; }
+    #downloadBtnGrid                       { gap: 10px !important; }
+    #downloadMapBtn, #downloadExcelBtn     { padding: 16px !important; font-size: 15px !important; }
+    #downloadStatus                        { margin-top: 10px !important; }
+
+    /* ── Login screen ── */
+    #loginScreen > div         { padding: 24px !important; margin: 30px auto !important; }
+    #loginScreen h3            { margin-bottom: 18px !important; }
+    #loginLanguageSelect       { margin-top: 14px !important; }
+
+    /* ── User header ── */
+    #userHeader                { padding: 10px !important; }
+    #userHeader > div:first-child { gap: 10px !important; }
+    #userEmail                 { font-size: 13px !important; }
+    #playerCount               { font-size: 11px !important; }
+    #syncStatus svg            { width: 16px !important; height: 16px !important; }
+    #headerRight               { gap: 6px !important; }
+    #languageSelect            { padding: 4px 6px !important; font-size: 11px !important; }
+    #signOutBtn                { padding: 6px 8px !important; }
+    #signOutBtn svg            { width: 16px !important; height: 16px !important; }
+
+    /* ── Onboarding tooltip ── */
+    .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }
+    .onboarding-tooltip .onboarding-title { font-size: 14px; }
+    .onboarding-tooltip .onboarding-desc { font-size: 12px; }
+}
