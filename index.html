@@ -2972,6 +2972,16 @@
                 assignmentsA = [];
                 assignmentsB = [];
                 closeDownloadModal();
+                document.getElementById('searchFilter').value = '';
+                currentTroopsFilter = '';
+                currentSortFilter = 'power-desc';
+                document.getElementById('troopsFilterBtn').classList.remove('active');
+                document.querySelectorAll('.filter-dropdown-panel').forEach(panel => {
+                    const defaultVal = panel.id === 'troopsFilterPanel' ? '' : 'power-desc';
+                    panel.querySelectorAll('.filter-option').forEach(opt => {
+                        opt.classList.toggle('selected', opt.dataset.value === defaultVal);
+                    });
+                });
                 updateTeamCounters();
                 renderPlayersTable();
             }
