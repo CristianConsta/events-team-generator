@@ -340,6 +340,9 @@ input[type="file"] { display: none; }
     cursor: not-allowed;
 }
 
+/* Team button labels - short version hidden on desktop */
+.team-label-short { display: none; }
+
 .clear-btn {
     padding: 6px 12px;
     background: transparent;
@@ -553,9 +556,11 @@ input[type="file"] { display: none; }
         margin-top: 2px;
     }
 
-    /* Team buttons — touch-friendly */
-    .team-buttons { gap: 8px; }
-    .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
+    /* Team buttons — touch-friendly, compact labels */
+    .team-buttons { gap: 6px; }
+    .team-btn { padding: 10px 12px; font-size: 14px; flex: 0 0 auto; min-width: 40px; }
+    .team-label-full { display: none; }
+    .team-label-short { display: inline; }
     .clear-btn {
         padding: 10px 12px;
         font-size: 13px;

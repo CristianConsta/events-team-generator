@@ -1161,10 +1161,12 @@ function renderPlayersTable() {
 
             buttonsHtml = `
                 <button class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
-                    ${t('team_a_button')}
+                    <span class="team-label-full">${t('team_a_button')}</span>
+                    <span class="team-label-short">${t('team_a_short')}</span>
                 </button>
                 <button class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
-                    ${t('team_b_button')}
+                    <span class="team-label-full">${t('team_b_button')}</span>
+                    <span class="team-label-short">${t('team_b_short')}</span>
                 </button>
             `;
         }
