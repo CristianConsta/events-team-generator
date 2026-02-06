@@ -286,11 +286,22 @@ if (typeof FirebaseManager === 'undefined') {
 
 let allPlayers = [];
 let teamSelections = {
-    teamA: [],
+    teamA: [],  // Array of { name: string, role: 'starter'|'substitute' }
     teamB: []
 };
 let assignmentsA = [];
 let assignmentsB = [];
+let substitutesA = [];
+let substitutesB = [];
+
+// Helper functions for starter/substitute counts
+function getStarterCount(teamKey) {
+    return teamSelections[teamKey].filter(p => p.role === 'starter').length;
+}
+
+function getSubstituteCount(teamKey) {
+    return teamSelections[teamKey].filter(p => p.role === 'substitute').length;
+}
 let mapLoaded = false;
 let uploadPanelExpanded = true;
 let activeDownloadTeam = null;
@@ -1092,33 +1103,79 @@ function renderPlayersTable() {
             break;
     }
     
+    // Calculate current counts for disable logic
+    const teamAStarterCount = getStarterCount('teamA');
+    const teamASubCount = getSubstituteCount('teamA');
+    const teamBStarterCount = getStarterCount('teamB');
+    const teamBSubCount = getSubstituteCount('teamB');
+
     displayPlayers.forEach(player => {
         const row = document.createElement('tr');
-        
-        const isTeamA = teamSelections.teamA.includes(player.name);
-        const isTeamB = teamSelections.teamB.includes(player.name);
-        
+
+        const selectionA = teamSelections.teamA.find(p => p.name === player.name);
+        const selectionB = teamSelections.teamB.find(p => p.name === player.name);
+        const isTeamA = !!selectionA;
+        const isTeamB = !!selectionB;
+
         if (isTeamA) row.classList.add('selected-a');
         if (isTeamB) row.classList.add('selected-b');
-        
-        const teamADisabled = teamSelections.teamA.length >= 20 && !isTeamA;
-        const teamBDisabled = teamSelections.teamB.length >= 20 && !isTeamB;
-        
+
+        let buttonsHtml;
+
+        if (isTeamA) {
+            const role = selectionA.role;
+            const starterDisabled = role === 'substitute' && teamAStarterCount >= 20;
+            const subDisabled = role === 'starter' && teamASubCount >= 10;
+
+            buttonsHtml = `
+                <div class="role-toggle team-a-selected">
+                    <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
+                            ${starterDisabled ? 'disabled' : ''}
+                            data-role="starter">${t('role_starter')}</button>
+                    <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
+                            ${subDisabled ? 'disabled' : ''}
+                            data-role="substitute">${t('role_substitute')}</button>
+                </div>
+                <button class="clear-btn">${t('clear_button')}</button>
+            `;
+        } else if (isTeamB) {
+            const role = selectionB.role;
+            const starterDisabled = role === 'substitute' && teamBStarterCount >= 20;
+            const subDisabled = role === 'starter' && teamBSubCount >= 10;
+
+            buttonsHtml = `
+                <div class="role-toggle team-b-selected">
+                    <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
+                            ${starterDisabled ? 'disabled' : ''}
+                            data-role="starter">${t('role_starter')}</button>
+                    <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
+                            ${subDisabled ? 'disabled' : ''}
+                            data-role="substitute">${t('role_substitute')}</button>
+                </div>
+                <button class="clear-btn">${t('clear_button')}</button>
+            `;
+        } else {
+            // Disable if both starter and sub slots are full
+            const teamAFullyDisabled = teamAStarterCount >= 20 && teamASubCount >= 10;
+            const teamBFullyDisabled = teamBStarterCount >= 20 && teamBSubCount >= 10;
+
+            buttonsHtml = `
+                <button class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
+                    ${t('team_a_button')}
+                </button>
+                <button class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
+                    ${t('team_b_button')}
+                </button>
+            `;
+        }
+
         row.innerHTML = `
             <td><strong>${escapeHtml(player.name)}</strong></td>
             <td>${player.power}M</td>
             <td>${escapeHtml(getTroopLabel(player.troops))}</td>
             <td>
                 <div class="team-buttons">
-                    <button class="team-btn team-a-btn ${isTeamA ? 'active' : ''}"
-                            ${teamADisabled ? 'disabled' : ''}>
-                        ${t('team_a_button')}
-                    </button>
-                    <button class="team-btn team-b-btn ${isTeamB ? 'active' : ''}"
-                            ${teamBDisabled ? 'disabled' : ''}>
-                        ${t('team_b_button')}
-                    </button>
-                    ${(isTeamA || isTeamB) ? `<button class="clear-btn">${t('clear_button')}</button>` : ''}
+                    ${buttonsHtml}
                 </div>
             </td>
         `;
@@ -1130,45 +1187,96 @@ function renderPlayersTable() {
 }
 
 function toggleTeam(playerName, team) {
-    if (team === 'A') {
-        const index = teamSelections.teamA.indexOf(playerName);
-        if (index > -1) {
-            teamSelections.teamA.splice(index, 1);
-        } else {
-            const bIndex = teamSelections.teamB.indexOf(playerName);
-            if (bIndex > -1) {
-                teamSelections.teamB.splice(bIndex, 1);
-            }
-            if (teamSelections.teamA.length < 20) {
-                teamSelections.teamA.push(playerName);
-            }
-        }
+    const teamKey = team === 'A' ? 'teamA' : 'teamB';
+    const otherTeamKey = team === 'A' ? 'teamB' : 'teamA';
+
+    const existingIndex = teamSelections[teamKey].findIndex(p => p.name === playerName);
+
+    if (existingIndex > -1) {
+        // Player is already on this team - remove them
+        teamSelections[teamKey].splice(existingIndex, 1);
     } else {
-        const index = teamSelections.teamB.indexOf(playerName);
-        if (index > -1) {
-            teamSelections.teamB.splice(index, 1);
+        // Remove from other team if present
+        const otherIndex = teamSelections[otherTeamKey].findIndex(p => p.name === playerName);
+        if (otherIndex > -1) {
+            teamSelections[otherTeamKey].splice(otherIndex, 1);
+        }
+
+        // Check total limit (30 players)
+        if (teamSelections[teamKey].length >= 30) {
+            return;
+        }
+
+        // Determine default role: starter if < 20 starters, otherwise substitute
+        const starterCount = getStarterCount(teamKey);
+        const subCount = getSubstituteCount(teamKey);
+
+        let defaultRole;
+        if (starterCount < 20) {
+            defaultRole = 'starter';
+        } else if (subCount < 10) {
+            defaultRole = 'substitute';
         } else {
-            const aIndex = teamSelections.teamA.indexOf(playerName);
-            if (aIndex > -1) {
-                teamSelections.teamA.splice(aIndex, 1);
-            }
-            if (teamSelections.teamB.length < 20) {
-                teamSelections.teamB.push(playerName);
-            }
+            // Both full - shouldn't happen if UI disables correctly
+            return;
+        }
+
+        teamSelections[teamKey].push({
+            name: playerName,
+            role: defaultRole
+        });
+    }
+
+    updateTeamCounters();
+    renderPlayersTable();
+}
+
+function togglePlayerRole(playerName, newRole) {
+    // Find which team the player is on
+    let teamKey = null;
+    let playerIndex = teamSelections.teamA.findIndex(p => p.name === playerName);
+
+    if (playerIndex > -1) {
+        teamKey = 'teamA';
+    } else {
+        playerIndex = teamSelections.teamB.findIndex(p => p.name === playerName);
+        if (playerIndex > -1) {
+            teamKey = 'teamB';
         }
     }
-    
+
+    if (!teamKey || playerIndex === -1) return;
+
+    const currentRole = teamSelections[teamKey][playerIndex].role;
+    if (currentRole === newRole) return; // No change needed
+
+    // Check if switching is allowed
+    if (newRole === 'starter') {
+        if (getStarterCount(teamKey) >= 20) {
+            alert(t('alert_starters_full'));
+            return;
+        }
+    } else {
+        if (getSubstituteCount(teamKey) >= 10) {
+            alert(t('alert_subs_full'));
+            return;
+        }
+    }
+
+    // Update role
+    teamSelections[teamKey][playerIndex].role = newRole;
+
     updateTeamCounters();
     renderPlayersTable();
 }
 
 function clearPlayerSelection(playerName) {
-    const aIndex = teamSelections.teamA.indexOf(playerName);
+    const aIndex = teamSelections.teamA.findIndex(p => p.name === playerName);
     if (aIndex > -1) teamSelections.teamA.splice(aIndex, 1);
-    
-    const bIndex = teamSelections.teamB.indexOf(playerName);
+
+    const bIndex = teamSelections.teamB.findIndex(p => p.name === playerName);
     if (bIndex > -1) teamSelections.teamB.splice(bIndex, 1);
-    
+
     updateTeamCounters();
     renderPlayersTable();
 }
@@ -1179,6 +1287,8 @@ function clearAllSelections() {
         teamSelections.teamB = [];
         assignmentsA = [];
         assignmentsB = [];
+        substitutesA = [];
+        substitutesB = [];
         closeDownloadModal();
         document.getElementById('searchFilter').value = '';
         currentTroopsFilter = '';
@@ -1246,52 +1356,56 @@ document.getElementById('playersTableBody').addEventListener('click', (e) => {
     if (!btn) return;
     const name = btn.closest('tr')?.dataset.player;
     if (!name) return;
-    if (btn.classList.contains('team-a-btn'))  toggleTeam(name, 'A');
-    else if (btn.classList.contains('team-b-btn'))  toggleTeam(name, 'B');
+    if (btn.classList.contains('team-a-btn')) toggleTeam(name, 'A');
+    else if (btn.classList.contains('team-b-btn')) toggleTeam(name, 'B');
     else if (btn.classList.contains('clear-btn')) clearPlayerSelection(name);
+    else if (btn.classList.contains('role-btn')) {
+        const newRole = btn.dataset.role;
+        if (newRole) togglePlayerRole(name, newRole);
+    }
 });
 
 function updateTeamCounters() {
-    const teamACount = teamSelections.teamA.length;
-    const teamBCount = teamSelections.teamB.length;
-    
-    document.getElementById('teamACount').textContent = teamACount;
-    document.getElementById('teamBCount').textContent = teamBCount;
-    document.getElementById('teamAFloatCount').textContent = teamACount;
-    document.getElementById('teamBFloatCount').textContent = teamBCount;
-    
+    const teamAStarterCount = getStarterCount('teamA');
+    const teamASubCount = getSubstituteCount('teamA');
+    const teamBStarterCount = getStarterCount('teamB');
+    const teamBSubCount = getSubstituteCount('teamB');
+
+    // Update counter displays
+    document.getElementById('teamAStarterCount').textContent = teamAStarterCount;
+    document.getElementById('teamASubCount').textContent = teamASubCount;
+    document.getElementById('teamBStarterCount').textContent = teamBStarterCount;
+    document.getElementById('teamBSubCount').textContent = teamBSubCount;
+
+    // Update floating button counts
+    document.getElementById('teamAFloatStarterCount').textContent = teamAStarterCount;
+    document.getElementById('teamAFloatSubCount').textContent = teamASubCount;
+    document.getElementById('teamBFloatStarterCount').textContent = teamBStarterCount;
+    document.getElementById('teamBFloatSubCount').textContent = teamBSubCount;
+
     const teamACounter = document.querySelector('.counter.team-a');
     const teamBCounter = document.querySelector('.counter.team-b');
     const generateBtnA = document.getElementById('generateBtnA');
     const generateBtnB = document.getElementById('generateBtnB');
-    
-    // Team A handling
-    if (teamACount === 20) {
+
+    // Team A "full" state: starters at 20
+    if (teamAStarterCount === 20) {
         teamACounter.classList.add('full');
     } else {
         teamACounter.classList.remove('full');
     }
-    
-    // Enable/disable Team A generate button (enable if at least 1 player selected)
-    if (teamACount > 0) {
-        generateBtnA.disabled = false;
-    } else {
-        generateBtnA.disabled = true;
-    }
-    
+
+    // Enable generate button if at least 1 starter
+    generateBtnA.disabled = teamAStarterCount === 0;
+
     // Team B handling
-    if (teamBCount === 20) {
+    if (teamBStarterCount === 20) {
         teamBCounter.classList.add('full');
     } else {
         teamBCounter.classList.remove('full');
     }
-    
-    // Enable/disable Team B generate button (enable if at least 1 player selected)
-    if (teamBCount > 0) {
-        generateBtnB.disabled = false;
-    } else {
-        generateBtnB.disabled = true;
-    }
+
+    generateBtnB.disabled = teamBStarterCount === 0;
 }
 
 // ============================================================
@@ -1309,38 +1423,49 @@ function generateTeamAssignments(team) {
         alert(t('alert_total_slots_exceed', { max: MAX_BUILDING_SLOTS_TOTAL }));
         return;
     }
-    
+
     const selections = team === 'A' ? teamSelections.teamA : teamSelections.teamB;
-    
-    if (selections.length === 0) {
-        alert(t('alert_select_at_least_one', { team: team }));
+    const starters = selections.filter(p => p.role === 'starter');
+    const substitutes = selections.filter(p => p.role === 'substitute');
+
+    if (starters.length === 0) {
+        alert(t('alert_select_at_least_one_starter', { team: team }));
         return;
     }
-    
-    if (selections.length > 20) {
-        alert(t('alert_max_players', { count: selections.length }));
+
+    if (starters.length > 20) {
+        alert(t('alert_max_starters', { count: starters.length }));
         return;
     }
-    
+
     const playerDB = FirebaseManager.getPlayerDatabase();
-    
-    const teamPlayers = selections.map(name => ({
-        name: name,
-        power: playerDB[name].power,
-        troops: playerDB[name].troops
+
+    const starterPlayers = starters.map(s => ({
+        name: s.name,
+        power: playerDB[s.name].power,
+        troops: playerDB[s.name].troops
     })).sort((a, b) => b.power - a.power);
-    
-    const assignments = assignTeamToBuildings(teamPlayers);
-    
+
+    const substitutePlayers = substitutes.map(s => ({
+        name: s.name,
+        power: playerDB[s.name].power,
+        troops: playerDB[s.name].troops
+    })).sort((a, b) => b.power - a.power);
+
+    const assignments = assignTeamToBuildings(starterPlayers);
+
+    // Store both assignments and substitutes
     if (team === 'A') {
         assignmentsA = assignments;
+        substitutesA = substitutePlayers;
     } else {
         assignmentsB = assignments;
+        substitutesB = substitutePlayers;
     }
 
     openDownloadModal(team);
-    
-    console.log(`Team ${team} assignments generated for ${selections.length} players:`, assignments);
+
+    console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes`);
 }
 
 function assignTeamToBuildings(players) {
@@ -1576,11 +1701,11 @@ function generateMapWithoutBackground(team, assignments, statusId) {
 
 function generateMap(team, assignments, statusId) {
     showMessage(statusId, t('message_generating_map', { team: team }), 'processing');
-    
+
     try {
         const grouped = {};
         const bombSquad = [];
-        
+
         assignments.forEach(a => {
             if (!a.player) return;
             if (a.building === 'Bomb Squad') {
@@ -1590,78 +1715,86 @@ function generateMap(team, assignments, statusId) {
                 grouped[a.building].push(a);
             }
         });
-        
+
+        // Get substitutes for this team
+        const substitutes = team === 'A' ? substitutesA : substitutesB;
+
         const titleHeight = 100;
         const bombHeight = 250;
         const mapHeight = Math.floor(mapImage.height * (1080 / mapImage.width));
         const totalHeight = titleHeight + mapHeight + bombHeight;
-        
+
+        // Add substitutes panel width if there are substitutes
+        const subsPanelWidth = substitutes.length > 0 ? 200 : 0;
+        const totalWidth = 1080 + subsPanelWidth;
+
         const canvas = document.createElement('canvas');
-        canvas.width = 1080;
+        canvas.width = totalWidth;
         canvas.height = totalHeight;
         const ctx = canvas.getContext('2d');
-        
+
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, 1080, totalHeight);
-        
-        const grad = ctx.createLinearGradient(0, 0, 1080, titleHeight);
+        ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+        // Title bar (spans full width)
+        const grad = ctx.createLinearGradient(0, 0, totalWidth, titleHeight);
         grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
         grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1080, titleHeight);
-        
+        ctx.fillRect(0, 0, totalWidth, titleHeight);
+
         ctx.font = 'bold 48px Arial';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`TEAM ${team} - DESERT STORM`, 540, titleHeight / 2);
-        
+
         ctx.drawImage(mapImage, 0, titleHeight, 1080, mapHeight);
-        
+
         let drawnCount = 0;
         const effectivePositions = getEffectiveBuildingPositions();
         Object.keys(grouped).forEach(building => {
             if (!effectivePositions[building]) return;
-            
+
             const [x, y_base] = effectivePositions[building];
             const y = y_base + titleHeight;
             const players = grouped[building];
             const anchor = buildingAnchors[building] || 'left';
-            
+
             players.slice(0, 2).forEach((player, i) => {
                 const name = player.player;
-                
+
                 ctx.font = 'bold 14px Arial';
                 const metrics = ctx.measureText(name);
                 const pad = 8;
                 const boxW = metrics.width + pad * 2;
                 const boxH = 24;
-                
+
                 const yPos = y + (i * 35) - 15;
                 let boxX = anchor === 'left' ? x - boxW - 15 : x + 15;
                 const boxY = yPos - boxH / 2;
-                
+
                 if (boxX < 5) boxX = 5;
                 else if (boxX + boxW > 1075) boxX = 1075 - boxW;
-                
+
                 ctx.fillStyle = bgColors[player.priority] || 'rgba(255,255,255,0.9)';
                 ctx.beginPath();
                 ctx.roundRect(boxX, boxY, boxW, boxH, 8);
                 ctx.fill();
-                
+
                 ctx.strokeStyle = 'black';
                 ctx.lineWidth = 2;
                 ctx.stroke();
-                
+
                 ctx.fillStyle = textColors[player.priority] || '#000000';
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(name, boxX + pad, yPos);
-                
+
                 drawnCount++;
             });
         });
-        
+
         // Bomb Squad
         const bombY = titleHeight + mapHeight + 30;
         ctx.fillStyle = 'rgba(240,240,240,0.9)';
@@ -1671,42 +1804,101 @@ function generateMap(team, assignments, statusId) {
         ctx.strokeStyle = 'black';
         ctx.lineWidth = 3;
         ctx.stroke();
-        
+
         ctx.font = 'bold 20px Arial';
         ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
         ctx.textAlign = 'center';
         ctx.fillText('BOMB SQUAD', 540, bombY + 25);
-        
+
         let pY = bombY + 60;
         bombSquad.forEach((player, i) => {
             const row = Math.floor(i / 2);
             const col = i % 2;
             const name = player.player;
-            
+
             ctx.font = 'bold 14px Arial';
             const m = ctx.measureText(name);
             const bw = m.width + 12;
             const xPos = 540 - 140 + (col * 280);
             const yPos = pY + (row * 35);
-            
+
             ctx.fillStyle = team === 'A' ? 'rgba(230,240,255,0.95)' : 'rgba(255,230,240,0.95)';
             ctx.beginPath();
             ctx.roundRect(xPos - bw/2, yPos - 10, bw, 20, 8);
             ctx.fill();
-            
+
             ctx.strokeStyle = team === 'A' ? '#4169E1' : '#DC143C';
             ctx.lineWidth = 2;
             ctx.stroke();
-            
+
             ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
             ctx.textAlign = 'center';
             ctx.fillText(name, xPos, yPos);
         });
-        
+
+        // Substitutes Panel (right side)
+        if (substitutes.length > 0) {
+            const panelX = 1080;
+            const panelY = titleHeight;
+            const panelHeight = mapHeight + bombHeight;
+
+            // Panel background
+            ctx.fillStyle = 'rgba(245, 245, 250, 1)';
+            ctx.fillRect(panelX, panelY, subsPanelWidth, panelHeight);
+
+            // Panel border
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(panelX, panelY);
+            ctx.lineTo(panelX, panelY + panelHeight);
+            ctx.stroke();
+
+            // Panel title
+            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(t('map_substitutes_title'), panelX + subsPanelWidth / 2, panelY + 30);
+
+            // Subtitle
+            ctx.font = '12px Arial';
+            ctx.fillStyle = '#666';
+            ctx.fillText(t('map_substitutes_subtitle'), panelX + subsPanelWidth / 2, panelY + 50);
+
+            // Draw substitute names
+            ctx.font = 'bold 13px Arial';
+            ctx.textAlign = 'left';
+            let subY = panelY + 80;
+
+            substitutes.forEach((sub) => {
+                const text = sub.name;
+                const metrics = ctx.measureText(text);
+                const pillW = Math.min(metrics.width + 16, subsPanelWidth - 20);
+                const pillX = panelX + 10;
+
+                ctx.fillStyle = team === 'A' ? 'rgba(65, 105, 225, 0.1)' : 'rgba(220, 20, 60, 0.1)';
+                ctx.beginPath();
+                ctx.roundRect(pillX, subY - 10, pillW, 22, 6);
+                ctx.fill();
+
+                ctx.strokeStyle = team === 'A' ? 'rgba(65, 105, 225, 0.3)' : 'rgba(220, 20, 60, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, pillX + 8, subY + 1);
+
+                subY += 30;
+            });
+        }
+
         ctx.font = '12px Arial';
         ctx.fillStyle = 'gray';
+        ctx.textAlign = 'center';
         ctx.fillText(t('map_footer_text'), 540, bombY + 160);
-        
+
         const dataURL = canvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = dataURL;
@@ -1714,11 +1906,10 @@ function generateMap(team, assignments, statusId) {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        
-        showMessage(statusId, t('message_team_map_downloaded', { team: team, drawnCount: drawnCount, bombSquad: bombSquad.length }), 'success');
+
+        showMessage(statusId, t('message_team_map_downloaded', { team: team, drawnCount: drawnCount, bombSquad: bombSquad.length, substitutes: substitutes.length }), 'success');
     } catch (error) {
         console.error(error);
-        const statusId = 'downloadStatus';
         showMessage(statusId, t('error_generic', { error: error.message }), 'error');
     }
 }

@@ -176,10 +176,14 @@
                 <!-- Team Counters -->
                 <div class="team-counters">
                     <div class="counter team-a">
-                        <span data-i18n="team_a_label">Team A</span>: <span id="teamACount">0</span><span data-i18n="team_count_suffix">/20</span>
+                        <span data-i18n="team_a_label">Team A</span>:
+                        <span id="teamAStarterCount">0</span>/20 |
+                        <span data-i18n="subs_short">Sub</span>: <span id="teamASubCount">0</span>/10
                     </div>
                     <div class="counter team-b">
-                        <span data-i18n="team_b_label">Team B</span>: <span id="teamBCount">0</span><span data-i18n="team_count_suffix">/20</span>
+                        <span data-i18n="team_b_label">Team B</span>:
+                        <span id="teamBStarterCount">0</span>/20 |
+                        <span data-i18n="subs_short">Sub</span>: <span id="teamBSubCount">0</span>/10
                     </div>
                 </div>
                 
@@ -258,11 +262,11 @@
         <!-- Floating Generate Buttons -->
         <div class="floating-buttons" id="floatingButtons" style="display: none;">
             <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, var(--team-a), #1E90FF);" disabled>
-                <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_a_label">Team A</span> (<span id="teamAFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
+                <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_a_label">Team A</span> (<span id="teamAFloatStarterCount">0</span>/20 | <span data-i18n="subs_short">Sub</span>: <span id="teamAFloatSubCount">0</span>/10)</span>
                 🚀 <span data-i18n="generate_team_a">Generate Team A</span>
             </button>
             <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, var(--team-b), #FF6347);" disabled>
-                <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_b_label">Team B</span> (<span id="teamBFloatCount">0</span><span data-i18n="team_count_suffix">/20</span>)</span>
+                <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_b_label">Team B</span> (<span id="teamBFloatStarterCount">0</span>/20 | <span data-i18n="subs_short">Sub</span>: <span id="teamBFloatSubCount">0</span>/10)</span>
                 🚀 <span data-i18n="generate_team_b">Generate Team B</span>
             </button>
         </div>

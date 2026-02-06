@@ -355,6 +355,36 @@ input[type="file"] { display: none; }
     color: white;
 }
 
+/* Role toggle (Starter / Sub) */
+.role-toggle {
+    display: flex;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid;
+}
+.role-toggle.team-a-selected { border-color: var(--team-a); }
+.role-toggle.team-b-selected { border-color: var(--team-b); }
+
+.role-btn {
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+    margin: 0;
+    transition: background 0.2s, color 0.2s;
+}
+.role-btn:hover:not(:disabled) {
+    transform: none;
+    box-shadow: none;
+}
+.role-toggle.team-a-selected .role-btn.active { background: var(--team-a); color: white; }
+.role-toggle.team-b-selected .role-btn.active { background: var(--team-b); color: white; }
+.role-btn:not(.active) { color: rgba(255,255,255,0.6); }
+.role-btn:not(.active):hover { background: rgba(255,255,255,0.1); }
+.role-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .generate-section {
     text-align: center;
     padding: 30px;
@@ -534,6 +564,10 @@ input[type="file"] { display: none; }
         align-items: center;
         justify-content: center;
     }
+
+    /* Role toggle — touch-friendly */
+    .role-toggle { flex: 1; }
+    .role-btn { padding: 10px 10px; font-size: 12px; flex: 1; }
 
     /* ── Buildings table → card layout ── */
     #buildingsTable td:first-child {
