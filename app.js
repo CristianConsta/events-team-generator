@@ -1901,18 +1901,22 @@ function assignTeamToBuildings(players) {
     });
 
     groups.forEach(group => {
-        const pairsNeeded = group.map(b => Math.floor(b.slots / 2));
-        const maxPairs = Math.max(...pairsNeeded);
+        // Skip buildings with 0 slots
+        const activeGroup = group.filter(b => b.slots > 0);
+        if (activeGroup.length === 0) return;
+
+        const pairsNeeded = activeGroup.map(b => Math.floor(b.slots / 2));
+        const maxPairs = Math.max(...pairsNeeded, 0);
 
         // Phase 1: round-robin top player picks across the group.
         // Each building claims one top player per round until it has
         // enough (slots / 2). This ensures same-priority buildings
         // each get an equally strong anchor player.
         const topPicks = new Map();
-        group.forEach(b => topPicks.set(b.name, []));
+        activeGroup.forEach(b => topPicks.set(b.name, []));
 
         for (let round = 0; round < maxPairs; round++) {
-            group.forEach((building, idx) => {
+            activeGroup.forEach((building, idx) => {
                 if (topPicks.get(building.name).length < pairsNeeded[idx] && available.length > 0) {
                     topPicks.get(building.name).push(available[0]);
                     available = available.slice(1);
@@ -1922,7 +1926,7 @@ function assignTeamToBuildings(players) {
 
         // Phase 2: for each building, pair each top pick with a
         // mix partner (search next 3 by power for a different troop).
-        group.forEach(building => {
+        activeGroup.forEach(building => {
             topPicks.get(building.name).forEach(top => {
                 assignments.push({
                     building: building.name,
@@ -1940,6 +1944,21 @@ function assignTeamToBuildings(players) {
                     available = available.filter(p => p.name !== partner.name);
                 }
             });
+        });
+
+        // Phase 3: fill remaining odd slots (e.g. 1-slot buildings).
+        // Round-robin one solo player to each building that still
+        // has an unfilled slot.
+        activeGroup.forEach(building => {
+            const assigned = assignments.filter(a => a.building === building.name).length;
+            if (assigned < building.slots && available.length > 0) {
+                assignments.push({
+                    building: building.name,
+                    priority: building.priority,
+                    player: available[0].name
+                });
+                available = available.slice(1);
+            }
         });
     });
 
