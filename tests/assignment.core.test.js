@@ -62,3 +62,21 @@ test('assignTeamToBuildings fills odd-slot buildings in phase 3', () => {
   const oddAssignments = result.filter((x) => x.building === 'OddOne');
   assert.equal(oddAssignments.length, 1);
 });
+
+test('assignTeamToBuildings emits display label and keeps internal buildingKey', () => {
+  loadModule();
+  const players = [
+    { name: 'P1', power: 100, troops: 'Tank' },
+    { name: 'P2', power: 99, troops: 'Aero' },
+  ];
+  const config = [
+    { name: 'Bomb Squad', label: 'BS Main', priority: 1, slots: 2 },
+  ];
+
+  const result = global.DSCoreAssignment.assignTeamToBuildings(players, config);
+  assert.equal(result.length, 2);
+  result.forEach((assignment) => {
+    assert.equal(assignment.building, 'BS Main');
+    assert.equal(assignment.buildingKey, 'Bomb Squad');
+  });
+});

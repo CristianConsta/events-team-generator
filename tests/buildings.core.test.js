@@ -24,8 +24,23 @@ test('normalizeBuildingConfig clamps values and preserves default order', () => 
 
   const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
   assert.deepEqual(normalized, [
-    { name: 'A', priority: 1, slots: 20 },
-    { name: 'B', priority: 6, slots: 0 },
+    { name: 'A', label: 'A', priority: 1, slots: 20 },
+    { name: 'B', label: 'B', priority: 6, slots: 0 },
+  ]);
+});
+
+test('normalizeBuildingConfig keeps custom labels when present', () => {
+  loadModule();
+  const defaults = [
+    { name: 'Bomb Squad', priority: 1, slots: 4 },
+  ];
+  const stored = [
+    { name: 'Bomb Squad', label: 'Alpha Team', priority: 1, slots: 4 },
+  ];
+
+  const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
+  assert.deepEqual(normalized, [
+    { name: 'Bomb Squad', label: 'Alpha Team', priority: 1, slots: 4 },
   ]);
 });
 

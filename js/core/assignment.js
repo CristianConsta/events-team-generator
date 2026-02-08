@@ -50,9 +50,11 @@
             }
 
             activeGroup.forEach((building) => {
+                const buildingLabel = building.label || building.name;
                 topPicks.get(building.name).forEach((top) => {
                     assignments.push({
-                        building: building.name,
+                        building: buildingLabel,
+                        buildingKey: building.name,
                         priority: building.priority,
                         player: top.name,
                     });
@@ -60,7 +62,8 @@
                     const partner = findMixPartner(top, available);
                     if (partner) {
                         assignments.push({
-                            building: building.name,
+                            building: buildingLabel,
+                            buildingKey: building.name,
                             priority: building.priority,
                             player: partner.name,
                         });
@@ -70,10 +73,11 @@
             });
 
             activeGroup.forEach((building) => {
-                const assignedCount = assignments.filter((assignment) => assignment.building === building.name).length;
+                const assignedCount = assignments.filter((assignment) => (assignment.buildingKey || assignment.building) === building.name).length;
                 if (assignedCount < building.slots && available.length > 0) {
                     assignments.push({
-                        building: building.name,
+                        building: building.label || building.name,
+                        buildingKey: building.name,
                         priority: building.priority,
                         player: available[0].name,
                     });

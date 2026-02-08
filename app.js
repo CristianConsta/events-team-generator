@@ -406,6 +406,10 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function escapeAttribute(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
 function getTroopLabel(troop) {
     switch (troop) {
         case 'Tank':
@@ -960,6 +964,14 @@ function getBuildingConfig() {
     return buildingConfigs[currentEvent];
 }
 
+function getBuildingDisplayName(internalName) {
+    const building = getBuildingConfig().find((b) => b.name === internalName);
+    if (!building) {
+        return internalName;
+    }
+    return (typeof building.label === 'string' && building.label.trim()) ? building.label.trim() : internalName;
+}
+
 function setBuildingConfig(config) {
     buildingConfigs[currentEvent] = config;
 }
@@ -1043,6 +1055,10 @@ function loadBuildingConfig() {
         if (!Number.isFinite(slots) || slots !== match.slots) {
             return true;
         }
+        const storedLabel = (typeof item.label === 'string' && item.label.trim()) ? item.label.trim() : item.name;
+        if (storedLabel !== match.label) {
+            return true;
+        }
         return false;
     });
 
@@ -1079,7 +1095,9 @@ function renderBuildingsTable() {
     getBuildingConfig().forEach((b, index) => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${b.name}</td>
+            <td>
+                <input type="text" value="${escapeAttribute((b.label || b.name))}" data-index="${index}" data-field="label" class="building-label-input">
+            </td>
             <td data-label="${t('slots_label')}">
                 <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input">
             </td>
@@ -1103,11 +1121,17 @@ function readBuildingConfigFromTable() {
         if (!Number.isFinite(index) || !updated[index]) {
             return;
         }
+        const field = input.getAttribute('data-field');
+        if (field === 'label') {
+            const raw = String(input.value || '').trim();
+            updated[index].label = raw || updated[index].name;
+            return;
+        }
+
         const value = Number(input.value);
         if (!Number.isFinite(value)) {
             return;
         }
-        const field = input.getAttribute('data-field');
         if (field === 'priority') {
             updated[index].priority = clampPriority(value, updated[index].priority);
         } else if (field === 'slots') {
@@ -1192,13 +1216,14 @@ function closeCoordinatesPicker() {
 
 function updateCoordLabel() {
     const name = coordBuildings[coordBuildingIndex];
+    const displayName = getBuildingDisplayName(name);
     const pos = getBuildingPositions()[name];
-    document.getElementById('coordBuildingLabel').textContent = name || '';
+    document.getElementById('coordBuildingLabel').textContent = displayName || '';
     document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
     document.getElementById('coordBuildingValue').textContent = pos
         ? t('coord_current', { x: pos[0], y: pos[1] })
         : t('coord_current_not_set');
-    document.getElementById('coordPrompt').textContent = t('coord_select_prompt', { name: name });
+    document.getElementById('coordPrompt').textContent = t('coord_select_prompt', { name: displayName });
 }
 
 function drawCoordCanvas() {
@@ -1858,11 +1883,12 @@ function generateMapWithoutBackground(team, assignments, statusId) {
         
         assignments.forEach(a => {
             if (!a.player) return;
-            if (a.building === 'Bomb Squad') {
+            const buildingKey = a.buildingKey || a.building;
+            if (buildingKey === 'Bomb Squad') {
                 bombSquad.push(a);
             } else {
-                if (!grouped[a.building]) grouped[a.building] = [];
-                grouped[a.building].push(a);
+                if (!grouped[buildingKey]) grouped[buildingKey] = [];
+                grouped[buildingKey].push(a);
             }
         });
         
@@ -1926,11 +1952,12 @@ function generateMap(team, assignments, statusId) {
 
         assignments.forEach(a => {
             if (!a.player) return;
-            if (a.building === 'Bomb Squad') {
+            const buildingKey = a.buildingKey || a.building;
+            if (buildingKey === 'Bomb Squad') {
                 bombSquad.push(a);
             } else {
-                if (!grouped[a.building]) grouped[a.building] = [];
-                grouped[a.building].push(a);
+                if (!grouped[buildingKey]) grouped[buildingKey] = [];
+                grouped[buildingKey].push(a);
             }
         });
 

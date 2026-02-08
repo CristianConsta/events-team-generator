@@ -350,6 +350,16 @@ input[type="file"] { display: none; }
     color: #fff;
     box-sizing: border-box;
 }
+#buildingsTable input[type="text"] {
+    width: 100%;
+    min-width: 170px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.2);
+    color: #fff;
+    box-sizing: border-box;
+}
 #languageSelect {
     padding: 6px 8px;
     border-radius: 6px;
@@ -676,6 +686,11 @@ input[type="file"] { display: none; }
     #buildingsTable input[type="number"] {
         width: 50px !important;
         font-size: 16px;
+    }
+    #buildingsTable input[type="text"] {
+        min-width: 0;
+        width: 100%;
+        font-size: 15px;
     }
 
     /* ── Floating generate buttons — vertical stack ── */
