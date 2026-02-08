@@ -41,7 +41,7 @@
         canyon_battlefield: {
             id: 'canyon_battlefield',
             titleKey: 'event_canyon_battlefield',
-            mapFile: 'canyon-battlefield-map.png',
+            mapFile: 'canon-storm-map.jpg',
             mapTitle: 'CANYON BATTLEFIELD',
             excelPrefix: 'canyon_battlefield',
             buildings: [
