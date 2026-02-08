@@ -2,35 +2,8 @@
 // I18N
 // ============================================================
 
-const supportedLanguages = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
-let currentLanguage = 'en';
-
-function interpolateText(text, params = {}) {
-    return text.replace(/\{(\w+)\}/g, (match, key) => {
-        if (Object.prototype.hasOwnProperty.call(params, key)) {
-            return params[key];
-        }
-        return match;
-    });
-}
-
 function t(key, params) {
-    const langPack = translations[currentLanguage] || translations.en;
-    const fallback = translations.en[key] || key;
-    const template = langPack[key] || fallback;
-    return interpolateText(template, params);
-}
-
-function applyTranslations() {
-    document.documentElement.lang = currentLanguage;
-    document.title = t('app_title');
-    document.querySelectorAll('[data-i18n]').forEach((element) => {
-        element.textContent = t(element.dataset.i18n);
-    });
-    document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
-        element.setAttribute('placeholder', t(element.dataset.i18nPlaceholder));
-    });
-    refreshLanguageDependentText();
+    return window.DSI18N.t(key, params);
 }
 
 function refreshLanguageDependentText() {
@@ -44,18 +17,8 @@ function refreshLanguageDependentText() {
     }
 }
 
-function setLanguage(lang) {
-    if (!supportedLanguages.includes(lang)) {
-        return;
-    }
-    currentLanguage = lang;
-    try {
-        localStorage.setItem('ds_language', lang);
-    } catch (error) {
-        console.warn('Unable to persist language preference', error);
-    }
-    applyTranslations();
-    document.querySelectorAll('#languageSelect, #loginLanguageSelect').forEach((sel) => { sel.value = lang; });
+function onI18nApplied() {
+    refreshLanguageDependentText();
     renderPlayersTable();
     renderBuildingsTable();
     updateTeamCounters();
@@ -72,20 +35,19 @@ function setLanguage(lang) {
     updateOnboardingTooltip();
 }
 
+function applyTranslations() {
+    window.DSI18N.applyTranslations();
+}
+
+function setLanguage(lang) {
+    window.DSI18N.setLanguage(lang);
+}
+
 function initLanguage() {
-    let stored = null;
-    try {
-        stored = localStorage.getItem('ds_language');
-    } catch (error) {
-        stored = null;
-    }
-    currentLanguage = supportedLanguages.includes(stored) ? stored : 'en';
-    applyTranslations();
-    document.querySelectorAll('#languageSelect, #loginLanguageSelect').forEach((sel) => {
-        sel.value = currentLanguage;
-        sel.addEventListener('change', (event) => {
-            setLanguage(event.target.value);
-        });
+    window.DSI18N.init({
+        onApply: () => {
+            onI18nApplied();
+        },
     });
 }
 
@@ -275,9 +237,9 @@ if (typeof XLSX === 'undefined') {
     console.error('XLSX library failed to load from CDN');
 }
 
-if (typeof FirebaseManager === 'undefined') {
+if (typeof FirebaseService === 'undefined') {
     alert(t('error_firebase_module_missing'));
-    console.error('FirebaseManager not defined - firebase-module.js not loaded');
+    console.error('FirebaseService not defined - firebase-module.js not loaded');
 }
 
 // ============================================================
@@ -309,75 +271,12 @@ let activeDownloadTeam = null;
 // EVENT REGISTRY
 // ============================================================
 
-const EVENT_REGISTRY = {
-    desert_storm: {
-        id: 'desert_storm',
-        titleKey: 'event_desert_storm',
-        mapFile: 'desert-storm-map.png',
-        mapTitle: 'DESERT STORM',
-        excelPrefix: 'desert_storm',
-        buildings: [
-            { name: 'Bomb Squad', priority: 1, slots: 4 },
-            { name: 'Oil Refinery 1', priority: 3, slots: 2 },
-            { name: 'Oil Refinery 2', priority: 3, slots: 2 },
-            { name: 'Field Hospital 1', priority: 4, slots: 2 },
-            { name: 'Field Hospital 2', priority: 4, slots: 2 },
-            { name: 'Field Hospital 3', priority: 4, slots: 2 },
-            { name: 'Field Hospital 4', priority: 4, slots: 2 },
-            { name: 'Info Center', priority: 5, slots: 2 },
-            { name: 'Science Hub', priority: 5, slots: 2 },
-        ],
-        defaultPositions: {
-            'Info Center': [366, 38],
-            'Field Hospital 4': [785, 139],
-            'Oil Refinery 1': [194, 260],
-            'Field Hospital 2': [951, 247],
-            'Oil Refinery 2': [914, 472],
-            'Field Hospital 1': [161, 458],
-            'Field Hospital 3': [314, 654],
-            'Science Hub': [774, 656],
-        },
-        buildingAnchors: {
-            'Info Center': 'left',
-            'Field Hospital 4': 'right',
-            'Oil Refinery 1': 'left',
-            'Field Hospital 2': 'right',
-            'Oil Refinery 2': 'right',
-            'Field Hospital 1': 'left',
-            'Field Hospital 3': 'left',
-            'Science Hub': 'right',
-        },
-    },
-    canyon_battlefield: {
-        id: 'canyon_battlefield',
-        titleKey: 'event_canyon_battlefield',
-        mapFile: 'canyon-battlefield-map.png',
-        mapTitle: 'CANYON BATTLEFIELD',
-        excelPrefix: 'canyon_battlefield',
-        buildings: [
-            { name: 'Bomb Squad', priority: 1, slots: 4 },
-            { name: 'Missile Silo 1', priority: 2, slots: 2 },
-            { name: 'Missile Silo 2', priority: 2, slots: 2 },
-            { name: 'Radar Station 1', priority: 3, slots: 2 },
-            { name: 'Radar Station 2', priority: 3, slots: 2 },
-            { name: 'Watchtower 1', priority: 4, slots: 1 },
-            { name: 'Watchtower 2', priority: 4, slots: 1 },
-            { name: 'Watchtower 3', priority: 4, slots: 1 },
-            { name: 'Watchtower 4', priority: 4, slots: 1 },
-            { name: 'Command Center', priority: 3, slots: 2 },
-            { name: 'Supply Depot', priority: 5, slots: 1 },
-            { name: 'Armory', priority: 5, slots: 1 },
-            { name: 'Comm Tower', priority: 5, slots: 0 },
-        ],
-        defaultPositions: {},
-        buildingAnchors: {},
-    },
-};
+const EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
 
 let currentEvent = 'desert_storm';
 
 function getActiveEvent() {
-    return EVENT_REGISTRY[currentEvent];
+    return window.DSCoreEvents.getEvent(currentEvent);
 }
 
 // Per-event building state
@@ -482,60 +381,7 @@ function updateGenerateEventLabels() {
 // ============================================================
 // FIREBASE INTEGRATION
 // ============================================================
-
-// Initialize Firebase only if FirebaseManager is available
-if (typeof FirebaseManager !== 'undefined') {
-    FirebaseManager.setAuthCallback((isSignedIn, user) => {
-        if (isSignedIn) {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'block';
-            document.getElementById('userEmail').textContent = user.email;
-            applyTranslations();
-            loadPlayerData();
-            initOnboarding();
-            updateAllianceHeaderDisplay();
-            checkAndDisplayNotifications();
-            startNotificationPolling();
-        } else {
-            document.getElementById('loginScreen').style.display = 'block';
-            document.getElementById('mainApp').style.display = 'none';
-            stopNotificationPolling();
-        }
-    });
-    
-    FirebaseManager.setDataLoadCallback((playerDatabase) => {
-        console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
-        loadPlayerData();
-        const configNeedsSave = loadBuildingConfig();
-        const positionsNeedsSave = loadBuildingPositions();
-        if (configNeedsSave || positionsNeedsSave) {
-            FirebaseManager.saveUserData();
-        }
-        updateAllianceHeaderDisplay();
-        checkAndDisplayNotifications();
-    });
-} else {
-    console.error('FirebaseManager not available - cannot initialize callbacks');
-    // Show error message to user
-    setTimeout(() => {
-        const loginScreen = document.getElementById('loginScreen');
-        if (loginScreen) {
-            loginScreen.innerHTML = `
-                <div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <h1 style="text-align: center; color: #DC143C;">${t('error_loading_title')}</h1>
-                    <p style="color: #333; text-align: center; margin: 20px 0;">${t('error_missing_firebase_line1')}</p>
-                    <p style="color: #666; text-align: center; font-size: 14px;">${t('error_missing_firebase_line2')}</p>
-                    <ul style="color: #666; margin: 20px 40px;">
-                        <li>${t('error_missing_firebase_file1')}</li>
-                        <li>${t('error_missing_firebase_file2')}</li>
-                    </ul>
-                    <p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">${t('error_missing_firebase_line3')}</p>
-                </div>
-            `;
-            loginScreen.style.display = 'block';
-        }
-    }, 100);
-}
+// Callback wiring moved to js/app-init.js
 
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -562,7 +408,7 @@ async function handleGoogleSignIn() {
     if (googleSignInInProgress) {
         return;
     }
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
@@ -572,7 +418,7 @@ async function handleGoogleSignIn() {
         btn.disabled = true;
     }
     try {
-        const result = await FirebaseManager.signInWithGoogle();
+        const result = await FirebaseService.signInWithGoogle();
         if (!result.success) {
             alert(t('error_sign_in_failed', { error: result.error }));
         }
@@ -585,7 +431,7 @@ async function handleGoogleSignIn() {
 }
 
 async function handleEmailSignIn() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
@@ -595,14 +441,14 @@ async function handleEmailSignIn() {
         alert(t('error_enter_email_password'));
         return;
     }
-    const result = await FirebaseManager.signInWithEmail(email, password);
+    const result = await FirebaseService.signInWithEmail(email, password);
     if (!result.success) {
         alert(t('error_sign_in_failed', { error: result.error }));
     }
 }
 
 function showSignUpForm() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
@@ -622,11 +468,11 @@ function showSignUpForm() {
 }
 
 async function handleSignUp(email, password) {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
-    const result = await FirebaseManager.signUpWithEmail(email, password);
+    const result = await FirebaseService.signUpWithEmail(email, password);
     if (result.success) {
         alert(t('success_account_created'));
     } else {
@@ -635,7 +481,7 @@ async function handleSignUp(email, password) {
 }
 
 async function handlePasswordReset() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
@@ -644,7 +490,7 @@ async function handlePasswordReset() {
         alert(t('error_enter_email'));
         return;
     }
-    const result = await FirebaseManager.resetPassword(email);
+    const result = await FirebaseService.resetPassword(email);
     if (result.success) {
         alert(t('success_password_reset'));
     } else {
@@ -653,12 +499,12 @@ async function handlePasswordReset() {
 }
 
 async function handleSignOut() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
     if (confirm(t('confirm_sign_out'))) {
-        await FirebaseManager.signOut();
+        await FirebaseService.signOut();
     }
 }
 
@@ -731,7 +577,7 @@ function toggleAlliancePanel() {
 }
 
 function renderAlliancePanel() {
-    const aid = typeof FirebaseManager !== 'undefined' ? FirebaseManager.getAllianceId() : null;
+    const aid = typeof FirebaseService !== 'undefined' ? FirebaseService.getAllianceId() : null;
     const content = document.getElementById('alliancePanelContent');
     if (aid) {
         renderAllianceMemberView(content);
@@ -755,10 +601,10 @@ function renderAllianceJoinView(container) {
 }
 
 function renderAllianceMemberView(container) {
-    const members = FirebaseManager.getAllianceMembers();
+    const members = FirebaseService.getAllianceMembers();
     const memberCount = Object.keys(members).length;
-    const aName = FirebaseManager.getAllianceName();
-    const source = FirebaseManager.getPlayerSource();
+    const aName = FirebaseService.getAllianceName();
+    const source = FirebaseService.getPlayerSource();
 
     let membersHtml = '';
     Object.entries(members).forEach(([uid, member]) => {
@@ -809,7 +655,7 @@ async function handleCreateAlliance() {
     }
 
     showMessage('allianceCreateStatus', t('message_upload_processing'), 'processing');
-    const result = await FirebaseManager.createAlliance(name);
+    const result = await FirebaseService.createAlliance(name);
 
     if (result.success) {
         showMessage('allianceCreateStatus', t('alliance_created'), 'success');
@@ -827,7 +673,7 @@ async function handleSendInvitation() {
         return;
     }
 
-    const result = await FirebaseManager.sendInvitation(email);
+    const result = await FirebaseService.sendInvitation(email);
     if (result.success) {
         showMessage('inviteStatus', t('alliance_invite_sent'), 'success');
         document.getElementById('inviteEmail').value = '';
@@ -839,7 +685,7 @@ async function handleSendInvitation() {
 async function handleLeaveAlliance() {
     if (!confirm(t('alliance_confirm_leave'))) return;
 
-    const result = await FirebaseManager.leaveAlliance();
+    const result = await FirebaseService.leaveAlliance();
     if (result.success) {
         renderAlliancePanel();
         updateAllianceHeaderDisplay();
@@ -848,16 +694,16 @@ async function handleLeaveAlliance() {
 }
 
 async function switchPlayerSource(source) {
-    await FirebaseManager.setPlayerSource(source);
+    await FirebaseService.setPlayerSource(source);
     loadPlayerData();
     renderAlliancePanel();
     showMessage('playerSourceStatus', t('alliance_source_switched', { source: t('alliance_source_' + source) }), 'success');
 }
 
 function updateAllianceHeaderDisplay() {
-    if (typeof FirebaseManager === 'undefined') return;
-    const aid = FirebaseManager.getAllianceId();
-    const aName = FirebaseManager.getAllianceName();
+    if (typeof FirebaseService === 'undefined') return;
+    const aid = FirebaseService.getAllianceId();
+    const aName = FirebaseService.getAllianceName();
     const display = document.getElementById('allianceDisplay');
     const createBtn = document.getElementById('allianceCreateBtn');
 
@@ -880,9 +726,9 @@ function updateAllianceHeaderDisplay() {
 let notificationPollInterval = null;
 
 async function checkAndDisplayNotifications() {
-    if (typeof FirebaseManager === 'undefined' || !FirebaseManager.isSignedIn()) return;
+    if (typeof FirebaseService === 'undefined' || !FirebaseService.isSignedIn()) return;
 
-    const invitations = await FirebaseManager.checkInvitations();
+    const invitations = await FirebaseService.checkInvitations();
     const badge = document.getElementById('notificationBadge');
     if (badge) {
         badge.textContent = invitations.length;
@@ -893,7 +739,7 @@ async function checkAndDisplayNotifications() {
 function startNotificationPolling() {
     if (notificationPollInterval) return;
     notificationPollInterval = setInterval(() => {
-        if (document.visibilityState === 'visible' && typeof FirebaseManager !== 'undefined' && FirebaseManager.isSignedIn()) {
+        if (document.visibilityState === 'visible' && typeof FirebaseService !== 'undefined' && FirebaseService.isSignedIn()) {
             checkAndDisplayNotifications();
         }
     }, 60000);
@@ -916,7 +762,7 @@ function toggleNotificationsPanel() {
 
 function renderNotifications() {
     const container = document.getElementById('notificationsList');
-    const invitations = typeof FirebaseManager !== 'undefined' ? FirebaseManager.getPendingInvitations() : [];
+    const invitations = typeof FirebaseService !== 'undefined' ? FirebaseService.getPendingInvitations() : [];
 
     if (invitations.length === 0) {
         container.innerHTML = `<p style="opacity: 0.6; text-align: center;">${t('notifications_empty')}</p>`;
@@ -941,7 +787,7 @@ function renderNotifications() {
 }
 
 async function handleAcceptInvitation(invitationId) {
-    const result = await FirebaseManager.acceptInvitation(invitationId);
+    const result = await FirebaseService.acceptInvitation(invitationId);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -954,7 +800,7 @@ async function handleAcceptInvitation(invitationId) {
 }
 
 async function handleRejectInvitation(invitationId) {
-    const result = await FirebaseManager.rejectInvitation(invitationId);
+    const result = await FirebaseService.rejectInvitation(invitationId);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -966,7 +812,7 @@ async function handleRejectInvitation(invitationId) {
 // ============================================================
 
 async function uploadPlayerData() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
         return;
     }
@@ -976,7 +822,7 @@ async function uploadPlayerData() {
 
     if (!file) return;
 
-    if (FirebaseManager.getAllianceId()) {
+    if (FirebaseService.getAllianceId()) {
         window._pendingUploadFile = file;
         document.getElementById('uploadTargetModal').classList.remove('hidden');
     } else {
@@ -1009,9 +855,9 @@ async function performUpload(file, target) {
     try {
         let result;
         if (target === 'alliance') {
-            result = await FirebaseManager.uploadAlliancePlayerDatabase(file);
+            result = await FirebaseService.uploadAlliancePlayerDatabase(file);
         } else {
-            result = await FirebaseManager.uploadPlayerDatabase(file);
+            result = await FirebaseService.uploadPlayerDatabase(file);
         }
 
         if (result.success) {
@@ -1026,14 +872,14 @@ async function performUpload(file, target) {
 }
 
 function loadPlayerData() {
-    if (typeof FirebaseManager === 'undefined') {
-        console.error('FirebaseManager not available');
+    if (typeof FirebaseService === 'undefined') {
+        console.error('FirebaseService not available');
         return;
     }
     
-    const playerDB = FirebaseManager.getActivePlayerDatabase();
+    const playerDB = FirebaseService.getActivePlayerDatabase();
     const count = Object.keys(playerDB).length;
-    const source = FirebaseManager.getPlayerSource();
+    const source = FirebaseService.getPlayerSource();
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
 
     document.getElementById('playerCount').textContent = t('player_count_with_source', { count: count, source: sourceLabel });
@@ -1087,7 +933,7 @@ function toggleBuildingsPanel() {
 }
 
 function getDefaultBuildings() {
-    return getActiveEvent().buildings.map((b) => ({ ...b }));
+    return window.DSCoreEvents.cloneEventBuildings(currentEvent);
 }
 
 function getBuildingConfig() {
@@ -1110,66 +956,33 @@ function setBuildingPositionsLocal(positions) {
 }
 
 function clampPriority(value, fallback) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) {
-        return fallback;
-    }
-    return Math.max(1, Math.min(6, Math.round(number)));
+    return window.DSCoreBuildings.clampPriority(value, fallback);
 }
 
 function clampSlots(value, fallback) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) {
-        return fallback;
-    }
-    return Math.max(MIN_BUILDING_SLOTS, Math.min(MAX_BUILDING_SLOTS_TOTAL, Math.round(number)));
+    return window.DSCoreBuildings.clampSlots(value, fallback, MIN_BUILDING_SLOTS, MAX_BUILDING_SLOTS_TOTAL);
 }
 
 function getBuildingSlotsTotal(config) {
-    if (!Array.isArray(config)) {
-        return 0;
-    }
-    return config.reduce((sum, item) => {
-        const slots = Number(item && item.slots);
-        return sum + (Number.isFinite(slots) ? slots : 0);
-    }, 0);
+    return window.DSCoreBuildings.getBuildingSlotsTotal(config);
 }
 
 function normalizeBuildingConfig(config) {
-    const defaults = getDefaultBuildings();
-    if (!Array.isArray(config)) {
-        return defaults;
-    }
-    return defaults.map((def) => {
-        const stored = config.find((b) => b && b.name === def.name);
-        const priority = clampPriority(stored && stored.priority, def.priority);
-        const slots = clampSlots(stored && stored.slots, def.slots);
-        return { name: def.name, slots: slots, priority: priority };
-    });
+    return window.DSCoreBuildings.normalizeBuildingConfig(
+        config,
+        getDefaultBuildings(),
+        MIN_BUILDING_SLOTS,
+        MAX_BUILDING_SLOTS_TOTAL
+    );
 }
 
 function getDefaultBuildingPositions() {
-    return JSON.parse(JSON.stringify(getActiveEvent().defaultPositions));
+    return window.DSCoreEvents.cloneDefaultPositions(currentEvent);
 }
 
 function normalizeBuildingPositions(positions) {
-    const normalized = {};
-    if (!positions || typeof positions !== 'object') {
-        return normalized;
-    }
     const validNames = new Set(getActiveEvent().buildings.map((b) => b.name));
-    Object.keys(positions).forEach((name) => {
-        if (!validNames.has(name)) return;
-        const value = positions[name];
-        if (Array.isArray(value) && value.length === 2) {
-            const x = Number(value[0]);
-            const y = Number(value[1]);
-            if (Number.isFinite(x) && Number.isFinite(y)) {
-                normalized[name] = [Math.round(x), Math.round(y)];
-            }
-        }
-    });
-    return normalized;
+    return window.DSCoreBuildings.normalizeBuildingPositions(positions, validNames);
 }
 
 function getEffectiveBuildingPositions() {
@@ -1181,12 +994,12 @@ function getEffectiveBuildingConfig() {
 }
 
 function loadBuildingConfig() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         setBuildingConfig(getDefaultBuildings());
         renderBuildingsTable();
         return;
     }
-    const stored = FirebaseManager.getBuildingConfig(currentEvent);
+    const stored = FirebaseService.getBuildingConfig(currentEvent);
     const normalized = normalizeBuildingConfig(stored);
     setBuildingConfig(normalized);
     const totalSlots = getBuildingSlotsTotal(normalized);
@@ -1217,7 +1030,7 @@ function loadBuildingConfig() {
     });
 
     if (needsSave) {
-        FirebaseManager.setBuildingConfig(currentEvent, config);
+        FirebaseService.setBuildingConfig(currentEvent, config);
     }
 
     renderBuildingsTable();
@@ -1225,17 +1038,17 @@ function loadBuildingConfig() {
 }
 
 function loadBuildingPositions() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         setBuildingPositionsLocal({});
         return false;
     }
-    const storedVersion = FirebaseManager.getBuildingPositionsVersion(currentEvent);
-    const stored = FirebaseManager.getBuildingPositions(currentEvent);
+    const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent);
+    const stored = FirebaseService.getBuildingPositions(currentEvent);
     setBuildingPositionsLocal(normalizeBuildingPositions(stored));
     if (Object.keys(getBuildingPositions()).length === 0 || storedVersion < BUILDING_POSITIONS_VERSION) {
         setBuildingPositionsLocal(getDefaultBuildingPositions());
-        FirebaseManager.setBuildingPositions(currentEvent, getBuildingPositions());
-        FirebaseManager.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
+        FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
+        FirebaseService.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
         return true;
     }
     return false;
@@ -1302,13 +1115,13 @@ async function saveBuildingConfig() {
     setBuildingConfig(normalizeBuildingConfig(updated));
     renderBuildingsTable();
 
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         showMessage('buildingsStatus', t('buildings_changes_not_saved'), 'error');
         return;
     }
 
-    FirebaseManager.setBuildingConfig(currentEvent, getBuildingConfig());
-    const result = await FirebaseManager.saveUserData();
+    FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig());
+    const result = await FirebaseService.saveUserData();
     if (result.success) {
         showMessage('buildingsStatus', t('buildings_saved'), 'success');
     } else {
@@ -1444,13 +1257,13 @@ function nextCoordBuilding() {
 }
 
 async function saveBuildingPositions() {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         showMessage('coordStatus', t('coord_changes_not_saved'), 'error');
         return;
     }
-    FirebaseManager.setBuildingPositions(currentEvent, getBuildingPositions());
-    FirebaseManager.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
-    const result = await FirebaseManager.saveUserData();
+    FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
+    FirebaseService.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
+    const result = await FirebaseService.saveUserData();
     if (result.success) {
         showMessage('coordStatus', t('coord_saved'), 'success');
     } else {
@@ -1823,7 +1636,7 @@ function updateTeamCounters() {
 // ============================================================
 
 function generateTeamAssignments(team) {
-    if (typeof FirebaseManager === 'undefined') {
+    if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
     }
@@ -1848,7 +1661,7 @@ function generateTeamAssignments(team) {
         return;
     }
 
-    const playerDB = FirebaseManager.getActivePlayerDatabase();
+    const playerDB = FirebaseService.getActivePlayerDatabase();
 
     const starterPlayers = starters.map(s => ({
         name: s.name,
@@ -1879,99 +1692,13 @@ function generateTeamAssignments(team) {
 }
 
 function assignTeamToBuildings(players) {
-    const assignments = [];
-    let available = [...players]; // already sorted by power desc
-
-    const sortedBuildings = [...getEffectiveBuildingConfig()].sort((a, b) => {
-        if (a.priority !== b.priority) {
-            return a.priority - b.priority;
-        }
-        return a.name.localeCompare(b.name);
-    });
-
-    // Group consecutive buildings by priority
-    const groups = [];
-    sortedBuildings.forEach(building => {
-        const last = groups[groups.length - 1];
-        if (last && last[0].priority === building.priority) {
-            last.push(building);
-        } else {
-            groups.push([building]);
-        }
-    });
-
-    groups.forEach(group => {
-        // Skip buildings with 0 slots
-        const activeGroup = group.filter(b => b.slots > 0);
-        if (activeGroup.length === 0) return;
-
-        const pairsNeeded = activeGroup.map(b => Math.floor(b.slots / 2));
-        const maxPairs = Math.max(...pairsNeeded, 0);
-
-        // Phase 1: round-robin top player picks across the group.
-        // Each building claims one top player per round until it has
-        // enough (slots / 2). This ensures same-priority buildings
-        // each get an equally strong anchor player.
-        const topPicks = new Map();
-        activeGroup.forEach(b => topPicks.set(b.name, []));
-
-        for (let round = 0; round < maxPairs; round++) {
-            activeGroup.forEach((building, idx) => {
-                if (topPicks.get(building.name).length < pairsNeeded[idx] && available.length > 0) {
-                    topPicks.get(building.name).push(available[0]);
-                    available = available.slice(1);
-                }
-            });
-        }
-
-        // Phase 2: for each building, pair each top pick with a
-        // mix partner (search next 3 by power for a different troop).
-        activeGroup.forEach(building => {
-            topPicks.get(building.name).forEach(top => {
-                assignments.push({
-                    building: building.name,
-                    priority: building.priority,
-                    player: top.name
-                });
-
-                const partner = findMixPartner(top, available);
-                if (partner) {
-                    assignments.push({
-                        building: building.name,
-                        priority: building.priority,
-                        player: partner.name
-                    });
-                    available = available.filter(p => p.name !== partner.name);
-                }
-            });
-        });
-
-        // Phase 3: fill remaining odd slots (e.g. 1-slot buildings).
-        // Round-robin one solo player to each building that still
-        // has an unfilled slot.
-        activeGroup.forEach(building => {
-            const assigned = assignments.filter(a => a.building === building.name).length;
-            if (assigned < building.slots && available.length > 0) {
-                assignments.push({
-                    building: building.name,
-                    priority: building.priority,
-                    player: available[0].name
-                });
-                available = available.slice(1);
-            }
-        });
-    });
-
-    return assignments;
+    return window.DSCoreAssignment.assignTeamToBuildings(players, getEffectiveBuildingConfig());
 }
 
 // Searches the next 3 available players by power for a different
 // troop type than the given player. Falls back to next by power.
 function findMixPartner(player, available) {
-    if (available.length === 0) return null;
-    const candidates = available.slice(0, 3);
-    const mixIndex = candidates.findIndex(p => p.troops !== player.troops);
-    return mixIndex !== -1 ? candidates[mixIndex] : available[0];
+    return window.DSCoreAssignment.findMixPartner(player, available);
 }
 
 // ============================================================
@@ -2359,10 +2086,9 @@ function showMessage(elementId, message, type) {
     }
 }
 
-initLanguage();
-
 document.addEventListener('click', (event) => {
     if (event.target && event.target.id === 'coordCanvas') {
         coordCanvasClick(event);
     }
 });
+
