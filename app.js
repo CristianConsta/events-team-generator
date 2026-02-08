@@ -415,8 +415,11 @@ if (typeof FirebaseManager !== 'undefined') {
     FirebaseManager.setDataLoadCallback((playerDatabase) => {
         console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
         loadPlayerData();
-        loadBuildingConfig();
-        loadBuildingPositions();
+        const configNeedsSave = loadBuildingConfig();
+        const positionsNeedsSave = loadBuildingPositions();
+        if (configNeedsSave || positionsNeedsSave) {
+            FirebaseManager.saveUserData();
+        }
     });
 } else {
     console.error('FirebaseManager not available - cannot initialize callbacks');
@@ -823,19 +826,25 @@ function loadBuildingConfig() {
 
     if (needsSave) {
         FirebaseManager.setBuildingConfig(buildingConfig);
-        FirebaseManager.saveUserData();
     }
 
     renderBuildingsTable();
+    return needsSave;
 }
 
 function loadBuildingPositions() {
     if (typeof FirebaseManager === 'undefined') {
         buildingPositions = {};
-        return;
+        return false;
     }
     const stored = FirebaseManager.getBuildingPositions();
     buildingPositions = normalizeBuildingPositions(stored);
+    if (Object.keys(buildingPositions).length === 0) {
+        buildingPositions = getDefaultBuildingPositions();
+        FirebaseManager.setBuildingPositions(buildingPositions);
+        return true;
+    }
+    return false;
 }
 
 function renderBuildingsTable() {
