@@ -659,8 +659,6 @@ function renderAllianceJoinView(container) {
         <div style="margin-top: 15px;">
             <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_create_title')}</h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
-                <input type="text" id="newAllianceId" placeholder="${t('alliance_id_placeholder')}"
-                       maxlength="5" style="width: 120px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
                 <input type="text" id="newAllianceName" placeholder="${t('alliance_name_placeholder')}"
                        maxlength="40" style="flex: 1; min-width: 150px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
                 <button onclick="handleCreateAlliance()">${t('alliance_create_button')}</button>
@@ -673,7 +671,6 @@ function renderAllianceJoinView(container) {
 function renderAllianceMemberView(container) {
     const members = FirebaseManager.getAllianceMembers();
     const memberCount = Object.keys(members).length;
-    const aid = FirebaseManager.getAllianceId();
     const aName = FirebaseManager.getAllianceName();
     const source = FirebaseManager.getPlayerSource();
 
@@ -687,7 +684,6 @@ function renderAllianceMemberView(container) {
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div>
                     <strong style="color: var(--gold);">${escapeHtml(aName || '')}</strong>
-                    <span style="opacity: 0.6;"> (ID: ${escapeHtml(aid || '')})</span>
                 </div>
                 <span style="opacity: 0.7;">${t('alliance_member_count', { count: memberCount })}</span>
             </div>
@@ -719,20 +715,15 @@ function renderAllianceMemberView(container) {
 }
 
 async function handleCreateAlliance() {
-    const id = document.getElementById('newAllianceId').value.trim();
     const name = document.getElementById('newAllianceName').value.trim();
 
-    if (!id || !/^\d{1,5}$/.test(id)) {
-        showMessage('allianceCreateStatus', t('alliance_error_invalid_id'), 'error');
-        return;
-    }
     if (!name || name.length > 40) {
         showMessage('allianceCreateStatus', t('alliance_error_invalid_name'), 'error');
         return;
     }
 
     showMessage('allianceCreateStatus', t('message_upload_processing'), 'processing');
-    const result = await FirebaseManager.createAlliance(id, name);
+    const result = await FirebaseManager.createAlliance(name);
 
     if (result.success) {
         showMessage('allianceCreateStatus', t('alliance_created'), 'success');

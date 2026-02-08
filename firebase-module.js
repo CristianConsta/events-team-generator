@@ -496,18 +496,11 @@ const FirebaseManager = (function() {
     // ALLIANCE FUNCTIONS
     // ============================================================
 
-    async function createAlliance(id, name) {
+    async function createAlliance(name) {
         if (!currentUser) return { success: false, error: 'Not signed in' };
-        if (!/^\d{1,5}$/.test(id)) return { success: false, error: 'Alliance ID must be 1-5 digits' };
         if (!name || name.length > 40) return { success: false, error: 'Name must be 1-40 characters' };
 
         try {
-            const docRef = db.collection('alliances').doc(id);
-            const existing = await docRef.get();
-            if (existing.exists) {
-                return { success: false, error: 'Alliance ID already exists' };
-            }
-
             const members = {};
             members[currentUser.uid] = {
                 email: currentUser.email,
@@ -515,7 +508,7 @@ const FirebaseManager = (function() {
                 role: 'member'
             };
 
-            await docRef.set({
+            const docRef = await db.collection('alliances').add({
                 name: name,
                 createdBy: currentUser.uid,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -528,6 +521,7 @@ const FirebaseManager = (function() {
                 }
             });
 
+            const id = docRef.id;
             allianceId = id;
             allianceName = name;
             await db.collection('users').doc(currentUser.uid).set({
