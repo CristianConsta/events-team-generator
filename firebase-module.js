@@ -38,6 +38,7 @@ const FirebaseManager = (function() {
     let playerDatabase = {};
     let buildingConfig = null;
     let buildingPositions = null;
+    let buildingPositionsVersion = 0;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
 
@@ -260,6 +261,7 @@ const FirebaseManager = (function() {
                 playerDatabase = data.playerDatabase || {};
                 buildingConfig = Array.isArray(data.buildingConfig) ? data.buildingConfig : null;
                 buildingPositions = data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null;
+                buildingPositionsVersion = typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0;
                 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
                 
@@ -277,6 +279,7 @@ const FirebaseManager = (function() {
                 playerDatabase = {};
                 buildingConfig = null;
                 buildingPositions = null;
+                buildingPositionsVersion = 0;
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
@@ -300,6 +303,7 @@ const FirebaseManager = (function() {
                 playerDatabase: playerDatabase,
                 buildingConfig: buildingConfig,
                 buildingPositions: buildingPositions,
+                buildingPositionsVersion: buildingPositionsVersion,
                 metadata: {
                     email: currentUser.email || null,
                     totalPlayers: Object.keys(playerDatabase).length,
@@ -443,7 +447,15 @@ const FirebaseManager = (function() {
     function setBuildingPositions(positions) {
         buildingPositions = positions;
     }
-    
+
+    function getBuildingPositionsVersion() {
+        return buildingPositionsVersion;
+    }
+
+    function setBuildingPositionsVersion(version) {
+        buildingPositionsVersion = version;
+    }
+
     /**
      * Get player count
      */
@@ -674,6 +686,8 @@ const FirebaseManager = (function() {
         setBuildingConfig: setBuildingConfig,
         getBuildingPositions: getBuildingPositions,
         setBuildingPositions: setBuildingPositions,
+        getBuildingPositionsVersion: getBuildingPositionsVersion,
+        setBuildingPositionsVersion: setBuildingPositionsVersion,
         
         // Backup & restore
         exportBackup: exportBackup,

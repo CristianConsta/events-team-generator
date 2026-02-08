@@ -347,15 +347,16 @@ loadMapImage().catch(() => {
 });
 
 // Building positions on the map (scaled for 1080px width from 2048x1446 original)
+const BUILDING_POSITIONS_VERSION = 1;
 const defaultBuildingPositions = {
-    'Info Center': [242, 95],
-    'Field Hospital 4': [474, 95],
-    'Oil Refinery 1': [137, 190],
-    'Field Hospital 2': [527, 179],
-    'Oil Refinery 2': [580, 311],
-    'Field Hospital 1': [153, 311],
-    'Field Hospital 3': [200, 385],
-    'Science Hub': [495, 395],
+    'Info Center': [366, 38],
+    'Field Hospital 4': [785, 139],
+    'Oil Refinery 1': [194, 260],
+    'Field Hospital 2': [951, 247],
+    'Oil Refinery 2': [914, 472],
+    'Field Hospital 1': [161, 458],
+    'Field Hospital 3': [314, 654],
+    'Science Hub': [774, 656],
 };
 
 const buildingAnchors = {
@@ -769,7 +770,9 @@ function normalizeBuildingPositions(positions) {
     if (!positions || typeof positions !== 'object') {
         return normalized;
     }
+    const validNames = new Set(defaultBuildings.map((b) => b.name));
     Object.keys(positions).forEach((name) => {
+        if (!validNames.has(name)) return;
         const value = positions[name];
         if (Array.isArray(value) && value.length === 2) {
             const x = Number(value[0]);
@@ -837,11 +840,13 @@ function loadBuildingPositions() {
         buildingPositions = {};
         return false;
     }
+    const storedVersion = FirebaseManager.getBuildingPositionsVersion();
     const stored = FirebaseManager.getBuildingPositions();
     buildingPositions = normalizeBuildingPositions(stored);
-    if (Object.keys(buildingPositions).length === 0) {
+    if (Object.keys(buildingPositions).length === 0 || storedVersion < BUILDING_POSITIONS_VERSION) {
         buildingPositions = getDefaultBuildingPositions();
         FirebaseManager.setBuildingPositions(buildingPositions);
+        FirebaseManager.setBuildingPositionsVersion(BUILDING_POSITIONS_VERSION);
         return true;
     }
     return false;
@@ -1021,6 +1026,7 @@ function coordCanvasClick(event) {
     const x = Math.round((event.clientX - rect.left) * scaleX);
     const y = Math.round((event.clientY - rect.top) * scaleY);
     const name = coordBuildings[coordBuildingIndex];
+    if (!name) return;
     buildingPositions[name] = [x, y];
     updateCoordLabel();
     drawCoordCanvas();
@@ -1051,6 +1057,7 @@ async function saveBuildingPositions() {
         return;
     }
     FirebaseManager.setBuildingPositions(buildingPositions);
+    FirebaseManager.setBuildingPositionsVersion(BUILDING_POSITIONS_VERSION);
     const result = await FirebaseManager.saveUserData();
     if (result.success) {
         showMessage('coordStatus', t('coord_saved'), 'success');
