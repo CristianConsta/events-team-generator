@@ -988,21 +988,26 @@ function getBuildingEditIcon(editing) {
     `;
 }
 
-function toggleBuildingRowEdit(buttonEl) {
+function toggleBuildingFieldEdit(buttonEl) {
     const row = buttonEl.closest('tr');
-    if (!row) return;
-    const nextEditing = row.dataset.editing !== 'true';
-    row.dataset.editing = nextEditing ? 'true' : 'false';
-    row.classList.toggle('building-row-editing', nextEditing);
+    const field = buttonEl.getAttribute('data-field');
+    if (!row || !field) return;
+    const input = row.querySelector(`input[data-field="${field}"]`);
+    if (!input) return;
 
-    row.querySelectorAll('input[data-index][data-field]').forEach((input) => {
-        input.disabled = !nextEditing;
-    });
-
+    const nextEditing = input.disabled;
+    input.disabled = !nextEditing;
     buttonEl.classList.toggle('is-editing', nextEditing);
-    buttonEl.setAttribute('aria-label', nextEditing ? 'Lock building row' : 'Edit building row');
-    buttonEl.title = nextEditing ? 'Lock building row' : 'Edit building row';
+    buttonEl.setAttribute('aria-label', nextEditing ? `Lock ${field}` : `Edit ${field}`);
+    buttonEl.title = nextEditing ? `Lock ${field}` : `Edit ${field}`;
     buttonEl.innerHTML = getBuildingEditIcon(nextEditing);
+
+    if (nextEditing) {
+        input.focus();
+        if (typeof input.select === 'function' && input.type === 'text') {
+            input.select();
+        }
+    }
 }
 
 function setBuildingConfig(config) {
@@ -1126,24 +1131,28 @@ function renderBuildingsTable() {
     tbody.innerHTML = '';
 
     getBuildingConfig().forEach((b, index) => {
-        const editing = false;
         const row = document.createElement('tr');
-        row.dataset.editing = editing ? 'true' : 'false';
-        if (editing) {
-            row.classList.add('building-row-editing');
-        }
+        const labelEditing = false;
+        const slotsEditing = false;
+        const priorityEditing = false;
         row.innerHTML = `
             <td>
-                <div class="building-name-cell">
-                    <input type="text" value="${escapeAttribute((b.label || b.name))}" data-index="${index}" data-field="label" class="building-label-input" ${editing ? '' : 'disabled'}>
-                    <button type="button" class="building-edit-btn ${editing ? 'is-editing' : ''}" data-action="toggle-edit" title="${editing ? 'Lock building row' : 'Edit building row'}" aria-label="${editing ? 'Lock building row' : 'Edit building row'}">${getBuildingEditIcon(editing)}</button>
+                <div class="building-field-cell">
+                    <input type="text" value="${escapeAttribute((b.label || b.name))}" data-index="${index}" data-field="label" class="building-label-input" ${labelEditing ? '' : 'disabled'}>
+                    <button type="button" class="building-edit-btn ${labelEditing ? 'is-editing' : ''}" data-action="toggle-edit" data-field="label" title="${labelEditing ? 'Lock name' : 'Edit name'}" aria-label="${labelEditing ? 'Lock name' : 'Edit name'}">${getBuildingEditIcon(labelEditing)}</button>
                 </div>
             </td>
             <td data-label="${t('slots_label')}">
-                <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input" ${editing ? '' : 'disabled'}>
+                <div class="building-field-cell">
+                    <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input" ${slotsEditing ? '' : 'disabled'}>
+                    <button type="button" class="building-edit-btn ${slotsEditing ? 'is-editing' : ''}" data-action="toggle-edit" data-field="slots" title="${slotsEditing ? 'Lock slots' : 'Edit slots'}" aria-label="${slotsEditing ? 'Lock slots' : 'Edit slots'}">${getBuildingEditIcon(slotsEditing)}</button>
+                </div>
             </td>
             <td data-label="${t('priority_label')}">
-                <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input" ${editing ? '' : 'disabled'}>
+                <div class="building-field-cell">
+                    <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input" ${priorityEditing ? '' : 'disabled'}>
+                    <button type="button" class="building-edit-btn ${priorityEditing ? 'is-editing' : ''}" data-action="toggle-edit" data-field="priority" title="${priorityEditing ? 'Lock priority' : 'Edit priority'}" aria-label="${priorityEditing ? 'Lock priority' : 'Edit priority'}">${getBuildingEditIcon(priorityEditing)}</button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
@@ -1187,7 +1196,7 @@ if (buildingsTableBodyEl) {
     buildingsTableBodyEl.addEventListener('click', (event) => {
         const btn = event.target.closest('button[data-action="toggle-edit"]');
         if (!btn) return;
-        toggleBuildingRowEdit(btn);
+        toggleBuildingFieldEdit(btn);
     });
 }
 

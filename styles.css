@@ -366,7 +366,7 @@ input[type="file"] { display: none; }
     color: rgba(255,255,255,0.8);
     cursor: default;
 }
-.building-name-cell {
+.building-field-cell {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -725,6 +725,12 @@ input[type="file"] { display: none; }
         min-width: 0;
         width: 100%;
         font-size: 15px;
+    }
+    #buildingsTable .building-field-cell {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
     .building-edit-btn {
         width: 34px;
