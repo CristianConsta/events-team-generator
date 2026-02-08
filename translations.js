@@ -1144,3 +1144,7 @@ const translations = {
         player_count_with_source: '{count} jucători ({source})'
     }
 };
+
+if (typeof window !== 'undefined') {
+    window.translations = translations;
+}

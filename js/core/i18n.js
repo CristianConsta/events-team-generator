@@ -18,6 +18,9 @@
         if (typeof global.translations === 'object' && global.translations) {
             return global.translations;
         }
+        if (typeof translations === 'object' && translations) {
+            return translations;
+        }
         return {};
     }
 
