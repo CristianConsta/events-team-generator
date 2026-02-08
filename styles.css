@@ -448,6 +448,17 @@ input[type="file"] { display: none; }
     border-left-color: var(--team-b);
 }
 
+/* ── Header icon buttons ── */
+.header-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+}
+.header-icon-btn svg {
+    flex-shrink: 0;
+}
+
 /* ── Notification Bell ── */
 #notificationBtn:hover {
     background: rgba(255,255,255,0.1);
@@ -496,6 +507,8 @@ input[type="file"] { display: none; }
 
     /* Page header */
     .page-header { gap: 8px; }
+    .header-icon-btn .btn-label { display: none; }
+    .header-icon-btn { padding: 10px !important; }
 
     /* ── Filters — full-width stack ── */
     .filters { gap: 10px; }
@@ -673,7 +686,6 @@ input[type="file"] { display: none; }
     #userHeader > div:first-child { gap: 10px !important; }
     #userEmail                 { font-size: 13px !important; }
     #playerCount               { font-size: 11px !important; }
-    #syncStatus svg            { width: 16px !important; height: 16px !important; }
     #headerRight               { gap: 6px !important; }
     #languageSelect            { padding: 4px 6px !important; font-size: 11px !important; }
     #signOutBtn                { padding: 6px 8px !important; }
@@ -692,6 +704,4 @@ input[type="file"] { display: none; }
         max-width: none !important;
     }
 
-    /* ── Alliance display in header ── */
-    #allianceDisplay { font-size: 11px !important; }
 }

@@ -775,7 +775,7 @@ function updateAllianceHeaderDisplay() {
     const display = document.getElementById('allianceDisplay');
 
     if (aid && display) {
-        display.textContent = aName || aid;
+        display.textContent = '(' + (aName || aid) + ')';
         display.style.display = 'inline';
     } else if (display) {
         display.style.display = 'none';
