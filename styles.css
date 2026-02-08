@@ -55,6 +55,13 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
     background: var(--gold);
     color: #1a1a2e;
 }
+.event-selector-inline {
+    align-self: flex-start;
+}
+.event-selector-inline .event-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+}
 
 /* ── Alliance create button (next to email) ── */
 #allianceCreateBtn {
@@ -555,6 +562,7 @@ input[type="file"] { display: none; }
     /* Page header */
     .page-header { gap: 8px; }
     .event-btn { padding: 6px 12px; font-size: 12px; }
+    .event-selector-inline .event-btn { padding: 5px 10px; font-size: 11px; }
     .header-icon-btn .btn-label { display: none; }
     .header-icon-btn { padding: 10px !important; }
 

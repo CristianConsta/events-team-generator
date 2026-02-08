@@ -460,12 +460,23 @@ function switchEvent(eventId) {
     substitutesA = [];
     substitutesB = [];
 
+    // Update generate button event labels
+    updateGenerateEventLabels();
+
     // Load map for new event if needed
     if (!mapLoadedFlags[eventId]) {
         loadMapImage(eventId).catch(() => {
             console.warn(eventId + ' map failed to load');
         });
     }
+}
+
+function updateGenerateEventLabels() {
+    const label = getActiveEvent().mapTitle;
+    const elA = document.getElementById('generateEventLabelA');
+    const elB = document.getElementById('generateEventLabelB');
+    if (elA) elA.textContent = label;
+    if (elB) elB.textContent = label;
 }
 
 // ============================================================

@@ -113,7 +113,11 @@
                         <button class="clear-btn" onclick="toggleBuildingsPanel()"><span data-i18n="close">Close</span></button>
                     </div>
                 </div>
-                <p style="opacity: 0.9; margin: 15px 0;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
+                <div class="event-selector event-selector-inline" id="buildingsEventSelector" style="margin: 12px 0;">
+                    <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
+                    <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
+                </div>
+                <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
                 <div style="overflow-x: auto;">
                     <table class="players-table" id="buildingsTable">
                         <thead>
@@ -211,7 +215,13 @@
             
             <!-- Player Selection Section -->
             <div id="selectionSection" class="card hidden">
-                <h2 data-i18n="select_teams_title">⚔️ Select Teams</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <h2 style="margin: 0;" data-i18n="select_teams_title">⚔️ Select Teams</h2>
+                </div>
+                <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 12px 0;">
+                    <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
+                    <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
+                </div>
                 <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="select_teams_help">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
                 
                 <!-- Team Counters -->
@@ -303,10 +313,12 @@
         <!-- Floating Generate Buttons -->
         <div class="floating-buttons" id="floatingButtons" style="display: none;">
             <button class="generate-btn" id="generateBtnA" onclick="generateTeamAssignments('A')" style="background: linear-gradient(135deg, var(--team-a), #1E90FF);" disabled>
+                <span class="generate-event-label" id="generateEventLabelA" style="display: block; font-size: 11px; opacity: 0.7; letter-spacing: 0.5px;">DESERT STORM</span>
                 <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_a_label">Team A</span> (<span id="teamAFloatStarterCount">0</span>/20 | <span data-i18n="subs_short">Sub</span>: <span id="teamAFloatSubCount">0</span>/10)</span>
                 🚀 <span data-i18n="generate_team_a">Generate Team A</span>
             </button>
             <button class="generate-btn" id="generateBtnB" onclick="generateTeamAssignments('B')" style="background: linear-gradient(135deg, var(--team-b), #FF6347);" disabled>
+                <span class="generate-event-label" id="generateEventLabelB" style="display: block; font-size: 11px; opacity: 0.7; letter-spacing: 0.5px;">DESERT STORM</span>
                 <span style="display: block; font-size: 14px; opacity: 0.9;"><span data-i18n="team_b_label">Team B</span> (<span id="teamBFloatStarterCount">0</span>/20 | <span data-i18n="subs_short">Sub</span>: <span id="teamBFloatSubCount">0</span>/10)</span>
                 🚀 <span data-i18n="generate_team_b">Generate Team B</span>
             </button>
