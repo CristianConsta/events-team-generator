@@ -73,6 +73,11 @@
                 </span>
             </div>
             <div id="headerRight" style="display: flex; align-items: center; gap: 10px;">
+                <span id="allianceDisplay" style="display: none; color: var(--gold); font-size: 13px; opacity: 0.8; cursor: pointer;" onclick="toggleAlliancePanel()"></span>
+                <button id="notificationBtn" onclick="toggleNotificationsPanel()" title="Notifications" style="position: relative; padding: 8px 10px; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; margin: 0;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
+                </button>
                 <select id="languageSelect">
                     <option value="en">EN</option>
                     <option value="fr">FR</option>
@@ -90,7 +95,10 @@
         <div class="container">
             <div class="page-header">
                 <h1 data-i18n="main_title">🏜️ DESERT STORM</h1>
-                <button class="secondary" onclick="toggleBuildingsPanel()"><span data-i18n="buildings_button">Buildings &amp; Priorities</span></button>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="secondary" onclick="toggleAlliancePanel()"><span data-i18n="alliance_button">Alliance</span></button>
+                    <button class="secondary" onclick="toggleBuildingsPanel()"><span data-i18n="buildings_button">Buildings &amp; Priorities</span></button>
+                </div>
             </div>
 
             <div id="buildingsPanel" class="card hidden">
@@ -121,6 +129,34 @@
                     <button onclick="saveBuildingConfig()"><span data-i18n="save_changes">Save Changes</span></button>
                 </div>
                 <div id="buildingsStatus"></div>
+            </div>
+
+            <div id="alliancePanel" class="card hidden">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <h2 style="margin: 0;" data-i18n="alliance_panel_title">Alliance</h2>
+                    <button class="clear-btn" onclick="toggleAlliancePanel()"><span data-i18n="close">Close</span></button>
+                </div>
+                <div id="alliancePanelContent"></div>
+            </div>
+
+            <div id="notificationsPanel" class="card hidden" style="position: fixed; top: 60px; right: 20px; z-index: 1500; max-width: 380px; width: calc(100vw - 40px); max-height: 400px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4); border: 1px solid rgba(var(--gold-rgb), 0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: var(--gold);" data-i18n="notifications_title">Notifications</h3>
+                    <button class="clear-btn" onclick="toggleNotificationsPanel()"><span data-i18n="close">Close</span></button>
+                </div>
+                <div id="notificationsList"></div>
+            </div>
+
+            <div id="uploadTargetModal" class="coord-overlay hidden">
+                <div style="width: min(400px, 90vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 30px;">
+                    <h2 style="margin: 0 0 10px;" data-i18n="upload_target_title">Upload Destination</h2>
+                    <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_target_desc">Where should this player data be stored?</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <button onclick="uploadToPersonal()" style="padding: 16px;"><span data-i18n="upload_target_personal">My Database</span></button>
+                        <button onclick="uploadToAlliance()" class="secondary" style="padding: 16px;"><span data-i18n="upload_target_alliance">Alliance Database</span></button>
+                    </div>
+                    <button class="clear-btn" onclick="closeUploadTargetModal()" style="display: block; margin: 15px auto 0;"><span data-i18n="close">Close</span></button>
+                </div>
             </div>
 
             <div id="coordPickerOverlay" class="coord-overlay hidden">

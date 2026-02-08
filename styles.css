@@ -448,6 +448,17 @@ input[type="file"] { display: none; }
     border-left-color: var(--team-b);
 }
 
+/* ── Notification Bell ── */
+#notificationBtn:hover {
+    background: rgba(255,255,255,0.1);
+    transform: none;
+    box-shadow: none;
+}
+/* ── Alliance Panel inputs ── */
+#alliancePanelContent input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
 /* =============================================
    TABLET  (≤ 768px)
    ============================================= */
@@ -672,4 +683,15 @@ input[type="file"] { display: none; }
     .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }
     .onboarding-tooltip .onboarding-title { font-size: 14px; }
     .onboarding-tooltip .onboarding-desc { font-size: 12px; }
+
+    /* ── Notifications panel — full width on phone ── */
+    #notificationsPanel {
+        right: 10px !important;
+        left: 10px !important;
+        width: auto !important;
+        max-width: none !important;
+    }
+
+    /* ── Alliance display in header ── */
+    #allianceDisplay { font-size: 11px !important; }
 }

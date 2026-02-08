@@ -407,9 +407,13 @@ if (typeof FirebaseManager !== 'undefined') {
             applyTranslations();
             loadPlayerData();
             initOnboarding();
+            updateAllianceHeaderDisplay();
+            checkAndDisplayNotifications();
+            startNotificationPolling();
         } else {
             document.getElementById('loginScreen').style.display = 'block';
             document.getElementById('mainApp').style.display = 'none';
+            stopNotificationPolling();
         }
     });
     
@@ -421,6 +425,8 @@ if (typeof FirebaseManager !== 'undefined') {
         if (configNeedsSave || positionsNeedsSave) {
             FirebaseManager.saveUserData();
         }
+        updateAllianceHeaderDisplay();
+        checkAndDisplayNotifications();
     });
 } else {
     console.error('FirebaseManager not available - cannot initialize callbacks');
@@ -627,6 +633,253 @@ function downloadPlayerTemplate() {
 }
 
 // ============================================================
+// ALLIANCE MANAGEMENT
+// ============================================================
+
+function toggleAlliancePanel() {
+    const panel = document.getElementById('alliancePanel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+        renderAlliancePanel();
+    }
+}
+
+function renderAlliancePanel() {
+    const aid = typeof FirebaseManager !== 'undefined' ? FirebaseManager.getAllianceId() : null;
+    const content = document.getElementById('alliancePanelContent');
+    if (aid) {
+        renderAllianceMemberView(content);
+    } else {
+        renderAllianceJoinView(content);
+    }
+}
+
+function renderAllianceJoinView(container) {
+    container.innerHTML = `
+        <div style="margin-top: 15px;">
+            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_create_title')}</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                <input type="text" id="newAllianceId" placeholder="${t('alliance_id_placeholder')}"
+                       maxlength="5" style="width: 120px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+                <input type="text" id="newAllianceName" placeholder="${t('alliance_name_placeholder')}"
+                       maxlength="40" style="flex: 1; min-width: 150px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+                <button onclick="handleCreateAlliance()">${t('alliance_create_button')}</button>
+            </div>
+            <div id="allianceCreateStatus"></div>
+        </div>
+    `;
+}
+
+function renderAllianceMemberView(container) {
+    const members = FirebaseManager.getAllianceMembers();
+    const memberCount = Object.keys(members).length;
+    const aid = FirebaseManager.getAllianceId();
+    const aName = FirebaseManager.getAllianceName();
+    const source = FirebaseManager.getPlayerSource();
+
+    let membersHtml = '';
+    Object.entries(members).forEach(([uid, member]) => {
+        membersHtml += `<div style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">${escapeHtml(member.email)}</div>`;
+    });
+
+    container.innerHTML = `
+        <div style="margin-top: 15px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <strong style="color: var(--gold);">${escapeHtml(aName || '')}</strong>
+                    <span style="opacity: 0.6;"> (ID: ${escapeHtml(aid || '')})</span>
+                </div>
+                <span style="opacity: 0.7;">${t('alliance_member_count', { count: memberCount })}</span>
+            </div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_members_title')}</h3>
+            <div style="max-height: 150px; overflow-y: auto;">${membersHtml}</div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_invite_title')}</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <input type="email" id="inviteEmail" placeholder="${t('alliance_invite_placeholder')}"
+                       style="flex: 1; min-width: 200px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
+                <button onclick="handleSendInvitation()">${t('alliance_invite_button')}</button>
+            </div>
+            <div id="inviteStatus"></div>
+        </div>
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_player_source_title')}</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="${source === 'personal' ? '' : 'secondary'}" onclick="switchPlayerSource('personal')">${t('alliance_source_personal')}</button>
+                <button class="${source === 'alliance' ? '' : 'secondary'}" onclick="switchPlayerSource('alliance')">${t('alliance_source_alliance')}</button>
+            </div>
+            <div id="playerSourceStatus"></div>
+        </div>
+        <button class="clear-btn" onclick="handleLeaveAlliance()" style="color: #FF6B35; border-color: #FF6B35;">${t('alliance_leave_button')}</button>
+        <div id="allianceActionStatus"></div>
+    `;
+}
+
+async function handleCreateAlliance() {
+    const id = document.getElementById('newAllianceId').value.trim();
+    const name = document.getElementById('newAllianceName').value.trim();
+
+    if (!id || !/^\d{1,5}$/.test(id)) {
+        showMessage('allianceCreateStatus', t('alliance_error_invalid_id'), 'error');
+        return;
+    }
+    if (!name || name.length > 40) {
+        showMessage('allianceCreateStatus', t('alliance_error_invalid_name'), 'error');
+        return;
+    }
+
+    showMessage('allianceCreateStatus', t('message_upload_processing'), 'processing');
+    const result = await FirebaseManager.createAlliance(id, name);
+
+    if (result.success) {
+        showMessage('allianceCreateStatus', t('alliance_created'), 'success');
+        renderAlliancePanel();
+        updateAllianceHeaderDisplay();
+    } else {
+        showMessage('allianceCreateStatus', result.error, 'error');
+    }
+}
+
+async function handleSendInvitation() {
+    const email = document.getElementById('inviteEmail').value.trim();
+    if (!email) {
+        showMessage('inviteStatus', t('alliance_error_invalid_name'), 'error');
+        return;
+    }
+
+    const result = await FirebaseManager.sendInvitation(email);
+    if (result.success) {
+        showMessage('inviteStatus', t('alliance_invite_sent'), 'success');
+        document.getElementById('inviteEmail').value = '';
+    } else {
+        showMessage('inviteStatus', result.error, 'error');
+    }
+}
+
+async function handleLeaveAlliance() {
+    if (!confirm(t('alliance_confirm_leave'))) return;
+
+    const result = await FirebaseManager.leaveAlliance();
+    if (result.success) {
+        renderAlliancePanel();
+        updateAllianceHeaderDisplay();
+        loadPlayerData();
+    }
+}
+
+async function switchPlayerSource(source) {
+    await FirebaseManager.setPlayerSource(source);
+    loadPlayerData();
+    renderAlliancePanel();
+    showMessage('playerSourceStatus', t('alliance_source_switched', { source: t('alliance_source_' + source) }), 'success');
+}
+
+function updateAllianceHeaderDisplay() {
+    if (typeof FirebaseManager === 'undefined') return;
+    const aid = FirebaseManager.getAllianceId();
+    const aName = FirebaseManager.getAllianceName();
+    const display = document.getElementById('allianceDisplay');
+
+    if (aid && display) {
+        display.textContent = aName || aid;
+        display.style.display = 'inline';
+    } else if (display) {
+        display.style.display = 'none';
+    }
+}
+
+// ============================================================
+// NOTIFICATION SYSTEM
+// ============================================================
+
+let notificationPollInterval = null;
+
+async function checkAndDisplayNotifications() {
+    if (typeof FirebaseManager === 'undefined' || !FirebaseManager.isSignedIn()) return;
+
+    const invitations = await FirebaseManager.checkInvitations();
+    const badge = document.getElementById('notificationBadge');
+    if (badge) {
+        badge.textContent = invitations.length;
+        badge.style.display = invitations.length > 0 ? 'flex' : 'none';
+    }
+}
+
+function startNotificationPolling() {
+    if (notificationPollInterval) return;
+    notificationPollInterval = setInterval(() => {
+        if (document.visibilityState === 'visible' && typeof FirebaseManager !== 'undefined' && FirebaseManager.isSignedIn()) {
+            checkAndDisplayNotifications();
+        }
+    }, 60000);
+}
+
+function stopNotificationPolling() {
+    if (notificationPollInterval) {
+        clearInterval(notificationPollInterval);
+        notificationPollInterval = null;
+    }
+}
+
+function toggleNotificationsPanel() {
+    const panel = document.getElementById('notificationsPanel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+        renderNotifications();
+    }
+}
+
+function renderNotifications() {
+    const container = document.getElementById('notificationsList');
+    const invitations = typeof FirebaseManager !== 'undefined' ? FirebaseManager.getPendingInvitations() : [];
+
+    if (invitations.length === 0) {
+        container.innerHTML = `<p style="opacity: 0.6; text-align: center;">${t('notifications_empty')}</p>`;
+        return;
+    }
+
+    container.innerHTML = invitations.map(inv => `
+        <div style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="margin-bottom: 8px;">
+                <strong>${escapeHtml(inv.allianceName || '')}</strong>
+                <span style="opacity: 0.6;"> (ID: ${escapeHtml(inv.allianceId || '')})</span>
+            </div>
+            <div style="opacity: 0.7; font-size: 13px; margin-bottom: 10px;">
+                ${t('notification_invited_by', { email: escapeHtml(inv.inviterEmail || '') })}
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="handleAcceptInvitation('${inv.id}')" style="flex: 1; padding: 8px;">${t('notification_accept')}</button>
+                <button class="clear-btn" onclick="handleRejectInvitation('${inv.id}')" style="flex: 1; padding: 8px;">${t('notification_reject')}</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function handleAcceptInvitation(invitationId) {
+    const result = await FirebaseManager.acceptInvitation(invitationId);
+    if (result.success) {
+        await checkAndDisplayNotifications();
+        renderNotifications();
+        renderAlliancePanel();
+        updateAllianceHeaderDisplay();
+        loadPlayerData();
+    } else {
+        alert(result.error);
+    }
+}
+
+async function handleRejectInvitation(invitationId) {
+    const result = await FirebaseManager.rejectInvitation(invitationId);
+    if (result.success) {
+        await checkAndDisplayNotifications();
+        renderNotifications();
+    }
+}
+
+// ============================================================
 // PLAYER DATA MANAGEMENT
 // ============================================================
 
@@ -635,18 +888,50 @@ async function uploadPlayerData() {
         showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
         return;
     }
-    
+
     const fileInput = document.getElementById('playerFileInput');
     const file = fileInput.files[0];
-    
+
     if (!file) return;
-    
+
+    if (FirebaseManager.getAllianceId()) {
+        window._pendingUploadFile = file;
+        document.getElementById('uploadTargetModal').classList.remove('hidden');
+    } else {
+        await performUpload(file, 'personal');
+    }
+
+    fileInput.value = '';
+}
+
+function closeUploadTargetModal() {
+    window._pendingUploadFile = null;
+    document.getElementById('uploadTargetModal').classList.add('hidden');
+}
+
+async function uploadToPersonal() {
+    const file = window._pendingUploadFile;
+    closeUploadTargetModal();
+    if (file) await performUpload(file, 'personal');
+}
+
+async function uploadToAlliance() {
+    const file = window._pendingUploadFile;
+    closeUploadTargetModal();
+    if (file) await performUpload(file, 'alliance');
+}
+
+async function performUpload(file, target) {
     showMessage('uploadMessage', t('message_upload_processing'), 'processing');
-    
+
     try {
-        // Use Firebase module's upload function which reads from row 10
-        const result = await FirebaseManager.uploadPlayerDatabase(file);
-        
+        let result;
+        if (target === 'alliance') {
+            result = await FirebaseManager.uploadAlliancePlayerDatabase(file);
+        } else {
+            result = await FirebaseManager.uploadPlayerDatabase(file);
+        }
+
         if (result.success) {
             showMessage('uploadMessage', result.message, 'success');
             loadPlayerData();
@@ -656,8 +941,6 @@ async function uploadPlayerData() {
     } catch (error) {
         showMessage('uploadMessage', t('message_upload_failed', { error: error.error || error.message }), 'error');
     }
-    
-    fileInput.value = '';
 }
 
 function loadPlayerData() {
@@ -666,10 +949,12 @@ function loadPlayerData() {
         return;
     }
     
-    const playerDB = FirebaseManager.getPlayerDatabase();
+    const playerDB = FirebaseManager.getActivePlayerDatabase();
     const count = Object.keys(playerDB).length;
-    
-    document.getElementById('playerCount').textContent = t('player_count', { count: count });
+    const source = FirebaseManager.getPlayerSource();
+    const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
+
+    document.getElementById('playerCount').textContent = t('player_count_with_source', { count: count, source: sourceLabel });
     
     if (count > 0) {
         allPlayers = Object.keys(playerDB).map(name => ({
@@ -1456,7 +1741,7 @@ function generateTeamAssignments(team) {
         return;
     }
 
-    const playerDB = FirebaseManager.getPlayerDatabase();
+    const playerDB = FirebaseManager.getActivePlayerDatabase();
 
     const starterPlayers = starters.map(s => ({
         name: s.name,

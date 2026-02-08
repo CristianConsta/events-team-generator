@@ -39,6 +39,11 @@ const FirebaseManager = (function() {
     let buildingConfig = null;
     let buildingPositions = null;
     let buildingPositionsVersion = 0;
+    let allianceId = null;
+    let allianceName = null;
+    let allianceData = null;
+    let playerSource = 'personal';
+    let pendingInvitations = [];
     let onAuthCallback = null;
     let onDataLoadCallback = null;
 
@@ -93,7 +98,12 @@ const FirebaseManager = (function() {
         } else {
             console.log('ℹ️ User signed out');
             playerDatabase = {};
-            
+            allianceId = null;
+            allianceName = null;
+            allianceData = null;
+            playerSource = 'personal';
+            pendingInvitations = [];
+
             if (onAuthCallback) {
                 onAuthCallback(false, null);
             }
@@ -262,9 +272,17 @@ const FirebaseManager = (function() {
                 buildingConfig = Array.isArray(data.buildingConfig) ? data.buildingConfig : null;
                 buildingPositions = data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null;
                 buildingPositionsVersion = typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0;
-                
+                allianceId = data.allianceId || null;
+                allianceName = data.allianceName || null;
+                playerSource = data.playerSource || 'personal';
+
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
-                
+
+                if (allianceId) {
+                    await loadAllianceData();
+                }
+                await checkInvitations();
+
                 if (onDataLoadCallback) {
                     onDataLoadCallback(playerDatabase);
                 }
@@ -280,6 +298,10 @@ const FirebaseManager = (function() {
                 buildingConfig = null;
                 buildingPositions = null;
                 buildingPositionsVersion = 0;
+                allianceId = null;
+                allianceName = null;
+                playerSource = 'personal';
+                await checkInvitations();
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
@@ -470,6 +492,327 @@ const FirebaseManager = (function() {
         return playerDatabase[name] || null;
     }
     
+    // ============================================================
+    // ALLIANCE FUNCTIONS
+    // ============================================================
+
+    async function createAlliance(id, name) {
+        if (!currentUser) return { success: false, error: 'Not signed in' };
+        if (!/^\d{1,5}$/.test(id)) return { success: false, error: 'Alliance ID must be 1-5 digits' };
+        if (!name || name.length > 40) return { success: false, error: 'Name must be 1-40 characters' };
+
+        try {
+            const docRef = db.collection('alliances').doc(id);
+            const existing = await docRef.get();
+            if (existing.exists) {
+                return { success: false, error: 'Alliance ID already exists' };
+            }
+
+            const members = {};
+            members[currentUser.uid] = {
+                email: currentUser.email,
+                joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                role: 'member'
+            };
+
+            await docRef.set({
+                name: name,
+                createdBy: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                members: members,
+                playerDatabase: {},
+                metadata: {
+                    totalPlayers: 0,
+                    lastUpload: null,
+                    lastModified: firebase.firestore.FieldValue.serverTimestamp()
+                }
+            });
+
+            allianceId = id;
+            allianceName = name;
+            await db.collection('users').doc(currentUser.uid).set({
+                allianceId: id,
+                allianceName: name
+            }, { merge: true });
+
+            await loadAllianceData();
+            return { success: true, allianceId: id };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function loadAllianceData() {
+        if (!currentUser || !allianceId) {
+            allianceData = null;
+            return;
+        }
+        try {
+            const doc = await db.collection('alliances').doc(allianceId).get();
+            if (doc.exists) {
+                allianceData = doc.data();
+                if (!allianceData.members || !allianceData.members[currentUser.uid]) {
+                    allianceId = null;
+                    allianceName = null;
+                    allianceData = null;
+                    playerSource = 'personal';
+                    await db.collection('users').doc(currentUser.uid).set({
+                        allianceId: null, allianceName: null, playerSource: 'personal'
+                    }, { merge: true });
+                }
+            } else {
+                allianceId = null;
+                allianceName = null;
+                allianceData = null;
+                playerSource = 'personal';
+                await db.collection('users').doc(currentUser.uid).set({
+                    allianceId: null, allianceName: null, playerSource: 'personal'
+                }, { merge: true });
+            }
+        } catch (error) {
+            console.error('Failed to load alliance data:', error);
+        }
+    }
+
+    async function leaveAlliance() {
+        if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
+
+        try {
+            const memberPath = `members.${currentUser.uid}`;
+            await db.collection('alliances').doc(allianceId).update({
+                [memberPath]: firebase.firestore.FieldValue.delete()
+            });
+
+            allianceId = null;
+            allianceName = null;
+            allianceData = null;
+            playerSource = 'personal';
+
+            await db.collection('users').doc(currentUser.uid).set({
+                allianceId: null, allianceName: null, playerSource: 'personal'
+            }, { merge: true });
+
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function sendInvitation(email) {
+        if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
+
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!normalizedEmail) return { success: false, error: 'Email is required' };
+
+        try {
+            const existing = await db.collection('invitations')
+                .where('allianceId', '==', allianceId)
+                .where('invitedEmail', '==', normalizedEmail)
+                .where('status', '==', 'pending')
+                .get();
+
+            if (!existing.empty) {
+                return { success: false, error: 'Invitation already pending for this email' };
+            }
+
+            await db.collection('invitations').add({
+                allianceId: allianceId,
+                allianceName: allianceName,
+                invitedEmail: normalizedEmail,
+                invitedBy: currentUser.uid,
+                inviterEmail: currentUser.email,
+                status: 'pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                respondedAt: null
+            });
+
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function checkInvitations() {
+        if (!currentUser || !currentUser.email) {
+            pendingInvitations = [];
+            return [];
+        }
+
+        try {
+            const snapshot = await db.collection('invitations')
+                .where('invitedEmail', '==', currentUser.email.toLowerCase())
+                .where('status', '==', 'pending')
+                .get();
+
+            pendingInvitations = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            return pendingInvitations;
+        } catch (error) {
+            console.error('Failed to check invitations:', error);
+            pendingInvitations = [];
+            return [];
+        }
+    }
+
+    async function acceptInvitation(invitationId) {
+        if (!currentUser) return { success: false, error: 'Not signed in' };
+
+        try {
+            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
+
+            const inv = invDoc.data();
+            if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+
+            if (allianceId) {
+                await leaveAlliance();
+            }
+
+            const memberPath = `members.${currentUser.uid}`;
+            await db.collection('alliances').doc(inv.allianceId).update({
+                [memberPath]: {
+                    email: currentUser.email,
+                    joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    role: 'member'
+                }
+            });
+
+            await db.collection('invitations').doc(invitationId).update({
+                status: 'accepted',
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            allianceId = inv.allianceId;
+            allianceName = inv.allianceName;
+            await db.collection('users').doc(currentUser.uid).set({
+                allianceId: inv.allianceId,
+                allianceName: inv.allianceName
+            }, { merge: true });
+
+            await loadAllianceData();
+            return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function rejectInvitation(invitationId) {
+        if (!currentUser) return { success: false, error: 'Not signed in' };
+
+        try {
+            await db.collection('invitations').doc(invitationId).update({
+                status: 'rejected',
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            pendingInvitations = pendingInvitations.filter(inv => inv.id !== invitationId);
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function uploadAlliancePlayerDatabase(file) {
+        if (!currentUser || !allianceId) {
+            return Promise.reject({ success: false, error: 'Not in an alliance' });
+        }
+
+        return new Promise((resolve, reject) => {
+            if (!file || file.size > MAX_UPLOAD_BYTES) {
+                reject({ success: false, error: 'File too large (max 5MB)' });
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    if (!workbook.Sheets['Players']) {
+                        reject({ success: false, error: 'Excel file must contain a "Players" sheet' });
+                        return;
+                    }
+
+                    const sheet = workbook.Sheets['Players'];
+                    const players = XLSX.utils.sheet_to_json(sheet, { range: 9 });
+
+                    const alliancePlayerDB = {};
+                    let addedCount = 0;
+
+                    players.forEach(row => {
+                        const name = row['Player Name'];
+                        if (name) {
+                            alliancePlayerDB[name] = {
+                                power: row['E1 Total Power(M)'] ? parseFloat(row['E1 Total Power(M)']) : 0,
+                                troops: row['E1 Troops'] || 'Unknown',
+                                lastUpdated: new Date().toISOString(),
+                                updatedBy: currentUser.uid
+                            };
+                            addedCount++;
+                        }
+                    });
+
+                    await db.collection('alliances').doc(allianceId).set({
+                        playerDatabase: alliancePlayerDB,
+                        metadata: {
+                            totalPlayers: addedCount,
+                            lastUpload: new Date().toISOString(),
+                            lastModified: firebase.firestore.FieldValue.serverTimestamp()
+                        }
+                    }, { merge: true });
+
+                    if (allianceData) {
+                        allianceData.playerDatabase = alliancePlayerDB;
+                    }
+
+                    resolve({
+                        success: true,
+                        playerCount: addedCount,
+                        message: `${addedCount} players uploaded to alliance`
+                    });
+                } catch (error) {
+                    reject({ success: false, error: error.message });
+                }
+            };
+            reader.onerror = () => reject({ success: false, error: 'Failed to read file' });
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function getAlliancePlayerDatabase() {
+        return allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {};
+    }
+
+    function getActivePlayerDatabase() {
+        if (playerSource === 'alliance' && allianceData && allianceData.playerDatabase) {
+            return allianceData.playerDatabase;
+        }
+        return playerDatabase;
+    }
+
+    async function setPlayerSource(source) {
+        if (source !== 'personal' && source !== 'alliance') return;
+        playerSource = source;
+        if (currentUser) {
+            await db.collection('users').doc(currentUser.uid).set({
+                playerSource: source
+            }, { merge: true });
+        }
+    }
+
+    function getAllianceId() { return allianceId; }
+    function getAllianceName() { return allianceName; }
+    function getAllianceData() { return allianceData; }
+    function getPlayerSource() { return playerSource; }
+    function getPendingInvitations() { return pendingInvitations; }
+    function getAllianceMembers() {
+        return allianceData && allianceData.members ? allianceData.members : {};
+    }
+
     // ============================================================
     // BACKUP & RESTORE FUNCTIONS
     // ============================================================
@@ -695,7 +1038,26 @@ const FirebaseManager = (function() {
         
         // Templates
         generatePlayerDatabaseTemplate: generatePlayerDatabaseTemplate,
-        generateTeamRosterTemplate: generateTeamRosterTemplate
+        generateTeamRosterTemplate: generateTeamRosterTemplate,
+
+        // Alliance
+        createAlliance: createAlliance,
+        leaveAlliance: leaveAlliance,
+        loadAllianceData: loadAllianceData,
+        sendInvitation: sendInvitation,
+        checkInvitations: checkInvitations,
+        acceptInvitation: acceptInvitation,
+        rejectInvitation: rejectInvitation,
+        uploadAlliancePlayerDatabase: uploadAlliancePlayerDatabase,
+        getAlliancePlayerDatabase: getAlliancePlayerDatabase,
+        getActivePlayerDatabase: getActivePlayerDatabase,
+        setPlayerSource: setPlayerSource,
+        getAllianceId: getAllianceId,
+        getAllianceName: getAllianceName,
+        getAllianceData: getAllianceData,
+        getPlayerSource: getPlayerSource,
+        getPendingInvitations: getPendingInvitations,
+        getAllianceMembers: getAllianceMembers
     };
     
 })();
