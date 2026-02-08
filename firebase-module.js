@@ -1116,6 +1116,11 @@ const FirebaseManager = (function() {
     
 })();
 
+// Expose for adapters that read from window/global object
+if (typeof window !== 'undefined') {
+    window.FirebaseManager = FirebaseManager;
+}
+
 // Auto-initialize on load
 if (typeof firebase !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
