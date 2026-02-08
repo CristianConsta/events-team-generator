@@ -25,6 +25,53 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
     margin-bottom: 20px;
 }
 .page-header h1 { margin: 0; }
+
+/* ── Event Selector (segmented tabs) ── */
+.event-selector {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--gold);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.event-btn {
+    padding: 8px 18px;
+    border: none;
+    background: transparent;
+    color: var(--gold);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+.event-btn + .event-btn {
+    border-left: 1px solid var(--gold);
+}
+.event-btn:hover {
+    background: rgba(var(--gold-rgb), 0.15);
+}
+.event-btn.active {
+    background: var(--gold);
+    color: #1a1a2e;
+}
+
+/* ── Alliance create button (next to email) ── */
+#allianceCreateBtn {
+    display: none;
+    background: transparent;
+    border: 1px solid rgba(var(--gold-rgb), 0.4);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    cursor: pointer;
+    color: var(--gold);
+    font-size: 16px;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+}
 .card {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 15px;
@@ -507,6 +554,7 @@ input[type="file"] { display: none; }
 
     /* Page header */
     .page-header { gap: 8px; }
+    .event-btn { padding: 6px 12px; font-size: 12px; }
     .header-icon-btn .btn-label { display: none; }
     .header-icon-btn { padding: 10px !important; }
 

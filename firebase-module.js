@@ -36,9 +36,11 @@ const FirebaseManager = (function() {
     let db = null;
     let currentUser = null;
     let playerDatabase = {};
-    let buildingConfig = null;
-    let buildingPositions = null;
-    let buildingPositionsVersion = 0;
+    // Per-event building data: { desert_storm: { buildingConfig, buildingPositions, buildingPositionsVersion }, canyon_battlefield: { ... } }
+    let eventData = {
+        desert_storm: { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 },
+        canyon_battlefield: { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 }
+    };
     let allianceId = null;
     let allianceName = null;
     let allianceData = null;
@@ -98,6 +100,9 @@ const FirebaseManager = (function() {
         } else {
             console.log('ℹ️ User signed out');
             playerDatabase = {};
+            Object.keys(eventData).forEach(eid => {
+                eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+            });
             allianceId = null;
             allianceName = null;
             allianceData = null;
@@ -269,12 +274,60 @@ const FirebaseManager = (function() {
             if (doc.exists) {
                 const data = doc.data();
                 playerDatabase = data.playerDatabase || {};
-                buildingConfig = Array.isArray(data.buildingConfig) ? data.buildingConfig : null;
-                buildingPositions = data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null;
-                buildingPositionsVersion = typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0;
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
+
+                // Load per-event building data
+                if (data.events && typeof data.events === 'object') {
+                    // New schema: per-event data under events map
+                    Object.keys(eventData).forEach(eid => {
+                        const ed = data.events[eid];
+                        if (ed && typeof ed === 'object') {
+                            eventData[eid] = {
+                                buildingConfig: Array.isArray(ed.buildingConfig) ? ed.buildingConfig : null,
+                                buildingPositions: ed.buildingPositions && typeof ed.buildingPositions === 'object' ? ed.buildingPositions : null,
+                                buildingPositionsVersion: typeof ed.buildingPositionsVersion === 'number' ? ed.buildingPositionsVersion : 0
+                            };
+                        } else {
+                            eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                        }
+                    });
+                } else if (Array.isArray(data.buildingConfig) || (data.buildingPositions && typeof data.buildingPositions === 'object')) {
+                    // Migration: old top-level fields → move to events.desert_storm
+                    console.log('🔄 Migrating old building data to per-event schema...');
+                    eventData.desert_storm = {
+                        buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : null,
+                        buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null,
+                        buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0
+                    };
+                    eventData.canyon_battlefield = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                    // Save migrated data and remove old top-level fields
+                    try {
+                        const batch = db.batch();
+                        const userRef = db.collection('users').doc(user.uid);
+                        batch.set(userRef, {
+                            events: {
+                                desert_storm: eventData.desert_storm,
+                                canyon_battlefield: eventData.canyon_battlefield
+                            }
+                        }, { merge: true });
+                        batch.update(userRef, {
+                            buildingConfig: firebase.firestore.FieldValue.delete(),
+                            buildingPositions: firebase.firestore.FieldValue.delete(),
+                            buildingPositionsVersion: firebase.firestore.FieldValue.delete()
+                        });
+                        await batch.commit();
+                        console.log('✅ Migration complete');
+                    } catch (migErr) {
+                        console.warn('⚠️ Migration save failed (will retry next load):', migErr);
+                    }
+                } else {
+                    // No building data at all — reset
+                    Object.keys(eventData).forEach(eid => {
+                        eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                    });
+                }
 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
 
@@ -286,18 +339,18 @@ const FirebaseManager = (function() {
                 if (onDataLoadCallback) {
                     onDataLoadCallback(playerDatabase);
                 }
-                
-                return { 
-                    success: true, 
+
+                return {
+                    success: true,
                     data: playerDatabase,
                     playerCount: Object.keys(playerDatabase).length
                 };
             } else {
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
-                buildingConfig = null;
-                buildingPositions = null;
-                buildingPositionsVersion = 0;
+                Object.keys(eventData).forEach(eid => {
+                    eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                });
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
@@ -323,9 +376,7 @@ const FirebaseManager = (function() {
             
             await db.collection('users').doc(currentUser.uid).set({
                 playerDatabase: playerDatabase,
-                buildingConfig: buildingConfig,
-                buildingPositions: buildingPositions,
-                buildingPositionsVersion: buildingPositionsVersion,
+                events: eventData,
                 metadata: {
                     email: currentUser.email || null,
                     totalPlayers: Object.keys(playerDatabase).length,
@@ -443,39 +494,48 @@ const FirebaseManager = (function() {
     }
 
     /**
-     * Get building configuration
+     * Get building configuration for an event
      */
-    function getBuildingConfig() {
-        return buildingConfig;
+    function getBuildingConfig(eventId) {
+        const eid = eventId || 'desert_storm';
+        return eventData[eid] ? eventData[eid].buildingConfig : null;
     }
 
     /**
-     * Set building configuration
+     * Set building configuration for an event
      */
-    function setBuildingConfig(config) {
-        buildingConfig = config;
+    function setBuildingConfig(eventId, config) {
+        const eid = eventId || 'desert_storm';
+        if (!eventData[eid]) eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+        eventData[eid].buildingConfig = config;
     }
 
     /**
-     * Get building positions
+     * Get building positions for an event
      */
-    function getBuildingPositions() {
-        return buildingPositions;
+    function getBuildingPositions(eventId) {
+        const eid = eventId || 'desert_storm';
+        return eventData[eid] ? eventData[eid].buildingPositions : null;
     }
 
     /**
-     * Set building positions
+     * Set building positions for an event
      */
-    function setBuildingPositions(positions) {
-        buildingPositions = positions;
+    function setBuildingPositions(eventId, positions) {
+        const eid = eventId || 'desert_storm';
+        if (!eventData[eid]) eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+        eventData[eid].buildingPositions = positions;
     }
 
-    function getBuildingPositionsVersion() {
-        return buildingPositionsVersion;
+    function getBuildingPositionsVersion(eventId) {
+        const eid = eventId || 'desert_storm';
+        return eventData[eid] ? eventData[eid].buildingPositionsVersion : 0;
     }
 
-    function setBuildingPositionsVersion(version) {
-        buildingPositionsVersion = version;
+    function setBuildingPositionsVersion(eventId, version) {
+        const eid = eventId || 'desert_storm';
+        if (!eventData[eid]) eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+        eventData[eid].buildingPositionsVersion = version;
     }
 
     /**

@@ -302,96 +302,171 @@ function getStarterCount(teamKey) {
 function getSubstituteCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'substitute').length;
 }
-let mapLoaded = false;
 let uploadPanelExpanded = true;
 let activeDownloadTeam = null;
 
-// Load desert storm map
-// IMPORTANT: Put 'desert-storm-map.png' in the same folder as this HTML file
-const mapImage = new Image();
-let mapLoadRetries = 0;
+// ============================================================
+// EVENT REGISTRY
+// ============================================================
+
+const EVENT_REGISTRY = {
+    desert_storm: {
+        id: 'desert_storm',
+        titleKey: 'event_desert_storm',
+        mapFile: 'desert-storm-map.png',
+        mapTitle: 'DESERT STORM',
+        excelPrefix: 'desert_storm',
+        buildings: [
+            { name: 'Bomb Squad', priority: 1, slots: 4 },
+            { name: 'Oil Refinery 1', priority: 3, slots: 2 },
+            { name: 'Oil Refinery 2', priority: 3, slots: 2 },
+            { name: 'Field Hospital 1', priority: 4, slots: 2 },
+            { name: 'Field Hospital 2', priority: 4, slots: 2 },
+            { name: 'Field Hospital 3', priority: 4, slots: 2 },
+            { name: 'Field Hospital 4', priority: 4, slots: 2 },
+            { name: 'Info Center', priority: 5, slots: 2 },
+            { name: 'Science Hub', priority: 5, slots: 2 },
+        ],
+        defaultPositions: {
+            'Info Center': [366, 38],
+            'Field Hospital 4': [785, 139],
+            'Oil Refinery 1': [194, 260],
+            'Field Hospital 2': [951, 247],
+            'Oil Refinery 2': [914, 472],
+            'Field Hospital 1': [161, 458],
+            'Field Hospital 3': [314, 654],
+            'Science Hub': [774, 656],
+        },
+        buildingAnchors: {
+            'Info Center': 'left',
+            'Field Hospital 4': 'right',
+            'Oil Refinery 1': 'left',
+            'Field Hospital 2': 'right',
+            'Oil Refinery 2': 'right',
+            'Field Hospital 1': 'left',
+            'Field Hospital 3': 'left',
+            'Science Hub': 'right',
+        },
+    },
+    canyon_battlefield: {
+        id: 'canyon_battlefield',
+        titleKey: 'event_canyon_battlefield',
+        mapFile: 'canyon-battlefield-map.png',
+        mapTitle: 'CANYON BATTLEFIELD',
+        excelPrefix: 'canyon_battlefield',
+        buildings: [
+            { name: 'Bomb Squad', priority: 1, slots: 4 },
+            { name: 'Missile Silo 1', priority: 2, slots: 2 },
+            { name: 'Missile Silo 2', priority: 2, slots: 2 },
+            { name: 'Radar Station 1', priority: 3, slots: 2 },
+            { name: 'Radar Station 2', priority: 3, slots: 2 },
+            { name: 'Watchtower 1', priority: 4, slots: 1 },
+            { name: 'Watchtower 2', priority: 4, slots: 1 },
+            { name: 'Watchtower 3', priority: 4, slots: 1 },
+            { name: 'Watchtower 4', priority: 4, slots: 1 },
+            { name: 'Command Center', priority: 3, slots: 2 },
+            { name: 'Supply Depot', priority: 5, slots: 1 },
+            { name: 'Armory', priority: 5, slots: 1 },
+            { name: 'Comm Tower', priority: 5, slots: 0 },
+        ],
+        defaultPositions: {},
+        buildingAnchors: {},
+    },
+};
+
+let currentEvent = 'desert_storm';
+
+function getActiveEvent() {
+    return EVENT_REGISTRY[currentEvent];
+}
+
+// Per-event building state
+let buildingConfigs = { desert_storm: null, canyon_battlefield: null };
+let buildingPositionsMap = { desert_storm: {}, canyon_battlefield: {} };
+
+// Per-event map images
+const mapImages = { desert_storm: new Image(), canyon_battlefield: new Image() };
+let mapLoadedFlags = { desert_storm: false, canyon_battlefield: false };
+let mapLoadRetries = { desert_storm: 0, canyon_battlefield: 0 };
 const maxRetries = 3;
 
-function loadMapImage() {
+function loadMapImage(eventId) {
+    const eid = eventId || currentEvent;
+    const evt = EVENT_REGISTRY[eid];
     return new Promise((resolve, reject) => {
-        mapImage.onload = () => { 
-            mapLoaded = true; 
-            console.log('✅ Map loaded successfully');
+        mapImages[eid].onload = () => {
+            mapLoadedFlags[eid] = true;
+            console.log('✅ Map loaded for ' + eid);
             resolve(true);
         };
-        
-        mapImage.onerror = () => {
-            console.error('❌ Map failed to load, attempt:', mapLoadRetries + 1);
-            
-            if (mapLoadRetries < maxRetries) {
-                mapLoadRetries++;
-                console.log('Retrying map load...');
+        mapImages[eid].onerror = () => {
+            console.error('❌ Map failed to load for ' + eid + ', attempt:', mapLoadRetries[eid] + 1);
+            if (mapLoadRetries[eid] < maxRetries) {
+                mapLoadRetries[eid]++;
                 setTimeout(() => {
-                    mapImage.src = 'desert-storm-map.png?' + Date.now();
-                }, 1000 * mapLoadRetries);
+                    mapImages[eid].src = evt.mapFile + '?' + Date.now();
+                }, 1000 * mapLoadRetries[eid]);
             } else {
-                alert(t('coord_map_not_loaded'));
-                console.error('Map loading failed after', maxRetries, 'attempts');
+                console.error('Map loading failed for ' + eid + ' after ' + maxRetries + ' attempts');
                 reject(false);
             }
         };
-        
-        // Load local map file (no CORS issues!)
-        mapImage.src = 'desert-storm-map.png';
+        mapImages[eid].src = evt.mapFile;
     });
 }
 
-// Start loading map immediately
-loadMapImage().catch(() => {
-    console.warn('Map failed to load, continuing without it');
+// Start loading Desert Storm map immediately; Canyon loaded on first switch
+loadMapImage('desert_storm').catch(() => {
+    console.warn('Desert Storm map failed to load, continuing without it');
 });
 
-// Building positions on the map (scaled for 1080px width from 2048x1446 original)
 const BUILDING_POSITIONS_VERSION = 1;
-const defaultBuildingPositions = {
-    'Info Center': [366, 38],
-    'Field Hospital 4': [785, 139],
-    'Oil Refinery 1': [194, 260],
-    'Field Hospital 2': [951, 247],
-    'Oil Refinery 2': [914, 472],
-    'Field Hospital 1': [161, 458],
-    'Field Hospital 3': [314, 654],
-    'Science Hub': [774, 656],
-};
-
-const buildingAnchors = {
-    'Info Center': 'left',
-    'Field Hospital 4': 'right',
-    'Oil Refinery 1': 'left',
-    'Field Hospital 2': 'right',
-    'Oil Refinery 2': 'right',
-    'Field Hospital 1': 'left',
-    'Field Hospital 3': 'left',
-    'Science Hub': 'right',
-};
 
 const textColors = { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' };
-const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)', 
+const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)',
                   4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' };
 
-// Building definitions with priorities (total slots max 20)
-const defaultBuildings = [
-    { name: 'Bomb Squad', priority: 1, slots: 4 },
-    { name: 'Oil Refinery 1', priority: 3, slots: 2 },
-    { name: 'Oil Refinery 2', priority: 3, slots: 2 },
-    { name: 'Field Hospital 1', priority: 4, slots: 2 },
-    { name: 'Field Hospital 2', priority: 4, slots: 2 },
-    { name: 'Field Hospital 3', priority: 4, slots: 2 },
-    { name: 'Field Hospital 4', priority: 4, slots: 2 },
-    { name: 'Info Center', priority: 5, slots: 2 },
-    { name: 'Science Hub', priority: 5, slots: 2 },
-];
 const MAX_BUILDING_SLOTS_TOTAL = 20;
 const MIN_BUILDING_SLOTS = 0;
 
-let buildingConfig = defaultBuildings.map((b) => ({ ...b }));
-// Only store user-picked coordinates here; defaults are used as fallback for rendering.
-let buildingPositions = {};
+function switchEvent(eventId) {
+    if (!EVENT_REGISTRY[eventId] || eventId === currentEvent) return;
+    currentEvent = eventId;
+
+    // Update event selector buttons
+    document.querySelectorAll('.event-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.event === eventId);
+    });
+
+    // Load building config for new event
+    loadBuildingConfig();
+    loadBuildingPositions();
+
+    // Re-render buildings table if panel is open
+    const buildingsPanel = document.getElementById('buildingsPanel');
+    if (buildingsPanel && !buildingsPanel.classList.contains('hidden')) {
+        renderBuildingsTable();
+    }
+
+    // Close coordinate picker if open
+    const coordOverlay = document.getElementById('coordPickerOverlay');
+    if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
+        closeCoordinatesPicker();
+    }
+
+    // Clear old event's assignments
+    assignmentsA = [];
+    assignmentsB = [];
+    substitutesA = [];
+    substitutesB = [];
+
+    // Load map for new event if needed
+    if (!mapLoadedFlags[eventId]) {
+        loadMapImage(eventId).catch(() => {
+            console.warn(eventId + ' map failed to load');
+        });
+    }
+}
 
 // ============================================================
 // FIREBASE INTEGRATION
@@ -773,12 +848,17 @@ function updateAllianceHeaderDisplay() {
     const aid = FirebaseManager.getAllianceId();
     const aName = FirebaseManager.getAllianceName();
     const display = document.getElementById('allianceDisplay');
+    const createBtn = document.getElementById('allianceCreateBtn');
 
-    if (aid && display) {
-        display.textContent = '(' + (aName || aid) + ')';
-        display.style.display = 'inline';
-    } else if (display) {
-        display.style.display = 'none';
+    if (aid) {
+        if (display) {
+            display.textContent = '(' + (aName || aid) + ')';
+            display.style.display = 'inline';
+        }
+        if (createBtn) createBtn.style.display = 'none';
+    } else {
+        if (display) display.style.display = 'none';
+        if (createBtn) createBtn.style.display = 'inline-flex';
     }
 }
 
@@ -996,7 +1076,26 @@ function toggleBuildingsPanel() {
 }
 
 function getDefaultBuildings() {
-    return defaultBuildings.map((b) => ({ ...b }));
+    return getActiveEvent().buildings.map((b) => ({ ...b }));
+}
+
+function getBuildingConfig() {
+    if (!buildingConfigs[currentEvent]) {
+        buildingConfigs[currentEvent] = getDefaultBuildings();
+    }
+    return buildingConfigs[currentEvent];
+}
+
+function setBuildingConfig(config) {
+    buildingConfigs[currentEvent] = config;
+}
+
+function getBuildingPositions() {
+    return buildingPositionsMap[currentEvent];
+}
+
+function setBuildingPositionsLocal(positions) {
+    buildingPositionsMap[currentEvent] = positions;
 }
 
 function clampPriority(value, fallback) {
@@ -1026,10 +1125,11 @@ function getBuildingSlotsTotal(config) {
 }
 
 function normalizeBuildingConfig(config) {
+    const defaults = getDefaultBuildings();
     if (!Array.isArray(config)) {
-        return getDefaultBuildings();
+        return defaults;
     }
-    return defaultBuildings.map((def) => {
+    return defaults.map((def) => {
         const stored = config.find((b) => b && b.name === def.name);
         const priority = clampPriority(stored && stored.priority, def.priority);
         const slots = clampSlots(stored && stored.slots, def.slots);
@@ -1038,7 +1138,7 @@ function normalizeBuildingConfig(config) {
 }
 
 function getDefaultBuildingPositions() {
-    return JSON.parse(JSON.stringify(defaultBuildingPositions));
+    return JSON.parse(JSON.stringify(getActiveEvent().defaultPositions));
 }
 
 function normalizeBuildingPositions(positions) {
@@ -1046,7 +1146,7 @@ function normalizeBuildingPositions(positions) {
     if (!positions || typeof positions !== 'object') {
         return normalized;
     }
-    const validNames = new Set(defaultBuildings.map((b) => b.name));
+    const validNames = new Set(getActiveEvent().buildings.map((b) => b.name));
     Object.keys(positions).forEach((name) => {
         if (!validNames.has(name)) return;
         const value = positions[name];
@@ -1062,33 +1162,35 @@ function normalizeBuildingPositions(positions) {
 }
 
 function getEffectiveBuildingPositions() {
-    return { ...getDefaultBuildingPositions(), ...buildingPositions };
+    return { ...getDefaultBuildingPositions(), ...getBuildingPositions() };
 }
 
 function getEffectiveBuildingConfig() {
-    return normalizeBuildingConfig(buildingConfig);
+    return normalizeBuildingConfig(getBuildingConfig());
 }
 
 function loadBuildingConfig() {
     if (typeof FirebaseManager === 'undefined') {
-        buildingConfig = getDefaultBuildings();
+        setBuildingConfig(getDefaultBuildings());
         renderBuildingsTable();
         return;
     }
-    const stored = FirebaseManager.getBuildingConfig();
-    buildingConfig = normalizeBuildingConfig(stored);
-    const totalSlots = getBuildingSlotsTotal(buildingConfig);
+    const stored = FirebaseManager.getBuildingConfig(currentEvent);
+    const normalized = normalizeBuildingConfig(stored);
+    setBuildingConfig(normalized);
+    const totalSlots = getBuildingSlotsTotal(normalized);
     const slotsOverLimit = totalSlots > MAX_BUILDING_SLOTS_TOTAL;
     if (slotsOverLimit) {
-        buildingConfig = getDefaultBuildings();
+        setBuildingConfig(getDefaultBuildings());
         showMessage('buildingsStatus', t('buildings_slots_exceeded_saved', { max: MAX_BUILDING_SLOTS_TOTAL }), 'error');
     }
 
-    const needsSave = slotsOverLimit || !Array.isArray(stored) || stored.length !== buildingConfig.length || stored.some((item) => {
+    const config = getBuildingConfig();
+    const needsSave = slotsOverLimit || !Array.isArray(stored) || stored.length !== config.length || stored.some((item) => {
         if (!item || !item.name) {
             return true;
         }
-        const match = buildingConfig.find((b) => b.name === item.name);
+        const match = config.find((b) => b.name === item.name);
         if (!match) {
             return true;
         }
@@ -1104,7 +1206,7 @@ function loadBuildingConfig() {
     });
 
     if (needsSave) {
-        FirebaseManager.setBuildingConfig(buildingConfig);
+        FirebaseManager.setBuildingConfig(currentEvent, config);
     }
 
     renderBuildingsTable();
@@ -1113,16 +1215,16 @@ function loadBuildingConfig() {
 
 function loadBuildingPositions() {
     if (typeof FirebaseManager === 'undefined') {
-        buildingPositions = {};
+        setBuildingPositionsLocal({});
         return false;
     }
-    const storedVersion = FirebaseManager.getBuildingPositionsVersion();
-    const stored = FirebaseManager.getBuildingPositions();
-    buildingPositions = normalizeBuildingPositions(stored);
-    if (Object.keys(buildingPositions).length === 0 || storedVersion < BUILDING_POSITIONS_VERSION) {
-        buildingPositions = getDefaultBuildingPositions();
-        FirebaseManager.setBuildingPositions(buildingPositions);
-        FirebaseManager.setBuildingPositionsVersion(BUILDING_POSITIONS_VERSION);
+    const storedVersion = FirebaseManager.getBuildingPositionsVersion(currentEvent);
+    const stored = FirebaseManager.getBuildingPositions(currentEvent);
+    setBuildingPositionsLocal(normalizeBuildingPositions(stored));
+    if (Object.keys(getBuildingPositions()).length === 0 || storedVersion < BUILDING_POSITIONS_VERSION) {
+        setBuildingPositionsLocal(getDefaultBuildingPositions());
+        FirebaseManager.setBuildingPositions(currentEvent, getBuildingPositions());
+        FirebaseManager.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
         return true;
     }
     return false;
@@ -1133,7 +1235,7 @@ function renderBuildingsTable() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    buildingConfig.forEach((b, index) => {
+    getBuildingConfig().forEach((b, index) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${b.name}</td>
@@ -1150,7 +1252,7 @@ function renderBuildingsTable() {
 
 function readBuildingConfigFromTable() {
     const tbody = document.getElementById('buildingsTableBody');
-    const updated = buildingConfig.map((b) => ({ ...b }));
+    const updated = getBuildingConfig().map((b) => ({ ...b }));
     if (!tbody) {
         return { updated, totalSlots: getBuildingSlotsTotal(updated) };
     }
@@ -1175,7 +1277,7 @@ function readBuildingConfigFromTable() {
 }
 
 function resetBuildingsToDefault() {
-    buildingConfig = getDefaultBuildings();
+    setBuildingConfig(getDefaultBuildings());
     renderBuildingsTable();
 }
 
@@ -1186,7 +1288,7 @@ async function saveBuildingConfig() {
         return;
     }
 
-    buildingConfig = normalizeBuildingConfig(updated);
+    setBuildingConfig(normalizeBuildingConfig(updated));
     renderBuildingsTable();
 
     if (typeof FirebaseManager === 'undefined') {
@@ -1194,7 +1296,7 @@ async function saveBuildingConfig() {
         return;
     }
 
-    FirebaseManager.setBuildingConfig(buildingConfig);
+    FirebaseManager.setBuildingConfig(currentEvent, getBuildingConfig());
     const result = await FirebaseManager.saveUserData();
     if (result.success) {
         showMessage('buildingsStatus', t('buildings_saved'), 'success');
@@ -1223,7 +1325,7 @@ function syncBuildingConfigFromTable() {
         showMessage('buildingsStatus', t('buildings_slots_exceeded', { max: MAX_BUILDING_SLOTS_TOTAL, total: totalSlots }), 'error');
         return false;
     }
-    buildingConfig = normalizeBuildingConfig(updated);
+    setBuildingConfig(normalizeBuildingConfig(updated));
     return true;
 }
 
@@ -1232,7 +1334,7 @@ let coordBuildings = [];
 
 function openCoordinatesPicker() {
     loadBuildingPositions();
-    coordBuildings = buildingConfig.filter((b) => b.name !== 'Bomb Squad').map((b) => b.name);
+    coordBuildings = getBuildingConfig().filter((b) => b.name !== 'Bomb Squad').map((b) => b.name);
     if (coordBuildings.length === 0) {
         showMessage('coordStatus', t('coord_no_buildings'), 'error');
         return;
@@ -1249,7 +1351,7 @@ function closeCoordinatesPicker() {
 
 function updateCoordLabel() {
     const name = coordBuildings[coordBuildingIndex];
-    const pos = buildingPositions[name];
+    const pos = getBuildingPositions()[name];
     document.getElementById('coordBuildingLabel').textContent = name || '';
     document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
     document.getElementById('coordBuildingValue').textContent = pos
@@ -1264,8 +1366,11 @@ function drawCoordCanvas() {
 
     updateCoordLabel();
 
-    if (!mapLoaded) {
-        loadMapImage()
+    const activeMapImage = mapImages[currentEvent];
+    const activeMapLoaded = mapLoadedFlags[currentEvent];
+
+    if (!activeMapLoaded) {
+        loadMapImage(currentEvent)
             .then(() => drawCoordCanvas())
             .catch(() => {
                 showMessage('coordStatus', t('coord_map_not_loaded'), 'error');
@@ -1274,13 +1379,13 @@ function drawCoordCanvas() {
     }
 
     const ctx = canvas.getContext('2d');
-    const mapHeight = Math.floor(mapImage.height * (1080 / mapImage.width));
+    const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
     canvas.width = 1080;
     canvas.height = mapHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(mapImage, 0, 0, 1080, mapHeight);
+    ctx.drawImage(activeMapImage, 0, 0, 1080, mapHeight);
 
-    Object.entries(buildingPositions).forEach(([name, pos]) => {
+    Object.entries(getBuildingPositions()).forEach(([name, pos]) => {
         if (!pos) return;
         const isActive = name === coordBuildings[coordBuildingIndex];
         ctx.beginPath();
@@ -1303,7 +1408,7 @@ function coordCanvasClick(event) {
     const y = Math.round((event.clientY - rect.top) * scaleY);
     const name = coordBuildings[coordBuildingIndex];
     if (!name) return;
-    buildingPositions[name] = [x, y];
+    getBuildingPositions()[name] = [x, y];
     updateCoordLabel();
     drawCoordCanvas();
     if (coordBuildingIndex < coordBuildings.length - 1) {
@@ -1332,8 +1437,8 @@ async function saveBuildingPositions() {
         showMessage('coordStatus', t('coord_changes_not_saved'), 'error');
         return;
     }
-    FirebaseManager.setBuildingPositions(buildingPositions);
-    FirebaseManager.setBuildingPositionsVersion(BUILDING_POSITIONS_VERSION);
+    FirebaseManager.setBuildingPositions(currentEvent, getBuildingPositions());
+    FirebaseManager.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
     const result = await FirebaseManager.saveUserData();
     if (result.success) {
         showMessage('coordStatus', t('coord_saved'), 'success');
@@ -1885,7 +1990,7 @@ function downloadTeamExcel(team) {
     }));
     
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), t('excel_sheet_name', { team: team }));
-    XLSX.writeFile(wb, `desert_storm_team_${team}_assignments.xlsx`);
+    XLSX.writeFile(wb, `${getActiveEvent().excelPrefix}_team_${team}_assignments.xlsx`);
     
     const statusId = 'downloadStatus';
     showMessage(statusId, t('message_excel_downloaded'), 'success');
@@ -1901,13 +2006,13 @@ function downloadTeamMap(team) {
     
     const statusId = 'downloadStatus';
     
-    if (!mapLoaded) {
+    if (!mapLoadedFlags[currentEvent]) {
         showMessage(statusId, t('message_map_wait'), 'processing');
         // Wait up to 10 seconds for map to load
         let waitTime = 0;
         const checkInterval = setInterval(() => {
             waitTime += 500;
-            if (mapLoaded) {
+            if (mapLoadedFlags[currentEvent]) {
                 clearInterval(checkInterval);
                 generateMap(team, assignments, statusId);
             } else if (waitTime >= 10000) {
@@ -1962,8 +2067,8 @@ function generateMapWithoutBackground(team, assignments, statusId) {
         ctx.font = 'bold 48px Arial';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
-        ctx.fillText(`TEAM ${team} - DESERT STORM`, 540, 60);
-        
+        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, 540, 60);
+
         // List assignments
         ctx.fillStyle = '#333';
         ctx.font = '16px Arial';
@@ -1981,7 +2086,7 @@ function generateMapWithoutBackground(team, assignments, statusId) {
         const dataURL = canvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = dataURL;
-        a.download = `team_${team}_desert_storm_nomap.png`;
+        a.download = `team_${team}_${getActiveEvent().excelPrefix}_nomap.png`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -2015,7 +2120,8 @@ function generateMap(team, assignments, statusId) {
 
         const titleHeight = 100;
         const bombHeight = 250;
-        const mapHeight = Math.floor(mapImage.height * (1080 / mapImage.width));
+        const activeMapImage = mapImages[currentEvent];
+        const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
         const totalHeight = titleHeight + mapHeight + bombHeight;
 
         // Add substitutes panel width if there are substitutes
@@ -2041,9 +2147,9 @@ function generateMap(team, assignments, statusId) {
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`TEAM ${team} - DESERT STORM`, 540, titleHeight / 2);
+        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, 540, titleHeight / 2);
 
-        ctx.drawImage(mapImage, 0, titleHeight, 1080, mapHeight);
+        ctx.drawImage(activeMapImage, 0, titleHeight, 1080, mapHeight);
 
         let drawnCount = 0;
         const effectivePositions = getEffectiveBuildingPositions();
@@ -2053,7 +2159,7 @@ function generateMap(team, assignments, statusId) {
             const [x, y_base] = effectivePositions[building];
             const y = y_base + titleHeight;
             const players = grouped[building];
-            const anchor = buildingAnchors[building] || 'left';
+            const anchor = (getActiveEvent().buildingAnchors[building]) || 'left';
 
             players.slice(0, 2).forEach((player, i) => {
                 const name = player.player;
@@ -2196,7 +2302,7 @@ function generateMap(team, assignments, statusId) {
         const dataURL = canvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = dataURL;
-        a.download = `team_${team}_desert_storm.png`;
+        a.download = `team_${team}_${getActiveEvent().excelPrefix}.png`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
