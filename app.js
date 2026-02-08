@@ -972,6 +972,39 @@ function getBuildingDisplayName(internalName) {
     return (typeof building.label === 'string' && building.label.trim()) ? building.label.trim() : internalName;
 }
 
+function getBuildingEditIcon(editing) {
+    if (editing) {
+        return `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        `;
+    }
+    return `
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+    `;
+}
+
+function toggleBuildingRowEdit(buttonEl) {
+    const row = buttonEl.closest('tr');
+    if (!row) return;
+    const nextEditing = row.dataset.editing !== 'true';
+    row.dataset.editing = nextEditing ? 'true' : 'false';
+    row.classList.toggle('building-row-editing', nextEditing);
+
+    row.querySelectorAll('input[data-index][data-field]').forEach((input) => {
+        input.disabled = !nextEditing;
+    });
+
+    buttonEl.classList.toggle('is-editing', nextEditing);
+    buttonEl.setAttribute('aria-label', nextEditing ? 'Lock building row' : 'Edit building row');
+    buttonEl.title = nextEditing ? 'Lock building row' : 'Edit building row';
+    buttonEl.innerHTML = getBuildingEditIcon(nextEditing);
+}
+
 function setBuildingConfig(config) {
     buildingConfigs[currentEvent] = config;
 }
@@ -1093,16 +1126,24 @@ function renderBuildingsTable() {
     tbody.innerHTML = '';
 
     getBuildingConfig().forEach((b, index) => {
+        const editing = false;
         const row = document.createElement('tr');
+        row.dataset.editing = editing ? 'true' : 'false';
+        if (editing) {
+            row.classList.add('building-row-editing');
+        }
         row.innerHTML = `
             <td>
-                <input type="text" value="${escapeAttribute((b.label || b.name))}" data-index="${index}" data-field="label" class="building-label-input">
+                <div class="building-name-cell">
+                    <input type="text" value="${escapeAttribute((b.label || b.name))}" data-index="${index}" data-field="label" class="building-label-input" ${editing ? '' : 'disabled'}>
+                    <button type="button" class="building-edit-btn ${editing ? 'is-editing' : ''}" data-action="toggle-edit" title="${editing ? 'Lock building row' : 'Edit building row'}" aria-label="${editing ? 'Lock building row' : 'Edit building row'}">${getBuildingEditIcon(editing)}</button>
+                </div>
             </td>
             <td data-label="${t('slots_label')}">
-                <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input">
+                <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input" ${editing ? '' : 'disabled'}>
             </td>
             <td data-label="${t('priority_label')}">
-                <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input">
+                <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input" ${editing ? '' : 'disabled'}>
             </td>
         `;
         tbody.appendChild(row);
@@ -1139,6 +1180,15 @@ function readBuildingConfigFromTable() {
         }
     });
     return { updated, totalSlots: getBuildingSlotsTotal(updated) };
+}
+
+const buildingsTableBodyEl = document.getElementById('buildingsTableBody');
+if (buildingsTableBodyEl) {
+    buildingsTableBodyEl.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action="toggle-edit"]');
+        if (!btn) return;
+        toggleBuildingRowEdit(btn);
+    });
 }
 
 function resetBuildingsToDefault() {
