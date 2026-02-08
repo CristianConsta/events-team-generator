@@ -287,19 +287,32 @@ let buildingPositionsMap = { desert_storm: {}, canyon_battlefield: {} };
 const mapImages = { desert_storm: new Image(), canyon_battlefield: new Image() };
 let mapLoadedFlags = { desert_storm: false, canyon_battlefield: false };
 let mapLoadRetries = { desert_storm: 0, canyon_battlefield: 0 };
+let mapUnavailableFlags = { desert_storm: false, canyon_battlefield: false };
+let mapLoadPromises = { desert_storm: null, canyon_battlefield: null };
+let coordMapWarningShown = { desert_storm: false, canyon_battlefield: false };
 const maxRetries = 3;
 
 function loadMapImage(eventId) {
     const eid = eventId || currentEvent;
+    if (mapLoadedFlags[eid]) {
+        return Promise.resolve(true);
+    }
+    if (mapLoadPromises[eid]) {
+        return mapLoadPromises[eid];
+    }
+
     const evt = EVENT_REGISTRY[eid];
-    return new Promise((resolve, reject) => {
+    mapLoadPromises[eid] = new Promise((resolve, reject) => {
         mapImages[eid].onload = () => {
             mapLoadedFlags[eid] = true;
-            console.log('✅ Map loaded for ' + eid);
+            mapUnavailableFlags[eid] = false;
+            mapLoadRetries[eid] = 0;
+            mapLoadPromises[eid] = null;
+            console.log('Map loaded for ' + eid);
             resolve(true);
         };
         mapImages[eid].onerror = () => {
-            console.error('❌ Map failed to load for ' + eid + ', attempt:', mapLoadRetries[eid] + 1);
+            console.error('Map failed to load for ' + eid + ', attempt:', mapLoadRetries[eid] + 1);
             if (mapLoadRetries[eid] < maxRetries) {
                 mapLoadRetries[eid]++;
                 setTimeout(() => {
@@ -307,11 +320,15 @@ function loadMapImage(eventId) {
                 }, 1000 * mapLoadRetries[eid]);
             } else {
                 console.error('Map loading failed for ' + eid + ' after ' + maxRetries + ' attempts');
+                mapUnavailableFlags[eid] = true;
+                mapLoadPromises[eid] = null;
                 reject(false);
             }
         };
         mapImages[eid].src = evt.mapFile;
     });
+
+    return mapLoadPromises[eid];
 }
 
 // Start loading Desert Storm map immediately; Canyon loaded on first switch
@@ -1192,22 +1209,67 @@ function drawCoordCanvas() {
 
     const activeMapImage = mapImages[currentEvent];
     const activeMapLoaded = mapLoadedFlags[currentEvent];
+    const activeMapUnavailable = mapUnavailableFlags[currentEvent];
+    const statusEl = document.getElementById('coordStatus');
 
-    if (!activeMapLoaded) {
+    if (!activeMapLoaded && !activeMapUnavailable) {
         loadMapImage(currentEvent)
             .then(() => drawCoordCanvas())
             .catch(() => {
-                showMessage('coordStatus', t('coord_map_not_loaded'), 'error');
+                drawCoordCanvas();
             });
         return;
     }
 
     const ctx = canvas.getContext('2d');
-    const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
+    const hasMapBackground = activeMapLoaded && activeMapImage.width > 0 && activeMapImage.height > 0;
+    const mapHeight = hasMapBackground ? Math.floor(activeMapImage.height * (1080 / activeMapImage.width)) : 720;
+
     canvas.width = 1080;
     canvas.height = mapHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(activeMapImage, 0, 0, 1080, mapHeight);
+
+    if (hasMapBackground) {
+        ctx.drawImage(activeMapImage, 0, 0, 1080, mapHeight);
+        coordMapWarningShown[currentEvent] = false;
+        if (statusEl) {
+            statusEl.innerHTML = '';
+        }
+    } else {
+        const grad = ctx.createLinearGradient(0, 0, 1080, mapHeight);
+        grad.addColorStop(0, '#1f2238');
+        grad.addColorStop(1, '#2b2f4a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1080, mapHeight);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= 1080; x += 90) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, mapHeight);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= mapHeight; y += 90) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(1080, y);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(253, 200, 48, 0.9)';
+        ctx.font = 'bold 28px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('MAP PREVIEW UNAVAILABLE', 540, 52);
+        ctx.font = '16px Arial';
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.fillText(getActiveEvent().mapFile, 540, 80);
+
+        if (!coordMapWarningShown[currentEvent]) {
+            showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getActiveEvent().mapFile})`, 'warning');
+            coordMapWarningShown[currentEvent] = true;
+        }
+    }
 
     Object.entries(getBuildingPositions()).forEach(([name, pos]) => {
         if (!pos) return;
