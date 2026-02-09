@@ -579,6 +579,51 @@ select {
 .header-icon-btn svg {
     flex-shrink: 0;
 }
+#userHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+#headerLeft {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+#headerRight {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin-left: auto;
+}
+#headerUserInfo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 0;
+    max-width: 52vw;
+}
+#headerUserTop {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    width: 100%;
+}
+#userEmail,
+#allianceDisplay,
+#playerCount {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#playerCount {
+    width: 100%;
+    text-align: right;
+}
 .header-menu {
     position: relative;
 }
@@ -597,6 +642,15 @@ select {
     z-index: 1800;
     box-shadow: 0 8px 24px rgba(0,0,0,0.35);
 }
+#headerLeft .header-menu-panel {
+    left: 0;
+    right: auto;
+}
+.header-menu-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.14);
+    margin: 2px 2px;
+}
 .header-menu-item {
     width: 100%;
     margin: 0;
@@ -614,6 +668,13 @@ select {
     color: #1a1a2e;
     border-color: rgba(var(--gold-rgb), 0.65);
 }
+.header-menu-item.danger {
+    border-color: rgba(255, 107, 53, 0.45);
+    color: #FF9A6E;
+}
+.header-menu-item.danger:hover {
+    background: rgba(255, 107, 53, 0.14);
+}
 .config-title {
     margin: 0;
     color: var(--gold);
@@ -625,13 +686,11 @@ select {
     transform: none;
     box-shadow: none;
 }
-#notificationBtn,
-#signOutBtn {
+#notificationBtn {
     min-width: 44px;
     min-height: 44px;
 }
-#notificationBtn svg,
-#signOutBtn svg {
+#notificationBtn svg {
     width: 18px;
     height: 18px;
 }
@@ -666,6 +725,18 @@ select {
     }
 
     .counter { padding: 12px 22px; font-size: 16px; }
+
+    #userHeader {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+    #headerRight {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    #headerUserInfo {
+        max-width: calc(100% - 120px);
+    }
 }
 
 /* =============================================
@@ -686,9 +757,10 @@ select {
     .event-selector-inline .event-btn { padding: 10px 12px; font-size: 13px; min-height: 44px; }
     .header-icon-btn .btn-label { display: none; }
     .header-icon-btn { padding: 10px !important; min-width: 44px; min-height: 44px; }
-    .header-menu-panel {
+    #headerLeft .header-menu-panel {
         width: min(240px, calc(100vw - 30px));
-        right: 0;
+        left: 0;
+        right: auto;
     }
 
     /* ── Filters — full-width stack ── */
@@ -880,13 +952,13 @@ select {
 
     /* ── User header ── */
     #userHeader                { padding: 10px !important; }
-    #userHeader > div:first-child { gap: 10px !important; }
+    #headerLeft               { gap: 8px !important; }
+    #headerRight              { gap: 6px !important; width: auto; max-width: calc(100vw - 88px); }
+    #headerUserInfo           { max-width: calc(100vw - 190px); }
+    #headerUserTop            { gap: 4px !important; }
     #userEmail                 { font-size: 14px !important; }
     #playerCount               { font-size: 12px !important; }
-    #headerRight               { gap: 6px !important; }
     #languageSelect            { padding: 8px 10px !important; font-size: 13px !important; min-height: 40px; }
-    #signOutBtn                { padding: 10px 12px !important; min-height: 44px; min-width: 44px; }
-    #signOutBtn svg            { width: 18px !important; height: 18px !important; }
 
     /* ── Onboarding tooltip ── */
     .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }

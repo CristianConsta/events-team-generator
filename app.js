@@ -9,7 +9,13 @@ function t(key, params) {
 function refreshLanguageDependentText() {
     const playerCountEl = document.getElementById('playerCount');
     if (playerCountEl && typeof allPlayers !== 'undefined') {
-        playerCountEl.textContent = t('player_count', { count: allPlayers.length });
+        if (typeof FirebaseService !== 'undefined') {
+            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource();
+            const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
+            playerCountEl.textContent = t('player_count_with_source', { count: allPlayers.length, source: sourceLabel });
+        } else {
+            playerCountEl.textContent = t('player_count', { count: allPlayers.length });
+        }
     }
     const uploadHintEl = document.getElementById('uploadHint');
     if (uploadHintEl && typeof allPlayers !== 'undefined') {
@@ -26,6 +32,10 @@ function onI18nApplied() {
     if (navMenuBtn) {
         navMenuBtn.title = t('navigation_menu');
         navMenuBtn.setAttribute('aria-label', t('navigation_menu'));
+    }
+    const navMenuPanel = document.getElementById('navMenuPanel');
+    if (navMenuPanel) {
+        navMenuPanel.setAttribute('aria-label', t('navigation_menu'));
     }
     syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
