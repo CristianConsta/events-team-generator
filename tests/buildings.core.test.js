@@ -44,6 +44,21 @@ test('normalizeBuildingConfig keeps custom labels when present', () => {
   ]);
 });
 
+test('normalizeBuildingConfig preserves default label when stored label is missing', () => {
+  loadModule();
+  const defaults = [
+    { name: 'Command Center', label: 'HQ North', priority: 3, slots: 2 },
+  ];
+  const stored = [
+    { name: 'Command Center', priority: 3, slots: 2 },
+  ];
+
+  const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
+  assert.deepEqual(normalized, [
+    { name: 'Command Center', label: 'HQ North', priority: 3, slots: 2 },
+  ]);
+});
+
 test('normalizeBuildingPositions keeps only valid names and numeric pairs', () => {
   loadModule();
   const positions = {

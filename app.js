@@ -441,7 +441,8 @@ function updateFloatingButtonsVisibility() {
     if (!bar || !selectionSection) {
         return;
     }
-    const shouldShow = currentPageView === 'generator' && !selectionSection.classList.contains('hidden');
+    const hasPlayers = Array.isArray(allPlayers) && allPlayers.length > 0;
+    const shouldShow = currentPageView === 'generator' && !selectionSection.classList.contains('hidden') && hasPlayers;
     bar.style.display = shouldShow ? 'flex' : 'none';
     reserveSpaceForFooter();
 }
@@ -908,6 +909,7 @@ function loadMapImage(eventId, purpose) {
 }
 
 const BUILDING_POSITIONS_VERSION = 2;
+const BUILDING_CONFIG_VERSION = 2;
 
 const textColors = { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' };
 const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)',
@@ -1529,7 +1531,7 @@ function loadPlayerData() {
         document.getElementById('uploadContent').classList.remove('collapsed');
         document.getElementById('uploadExpandIcon').classList.add('rotated');
         document.getElementById('uploadHint').textContent = '';
-        document.getElementById('selectionSection').classList.add('hidden');
+        document.getElementById('selectionSection').classList.remove('hidden');
         renderPlayersTable();
         updateTeamCounters();
         showConfigurationPage();
@@ -1628,10 +1630,11 @@ function getBuildingSlotsTotal(config) {
     return window.DSCoreBuildings.getBuildingSlotsTotal(config);
 }
 
-function normalizeBuildingConfig(config) {
+function normalizeBuildingConfig(config, defaultsOverride) {
+    const defaults = Array.isArray(defaultsOverride) ? defaultsOverride : getDefaultBuildings();
     return window.DSCoreBuildings.normalizeBuildingConfig(
         config,
-        getDefaultBuildings(),
+        defaults,
         MIN_BUILDING_SLOTS,
         MAX_BUILDING_SLOTS_TOTAL
     );
@@ -1676,27 +1679,60 @@ function getEffectiveBuildingPositions() {
 }
 
 function getEffectiveBuildingConfig() {
-    return normalizeBuildingConfig(getBuildingConfig());
+    return normalizeBuildingConfig(getBuildingConfig(), getResolvedDefaultBuildingConfig());
+}
+
+function getGlobalDefaultBuildingConfig() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getGlobalDefaultBuildingConfig !== 'function') {
+        return null;
+    }
+    const config = FirebaseService.getGlobalDefaultBuildingConfig(currentEvent);
+    return Array.isArray(config) ? config : null;
+}
+
+function getResolvedDefaultBuildingConfig() {
+    const baseDefaults = getDefaultBuildings();
+    const globalDefaults = getGlobalDefaultBuildingConfig();
+    if (!Array.isArray(globalDefaults) || globalDefaults.length === 0) {
+        return baseDefaults;
+    }
+    return normalizeBuildingConfig(globalDefaults, baseDefaults);
+}
+
+function getTargetBuildingConfigVersion() {
+    let targetVersion = BUILDING_CONFIG_VERSION;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getGlobalDefaultBuildingConfigVersion === 'function') {
+        const sharedVersion = Number(FirebaseService.getGlobalDefaultBuildingConfigVersion());
+        if (Number.isFinite(sharedVersion) && sharedVersion > targetVersion) {
+            targetVersion = sharedVersion;
+        }
+    }
+    return targetVersion;
 }
 
 function loadBuildingConfig() {
     if (typeof FirebaseService === 'undefined') {
-        setBuildingConfig(getDefaultBuildings());
+        setBuildingConfig(getResolvedDefaultBuildingConfig());
         renderBuildingsTable();
         return;
     }
     const stored = FirebaseService.getBuildingConfig(currentEvent);
-    const normalized = normalizeBuildingConfig(stored);
+    const defaultConfig = getResolvedDefaultBuildingConfig();
+    const targetVersion = getTargetBuildingConfigVersion();
+    const shouldResetToDefaults = !Array.isArray(stored) || stored.length === 0;
+    const normalized = shouldResetToDefaults
+        ? normalizeBuildingConfig(defaultConfig, defaultConfig)
+        : normalizeBuildingConfig(stored, defaultConfig);
     setBuildingConfig(normalized);
     const totalSlots = getBuildingSlotsTotal(normalized);
     const slotsOverLimit = totalSlots > MAX_BUILDING_SLOTS_TOTAL;
     if (slotsOverLimit) {
-        setBuildingConfig(getDefaultBuildings());
+        setBuildingConfig(normalizeBuildingConfig(defaultConfig, defaultConfig));
         showMessage('buildingsStatus', t('buildings_slots_exceeded_saved', { max: MAX_BUILDING_SLOTS_TOTAL }), 'error');
     }
 
     const config = getBuildingConfig();
-    const needsSave = slotsOverLimit || !Array.isArray(stored) || stored.length !== config.length || stored.some((item) => {
+    const needsSave = shouldResetToDefaults || slotsOverLimit || !Array.isArray(stored) || stored.length !== config.length || stored.some((item) => {
         if (!item || !item.name) {
             return true;
         }
@@ -1721,6 +1757,7 @@ function loadBuildingConfig() {
 
     if (needsSave) {
         FirebaseService.setBuildingConfig(currentEvent, config);
+        FirebaseService.setBuildingConfigVersion(currentEvent, targetVersion);
     }
 
     renderBuildingsTable();
@@ -1822,7 +1859,7 @@ if (buildingsTableBodyEl) {
 }
 
 function resetBuildingsToDefault() {
-    setBuildingConfig(getDefaultBuildings());
+    setBuildingConfig(getResolvedDefaultBuildingConfig());
     renderBuildingsTable();
 }
 
@@ -1833,7 +1870,7 @@ async function saveBuildingConfig() {
         return;
     }
 
-    setBuildingConfig(normalizeBuildingConfig(updated));
+    setBuildingConfig(normalizeBuildingConfig(updated, getResolvedDefaultBuildingConfig()));
     renderBuildingsTable();
 
     if (typeof FirebaseService === 'undefined') {
@@ -1842,6 +1879,7 @@ async function saveBuildingConfig() {
     }
 
     FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig());
+    FirebaseService.setBuildingConfigVersion(currentEvent, getTargetBuildingConfigVersion());
     const result = await FirebaseService.saveUserData();
     if (result.success) {
         showMessage('buildingsStatus', t('buildings_saved'), 'success');
@@ -1868,7 +1906,7 @@ function syncBuildingConfigFromTable() {
         showMessage('buildingsStatus', t('buildings_slots_exceeded', { max: MAX_BUILDING_SLOTS_TOTAL, total: totalSlots }), 'error');
         return false;
     }
-    setBuildingConfig(normalizeBuildingConfig(updated));
+    setBuildingConfig(normalizeBuildingConfig(updated, getResolvedDefaultBuildingConfig()));
     return true;
 }
 

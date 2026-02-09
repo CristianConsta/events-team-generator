@@ -45,7 +45,8 @@
             const stored = config.find((item) => item && item.name === def.name);
             const priority = clampPriority(stored && stored.priority, def.priority);
             const slots = clampSlots(stored && stored.slots, def.slots, minSlots, maxSlots);
-            const label = normalizeLabel(stored && stored.label, def.name);
+            const defaultLabel = normalizeLabel(def && def.label, def.name);
+            const label = normalizeLabel(stored && stored.label, defaultLabel);
             return { name: def.name, label: label, slots: slots, priority: priority };
         });
     }

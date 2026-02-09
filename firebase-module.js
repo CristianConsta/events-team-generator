@@ -31,16 +31,24 @@ const FirebaseManager = (function() {
         alert('Firebase configuration missing! Please create firebase-config.js file.');
     }
     
+    function createEmptyEventEntry() {
+        return { buildingConfig: null, buildingConfigVersion: 0, buildingPositions: null, buildingPositionsVersion: 0 };
+    }
+
+    function createEmptyEventData() {
+        return {
+            desert_storm: createEmptyEventEntry(),
+            canyon_battlefield: createEmptyEventEntry()
+        };
+    }
+
     // Private variables
     let auth = null;
     let db = null;
     let currentUser = null;
     let playerDatabase = {};
-    // Per-event building data: { desert_storm: { buildingConfig, buildingPositions, buildingPositionsVersion }, canyon_battlefield: { ... } }
-    let eventData = {
-        desert_storm: { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 },
-        canyon_battlefield: { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 }
-    };
+    // Per-event building data: { desert_storm: { buildingConfig, buildingConfigVersion, buildingPositions, buildingPositionsVersion }, canyon_battlefield: { ... } }
+    let eventData = createEmptyEventData();
     let allianceId = null;
     let allianceName = null;
     let allianceData = null;
@@ -57,16 +65,29 @@ const FirebaseManager = (function() {
     const GLOBAL_COORD_OWNER_EMAIL = 'constantinescu.cristian@gmail.com';
     const GLOBAL_COORDS_COLLECTION = 'app_config';
     const GLOBAL_COORDS_DOC_ID = 'default_event_positions';
+    const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
     let globalDefaultEventPositions = {
         desert_storm: {},
         canyon_battlefield: {}
     };
     let globalDefaultPositionsVersion = 0;
+    let globalDefaultEventBuildingConfig = {
+        desert_storm: null,
+        canyon_battlefield: null
+    };
+    let globalDefaultBuildingConfigVersion = 0;
 
     function emptyGlobalEventPositions() {
         return {
             desert_storm: {},
             canyon_battlefield: {}
+        };
+    }
+
+    function emptyGlobalBuildingConfig() {
+        return {
+            desert_storm: null,
+            canyon_battlefield: null
         };
     }
 
@@ -150,15 +171,23 @@ const FirebaseManager = (function() {
                 if (!entry || typeof entry !== 'object') {
                     return;
                 }
-                const version = Number(entry.buildingPositionsVersion);
-                if (Number.isFinite(version) && version > eventVersion) {
-                    eventVersion = version;
+                const positionsVersion = Number(entry.buildingPositionsVersion);
+                if (Number.isFinite(positionsVersion) && positionsVersion > eventVersion) {
+                    eventVersion = positionsVersion;
+                }
+                const configVersion = Number(entry.buildingConfigVersion);
+                if (Number.isFinite(configVersion) && configVersion > eventVersion) {
+                    eventVersion = configVersion;
                 }
             });
         } else {
-            const legacyVersion = Number(data.buildingPositionsVersion);
-            if (Number.isFinite(legacyVersion) && legacyVersion > 0) {
-                eventVersion = legacyVersion;
+            const legacyPositionsVersion = Number(data.buildingPositionsVersion);
+            if (Number.isFinite(legacyPositionsVersion) && legacyPositionsVersion > 0) {
+                eventVersion = legacyPositionsVersion;
+            }
+            const legacyConfigVersion = Number(data.buildingConfigVersion);
+            if (Number.isFinite(legacyConfigVersion) && legacyConfigVersion > eventVersion) {
+                eventVersion = legacyConfigVersion;
             }
         }
         return Math.max(metaVersion, eventVersion);
@@ -186,6 +215,82 @@ const FirebaseManager = (function() {
         globalDefaultEventPositions = normalizeEventPositionsPayload(events);
         const parsedVersion = Number(version);
         globalDefaultPositionsVersion = Number.isFinite(parsedVersion) && parsedVersion > 0 ? parsedVersion : 0;
+    }
+
+    function normalizeBuildingConfigArray(config) {
+        if (!Array.isArray(config)) {
+            return null;
+        }
+        const normalized = [];
+        config.forEach((item) => {
+            if (!item || typeof item !== 'object') {
+                return;
+            }
+            const name = typeof item.name === 'string' ? item.name.trim() : '';
+            if (!name) {
+                return;
+            }
+            const next = { name: name };
+            if (typeof item.label === 'string' && item.label.trim()) {
+                next.label = item.label.trim();
+            }
+            const slots = Number(item.slots);
+            if (Number.isFinite(slots)) {
+                next.slots = Math.round(slots);
+            }
+            const priority = Number(item.priority);
+            if (Number.isFinite(priority)) {
+                next.priority = Math.round(priority);
+            }
+            normalized.push(next);
+        });
+        return normalized.length > 0 ? normalized : null;
+    }
+
+    function normalizeEventBuildingConfigPayload(payload) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const normalized = emptyGlobalBuildingConfig();
+        EVENT_IDS.forEach((eid) => {
+            normalized[eid] = normalizeBuildingConfigArray(source[eid]);
+        });
+        return normalized;
+    }
+
+    function hasAnyBuildingConfig(payload) {
+        return EVENT_IDS.some((eid) => Array.isArray(payload && payload[eid]) && payload[eid].length > 0);
+    }
+
+    function extractBuildingConfigFromUserData(data) {
+        const result = emptyGlobalBuildingConfig();
+        if (data && data.events && typeof data.events === 'object') {
+            EVENT_IDS.forEach((eid) => {
+                const entry = data.events[eid];
+                if (!entry || typeof entry !== 'object') {
+                    return;
+                }
+                result[eid] = normalizeBuildingConfigArray(entry.buildingConfig);
+            });
+            return result;
+        }
+        if (data && Array.isArray(data.buildingConfig)) {
+            result.desert_storm = normalizeBuildingConfigArray(data.buildingConfig);
+        }
+        return result;
+    }
+
+    function setGlobalDefaultBuildingConfig(payload, version) {
+        globalDefaultEventBuildingConfig = normalizeEventBuildingConfigPayload(payload);
+        const parsedVersion = Number(version);
+        globalDefaultBuildingConfigVersion = Number.isFinite(parsedVersion) && parsedVersion > 0 ? parsedVersion : 0;
+    }
+
+    function getGlobalDefaultBuildingConfig(eventId) {
+        const eid = eventId || 'desert_storm';
+        return JSON.parse(JSON.stringify(globalDefaultEventBuildingConfig[eid] || null));
+    }
+
+    function getGlobalDefaultBuildingConfigVersion() {
+        return globalDefaultBuildingConfigVersion;
     }
 
     function getGlobalDefaultBuildingPositions(eventId) {
@@ -256,6 +361,9 @@ const FirebaseManager = (function() {
         if (fromSharedDoc) {
             return true;
         }
+        if (!currentUser || !currentUser.email || currentUser.email.toLowerCase() !== GLOBAL_COORD_OWNER_EMAIL) {
+            return false;
+        }
         return tryLoadGlobalDefaultsFromOwnerUser();
     }
 
@@ -279,6 +387,57 @@ const FirebaseManager = (function() {
             return true;
         } catch (error) {
             console.warn('Unable to publish shared coordinate defaults:', error.message || error);
+            return false;
+        }
+    }
+
+    async function loadGlobalDefaultBuildingConfig() {
+        if (!db) {
+            setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+            return false;
+        }
+        try {
+            const configDoc = await db.collection(GLOBAL_COORDS_COLLECTION).doc(GLOBAL_BUILDING_CONFIG_DOC_ID).get();
+            if (!configDoc.exists) {
+                setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+                return false;
+            }
+            const data = configDoc.data() || {};
+            const events = normalizeEventBuildingConfigPayload(data.events || {});
+            const version = Number(data.version);
+            if (!hasAnyBuildingConfig(events)) {
+                setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+                return false;
+            }
+            setGlobalDefaultBuildingConfig(events, Number.isFinite(version) && version > 0 ? version : 0);
+            return true;
+        } catch (error) {
+            console.warn('Unable to load shared building config defaults:', error.message || error);
+            setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+            return false;
+        }
+    }
+
+    async function maybePublishGlobalBuildingConfigFromCurrentUser(userData) {
+        if (!currentUser || !currentUser.email || currentUser.email.toLowerCase() !== GLOBAL_COORD_OWNER_EMAIL) {
+            return false;
+        }
+        const events = extractBuildingConfigFromUserData(userData || {});
+        if (!hasAnyBuildingConfig(events)) {
+            return false;
+        }
+        const version = Math.max(Date.now(), extractVersionFromUserData(userData || {}), 1);
+        try {
+            await db.collection(GLOBAL_COORDS_COLLECTION).doc(GLOBAL_BUILDING_CONFIG_DOC_ID).set({
+                sourceEmail: GLOBAL_COORD_OWNER_EMAIL,
+                version: version,
+                events: events,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            setGlobalDefaultBuildingConfig(events, version);
+            return true;
+        } catch (error) {
+            console.warn('Unable to publish shared building config defaults:', error.message || error);
             return false;
         }
     }
@@ -344,7 +503,7 @@ const FirebaseManager = (function() {
             console.log('ℹ️ User signed out');
             playerDatabase = {};
             Object.keys(eventData).forEach(eid => {
-                eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                eventData[eid] = createEmptyEventEntry();
             });
             allianceId = null;
             allianceName = null;
@@ -353,6 +512,7 @@ const FirebaseManager = (function() {
             pendingInvitations = [];
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
+            setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
 
             if (onAuthCallback) {
                 onAuthCallback(false, null);
@@ -532,22 +692,28 @@ const FirebaseManager = (function() {
                         if (ed && typeof ed === 'object') {
                             eventData[eid] = {
                                 buildingConfig: Array.isArray(ed.buildingConfig) ? ed.buildingConfig : null,
+                                buildingConfigVersion: typeof ed.buildingConfigVersion === 'number' ? ed.buildingConfigVersion : 0,
                                 buildingPositions: ed.buildingPositions && typeof ed.buildingPositions === 'object' ? ed.buildingPositions : null,
                                 buildingPositionsVersion: typeof ed.buildingPositionsVersion === 'number' ? ed.buildingPositionsVersion : 0
                             };
                         } else {
-                            eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                            eventData[eid] = createEmptyEventEntry();
                         }
                     });
-                } else if (Array.isArray(data.buildingConfig) || (data.buildingPositions && typeof data.buildingPositions === 'object')) {
+                } else if (
+                    Array.isArray(data.buildingConfig)
+                    || (data.buildingPositions && typeof data.buildingPositions === 'object')
+                    || typeof data.buildingConfigVersion === 'number'
+                ) {
                     // Migration: old top-level fields → move to events.desert_storm
                     console.log('🔄 Migrating old building data to per-event schema...');
                     eventData.desert_storm = {
                         buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : null,
+                        buildingConfigVersion: typeof data.buildingConfigVersion === 'number' ? data.buildingConfigVersion : 0,
                         buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null,
                         buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0
                     };
-                    eventData.canyon_battlefield = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                    eventData.canyon_battlefield = createEmptyEventEntry();
                     // Save migrated data and remove old top-level fields
                     try {
                         const batch = db.batch();
@@ -560,6 +726,7 @@ const FirebaseManager = (function() {
                         }, { merge: true });
                         batch.update(userRef, {
                             buildingConfig: firebase.firestore.FieldValue.delete(),
+                            buildingConfigVersion: firebase.firestore.FieldValue.delete(),
                             buildingPositions: firebase.firestore.FieldValue.delete(),
                             buildingPositionsVersion: firebase.firestore.FieldValue.delete()
                         });
@@ -571,12 +738,14 @@ const FirebaseManager = (function() {
                 } else {
                     // No building data at all — reset
                     Object.keys(eventData).forEach(eid => {
-                        eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                        eventData[eid] = createEmptyEventEntry();
                     });
                 }
 
                 await loadGlobalDefaultBuildingPositions();
+                await loadGlobalDefaultBuildingConfig();
                 await maybePublishGlobalDefaultsFromCurrentUser(data);
+                await maybePublishGlobalBuildingConfigFromCurrentUser(data);
 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
 
@@ -598,13 +767,14 @@ const FirebaseManager = (function() {
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
                 Object.keys(eventData).forEach(eid => {
-                    eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+                    eventData[eid] = createEmptyEventEntry();
                 });
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
                 await loadGlobalDefaultBuildingPositions();
+                await loadGlobalDefaultBuildingConfig();
                 await checkInvitations();
                 return { success: true, data: {}, playerCount: 0 };
             }
@@ -759,8 +929,19 @@ const FirebaseManager = (function() {
      */
     function setBuildingConfig(eventId, config) {
         const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
         eventData[eid].buildingConfig = config;
+    }
+
+    function getBuildingConfigVersion(eventId) {
+        const eid = eventId || 'desert_storm';
+        return eventData[eid] ? eventData[eid].buildingConfigVersion : 0;
+    }
+
+    function setBuildingConfigVersion(eventId, version) {
+        const eid = eventId || 'desert_storm';
+        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
+        eventData[eid].buildingConfigVersion = version;
     }
 
     /**
@@ -776,7 +957,7 @@ const FirebaseManager = (function() {
      */
     function setBuildingPositions(eventId, positions) {
         const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
         eventData[eid].buildingPositions = positions;
     }
 
@@ -787,7 +968,7 @@ const FirebaseManager = (function() {
 
     function setBuildingPositionsVersion(eventId, version) {
         const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = { buildingConfig: null, buildingPositions: null, buildingPositionsVersion: 0 };
+        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
         eventData[eid].buildingPositionsVersion = version;
     }
 
@@ -1343,10 +1524,14 @@ const FirebaseManager = (function() {
         // Building config
         getBuildingConfig: getBuildingConfig,
         setBuildingConfig: setBuildingConfig,
+        getBuildingConfigVersion: getBuildingConfigVersion,
+        setBuildingConfigVersion: setBuildingConfigVersion,
         getBuildingPositions: getBuildingPositions,
         setBuildingPositions: setBuildingPositions,
         getBuildingPositionsVersion: getBuildingPositionsVersion,
         setBuildingPositionsVersion: setBuildingPositionsVersion,
+        getGlobalDefaultBuildingConfig: getGlobalDefaultBuildingConfig,
+        getGlobalDefaultBuildingConfigVersion: getGlobalDefaultBuildingConfigVersion,
         getGlobalDefaultBuildingPositions: getGlobalDefaultBuildingPositions,
         getGlobalDefaultBuildingPositionsVersion: getGlobalDefaultBuildingPositionsVersion,
         

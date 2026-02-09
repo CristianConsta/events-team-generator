@@ -18,6 +18,9 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
   assert.equal(global.FirebaseService.isAvailable(), false);
   assert.deepEqual(await global.FirebaseService.signOut(), { success: false, error: 'Firebase not loaded' });
   assert.equal(global.FirebaseService.getPlayerSource(), 'personal');
+  assert.equal(global.FirebaseService.getBuildingConfigVersion('desert_storm'), 0);
+  assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfig('canyon_battlefield'), null);
+  assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfigVersion(), 0);
   assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingPositions('desert_storm'), {});
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 0);
 });
@@ -27,6 +30,9 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   global.FirebaseManager = {
     signOut: async () => { called = true; return { success: true }; },
     isSignedIn: () => true,
+    getBuildingConfigVersion: () => 11,
+    getGlobalDefaultBuildingConfig: () => [{ name: 'Command Center', label: 'CC' }],
+    getGlobalDefaultBuildingConfigVersion: () => 456,
     getGlobalDefaultBuildingPositions: () => ({ 'Info Center': [100, 200] }),
     getGlobalDefaultBuildingPositionsVersion: () => 123,
   };
@@ -36,6 +42,9 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   assert.deepEqual(result, { success: true });
   assert.equal(called, true);
   assert.equal(global.FirebaseService.isSignedIn(), true);
+  assert.equal(global.FirebaseService.getBuildingConfigVersion('desert_storm'), 11);
+  assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingConfig('canyon_battlefield'), [{ name: 'Command Center', label: 'CC' }]);
+  assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfigVersion(), 456);
   assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingPositions('desert_storm'), { 'Info Center': [100, 200] });
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 123);
 });

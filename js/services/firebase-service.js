@@ -73,6 +73,12 @@
         setBuildingConfig: function setBuildingConfig(eventId, config) {
             return withManager((svc) => svc.setBuildingConfig(eventId, config), null);
         },
+        getBuildingConfigVersion: function getBuildingConfigVersion(eventId) {
+            return withManager((svc) => svc.getBuildingConfigVersion(eventId), 0);
+        },
+        setBuildingConfigVersion: function setBuildingConfigVersion(eventId, version) {
+            return withManager((svc) => svc.setBuildingConfigVersion(eventId, version), null);
+        },
         getBuildingPositions: function getBuildingPositions(eventId) {
             return withManager((svc) => svc.getBuildingPositions(eventId), null);
         },
@@ -84,6 +90,12 @@
         },
         setBuildingPositionsVersion: function setBuildingPositionsVersion(eventId, version) {
             return withManager((svc) => svc.setBuildingPositionsVersion(eventId, version), null);
+        },
+        getGlobalDefaultBuildingConfig: function getGlobalDefaultBuildingConfig(eventId) {
+            return withManager((svc) => svc.getGlobalDefaultBuildingConfig(eventId), null);
+        },
+        getGlobalDefaultBuildingConfigVersion: function getGlobalDefaultBuildingConfigVersion() {
+            return withManager((svc) => svc.getGlobalDefaultBuildingConfigVersion(), 0);
         },
         getGlobalDefaultBuildingPositions: function getGlobalDefaultBuildingPositions(eventId) {
             return withManager((svc) => svc.getGlobalDefaultBuildingPositions(eventId), {});
