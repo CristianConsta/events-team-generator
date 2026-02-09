@@ -675,10 +675,11 @@ select {
     text-overflow: ellipsis;
 }
 #playerCount {
+    display: block;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-align: right;
+    text-align: left;
 }
 .header-menu {
     position: relative;
