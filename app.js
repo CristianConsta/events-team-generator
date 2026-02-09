@@ -3024,7 +3024,9 @@ function generateMap(team, assignments, statusId) {
             const row = Math.floor(index / bombCardColumns);
             const cardX = bombPanel.x + 14 + col * (bombCardWidth + bombCardGapX);
             const cardY = bombCardsTop + row * (bombCardHeight + bombCardGapY);
-            const displayName = fitText(player.player, bombCardWidth - 42, 'bold 13px Arial');
+            const troopValue = player.troops || (activePlayerDB[player.player] && activePlayerDB[player.player].troops);
+            const troopKind = getTroopKind(troopValue);
+            const displayName = fitText(player.player, bombCardWidth - 68, 'bold 13px Arial');
 
             const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + bombCardWidth, cardY);
             cardGrad.addColorStop(0, 'rgba(255,255,255,0.94)');
@@ -3048,6 +3050,32 @@ function generateMap(team, assignments, statusId) {
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             ctx.fillText(displayName, cardX + 22, cardY + bombCardHeight / 2 + 0.5);
+
+            const badgeW = 18;
+            const badgeH = 16;
+            const badgeX = cardX + bombCardWidth - badgeW - 7;
+            const badgeY = cardY + ((bombCardHeight - badgeH) / 2);
+            const iconColor = troopKind === 'unknown' ? '#7F5A00' : teamPrimary;
+            const iconCx = badgeX + (badgeW / 2);
+            const iconCy = badgeY + (badgeH / 2) + 0.3;
+
+            ctx.fillStyle = 'rgba(255,255,255,0.88)';
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(32, 38, 52, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            if (troopKind === 'tank') {
+                drawTankIcon(iconCx, iconCy, iconColor);
+            } else if (troopKind === 'aero') {
+                drawJetIcon(iconCx, iconCy, iconColor);
+            } else if (troopKind === 'missile') {
+                drawMissileLauncherIcon(iconCx, iconCy, iconColor);
+            } else {
+                drawFunFallbackIcon(iconCx, iconCy, iconColor, index);
+            }
         });
 
         if (bombSquad.length > bombCardCapacity) {
@@ -3128,7 +3156,9 @@ function generateMap(team, assignments, statusId) {
                 const rowX = panelX + 10 + col * (rowWidth + colGap);
                 const rowY = rowStartY + row * (rowHeight + rowGap);
                 const reserveTag = 'R' + String(index + 1);
-                const name = fitText(sub.name, rowWidth - 46, 'bold 12px Arial');
+                const troopValue = sub.troops || (activePlayerDB[sub.name] && activePlayerDB[sub.name].troops);
+                const troopKind = getTroopKind(troopValue);
+                const name = fitText(sub.name, rowWidth - 70, 'bold 12px Arial');
 
                 ctx.fillStyle = 'rgba(255,255,255,0.92)';
                 ctx.beginPath();
@@ -3153,6 +3183,32 @@ function generateMap(team, assignments, statusId) {
                 ctx.fillStyle = '#1B2230';
                 ctx.textAlign = 'left';
                 ctx.fillText(name, rowX + 36, rowY + rowHeight / 2 + 0.5);
+
+                const badgeW = 18;
+                const badgeH = 16;
+                const badgeX = rowX + rowWidth - badgeW - 6;
+                const badgeY = rowY + ((rowHeight - badgeH) / 2);
+                const iconColor = troopKind === 'unknown' ? '#8A6400' : teamPrimary;
+                const iconCx = badgeX + (badgeW / 2);
+                const iconCy = badgeY + (badgeH / 2) + 0.3;
+
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.beginPath();
+                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(32, 38, 52, 0.45)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                if (troopKind === 'tank') {
+                    drawTankIcon(iconCx, iconCy, iconColor);
+                } else if (troopKind === 'aero') {
+                    drawJetIcon(iconCx, iconCy, iconColor);
+                } else if (troopKind === 'missile') {
+                    drawMissileLauncherIcon(iconCx, iconCy, iconColor);
+                } else {
+                    drawFunFallbackIcon(iconCx, iconCy, iconColor, index);
+                }
             });
         }
 
