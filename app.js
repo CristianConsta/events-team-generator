@@ -2715,34 +2715,105 @@ function generateMap(team, assignments, statusId) {
             return output + '...';
         }
 
-        function drawSwordIcon(cx, cy, size, color) {
-            const s = Math.max(6, Math.floor(size));
+        function getTroopKind(troops) {
+            const val = String(troops || '').toLowerCase();
+            if (val.startsWith('tank')) return 'tank';
+            if (val.startsWith('aero')) return 'aero';
+            if (val.startsWith('missile')) return 'missile';
+            return 'unknown';
+        }
+
+        function drawTankIcon(cx, cy, color) {
             ctx.save();
             ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.roundRect(cx - 6.5, cy - 2.8, 12, 5.6, 1.8);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.roundRect(cx - 1.8, cy - 5.4, 4.6, 2.8, 1);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(cx + 2.6, cy - 4);
+            ctx.lineTo(cx + 7.5, cy - 4);
+            ctx.stroke();
+            ctx.restore();
+        }
 
-            // Blade 1
+        function drawJetIcon(cx, cy, color) {
+            ctx.save();
+            ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.moveTo(cx - s * 0.7, cy + s * 0.6);
-            ctx.lineTo(cx + s * 0.55, cy - s * 0.55);
-            ctx.stroke();
-            // Guard 1
+            ctx.moveTo(cx - 7, cy + 1.2);
+            ctx.lineTo(cx + 5.8, cy - 2.8);
+            ctx.lineTo(cx + 2, cy + 0.3);
+            ctx.lineTo(cx + 5.8, cy + 3.2);
+            ctx.closePath();
+            ctx.fill();
             ctx.beginPath();
-            ctx.moveTo(cx - s * 0.25, cy + s * 0.15);
-            ctx.lineTo(cx - s * 0.75, cy - s * 0.35);
-            ctx.stroke();
+            ctx.moveTo(cx - 1.6, cy - 1.1);
+            ctx.lineTo(cx - 3.8, cy - 4.6);
+            ctx.lineTo(cx - 0.8, cy - 3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
 
-            // Blade 2
+        function drawMissileLauncherIcon(cx, cy, color) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1.4;
             ctx.beginPath();
-            ctx.moveTo(cx + s * 0.7, cy + s * 0.6);
-            ctx.lineTo(cx - s * 0.55, cy - s * 0.55);
-            ctx.stroke();
-            // Guard 2
+            ctx.roundRect(cx - 6, cy + 0.8, 8.8, 4.2, 1.3);
+            ctx.fill();
             ctx.beginPath();
-            ctx.moveTo(cx + s * 0.25, cy + s * 0.15);
-            ctx.lineTo(cx + s * 0.75, cy - s * 0.35);
-            ctx.stroke();
+            ctx.roundRect(cx - 5.2, cy - 3.8, 8.8, 2.5, 1);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(cx + 3.8, cy - 3.4);
+            ctx.lineTo(cx + 7, cy - 5.1);
+            ctx.lineTo(cx + 7.8, cy - 3.7);
+            ctx.lineTo(cx + 4.6, cy - 2.3);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawFunFallbackIcon(cx, cy, color, variant) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1.3;
+            if (variant % 2 === 0) {
+                // Star
+                const r1 = 5.5;
+                const r2 = 2.5;
+                ctx.beginPath();
+                for (let p = 0; p < 10; p += 1) {
+                    const angle = (-Math.PI / 2) + (p * Math.PI / 5);
+                    const r = p % 2 === 0 ? r1 : r2;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    if (p === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            } else {
+                // Smiley
+                ctx.beginPath();
+                ctx.arc(cx, cy, 5.4, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx - 1.8, cy - 1.2, 0.7, 0, Math.PI * 2);
+                ctx.arc(cx + 1.8, cy - 1.2, 0.7, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(cx, cy + 0.8, 2.4, 0.2 * Math.PI, 0.8 * Math.PI);
+                ctx.stroke();
+            }
             ctx.restore();
         }
 
@@ -2789,16 +2860,8 @@ function generateMap(team, assignments, statusId) {
                 const name = player.player;
                 const priorityColor = priorityPalette[player.priority] || teamPrimary;
                 const yPos = firstLabelCenterY + (i * starterGapY);
-
-                const troopCode = (player.troops || '').toLowerCase().startsWith('tank')
-                    ? 'T'
-                    : (player.troops || '').toLowerCase().startsWith('aero')
-                        ? 'A'
-                        : (player.troops || '').toLowerCase().startsWith('missile')
-                            ? 'M'
-                            : '?';
-
-                const fittedName = fitText(name, starterCardWidth - 72, 'bold 13px Arial');
+                const troopKind = getTroopKind(player.troops);
+                const fittedName = fitText(name, starterCardWidth - 62, 'bold 13px Arial');
                 const cardX = firstLabelCenterX - (starterCardWidth / 2);
                 const cardY = yPos - (starterCardHeight / 2);
 
@@ -2842,23 +2905,30 @@ function generateMap(team, assignments, statusId) {
                 ctx.textAlign = 'left';
                 ctx.fillText(fittedName, cardX + 30, yPos + 0.5);
 
-                // Troop badge.
                 const badgeW = 20;
-                const badgeH = 16;
+                const badgeH = 18;
                 const badgeX = cardX + starterCardWidth - badgeW - 6;
-                const badgeY = yPos - badgeH / 2;
-                ctx.fillStyle = 'rgba(255,255,255,0.13)';
+                const badgeY = yPos - (badgeH / 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.12)';
                 ctx.beginPath();
                 ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.38)';
                 ctx.lineWidth = 1;
                 ctx.stroke();
-                drawSwordIcon(badgeX + 6, yPos, 4, priorityColor);
-                ctx.font = 'bold 10px Arial';
-                ctx.fillStyle = '#FFFFFF';
-                ctx.textAlign = 'center';
-                ctx.fillText(troopCode, badgeX + 14, yPos + 0.5);
+
+                const iconColor = troopKind === 'unknown' ? '#FFE28A' : priorityColor;
+                const iconCx = badgeX + (badgeW / 2);
+                const iconCy = badgeY + (badgeH / 2) + 0.4;
+                if (troopKind === 'tank') {
+                    drawTankIcon(iconCx, iconCy, iconColor);
+                } else if (troopKind === 'aero') {
+                    drawJetIcon(iconCx, iconCy, iconColor);
+                } else if (troopKind === 'missile') {
+                    drawMissileLauncherIcon(iconCx, iconCy, iconColor);
+                } else {
+                    drawFunFallbackIcon(iconCx, iconCy, iconColor, i);
+                }
 
                 drawnCount++;
             });
