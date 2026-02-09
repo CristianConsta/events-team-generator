@@ -1868,11 +1868,13 @@ function refreshCoordinatesPickerForCurrentEvent() {
 function openCoordinatesPicker() {
     const overlay = document.getElementById('coordPickerOverlay');
     overlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
     refreshCoordinatesPickerForCurrentEvent();
 }
 
 function closeCoordinatesPicker() {
     document.getElementById('coordPickerOverlay').classList.add('hidden');
+    document.body.style.overflow = '';
 }
 
 function updateCoordLabel() {
