@@ -22,10 +22,12 @@ function onI18nApplied() {
     renderPlayersTable();
     renderBuildingsTable();
     updateTeamCounters();
-    const settingsBtn = document.getElementById('settingsBtn');
-    if (settingsBtn) {
-        settingsBtn.title = t('configuration_button');
+    const navMenuBtn = document.getElementById('navMenuBtn');
+    if (navMenuBtn) {
+        navMenuBtn.title = t('navigation_menu');
+        navMenuBtn.setAttribute('aria-label', t('navigation_menu'));
     }
+    syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
         updateCoordLabel();
@@ -59,7 +61,7 @@ function initLanguage() {
 // ONBOARDING TOUR
 // ============================================================
 const ONBOARDING_STEPS = [
-    { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#settingsBtn',          position: 'bottom' },
+    { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
     { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
     { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
     { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '.counter.team-a',       position: 'bottom' },
@@ -87,6 +89,9 @@ function showOnboardingStep(index) {
         return;
     }
     const step   = ONBOARDING_STEPS[index];
+    if (step.targetSelector === '#navConfigBtn') {
+        openNavigationMenu();
+    }
     const target = document.querySelector(step.targetSelector);
 
     // Target not in DOM or hidden — defer until it appears
@@ -203,8 +208,8 @@ function updateOnboardingTooltip() {
 
 // ── Dismiss event wiring (runs once DOM is ready) ──
 document.addEventListener('DOMContentLoaded', () => {
-    // Step 1 - Configuration button
-    document.getElementById('settingsBtn').addEventListener('click', () => {
+    // Step 1 - Configuration menu item
+    document.getElementById('navConfigBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 0) dismissOnboardingStep();
     });
     // Step 2 - Download Template button
@@ -281,10 +286,55 @@ function isConfigurationPageVisible() {
     return currentPageView === 'configuration';
 }
 
-function syncSettingsButtonState() {
-    const settingsBtn = document.getElementById('settingsBtn');
-    if (settingsBtn) {
-        settingsBtn.classList.toggle('is-active', isConfigurationPageVisible());
+function closeNavigationMenu() {
+    const panel = document.getElementById('navMenuPanel');
+    const menuBtn = document.getElementById('navMenuBtn');
+    if (panel) {
+        panel.classList.add('hidden');
+    }
+    if (menuBtn) {
+        menuBtn.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function openNavigationMenu() {
+    const panel = document.getElementById('navMenuPanel');
+    const menuBtn = document.getElementById('navMenuBtn');
+    if (panel) {
+        panel.classList.remove('hidden');
+    }
+    if (menuBtn) {
+        menuBtn.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function toggleNavigationMenu(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const panel = document.getElementById('navMenuPanel');
+    if (!panel) {
+        return;
+    }
+    if (panel.classList.contains('hidden')) {
+        openNavigationMenu();
+    } else {
+        closeNavigationMenu();
+    }
+}
+
+function syncNavigationMenuState() {
+    const generatorBtn = document.getElementById('navGeneratorBtn');
+    const configBtn = document.getElementById('navConfigBtn');
+    if (generatorBtn) {
+        const isActive = currentPageView === 'generator';
+        generatorBtn.classList.toggle('active', isActive);
+        generatorBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (configBtn) {
+        const isActive = currentPageView === 'configuration';
+        configBtn.classList.toggle('active', isActive);
+        configBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
 }
 
@@ -318,7 +368,8 @@ function setPageView(view) {
     currentPageView = view === 'configuration' ? 'configuration' : 'generator';
     generatorPage.classList.toggle('hidden', currentPageView !== 'generator');
     configurationPage.classList.toggle('hidden', currentPageView !== 'configuration');
-    syncSettingsButtonState();
+    syncNavigationMenuState();
+    closeNavigationMenu();
 
     if (currentPageView === 'configuration') {
         loadBuildingConfig();
@@ -2311,6 +2362,10 @@ function showMessage(elementId, message, type) {
 }
 
 document.addEventListener('click', (event) => {
+    const navMenu = document.getElementById('navMenu');
+    if (navMenu && !navMenu.contains(event.target)) {
+        closeNavigationMenu();
+    }
     if (event.target && event.target.id === 'coordCanvas') {
         coordCanvasClick(event);
     }

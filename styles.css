@@ -558,8 +558,40 @@ input[type="file"] { display: none; }
 .header-icon-btn svg {
     flex-shrink: 0;
 }
-.settings-btn.is-active {
-    box-shadow: inset 0 0 0 2px rgba(var(--gold-rgb), 0.55);
+.header-menu {
+    position: relative;
+}
+.header-menu-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    background: rgba(26, 26, 46, 0.98);
+    border: 1px solid rgba(var(--gold-rgb), 0.35);
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 1800;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.header-menu-item {
+    width: 100%;
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 14px;
+    text-align: left;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+}
+.header-menu-item:hover {
+    transform: none;
+}
+.header-menu-item.active {
+    background: linear-gradient(135deg, var(--gold), #F7931E);
+    color: #1a1a2e;
+    border-color: rgba(var(--gold-rgb), 0.65);
 }
 .config-title {
     margin: 0;
@@ -568,6 +600,11 @@ input[type="file"] { display: none; }
 
 /* ── Notification Bell ── */
 #notificationBtn:hover {
+    background: rgba(255,255,255,0.1);
+    transform: none;
+    box-shadow: none;
+}
+#navMenuBtn:hover {
     background: rgba(255,255,255,0.1);
     transform: none;
     box-shadow: none;
@@ -618,6 +655,10 @@ input[type="file"] { display: none; }
     .event-selector-inline .event-btn { padding: 5px 10px; font-size: 11px; }
     .header-icon-btn .btn-label { display: none; }
     .header-icon-btn { padding: 10px !important; }
+    .header-menu-panel {
+        width: min(240px, calc(100vw - 30px));
+        right: 0;
+    }
 
     /* ── Filters — full-width stack ── */
     .filters { gap: 10px; }
