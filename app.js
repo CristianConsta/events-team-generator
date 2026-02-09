@@ -949,11 +949,11 @@ function switchEvent(eventId) {
     // Update generate button event labels
     updateGenerateEventLabels();
 
-    // If the coordinate picker is currently open, warm the lightweight preview map.
+    // If the coordinate picker is currently open, warm the export map so picker/export sizes match.
     const coordOverlayVisible = coordOverlay && !coordOverlay.classList.contains('hidden');
-    if (coordOverlayVisible && !mapLoadedFlags[MAP_PREVIEW][eventId]) {
-        loadMapImage(eventId, MAP_PREVIEW).catch(() => {
-            console.warn(eventId + ' preview map failed to load');
+    if (coordOverlayVisible && !mapLoadedFlags[MAP_EXPORT][eventId]) {
+        loadMapImage(eventId, MAP_EXPORT).catch(() => {
+            console.warn(eventId + ' export map failed to load');
         });
     }
 }
@@ -1893,13 +1893,15 @@ function drawCoordCanvas() {
 
     updateCoordLabel();
 
-    const activeMapImage = mapImages[MAP_PREVIEW][currentEvent];
-    const activeMapLoaded = mapLoadedFlags[MAP_PREVIEW][currentEvent];
-    const activeMapUnavailable = mapUnavailableFlags[MAP_PREVIEW][currentEvent];
+    // Coordinate picker uses export map dimensions so picker/export coordinates stay identical.
+    const activeMapPurpose = MAP_EXPORT;
+    const activeMapImage = mapImages[activeMapPurpose][currentEvent];
+    const activeMapLoaded = mapLoadedFlags[activeMapPurpose][currentEvent];
+    const activeMapUnavailable = mapUnavailableFlags[activeMapPurpose][currentEvent];
     const statusEl = document.getElementById('coordStatus');
 
     if (!activeMapLoaded && !activeMapUnavailable) {
-        loadMapImage(currentEvent, MAP_PREVIEW)
+        loadMapImage(currentEvent, activeMapPurpose)
             .then(() => drawCoordCanvas())
             .catch(() => {
                 drawCoordCanvas();
@@ -1949,10 +1951,10 @@ function drawCoordCanvas() {
         ctx.fillText('MAP PREVIEW UNAVAILABLE', 540, 52);
         ctx.font = '16px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(getEventMapFile(currentEvent, MAP_PREVIEW) || '', 540, 80);
+        ctx.fillText(getEventMapFile(currentEvent, activeMapPurpose) || '', 540, 80);
 
         if (!coordMapWarningShown[currentEvent]) {
-            showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getEventMapFile(currentEvent, MAP_PREVIEW)})`, 'warning');
+            showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getEventMapFile(currentEvent, activeMapPurpose)})`, 'warning');
             coordMapWarningShown[currentEvent] = true;
         }
     }
@@ -2681,7 +2683,7 @@ function generateMap(team, assignments, statusId) {
             const players = grouped[building];
             const anchor = (getActiveEvent().buildingAnchors[building]) || 'left';
 
-            players.slice(0, 2).forEach((player, i) => {
+            players.forEach((player, i) => {
                 const name = player.player;
 
                 ctx.font = 'bold 14px Arial';
