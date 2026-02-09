@@ -1,4 +1,15 @@
 (function initAssignmentCore(global) {
+    function buildAssignment(building, player) {
+        return {
+            building: building.label || building.name,
+            buildingKey: building.name,
+            priority: building.priority,
+            player: player.name,
+            troops: player.troops,
+            power: player.power,
+        };
+    }
+
     function findMixPartner(player, available) {
         if (!Array.isArray(available) || available.length === 0) {
             return null;
@@ -50,23 +61,12 @@
             }
 
             activeGroup.forEach((building) => {
-                const buildingLabel = building.label || building.name;
                 topPicks.get(building.name).forEach((top) => {
-                    assignments.push({
-                        building: buildingLabel,
-                        buildingKey: building.name,
-                        priority: building.priority,
-                        player: top.name,
-                    });
+                    assignments.push(buildAssignment(building, top));
 
                     const partner = findMixPartner(top, available);
                     if (partner) {
-                        assignments.push({
-                            building: buildingLabel,
-                            buildingKey: building.name,
-                            priority: building.priority,
-                            player: partner.name,
-                        });
+                        assignments.push(buildAssignment(building, partner));
                         available = available.filter((candidate) => candidate.name !== partner.name);
                     }
                 });
@@ -75,12 +75,7 @@
             activeGroup.forEach((building) => {
                 const assignedCount = assignments.filter((assignment) => (assignment.buildingKey || assignment.building) === building.name).length;
                 if (assignedCount < building.slots && available.length > 0) {
-                    assignments.push({
-                        building: building.label || building.name,
-                        buildingKey: building.name,
-                        priority: building.priority,
-                        player: available[0].name,
-                    });
+                    assignments.push(buildAssignment(building, available[0]));
                     available = available.slice(1);
                 }
             });

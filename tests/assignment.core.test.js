@@ -80,3 +80,22 @@ test('assignTeamToBuildings emits display label and keeps internal buildingKey',
     assert.equal(assignment.buildingKey, 'Bomb Squad');
   });
 });
+
+test('assignTeamToBuildings preserves troop metadata for rendering icons', () => {
+  loadModule();
+  const players = [
+    { name: 'P1', power: 100, troops: 'Tank' },
+    { name: 'P2', power: 99, troops: 'Aero' },
+  ];
+  const config = [
+    { name: 'Frontline', priority: 1, slots: 2 },
+  ];
+
+  const result = global.DSCoreAssignment.assignTeamToBuildings(players, config);
+  const byName = new Map(result.map((assignment) => [assignment.player, assignment]));
+
+  assert.equal(byName.get('P1').troops, 'Tank');
+  assert.equal(byName.get('P2').troops, 'Aero');
+  assert.equal(byName.get('P1').power, 100);
+  assert.equal(byName.get('P2').power, 99);
+});

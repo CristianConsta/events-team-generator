@@ -2628,6 +2628,9 @@ function generateMap(team, assignments, statusId) {
         const teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
         const teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
         const teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
+        const activePlayerDB = (typeof FirebaseService !== 'undefined' && FirebaseService.getActivePlayerDatabase)
+            ? FirebaseService.getActivePlayerDatabase()
+            : {};
 
         const grouped = {};
         const bombSquad = [];
@@ -2716,9 +2719,9 @@ function generateMap(team, assignments, statusId) {
         }
 
         function getTroopKind(troops) {
-            const val = String(troops || '').toLowerCase();
+            const val = String(troops || '').trim().toLowerCase();
             if (val.startsWith('tank')) return 'tank';
-            if (val.startsWith('aero')) return 'aero';
+            if (val.startsWith('aero') || val.startsWith('air')) return 'aero';
             if (val.startsWith('missile')) return 'missile';
             return 'unknown';
         }
@@ -2860,7 +2863,8 @@ function generateMap(team, assignments, statusId) {
                 const name = player.player;
                 const priorityColor = priorityPalette[player.priority] || teamPrimary;
                 const yPos = firstLabelCenterY + (i * starterGapY);
-                const troopKind = getTroopKind(player.troops);
+                const troopValue = player.troops || (activePlayerDB[name] && activePlayerDB[name].troops);
+                const troopKind = getTroopKind(troopValue);
                 const fittedName = fitText(name, starterCardWidth - 62, 'bold 13px Arial');
                 const cardX = firstLabelCenterX - (starterCardWidth / 2);
                 const cardY = yPos - (starterCardHeight / 2);
