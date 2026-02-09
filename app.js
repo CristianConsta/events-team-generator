@@ -2718,6 +2718,26 @@ function generateMap(team, assignments, statusId) {
             return output + '...';
         }
 
+        // Keep starter labels within map bounds. If centered placement would overflow,
+        // treat the selected X as right edge for the whole label card.
+        function getStarterCardX(anchorX, cardWidth) {
+            const mapLeftBound = 0;
+            const mapRightBound = 1080;
+            const centeredX = anchorX - (cardWidth / 2);
+            const centeredRight = centeredX + cardWidth;
+            if (centeredX >= mapLeftBound && centeredRight <= mapRightBound) {
+                return centeredX;
+            }
+
+            const rightAlignedX = anchorX - cardWidth;
+            const rightAlignedRight = rightAlignedX + cardWidth;
+            if (rightAlignedX >= mapLeftBound && rightAlignedRight <= mapRightBound) {
+                return rightAlignedX;
+            }
+
+            return Math.max(mapLeftBound, Math.min(mapRightBound - cardWidth, rightAlignedX));
+        }
+
         function getTroopKind(troops) {
             const val = String(troops || '').trim().toLowerCase();
             if (val.startsWith('tank')) return 'tank';
@@ -2858,6 +2878,7 @@ function generateMap(team, assignments, statusId) {
             const starterGapY = 34;
             const firstLabelCenterX = x;
             const firstLabelCenterY = y;
+            const starterCardX = getStarterCardX(firstLabelCenterX, starterCardWidth);
 
             players.forEach((player, i) => {
                 const name = player.player;
@@ -2866,7 +2887,7 @@ function generateMap(team, assignments, statusId) {
                 const troopValue = player.troops || (activePlayerDB[name] && activePlayerDB[name].troops);
                 const troopKind = getTroopKind(troopValue);
                 const fittedName = fitText(name, starterCardWidth - 62, 'bold 13px Arial');
-                const cardX = firstLabelCenterX - (starterCardWidth / 2);
+                const cardX = starterCardX;
                 const cardY = yPos - (starterCardHeight / 2);
 
                 // Tactical starter card.
