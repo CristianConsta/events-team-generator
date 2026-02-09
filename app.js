@@ -59,11 +59,12 @@ function initLanguage() {
 // ONBOARDING TOUR
 // ============================================================
 const ONBOARDING_STEPS = [
-    { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
-    { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '.counter.team-a',       position: 'bottom' },
-    { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '.counter.team-b',       position: 'bottom' },
-    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#floatingButtons',      position: 'top'    }
+    { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#settingsBtn',          position: 'bottom' },
+    { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
+    { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '.counter.team-a',       position: 'bottom' },
+    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '.counter.team-b',       position: 'bottom' },
+    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#floatingButtons',      position: 'top'    }
 ];
 
 let onboardingActive      = false;
@@ -202,25 +203,29 @@ function updateOnboardingTooltip() {
 
 // ── Dismiss event wiring (runs once DOM is ready) ──
 document.addEventListener('DOMContentLoaded', () => {
-    // Step 1 — Download Template button
-    document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
+    // Step 1 - Configuration button
+    document.getElementById('settingsBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 0) dismissOnboardingStep();
     });
-    // Step 2 — Upload Player Data button
-    document.getElementById('uploadPlayerBtn').addEventListener('click', () => {
+    // Step 2 - Download Template button
+    document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 1) dismissOnboardingStep();
     });
-    // Steps 3 & 4 — delegated on players table body
+    // Step 3 - Upload Player Data button
+    document.getElementById('uploadPlayerBtn').addEventListener('click', () => {
+        if (onboardingActive && currentOnboardingStep === 2) dismissOnboardingStep();
+    });
+    // Steps 4 & 5 - delegated on players table body
     document.getElementById('playersTableBody').addEventListener('click', (e) => {
         if (!onboardingActive) return;
         const btn = e.target.closest('button');
         if (!btn) return;
-        if (currentOnboardingStep === 2 && btn.classList.contains('team-a-btn')) dismissOnboardingStep();
-        if (currentOnboardingStep === 3 && btn.classList.contains('team-b-btn')) dismissOnboardingStep();
+        if (currentOnboardingStep === 3 && btn.classList.contains('team-a-btn')) dismissOnboardingStep();
+        if (currentOnboardingStep === 4 && btn.classList.contains('team-b-btn')) dismissOnboardingStep();
     });
-    // Step 5 — floating generate buttons area
+    // Step 6 - floating generate buttons area
     document.getElementById('floatingButtons').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 4) dismissOnboardingStep();
+        if (onboardingActive && currentOnboardingStep === 5) dismissOnboardingStep();
     });
     // Skip link
     document.getElementById('onboardingSkip').addEventListener('click', completeOnboarding);
