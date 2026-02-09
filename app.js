@@ -371,6 +371,10 @@ let settingsDraftAvatarDataUrl = '';
 
 const PROFILE_TEXT_LIMIT = 60;
 const PROFILE_AVATAR_DATA_URL_LIMIT = 400000;
+const AVATAR_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const AVATAR_ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const AVATAR_MIN_DIMENSION = 96;
+const AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const LANGUAGE_META = {
     en: { flag: '🇺🇸', labelKey: 'language_name_en' },
     fr: { flag: '🇫🇷', labelKey: 'language_name_fr' },
@@ -715,12 +719,47 @@ function loadImageFromDataUrl(dataUrl) {
     });
 }
 
+function getFileExtension(name) {
+    if (typeof name !== 'string') {
+        return '';
+    }
+    const normalized = name.trim().toLowerCase();
+    const dotIndex = normalized.lastIndexOf('.');
+    if (dotIndex <= 0) {
+        return '';
+    }
+    return normalized.slice(dotIndex);
+}
+
+function isAllowedAvatarFile(file) {
+    if (!file) {
+        return false;
+    }
+    const type = typeof file.type === 'string' ? file.type.trim().toLowerCase() : '';
+    const extension = getFileExtension(file.name);
+
+    if (type && !AVATAR_ALLOWED_TYPES.has(type)) {
+        return false;
+    }
+    if (extension && !AVATAR_ALLOWED_EXTENSIONS.has(extension)) {
+        return false;
+    }
+
+    return Boolean((type && AVATAR_ALLOWED_TYPES.has(type)) || (extension && AVATAR_ALLOWED_EXTENSIONS.has(extension)));
+}
+
 async function createAvatarDataUrl(file) {
-    if (!file || typeof file.type !== 'string' || !file.type.startsWith('image/')) {
+    if (!isAllowedAvatarFile(file)) {
         throw new Error(t('settings_avatar_invalid_type'));
+    }
+    if (typeof file.size === 'number' && file.size > AVATAR_MAX_UPLOAD_BYTES) {
+        throw new Error(t('settings_avatar_file_too_large', { maxMb: Math.floor(AVATAR_MAX_UPLOAD_BYTES / (1024 * 1024)) }));
     }
     const rawDataUrl = await readFileAsDataUrl(file);
     const img = await loadImageFromDataUrl(rawDataUrl);
+    if ((img.width || 0) < AVATAR_MIN_DIMENSION || (img.height || 0) < AVATAR_MIN_DIMENSION) {
+        throw new Error(t('settings_avatar_too_small', { min: AVATAR_MIN_DIMENSION }));
+    }
     const maxSide = 256;
     const longestSide = Math.max(img.width || 1, img.height || 1);
     const scale = Math.min(1, maxSide / longestSide);
