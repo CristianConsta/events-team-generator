@@ -2623,6 +2623,10 @@ function generateMap(team, assignments, statusId) {
     showMessage(statusId, t('message_generating_map', { team: team }), 'processing');
 
     try {
+        const teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
+        const teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
+        const teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
+
         const grouped = {};
         const bombSquad = [];
 
@@ -2641,13 +2645,13 @@ function generateMap(team, assignments, statusId) {
         const substitutes = team === 'A' ? substitutesA : substitutesB;
 
         const titleHeight = 100;
-        const bombHeight = 250;
+        const bombHeight = 280;
         const activeMapImage = mapImages[MAP_EXPORT][currentEvent];
         const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
         const totalHeight = titleHeight + mapHeight + bombHeight;
 
         // Add substitutes panel width if there are substitutes
-        const subsPanelWidth = substitutes.length > 0 ? 200 : 0;
+        const subsPanelWidth = substitutes.length > 0 ? 260 : 0;
         const totalWidth = 1080 + subsPanelWidth;
 
         const canvas = document.createElement('canvas');
@@ -2655,13 +2659,67 @@ function generateMap(team, assignments, statusId) {
         canvas.height = totalHeight;
         const ctx = canvas.getContext('2d');
 
+        function drawCrosshairIcon(cx, cy, size, color) {
+            const radius = Math.max(8, Math.floor(size / 2));
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx - radius - 6, cy);
+            ctx.lineTo(cx + radius + 6, cy);
+            ctx.moveTo(cx, cy - radius - 6);
+            ctx.lineTo(cx, cy + radius + 6);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, cy, 3.2, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawShieldIcon(x, y, width, height, color) {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x + width / 2, y);
+            ctx.lineTo(x + width, y + height * 0.25);
+            ctx.lineTo(x + width * 0.88, y + height * 0.78);
+            ctx.lineTo(x + width / 2, y + height);
+            ctx.lineTo(x + width * 0.12, y + height * 0.78);
+            ctx.lineTo(x, y + height * 0.25);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function fitText(text, maxWidth, font) {
+            ctx.save();
+            ctx.font = font;
+            if (ctx.measureText(text).width <= maxWidth) {
+                ctx.restore();
+                return text;
+            }
+            let output = text;
+            while (output.length > 1 && ctx.measureText(output + '...').width > maxWidth) {
+                output = output.slice(0, -1);
+            }
+            ctx.restore();
+            return output + '...';
+        }
+
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, totalWidth, totalHeight);
 
         // Title bar (spans full width)
         const grad = ctx.createLinearGradient(0, 0, totalWidth, titleHeight);
-        grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
-        grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
+        grad.addColorStop(0, teamPrimary);
+        grad.addColorStop(1, teamSecondary);
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, totalWidth, titleHeight);
 
@@ -2717,46 +2775,124 @@ function generateMap(team, assignments, statusId) {
             });
         });
 
-        // Bomb Squad
-        const bombY = titleHeight + mapHeight + 30;
-        ctx.fillStyle = 'rgba(240,240,240,0.9)';
+        // Bomb Squad panel (war card style)
+        const bombY = titleHeight + mapHeight + 26;
+        const bombPanel = {
+            x: 190,
+            y: bombY,
+            width: 700,
+            height: 200,
+            radius: 18,
+        };
+
+        const bombGrad = ctx.createLinearGradient(0, bombPanel.y, 0, bombPanel.y + bombPanel.height);
+        bombGrad.addColorStop(0, '#2A3344');
+        bombGrad.addColorStop(1, '#1A202C');
+        ctx.fillStyle = bombGrad;
         ctx.beginPath();
-        ctx.roundRect(240, bombY, 600, 180, 15);
+        ctx.roundRect(bombPanel.x, bombPanel.y, bombPanel.width, bombPanel.height, bombPanel.radius);
         ctx.fill();
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = teamPrimary;
+        ctx.lineWidth = 2.2;
         ctx.stroke();
 
-        ctx.font = 'bold 20px Arial';
-        ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
-        ctx.textAlign = 'center';
-        ctx.fillText('BOMB SQUAD', 540, bombY + 25);
-
-        let pY = bombY + 60;
-        bombSquad.forEach((player, i) => {
-            const row = Math.floor(i / 2);
-            const col = i % 2;
-            const name = player.player;
-
-            ctx.font = 'bold 14px Arial';
-            const m = ctx.measureText(name);
-            const bw = m.width + 12;
-            const xPos = 540 - 140 + (col * 280);
-            const yPos = pY + (row * 35);
-
-            ctx.fillStyle = team === 'A' ? 'rgba(230,240,255,0.95)' : 'rgba(255,230,240,0.95)';
+        // Subtle tactical grid texture.
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(bombPanel.x + 1, bombPanel.y + 1, bombPanel.width - 2, bombPanel.height - 2, bombPanel.radius);
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        for (let gx = bombPanel.x + 18; gx < bombPanel.x + bombPanel.width; gx += 22) {
             ctx.beginPath();
-            ctx.roundRect(xPos - bw/2, yPos - 10, bw, 20, 8);
+            ctx.moveTo(gx, bombPanel.y);
+            ctx.lineTo(gx, bombPanel.y + bombPanel.height);
+            ctx.stroke();
+        }
+        for (let gy = bombPanel.y + 18; gy < bombPanel.y + bombPanel.height; gy += 22) {
+            ctx.beginPath();
+            ctx.moveTo(bombPanel.x, gy);
+            ctx.lineTo(bombPanel.x + bombPanel.width, gy);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // Hazard stripe bar.
+        const hazardY = bombPanel.y + 8;
+        const hazardX = bombPanel.x + 14;
+        const hazardW = bombPanel.width - 28;
+        const hazardH = 12;
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(hazardX, hazardY, hazardW, hazardH, 5);
+        ctx.clip();
+        for (let sx = hazardX - 22; sx < hazardX + hazardW + 22; sx += 16) {
+            ctx.fillStyle = 'rgba(255,190,64,0.95)';
+            ctx.fillRect(sx, hazardY, 8, hazardH);
+            ctx.fillStyle = 'rgba(35,38,48,0.95)';
+            ctx.fillRect(sx + 8, hazardY, 8, hazardH);
+        }
+        ctx.restore();
+
+        drawCrosshairIcon(bombPanel.x + 30, bombPanel.y + 37, 20, '#FFB84C');
+        ctx.font = 'bold 21px Arial';
+        ctx.fillStyle = '#F6F7FB';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('BOMB SQUAD', bombPanel.x + 52, bombPanel.y + 37);
+
+        ctx.font = '12px Arial';
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${bombSquad.length} OPERATORS`, bombPanel.x + bombPanel.width - 22, bombPanel.y + 37);
+
+        const bombCardsTop = bombPanel.y + 58;
+        const bombCardGapX = 16;
+        const bombCardGapY = 10;
+        const bombCardColumns = 2;
+        const bombCardWidth = Math.floor((bombPanel.width - 30 - bombCardGapX) / bombCardColumns);
+        const bombCardHeight = 30;
+        const bombRowsCapacity = Math.max(1, Math.floor((bombPanel.height - (bombCardsTop - bombPanel.y) - 12) / (bombCardHeight + bombCardGapY)));
+        const bombCardCapacity = bombRowsCapacity * bombCardColumns;
+        const visibleBombPlayers = bombSquad.slice(0, bombCardCapacity);
+
+        visibleBombPlayers.forEach((player, index) => {
+            const col = index % bombCardColumns;
+            const row = Math.floor(index / bombCardColumns);
+            const cardX = bombPanel.x + 14 + col * (bombCardWidth + bombCardGapX);
+            const cardY = bombCardsTop + row * (bombCardHeight + bombCardGapY);
+            const displayName = fitText(player.player, bombCardWidth - 42, 'bold 13px Arial');
+
+            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + bombCardWidth, cardY);
+            cardGrad.addColorStop(0, 'rgba(255,255,255,0.94)');
+            cardGrad.addColorStop(1, 'rgba(236,240,248,0.98)');
+            ctx.fillStyle = cardGrad;
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, bombCardWidth, bombCardHeight, 8);
             ctx.fill();
 
-            ctx.strokeStyle = team === 'A' ? '#4169E1' : '#DC143C';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = teamPrimary;
+            ctx.lineWidth = 1.5;
             ctx.stroke();
 
-            ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
-            ctx.textAlign = 'center';
-            ctx.fillText(name, xPos, yPos);
+            ctx.fillStyle = teamPrimary;
+            ctx.beginPath();
+            ctx.arc(cardX + 12, cardY + bombCardHeight / 2, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = 'bold 13px Arial';
+            ctx.fillStyle = '#1A1E29';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(displayName, cardX + 22, cardY + bombCardHeight / 2 + 0.5);
         });
+
+        if (bombSquad.length > bombCardCapacity) {
+            ctx.font = '12px Arial';
+            ctx.fillStyle = 'rgba(255,255,255,0.82)';
+            ctx.textAlign = 'right';
+            ctx.fillText(`+${bombSquad.length - bombCardCapacity} more`, bombPanel.x + bombPanel.width - 16, bombPanel.y + bombPanel.height - 12);
+        }
 
         // Substitutes Panel (right side)
         if (substitutes.length > 0) {
@@ -2765,61 +2901,102 @@ function generateMap(team, assignments, statusId) {
             const panelHeight = mapHeight + bombHeight;
 
             // Panel background
-            ctx.fillStyle = 'rgba(245, 245, 250, 1)';
+            const subsGrad = ctx.createLinearGradient(panelX, panelY, panelX + subsPanelWidth, panelY + panelHeight);
+            subsGrad.addColorStop(0, '#1D2330');
+            subsGrad.addColorStop(1, '#141925');
+            ctx.fillStyle = subsGrad;
             ctx.fillRect(panelX, panelY, subsPanelWidth, panelHeight);
 
-            // Panel border
-            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            // Tactical texture.
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
             ctx.lineWidth = 1;
+            for (let sy = panelY + 14; sy < panelY + panelHeight; sy += 20) {
+                ctx.beginPath();
+                ctx.moveTo(panelX + 8, sy);
+                ctx.lineTo(panelX + subsPanelWidth - 8, sy);
+                ctx.stroke();
+            }
+
+            // Panel border
+            ctx.strokeStyle = teamPrimary;
+            ctx.lineWidth = 1.8;
+            ctx.strokeRect(panelX + 0.9, panelY + 0.9, subsPanelWidth - 1.8, panelHeight - 1.8);
+
+            const subsHeaderH = 72;
+            const headGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + subsHeaderH);
+            headGrad.addColorStop(0, teamSoft);
+            headGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
+            ctx.fillStyle = headGrad;
+            ctx.fillRect(panelX, panelY, subsPanelWidth, subsHeaderH);
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
             ctx.beginPath();
-            ctx.moveTo(panelX, panelY);
-            ctx.lineTo(panelX, panelY + panelHeight);
+            ctx.moveTo(panelX + 10, panelY + subsHeaderH);
+            ctx.lineTo(panelX + subsPanelWidth - 10, panelY + subsHeaderH);
             ctx.stroke();
 
-            // Panel title
+            drawShieldIcon(panelX + 14, panelY + 16, 20, 24, teamSecondary);
             ctx.font = 'bold 16px Arial';
-            ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(t('map_substitutes_title'), panelX + subsPanelWidth / 2, panelY + 30);
-
-            // Subtitle
-            ctx.font = '12px Arial';
-            ctx.fillStyle = '#666';
-            ctx.fillText(t('map_substitutes_subtitle'), panelX + subsPanelWidth / 2, panelY + 50);
-
-            // Draw substitute names
-            ctx.font = 'bold 13px Arial';
+            ctx.fillStyle = '#F6F7FB';
             ctx.textAlign = 'left';
-            let subY = panelY + 80;
+            ctx.textBaseline = 'middle';
+            ctx.fillText(t('map_substitutes_title'), panelX + 42, panelY + 30);
 
-            substitutes.forEach((sub) => {
-                const text = sub.name;
-                const metrics = ctx.measureText(text);
-                const pillW = Math.min(metrics.width + 16, subsPanelWidth - 20);
-                const pillX = panelX + 10;
+            ctx.font = '13px Arial';
+            ctx.fillStyle = 'rgba(255,255,255,0.72)';
+            ctx.fillText('♞ ' + t('map_substitutes_subtitle'), panelX + 42, panelY + 50);
 
-                ctx.fillStyle = team === 'A' ? 'rgba(65, 105, 225, 0.1)' : 'rgba(220, 20, 60, 0.1)';
+            // Draw substitute roster rows (single or double column if many rows).
+            const rowStartY = panelY + subsHeaderH + 14;
+            const rowHeight = 28;
+            const rowGap = 8;
+            const availableRowsHeight = panelHeight - (rowStartY - panelY) - 18;
+            const rowsPerColumn = Math.max(1, Math.floor(availableRowsHeight / (rowHeight + rowGap)));
+            const useTwoCols = substitutes.length > rowsPerColumn;
+            const colCount = useTwoCols ? 2 : 1;
+            const colGap = 10;
+            const rowWidth = Math.floor((subsPanelWidth - 20 - ((colCount - 1) * colGap)) / colCount);
+
+            substitutes.forEach((sub, index) => {
+                const col = Math.floor(index / rowsPerColumn);
+                if (col >= colCount) {
+                    return;
+                }
+                const row = index % rowsPerColumn;
+                const rowX = panelX + 10 + col * (rowWidth + colGap);
+                const rowY = rowStartY + row * (rowHeight + rowGap);
+                const reserveTag = 'R' + String(index + 1);
+                const name = fitText(sub.name, rowWidth - 46, 'bold 12px Arial');
+
+                ctx.fillStyle = 'rgba(255,255,255,0.92)';
                 ctx.beginPath();
-                ctx.roundRect(pillX, subY - 10, pillW, 22, 6);
+                ctx.roundRect(rowX, rowY, rowWidth, rowHeight, 7);
                 ctx.fill();
-
-                ctx.strokeStyle = team === 'A' ? 'rgba(65, 105, 225, 0.3)' : 'rgba(220, 20, 60, 0.3)';
-                ctx.lineWidth = 1;
+                ctx.strokeStyle = teamPrimary;
+                ctx.lineWidth = 1.2;
                 ctx.stroke();
 
-                ctx.fillStyle = team === 'A' ? '#4169E1' : '#DC143C';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(text, pillX + 8, subY + 1);
+                ctx.fillStyle = teamPrimary;
+                ctx.beginPath();
+                ctx.roundRect(rowX + 3, rowY + 3, 28, rowHeight - 6, 5);
+                ctx.fill();
 
-                subY += 30;
+                ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(reserveTag, rowX + 17, rowY + rowHeight / 2 + 0.5);
+
+                ctx.font = 'bold 12px Arial';
+                ctx.fillStyle = '#1B2230';
+                ctx.textAlign = 'left';
+                ctx.fillText(name, rowX + 36, rowY + rowHeight / 2 + 0.5);
             });
         }
 
         ctx.font = '12px Arial';
-        ctx.fillStyle = 'gray';
+        ctx.fillStyle = 'rgba(90,90,90,0.95)';
         ctx.textAlign = 'center';
-        ctx.fillText(t('map_footer_text'), 540, bombY + 160);
+        ctx.fillText(t('map_footer_text'), 540, totalHeight - 14);
 
         const dataURL = canvas.toDataURL('image/png');
         const a = document.createElement('a');
