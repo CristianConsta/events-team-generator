@@ -37,6 +37,26 @@ function onI18nApplied() {
     if (navMenuPanel) {
         navMenuPanel.setAttribute('aria-label', t('navigation_menu'));
     }
+    const languageMenuBtn = document.getElementById('languageMenuBtn');
+    if (languageMenuBtn) {
+        languageMenuBtn.title = t('language_button');
+        languageMenuBtn.setAttribute('aria-label', t('language_button'));
+    }
+    const languageMenuPanel = document.getElementById('languageMenuPanel');
+    if (languageMenuPanel) {
+        languageMenuPanel.setAttribute('aria-label', t('language_button'));
+    }
+    const profileBtn = document.getElementById('headerProfileBtn');
+    if (profileBtn) {
+        profileBtn.title = t('settings_button');
+        profileBtn.setAttribute('aria-label', t('settings_button'));
+    }
+    const notificationBtn = document.getElementById('notificationBtn');
+    if (notificationBtn) {
+        notificationBtn.title = t('notifications_title');
+    }
+    updateLanguageMenuUI();
+    updateUserHeaderIdentity(currentAuthUser);
     syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
@@ -57,6 +77,11 @@ function applyTranslations() {
 
 function setLanguage(lang) {
     window.DSI18N.setLanguage(lang);
+}
+
+function selectLanguage(lang) {
+    setLanguage(lang);
+    closeLanguageMenu();
 }
 
 function initLanguage() {
@@ -245,12 +270,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // Skip link
     document.getElementById('onboardingSkip').addEventListener('click', completeOnboarding);
 
+    const settingsDisplayNameInput = document.getElementById('settingsDisplayNameInput');
+    if (settingsDisplayNameInput) {
+        settingsDisplayNameInput.addEventListener('input', updateSettingsAvatarPreview);
+    }
+    const settingsNicknameInput = document.getElementById('settingsNicknameInput');
+    if (settingsNicknameInput) {
+        settingsNicknameInput.addEventListener('input', updateSettingsAvatarPreview);
+    }
+
     // Pointer-first canvas interaction improves mobile precision.
     const coordCanvas = document.getElementById('coordCanvas');
     if (coordCanvas) {
         coordCanvas.style.touchAction = 'none';
         coordCanvas.addEventListener('pointerdown', coordCanvasClick, { passive: false });
     }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeNavigationMenu();
+            closeLanguageMenu();
+            closeSettingsModal();
+        }
+    });
+
+    updateLanguageMenuUI();
+    updateUserHeaderIdentity(currentAuthUser);
 });
 
 // ============================================================
@@ -321,6 +366,19 @@ let assignmentsA = [];
 let assignmentsB = [];
 let substitutesA = [];
 let substitutesB = [];
+let currentAuthUser = null;
+let settingsDraftAvatarDataUrl = '';
+
+const PROFILE_TEXT_LIMIT = 60;
+const PROFILE_AVATAR_DATA_URL_LIMIT = 400000;
+const LANGUAGE_META = {
+    en: { flag: '🇺🇸', labelKey: 'language_name_en' },
+    fr: { flag: '🇫🇷', labelKey: 'language_name_fr' },
+    de: { flag: '🇩🇪', labelKey: 'language_name_de' },
+    it: { flag: '🇮🇹', labelKey: 'language_name_it' },
+    ko: { flag: '🇰🇷', labelKey: 'language_name_ko' },
+    ro: { flag: '🇷🇴', labelKey: 'language_name_ro' },
+};
 
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
@@ -369,6 +427,7 @@ function toggleNavigationMenu(event) {
         return;
     }
     if (panel.classList.contains('hidden')) {
+        closeLanguageMenu();
         openNavigationMenu();
     } else {
         closeNavigationMenu();
@@ -439,6 +498,331 @@ function showConfigurationPage() {
 
 function showGeneratorPage() {
     setPageView('generator');
+}
+
+function closeLanguageMenu() {
+    const panel = document.getElementById('languageMenuPanel');
+    const menuBtn = document.getElementById('languageMenuBtn');
+    if (panel) {
+        panel.classList.add('hidden');
+    }
+    if (menuBtn) {
+        menuBtn.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function openLanguageMenu() {
+    const panel = document.getElementById('languageMenuPanel');
+    const menuBtn = document.getElementById('languageMenuBtn');
+    if (panel) {
+        panel.classList.remove('hidden');
+    }
+    if (menuBtn) {
+        menuBtn.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function toggleLanguageMenu(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const panel = document.getElementById('languageMenuPanel');
+    if (!panel) {
+        return;
+    }
+    closeNavigationMenu();
+    if (panel.classList.contains('hidden')) {
+        openLanguageMenu();
+    } else {
+        closeLanguageMenu();
+    }
+}
+
+function updateLanguageMenuUI() {
+    const lang = window.DSI18N && window.DSI18N.getLanguage ? window.DSI18N.getLanguage() : 'en';
+    const currentFlagEl = document.getElementById('currentLanguageFlag');
+    if (currentFlagEl) {
+        currentFlagEl.textContent = LANGUAGE_META[lang] ? LANGUAGE_META[lang].flag : LANGUAGE_META.en.flag;
+    }
+    document.querySelectorAll('.lang-flag-btn').forEach((button) => {
+        const code = button.getAttribute('data-lang');
+        const isActive = code === lang;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        const langMeta = LANGUAGE_META[code];
+        if (langMeta) {
+            button.title = t(langMeta.labelKey);
+        }
+    });
+}
+
+function getSafeUserEmail(user) {
+    if (!user || typeof user.email !== 'string') {
+        return '';
+    }
+    return user.email.trim();
+}
+
+function deriveDefaultDisplayName(user) {
+    const providerName = user && typeof user.displayName === 'string' ? user.displayName.trim() : '';
+    if (providerName) {
+        return providerName.slice(0, PROFILE_TEXT_LIMIT);
+    }
+    const email = getSafeUserEmail(user);
+    if (!email) {
+        return t('settings_default_name');
+    }
+    const localPart = email.split('@')[0].trim();
+    return (localPart || email).slice(0, PROFILE_TEXT_LIMIT);
+}
+
+function getProfileFromService() {
+    if (typeof FirebaseService === 'undefined' || !FirebaseService.getUserProfile) {
+        return { displayName: '', nickname: '', avatarDataUrl: '' };
+    }
+    const profile = FirebaseService.getUserProfile();
+    if (!profile || typeof profile !== 'object') {
+        return { displayName: '', nickname: '', avatarDataUrl: '' };
+    }
+    return {
+        displayName: typeof profile.displayName === 'string' ? profile.displayName.trim().slice(0, PROFILE_TEXT_LIMIT) : '',
+        nickname: typeof profile.nickname === 'string' ? profile.nickname.trim().replace(/^@+/, '').slice(0, PROFILE_TEXT_LIMIT) : '',
+        avatarDataUrl: typeof profile.avatarDataUrl === 'string' ? profile.avatarDataUrl.trim().slice(0, PROFILE_AVATAR_DATA_URL_LIMIT) : '',
+    };
+}
+
+function getAvatarInitials(primaryName, secondaryName) {
+    const preferred = [primaryName, secondaryName]
+        .filter((value) => typeof value === 'string' && value.trim())
+        .map((value) => value.trim())[0] || '';
+    if (!preferred) {
+        return 'U';
+    }
+    const tokens = preferred.split(/\s+/).filter(Boolean);
+    if (tokens.length === 1) {
+        return tokens[0].slice(0, 2).toUpperCase();
+    }
+    return (tokens[0][0] + tokens[1][0]).toUpperCase();
+}
+
+function applyAvatar(dataUrl, imageEl, initialsEl, initials) {
+    if (!imageEl || !initialsEl) {
+        return;
+    }
+    if (dataUrl) {
+        imageEl.src = dataUrl;
+        imageEl.classList.remove('hidden');
+        initialsEl.classList.add('hidden');
+    } else {
+        imageEl.src = '';
+        imageEl.classList.add('hidden');
+        initialsEl.textContent = initials;
+        initialsEl.classList.remove('hidden');
+    }
+}
+
+function updateUserHeaderIdentity(user) {
+    if (typeof user !== 'undefined') {
+        currentAuthUser = user;
+    }
+    const profile = getProfileFromService();
+    const displayName = profile.displayName || deriveDefaultDisplayName(currentAuthUser);
+    const nickname = profile.nickname;
+
+    const nameEl = document.getElementById('userDisplayName');
+    if (nameEl) {
+        nameEl.textContent = displayName || t('settings_default_name');
+    }
+    const nicknameEl = document.getElementById('userNickname');
+    if (nicknameEl) {
+        if (nickname) {
+            nicknameEl.textContent = '@' + nickname;
+            nicknameEl.classList.remove('hidden');
+        } else {
+            nicknameEl.textContent = '';
+            nicknameEl.classList.add('hidden');
+        }
+    }
+
+    const avatarImageEl = document.getElementById('headerAvatarImage');
+    const avatarInitialsEl = document.getElementById('headerAvatarInitials');
+    applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, getAvatarInitials(displayName, nickname));
+}
+
+function openSettingsModal() {
+    closeNavigationMenu();
+    closeLanguageMenu();
+    const modal = document.getElementById('settingsModal');
+    if (!modal) {
+        return;
+    }
+    const profile = getProfileFromService();
+    const displayInput = document.getElementById('settingsDisplayNameInput');
+    const nicknameInput = document.getElementById('settingsNicknameInput');
+    if (displayInput) {
+        displayInput.value = profile.displayName || '';
+    }
+    if (nicknameInput) {
+        nicknameInput.value = profile.nickname || '';
+    }
+    settingsDraftAvatarDataUrl = profile.avatarDataUrl || '';
+    const statusEl = document.getElementById('settingsStatus');
+    if (statusEl) {
+        statusEl.innerHTML = '';
+    }
+    updateSettingsAvatarPreview();
+    modal.classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function handleSettingsOverlayClick(event) {
+    if (event && event.target && event.target.id === 'settingsModal') {
+        closeSettingsModal();
+    }
+}
+
+function triggerSettingsAvatarUpload() {
+    const input = document.getElementById('settingsAvatarInput');
+    if (input) {
+        input.click();
+    }
+}
+
+function removeSettingsAvatar() {
+    settingsDraftAvatarDataUrl = '';
+    const input = document.getElementById('settingsAvatarInput');
+    if (input) {
+        input.value = '';
+    }
+    updateSettingsAvatarPreview();
+}
+
+function updateSettingsAvatarPreview() {
+    const displayInput = document.getElementById('settingsDisplayNameInput');
+    const nicknameInput = document.getElementById('settingsNicknameInput');
+    const name = displayInput && displayInput.value ? displayInput.value.trim() : deriveDefaultDisplayName(currentAuthUser);
+    const nickname = nicknameInput && nicknameInput.value ? nicknameInput.value.trim().replace(/^@+/, '') : '';
+    const previewImg = document.getElementById('settingsAvatarImage');
+    const previewInitials = document.getElementById('settingsAvatarInitials');
+    applyAvatar(settingsDraftAvatarDataUrl, previewImg, previewInitials, getAvatarInitials(name, nickname));
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = () => reject(new Error(t('settings_avatar_processing_failed')));
+        reader.readAsDataURL(file);
+    });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(t('settings_avatar_processing_failed')));
+        img.src = dataUrl;
+    });
+}
+
+async function createAvatarDataUrl(file) {
+    if (!file || typeof file.type !== 'string' || !file.type.startsWith('image/')) {
+        throw new Error(t('settings_avatar_invalid_type'));
+    }
+    const rawDataUrl = await readFileAsDataUrl(file);
+    const img = await loadImageFromDataUrl(rawDataUrl);
+    const maxSide = 256;
+    const longestSide = Math.max(img.width || 1, img.height || 1);
+    const scale = Math.min(1, maxSide / longestSide);
+    const width = Math.max(1, Math.round((img.width || 1) * scale));
+    const height = Math.max(1, Math.round((img.height || 1) * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        throw new Error(t('settings_avatar_processing_failed'));
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const jpegQualities = [0.9, 0.8, 0.7, 0.6, 0.5];
+    for (const quality of jpegQualities) {
+        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+        if (jpegDataUrl.length <= PROFILE_AVATAR_DATA_URL_LIMIT) {
+            return jpegDataUrl;
+        }
+    }
+
+    const pngDataUrl = canvas.toDataURL('image/png');
+    if (pngDataUrl.length <= PROFILE_AVATAR_DATA_URL_LIMIT) {
+        return pngDataUrl;
+    }
+    throw new Error(t('settings_avatar_too_large'));
+}
+
+async function handleSettingsAvatarChange(event) {
+    const input = event && event.target ? event.target : document.getElementById('settingsAvatarInput');
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) {
+        return;
+    }
+    try {
+        settingsDraftAvatarDataUrl = await createAvatarDataUrl(file);
+        const statusEl = document.getElementById('settingsStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '';
+        }
+        updateSettingsAvatarPreview();
+    } catch (error) {
+        showMessage('settingsStatus', error.message || t('settings_avatar_processing_failed'), 'error');
+    } finally {
+        if (input) {
+            input.value = '';
+        }
+    }
+}
+
+async function saveSettings() {
+    if (typeof FirebaseService === 'undefined') {
+        showMessage('settingsStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+    const displayInput = document.getElementById('settingsDisplayNameInput');
+    const nicknameInput = document.getElementById('settingsNicknameInput');
+    const displayName = displayInput && typeof displayInput.value === 'string'
+        ? displayInput.value.trim().slice(0, PROFILE_TEXT_LIMIT)
+        : '';
+    const nickname = nicknameInput && typeof nicknameInput.value === 'string'
+        ? nicknameInput.value.trim().replace(/^@+/, '').slice(0, PROFILE_TEXT_LIMIT)
+        : '';
+
+    if (FirebaseService.setUserProfile) {
+        FirebaseService.setUserProfile({
+            displayName: displayName,
+            nickname: nickname,
+            avatarDataUrl: settingsDraftAvatarDataUrl || '',
+        });
+    }
+
+    const result = await FirebaseService.saveUserData();
+    if (result && result.success) {
+        updateUserHeaderIdentity(currentAuthUser);
+        showMessage('settingsStatus', t('settings_saved'), 'success');
+        setTimeout(() => {
+            closeSettingsModal();
+        }, 600);
+    } else {
+        const errorText = result && result.error ? result.error : t('settings_avatar_processing_failed');
+        showMessage('settingsStatus', t('settings_save_failed', { error: errorText }), 'error');
+    }
 }
 
 // ============================================================
@@ -2526,6 +2910,10 @@ document.addEventListener('click', (event) => {
     const navMenu = document.getElementById('navMenu');
     if (navMenu && !navMenu.contains(event.target)) {
         closeNavigationMenu();
+    }
+    const languageMenu = document.getElementById('languageMenu');
+    if (languageMenu && !languageMenu.contains(event.target)) {
+        closeLanguageMenu();
     }
 });
 

@@ -29,6 +29,7 @@ function resetGlobals() {
   delete global.stopNotificationPolling;
   delete global.loadBuildingConfig;
   delete global.loadBuildingPositions;
+  delete global.updateUserHeaderIdentity;
   delete global.t;
 }
 
@@ -66,13 +67,13 @@ test('app init wires auth/data callbacks when FirebaseService is available', () 
 
   const loginScreen = { style: { display: 'none' } };
   const mainApp = { style: { display: 'none' } };
-  const userEmail = { textContent: '' };
+  const userDisplayName = { textContent: '' };
 
   global.document = {
     getElementById(id) {
       if (id === 'loginScreen') return loginScreen;
       if (id === 'mainApp') return mainApp;
-      if (id === 'userEmail') return userEmail;
+      if (id === 'userDisplayName') return userDisplayName;
       return { style: {}, textContent: '' };
     },
   };
@@ -93,6 +94,9 @@ test('app init wires auth/data callbacks when FirebaseService is available', () 
   global.stopNotificationPolling = () => {};
   global.loadBuildingConfig = () => false;
   global.loadBuildingPositions = () => false;
+  global.updateUserHeaderIdentity = (user) => {
+    userDisplayName.textContent = user && user.email ? user.email : '';
+  };
   global.t = (key) => key;
 
   global.FirebaseService = {
@@ -112,5 +116,5 @@ test('app init wires auth/data callbacks when FirebaseService is available', () 
   authCb(true, { email: 'user@example.com' });
   assert.equal(loginScreen.style.display, 'none');
   assert.equal(mainApp.style.display, 'block');
-  assert.equal(userEmail.textContent, 'user@example.com');
+  assert.equal(userDisplayName.textContent, 'user@example.com');
 });

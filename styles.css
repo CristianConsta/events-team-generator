@@ -409,19 +409,15 @@ select {
     border-color: var(--gold);
     color: var(--gold);
 }
-#languageSelect {
-    padding: 8px 10px;
-    min-height: 40px;
-    border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.3);
-    background: rgba(255,255,255,0.1);
-    color: white;
-    font-size: 12px;
-    cursor: pointer;
-}
-#languageSelect option {
-    background: #2c2c2c;
-    color: white;
+.language-select-hidden {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
 }
 
 .team-buttons {
@@ -581,10 +577,14 @@ select {
 }
 #userHeader {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 10px;
+}
+#userHeaderTop {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
-    flex-wrap: nowrap;
 }
 #headerLeft {
     display: flex;
@@ -592,36 +592,104 @@ select {
     gap: 10px;
     flex: 0 0 auto;
 }
-#headerRight {
+#headerActions {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 0;
     margin-left: auto;
+    flex: 0 0 auto;
 }
 #headerUserInfo {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "profile meta"
+        "count count";
+    align-items: center;
+    gap: 4px 10px;
     min-width: 0;
-    max-width: 52vw;
 }
-#headerUserTop {
+#headerProfileBtn {
+    grid-area: profile;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
     min-width: 0;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+    justify-content: flex-start;
     width: 100%;
 }
-#userEmail,
-#allianceDisplay,
-#playerCount {
+#headerProfileBtn:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(var(--gold-rgb), 0.3);
+    transform: none;
+    box-shadow: none;
+}
+.header-avatar {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--gold-rgb), 0.45);
+    background: rgba(255,255,255,0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 700;
+}
+#headerAvatarImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#headerUserText {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+#userDisplayName,
+#userNickname {
+    display: block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#userDisplayName {
+    font-size: 17px;
+    line-height: 1.15;
+}
+#userNickname {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+}
+#headerMetaRow {
+    grid-area: meta;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+#allianceDisplay {
+    max-width: 180px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 #playerCount {
-    width: 100%;
+    grid-area: count;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     text-align: right;
 }
 .header-menu {
@@ -668,6 +736,28 @@ select {
     color: #1a1a2e;
     border-color: rgba(var(--gold-rgb), 0.65);
 }
+.lang-flag-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+.lang-flag-btn .lang-flag {
+    font-size: 18px;
+    line-height: 1;
+}
+.lang-flag-btn.active {
+    border-color: rgba(var(--gold-rgb), 0.65);
+}
+.language-current-flag {
+    font-size: 20px;
+    line-height: 1;
+}
+#languageMenu .header-menu-panel {
+    right: 0;
+    left: auto;
+    min-width: 140px;
+}
 .header-menu-item.danger {
     border-color: rgba(255, 107, 53, 0.45);
     color: #FF9A6E;
@@ -694,10 +784,66 @@ select {
     width: 18px;
     height: 18px;
 }
+#languageMenuBtn:hover {
+    background: rgba(255,255,255,0.1);
+    transform: none;
+    box-shadow: none;
+}
 #navMenuBtn:hover {
     background: rgba(255,255,255,0.1);
     transform: none;
     box-shadow: none;
+}
+.settings-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+.settings-form-grid label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.82);
+}
+.settings-form-grid input {
+    width: 100%;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    padding: 10px 12px;
+}
+.settings-avatar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 14px;
+}
+.settings-avatar-preview {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--gold-rgb), 0.45);
+    background: rgba(255,255,255,0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: var(--gold);
+    font-size: 22px;
+    font-weight: 700;
+}
+#settingsAvatarImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.settings-avatar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+#settingsAvatarInput {
+    display: none;
 }
 /* ── Alliance Panel inputs ── */
 #alliancePanelContent input::placeholder {
@@ -726,16 +872,8 @@ select {
 
     .counter { padding: 12px 22px; font-size: 16px; }
 
-    #userHeader {
-        flex-wrap: wrap;
-        align-items: flex-start;
-    }
-    #headerRight {
-        width: 100%;
-        justify-content: flex-end;
-    }
-    #headerUserInfo {
-        max-width: calc(100% - 120px);
+    #headerProfileBtn {
+        max-width: 100%;
     }
 }
 
@@ -952,13 +1090,20 @@ select {
 
     /* ── User header ── */
     #userHeader                { padding: 10px !important; }
+    #userHeaderTop            { gap: 8px !important; }
     #headerLeft               { gap: 8px !important; }
-    #headerRight              { gap: 6px !important; width: auto; max-width: calc(100vw - 88px); }
-    #headerUserInfo           { max-width: calc(100vw - 190px); }
-    #headerUserTop            { gap: 4px !important; }
-    #userEmail                 { font-size: 14px !important; }
+    #headerActions            { gap: 6px !important; }
+    #headerUserInfo           { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px !important; }
+    #headerProfileBtn         { padding: 4px !important; gap: 8px !important; }
+    .header-avatar            { width: 34px !important; height: 34px !important; min-width: 34px !important; font-size: 12px !important; }
+    #userDisplayName          { font-size: 14px !important; }
+    #userNickname             { font-size: 11px !important; }
     #playerCount               { font-size: 12px !important; }
-    #languageSelect            { padding: 8px 10px !important; font-size: 13px !important; min-height: 40px; }
+    .language-current-flag    { font-size: 18px !important; }
+    #languageMenuBtn          { padding: 9px !important; min-width: 44px; min-height: 44px; }
+    #notificationBtn          { padding: 9px !important; min-width: 44px; min-height: 44px; }
+    .settings-avatar-wrap     { gap: 10px !important; }
+    .settings-avatar-preview  { width: 62px !important; height: 62px !important; font-size: 18px !important; }
 
     /* ── Onboarding tooltip ── */
     .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }

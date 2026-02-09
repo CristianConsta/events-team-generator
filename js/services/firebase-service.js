@@ -58,6 +58,12 @@
         getActivePlayerDatabase: function getActivePlayerDatabase() {
             return withManager((svc) => svc.getActivePlayerDatabase(), {});
         },
+        getUserProfile: function getUserProfile() {
+            return withManager((svc) => svc.getUserProfile(), { displayName: '', nickname: '', avatarDataUrl: '' });
+        },
+        setUserProfile: function setUserProfile(profile) {
+            return withManager((svc) => svc.setUserProfile(profile), { displayName: '', nickname: '', avatarDataUrl: '' });
+        },
         getPlayerSource: function getPlayerSource() {
             return withManager((svc) => svc.getPlayerSource(), 'personal');
         },

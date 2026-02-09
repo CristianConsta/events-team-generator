@@ -31,7 +31,9 @@
             if (isSignedIn) {
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
-                document.getElementById('userEmail').textContent = user.email;
+                if (typeof updateUserHeaderIdentity === 'function') {
+                    updateUserHeaderIdentity(user);
+                }
                 applyTranslations();
                 loadPlayerData();
                 initOnboarding();
@@ -41,6 +43,9 @@
             } else {
                 document.getElementById('loginScreen').style.display = 'block';
                 document.getElementById('mainApp').style.display = 'none';
+                if (typeof updateUserHeaderIdentity === 'function') {
+                    updateUserHeaderIdentity(null);
+                }
                 stopNotificationPolling();
             }
         });
@@ -52,6 +57,9 @@
             const positionsNeedsSave = loadBuildingPositions();
             if (configNeedsSave || positionsNeedsSave) {
                 FirebaseService.saveUserData();
+            }
+            if (typeof updateUserHeaderIdentity === 'function') {
+                updateUserHeaderIdentity();
             }
             updateAllianceHeaderDisplay();
             checkAndDisplayNotifications();

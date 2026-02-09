@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.googleapis.com; font-src 'self' data:; base-uri 'none'; frame-src https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://last-war-game-desert-storm.firebaseapp.com; form-action 'self';">
     <link rel="icon" href="data:,">
-    <title>Desert Storm - Player Selection</title>
+    <title>LW-  Events Players Selection</title>
     <!-- Firebase SDKs -->
     <script defer src="vendor/firebase-app-compat.js"></script>
     <script defer src="vendor/firebase-auth-compat.js"></script>
@@ -19,7 +19,7 @@
     <!-- Login Screen -->
     <div id="loginScreen" style="display: none;">
         <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h1 style="text-align: center; color: #333;" data-i18n="login_title">🏜️ Desert Storm</h1>
+            <h1 style="text-align: center; color: #333;" data-i18n="login_title">LW-  Events Players Selection</h1>
             <h3 style="text-align: center; color: #666; margin-bottom: 30px;" data-i18n="login_subtitle">Sign in to continue</h3>
             
             <button id="googleSignInBtn" onclick="handleGoogleSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
@@ -60,44 +60,71 @@
     <div id="mainApp" style="display: none;">
         <!-- User Header -->
         <div id="userHeader" style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; max-width: 1200px; margin: 0 auto 20px auto;">
-            <div id="headerLeft">
-                <div id="navMenu" class="header-menu">
-                    <button id="navMenuBtn" class="secondary header-icon-btn" onclick="toggleNavigationMenu(event)" title="Menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="navMenuPanel">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
-                        <span class="btn-label" data-i18n="navigation_menu">Menu</span>
-                    </button>
-                    <div id="navMenuPanel" class="header-menu-panel hidden" role="menu" aria-label="Menu">
-                        <button id="navGeneratorBtn" class="header-menu-item" onclick="showGeneratorPage()" role="menuitem"><span data-i18n="generator_button">Generator</span></button>
-                        <button id="navConfigBtn" class="header-menu-item" onclick="showConfigurationPage()" role="menuitem"><span data-i18n="configuration_button">Configuration</span></button>
-                        <div class="header-menu-divider"></div>
-                        <button id="navSignOutBtn" class="header-menu-item danger" onclick="closeNavigationMenu(); handleSignOut();" role="menuitem"><span data-i18n="sign_out_button">Sign Out</span></button>
+            <div id="userHeaderTop">
+                <div id="headerLeft">
+                    <div id="navMenu" class="header-menu">
+                        <button id="navMenuBtn" class="secondary header-icon-btn" onclick="toggleNavigationMenu(event)" title="Menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="navMenuPanel">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+                            <span class="btn-label" data-i18n="navigation_menu">Menu</span>
+                        </button>
+                        <div id="navMenuPanel" class="header-menu-panel hidden" role="menu" aria-label="Menu">
+                            <button id="navGeneratorBtn" class="header-menu-item" onclick="showGeneratorPage()" role="menuitem"><span data-i18n="generator_button">Generator</span></button>
+                            <button id="navConfigBtn" class="header-menu-item" onclick="showConfigurationPage()" role="menuitem"><span data-i18n="configuration_button">Configuration</span></button>
+                            <button id="navSettingsBtn" class="header-menu-item" onclick="openSettingsModal()" role="menuitem"><span data-i18n="settings_button">Settings</span></button>
+                            <div class="header-menu-divider"></div>
+                            <button id="navSignOutBtn" class="header-menu-item danger" onclick="closeNavigationMenu(); handleSignOut();" role="menuitem"><span data-i18n="sign_out_button">Sign Out</span></button>
+                        </div>
                     </div>
+                </div>
+
+                <div id="headerActions">
+                    <button id="notificationBtn" onclick="toggleNotificationsPanel()" title="Notifications" style="position: relative; padding: 8px 10px; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; margin: 0;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
+                    </button>
+                    <div id="languageMenu" class="header-menu language-menu">
+                        <button id="languageMenuBtn" class="secondary header-icon-btn" onclick="toggleLanguageMenu(event)" title="Language" aria-label="Language" aria-haspopup="menu" aria-expanded="false" aria-controls="languageMenuPanel">
+                            <span id="currentLanguageFlag" class="language-current-flag" aria-hidden="true">🇺🇸</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div id="languageMenuPanel" class="header-menu-panel hidden" role="menu" aria-label="Language">
+                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="en" onclick="selectLanguage('en')"><span class="lang-flag" aria-hidden="true">🇺🇸</span><span>EN</span></button>
+                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="fr" onclick="selectLanguage('fr')"><span class="lang-flag" aria-hidden="true">🇫🇷</span><span>FR</span></button>
+                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="de" onclick="selectLanguage('de')"><span class="lang-flag" aria-hidden="true">🇩🇪</span><span>DE</span></button>
+                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="it" onclick="selectLanguage('it')"><span class="lang-flag" aria-hidden="true">🇮🇹</span><span>IT</span></button>
+                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="ko" onclick="selectLanguage('ko')"><span class="lang-flag" aria-hidden="true">🇰🇷</span><span>KO</span></button>
+                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="ro" onclick="selectLanguage('ro')"><span class="lang-flag" aria-hidden="true">🇷🇴</span><span>RO</span></button>
+                        </div>
+                    </div>
+                    <select id="languageSelect" class="language-select-hidden" aria-hidden="true" tabindex="-1">
+                        <option value="en">EN</option>
+                        <option value="fr">FR</option>
+                        <option value="de">DE</option>
+                        <option value="it">IT</option>
+                        <option value="ko">KO</option>
+                        <option value="ro">RO</option>
+                    </select>
                 </div>
             </div>
 
-            <div id="headerRight">
-                <div id="headerUserInfo">
-                    <div id="headerUserTop">
-                        <span id="userEmail" style="color: var(--gold); font-weight: bold;"></span>
-                        <span id="allianceDisplay" style="display: none; color: var(--gold); font-weight: bold; opacity: 0.7; cursor: pointer;" onclick="toggleAlliancePanel()"></span>
-                        <button id="allianceCreateBtn" onclick="toggleAlliancePanel()" title="Create/Join Alliance" style="display: none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
-                        </button>
-                    </div>
-                    <div id="playerCount" style="color: rgba(255,255,255,0.65); font-size: 13px;"></div>
-                </div>
-                <button id="notificationBtn" onclick="toggleNotificationsPanel()" title="Notifications" style="position: relative; padding: 8px 10px; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; margin: 0;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                    <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
+            <div id="headerUserInfo">
+                <button id="headerProfileBtn" onclick="openSettingsModal()" title="Settings">
+                    <span id="headerAvatar" class="header-avatar" aria-hidden="true">
+                        <img id="headerAvatarImage" class="hidden" alt="User avatar">
+                        <span id="headerAvatarInitials">U</span>
+                    </span>
+                    <span id="headerUserText">
+                        <span id="userDisplayName" style="color: var(--gold); font-weight: bold;">User</span>
+                        <span id="userNickname" class="hidden"></span>
+                    </span>
                 </button>
-                <select id="languageSelect">
-                    <option value="en">EN</option>
-                    <option value="fr">FR</option>
-                    <option value="de">DE</option>
-                    <option value="it">IT</option>
-                    <option value="ko">KO</option>
-                    <option value="ro">RO</option>
-                </select>
+                <div id="headerMetaRow">
+                    <span id="allianceDisplay" style="display: none; color: var(--gold); font-weight: bold; opacity: 0.7; cursor: pointer;" onclick="toggleAlliancePanel()"></span>
+                    <button id="allianceCreateBtn" onclick="toggleAlliancePanel()" title="Create/Join Alliance" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
+                    </button>
+                </div>
+                <div id="playerCount" style="color: rgba(255,255,255,0.65); font-size: 13px;"></div>
             </div>
         </div>
 
@@ -117,6 +144,44 @@
                     <button class="clear-btn" onclick="toggleNotificationsPanel()"><span data-i18n="close">Close</span></button>
                 </div>
                 <div id="notificationsList"></div>
+            </div>
+
+            <div id="settingsModal" class="coord-overlay hidden" onclick="handleSettingsOverlayClick(event)">
+                <div id="settingsModalCard" style="width: min(520px, 94vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px;">
+                        <h2 style="margin: 0;" data-i18n="settings_title">Settings</h2>
+                        <button class="clear-btn" onclick="closeSettingsModal()"><span data-i18n="close">Close</span></button>
+                    </div>
+                    <p style="opacity: 0.85; margin: 0 0 16px;" data-i18n="settings_description">Set how your profile appears in the header.</p>
+
+                    <div class="settings-form-grid">
+                        <label for="settingsDisplayNameInput" data-i18n="settings_display_name_label">Name</label>
+                        <input id="settingsDisplayNameInput" type="text" maxlength="60" data-i18n-placeholder="settings_display_name_placeholder" placeholder="Name">
+                        <label for="settingsNicknameInput" data-i18n="settings_nickname_label">Nickname</label>
+                        <input id="settingsNicknameInput" type="text" maxlength="60" data-i18n-placeholder="settings_nickname_placeholder" placeholder="Nickname">
+                    </div>
+
+                    <div class="settings-avatar-wrap">
+                        <div class="settings-avatar-preview" id="settingsAvatarPreview">
+                            <img id="settingsAvatarImage" class="hidden" alt="Avatar preview">
+                            <span id="settingsAvatarInitials">U</span>
+                        </div>
+                        <div class="settings-avatar-actions">
+                            <div style="font-size: 13px; opacity: 0.8;" data-i18n="settings_avatar_label">Avatar</div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="secondary" onclick="triggerSettingsAvatarUpload()"><span data-i18n="settings_avatar_upload">Upload Avatar</span></button>
+                                <button class="clear-btn" onclick="removeSettingsAvatar()"><span data-i18n="settings_avatar_remove">Remove Avatar</span></button>
+                            </div>
+                            <input id="settingsAvatarInput" type="file" accept="image/*" onchange="handleSettingsAvatarChange(event)">
+                        </div>
+                    </div>
+
+                    <div id="settingsStatus"></div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                        <button class="secondary" onclick="closeSettingsModal()"><span data-i18n="settings_cancel">Cancel</span></button>
+                        <button onclick="saveSettings()"><span data-i18n="settings_save">Save</span></button>
+                    </div>
+                </div>
             </div>
 
             <div id="uploadTargetModal" class="coord-overlay hidden">

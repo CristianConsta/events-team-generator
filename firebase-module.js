@@ -46,10 +46,24 @@ const FirebaseManager = (function() {
     let allianceData = null;
     let playerSource = 'personal';
     let pendingInvitations = [];
+    let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let onAuthCallback = null;
     let onDataLoadCallback = null;
 
     const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    const MAX_PROFILE_TEXT_LEN = 60;
+    const MAX_AVATAR_DATA_URL_LEN = 400000;
+
+    function normalizeUserProfile(profile) {
+        const next = profile && typeof profile === 'object' ? profile : {};
+        const displayName = typeof next.displayName === 'string' ? next.displayName.trim().slice(0, MAX_PROFILE_TEXT_LEN) : '';
+        const nickname = typeof next.nickname === 'string' ? next.nickname.trim().slice(0, MAX_PROFILE_TEXT_LEN) : '';
+        let avatarDataUrl = typeof next.avatarDataUrl === 'string' ? next.avatarDataUrl.trim() : '';
+        if (!avatarDataUrl.startsWith('data:image/') || avatarDataUrl.length > MAX_AVATAR_DATA_URL_LEN) {
+            avatarDataUrl = '';
+        }
+        return { displayName, nickname, avatarDataUrl };
+    }
     
     /**
      * Initialize Firebase
@@ -108,6 +122,7 @@ const FirebaseManager = (function() {
             allianceData = null;
             playerSource = 'personal';
             pendingInvitations = [];
+            userProfile = normalizeUserProfile(null);
 
             if (onAuthCallback) {
                 onAuthCallback(false, null);
@@ -277,6 +292,7 @@ const FirebaseManager = (function() {
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
+                userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
 
                 // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
@@ -354,6 +370,7 @@ const FirebaseManager = (function() {
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
+                userProfile = normalizeUserProfile(null);
                 await checkInvitations();
                 return { success: true, data: {}, playerCount: 0 };
             }
@@ -377,6 +394,7 @@ const FirebaseManager = (function() {
             await db.collection('users').doc(currentUser.uid).set({
                 playerDatabase: playerDatabase,
                 events: eventData,
+                userProfile: userProfile,
                 metadata: {
                     email: currentUser.email || null,
                     totalPlayers: Object.keys(playerDatabase).length,
@@ -848,6 +866,15 @@ const FirebaseManager = (function() {
         return playerDatabase;
     }
 
+    function getUserProfile() {
+        return normalizeUserProfile(userProfile);
+    }
+
+    function setUserProfile(profile) {
+        userProfile = normalizeUserProfile(profile);
+        return getUserProfile();
+    }
+
     async function setPlayerSource(source) {
         if (source !== 'personal' && source !== 'alliance') return;
         playerSource = source;
@@ -1105,6 +1132,8 @@ const FirebaseManager = (function() {
         uploadAlliancePlayerDatabase: uploadAlliancePlayerDatabase,
         getAlliancePlayerDatabase: getAlliancePlayerDatabase,
         getActivePlayerDatabase: getActivePlayerDatabase,
+        getUserProfile: getUserProfile,
+        setUserProfile: setUserProfile,
         setPlayerSource: setPlayerSource,
         getAllianceId: getAllianceId,
         getAllianceName: getAllianceName,
