@@ -44,7 +44,7 @@
             id: 'canyon_battlefield',
             titleKey: 'event_canyon_battlefield',
             mapFile: 'canon-storm-map.png',
-            previewMapFile: 'canon-storm-map-preview.webp',
+            previewMapFile: 'canon-storm-map.png',
             exportMapFile: 'canon-storm-map.png',
             mapTitle: 'CANYON BATTLEFIELD',
             excelPrefix: 'canyon_battlefield',
