@@ -181,10 +181,10 @@
             <div id="coordPickerOverlay" class="coord-overlay hidden">
                 <div style="width: min(1000px, 95vw); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 20px;">
                     <div id="coordHeader" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <h2 style="margin: 0;" data-i18n="coord_picker_title">Map Coordinates Picker</h2>
+                        <h2 style="margin: 0;" data-i18n="coord_picker_title">Player Name Label Position Picker</h2>
                         <button class="clear-btn" onclick="closeCoordinatesPicker()"><span data-i18n="close">Close</span></button>
                     </div>
-                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
+                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click the map to set the center point where player name labels will appear for the selected building. Update buildings one by one.</p>
                     <div class="event-selector event-selector-inline" id="coordEventSelector" style="margin: 0 0 12px;">
                         <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
                         <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
@@ -193,7 +193,7 @@
                         <strong id="coordBuildingLabel" data-i18n="coord_label_building">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
                     </div>
-                    <div id="coordPrompt" style="opacity: 0.85; margin-bottom: 10px;" data-i18n="coord_prompt_default">Click on the map to set coordinates.</div>
+                    <div id="coordPrompt" style="opacity: 0.85; margin-bottom: 10px;" data-i18n="coord_prompt_default">Click on the map to place player name labels.</div>
                     <div id="coordBuildingValue" style="opacity: 0.7; margin-bottom: 10px;"></div>
                     <canvas id="coordCanvas" style="display: block; width: auto; max-width: 100%; height: auto; max-height: min(58vh, 620px); margin: 0 auto; box-sizing: border-box; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);"></canvas>
                     <div id="coordActions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
@@ -311,10 +311,10 @@
 
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <h2 style="margin: 0;" data-i18n="map_coordinates_tool_title">Map Coordinates Tool</h2>
+                        <h2 style="margin: 0;" data-i18n="map_coordinates_tool_title">Player Name Label Coordinates</h2>
                         <button class="secondary" onclick="openCoordinatesPicker()"><span data-i18n="map_coordinates">Map Coordinates</span></button>
                     </div>
-                    <p style="opacity: 0.9; margin: 10px 0 0;" data-i18n="map_coordinates_tool_help">Set or fine-tune building map positions used by assignment map exports.</p>
+                    <p style="opacity: 0.9; margin: 10px 0 0;" data-i18n="map_coordinates_tool_help">Set where player name labels are displayed on the exported map for each building.</p>
                 </div>
 
                 <div id="buildingsPanel" class="card">
