@@ -907,7 +907,7 @@ function loadMapImage(eventId, purpose) {
     return mapLoadPromises[mapPurpose][eid];
 }
 
-const BUILDING_POSITIONS_VERSION = 1;
+const BUILDING_POSITIONS_VERSION = 2;
 
 const textColors = { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' };
 const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)',
@@ -1646,8 +1646,33 @@ function normalizeBuildingPositions(positions) {
     return window.DSCoreBuildings.normalizeBuildingPositions(positions, validNames);
 }
 
+function getGlobalDefaultBuildingPositions() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getGlobalDefaultBuildingPositions !== 'function') {
+        return {};
+    }
+    return normalizeBuildingPositions(FirebaseService.getGlobalDefaultBuildingPositions(currentEvent));
+}
+
+function getResolvedDefaultBuildingPositions() {
+    return {
+        ...getDefaultBuildingPositions(),
+        ...getGlobalDefaultBuildingPositions(),
+    };
+}
+
+function getTargetBuildingPositionsVersion() {
+    let targetVersion = BUILDING_POSITIONS_VERSION;
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getGlobalDefaultBuildingPositionsVersion === 'function') {
+        const sharedVersion = Number(FirebaseService.getGlobalDefaultBuildingPositionsVersion());
+        if (Number.isFinite(sharedVersion) && sharedVersion > targetVersion) {
+            targetVersion = sharedVersion;
+        }
+    }
+    return targetVersion;
+}
+
 function getEffectiveBuildingPositions() {
-    return { ...getDefaultBuildingPositions(), ...getBuildingPositions() };
+    return { ...getResolvedDefaultBuildingPositions(), ...getBuildingPositions() };
 }
 
 function getEffectiveBuildingConfig() {
@@ -1709,11 +1734,13 @@ function loadBuildingPositions() {
     }
     const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent);
     const stored = FirebaseService.getBuildingPositions(currentEvent);
+    const targetDefaults = getResolvedDefaultBuildingPositions();
+    const targetVersion = getTargetBuildingPositionsVersion();
     setBuildingPositionsLocal(normalizeBuildingPositions(stored));
-    if (Object.keys(getBuildingPositions()).length === 0 || storedVersion < BUILDING_POSITIONS_VERSION) {
-        setBuildingPositionsLocal(getDefaultBuildingPositions());
+    if (Object.keys(getBuildingPositions()).length === 0 || storedVersion < targetVersion) {
+        setBuildingPositionsLocal(targetDefaults);
         FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-        FirebaseService.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
+        FirebaseService.setBuildingPositionsVersion(currentEvent, targetVersion);
         return true;
     }
     return false;

@@ -53,6 +53,235 @@ const FirebaseManager = (function() {
     const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
     const MAX_PROFILE_TEXT_LEN = 60;
     const MAX_AVATAR_DATA_URL_LEN = 400000;
+    const EVENT_IDS = ['desert_storm', 'canyon_battlefield'];
+    const GLOBAL_COORD_OWNER_EMAIL = 'constantinescu.cristian@gmail.com';
+    const GLOBAL_COORDS_COLLECTION = 'app_config';
+    const GLOBAL_COORDS_DOC_ID = 'default_event_positions';
+    let globalDefaultEventPositions = {
+        desert_storm: {},
+        canyon_battlefield: {}
+    };
+    let globalDefaultPositionsVersion = 0;
+
+    function emptyGlobalEventPositions() {
+        return {
+            desert_storm: {},
+            canyon_battlefield: {}
+        };
+    }
+
+    function normalizeCoordinatePair(value) {
+        if (!Array.isArray(value) || value.length < 2) {
+            return null;
+        }
+        const x = Number(value[0]);
+        const y = Number(value[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return null;
+        }
+        return [Math.round(x), Math.round(y)];
+    }
+
+    function normalizePositionsMap(positions) {
+        if (!positions || typeof positions !== 'object') {
+            return {};
+        }
+        const normalized = {};
+        Object.entries(positions).forEach(([name, coords]) => {
+            if (typeof name !== 'string' || !name.trim()) {
+                return;
+            }
+            const pair = normalizeCoordinatePair(coords);
+            if (pair) {
+                normalized[name] = pair;
+            }
+        });
+        return normalized;
+    }
+
+    function normalizeEventPositionsPayload(payload) {
+        const source = payload && typeof payload === 'object'
+            ? payload
+            : {};
+        const normalized = emptyGlobalEventPositions();
+        EVENT_IDS.forEach((eid) => {
+            normalized[eid] = normalizePositionsMap(source[eid]);
+        });
+        return normalized;
+    }
+
+    function hasAnyPositions(events) {
+        return EVENT_IDS.some((eid) => Object.keys((events && events[eid]) || {}).length > 0);
+    }
+
+    function toMillis(value) {
+        if (!value) {
+            return 0;
+        }
+        if (typeof value.toMillis === 'function') {
+            const ms = Number(value.toMillis());
+            return Number.isFinite(ms) && ms > 0 ? ms : 0;
+        }
+        if (typeof value === 'string') {
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        }
+        if (typeof value === 'number') {
+            return Number.isFinite(value) && value > 0 ? value : 0;
+        }
+        return 0;
+    }
+
+    function extractVersionFromUserData(data) {
+        if (!data || typeof data !== 'object') {
+            return 0;
+        }
+        const metadata = data.metadata && typeof data.metadata === 'object'
+            ? data.metadata
+            : {};
+        const metaVersion = Math.max(
+            toMillis(metadata.lastModified),
+            toMillis(metadata.lastUpload)
+        );
+        let eventVersion = 0;
+        if (data.events && typeof data.events === 'object') {
+            EVENT_IDS.forEach((eid) => {
+                const entry = data.events[eid];
+                if (!entry || typeof entry !== 'object') {
+                    return;
+                }
+                const version = Number(entry.buildingPositionsVersion);
+                if (Number.isFinite(version) && version > eventVersion) {
+                    eventVersion = version;
+                }
+            });
+        } else {
+            const legacyVersion = Number(data.buildingPositionsVersion);
+            if (Number.isFinite(legacyVersion) && legacyVersion > 0) {
+                eventVersion = legacyVersion;
+            }
+        }
+        return Math.max(metaVersion, eventVersion);
+    }
+
+    function extractPositionsFromUserData(data) {
+        const events = emptyGlobalEventPositions();
+        if (data && data.events && typeof data.events === 'object') {
+            EVENT_IDS.forEach((eid) => {
+                const entry = data.events[eid];
+                if (!entry || typeof entry !== 'object') {
+                    return;
+                }
+                events[eid] = normalizePositionsMap(entry.buildingPositions);
+            });
+            return events;
+        }
+        if (data && data.buildingPositions && typeof data.buildingPositions === 'object') {
+            events.desert_storm = normalizePositionsMap(data.buildingPositions);
+        }
+        return events;
+    }
+
+    function setGlobalDefaultPositions(events, version) {
+        globalDefaultEventPositions = normalizeEventPositionsPayload(events);
+        const parsedVersion = Number(version);
+        globalDefaultPositionsVersion = Number.isFinite(parsedVersion) && parsedVersion > 0 ? parsedVersion : 0;
+    }
+
+    function getGlobalDefaultBuildingPositions(eventId) {
+        const eid = eventId || 'desert_storm';
+        return JSON.parse(JSON.stringify(globalDefaultEventPositions[eid] || {}));
+    }
+
+    function getGlobalDefaultBuildingPositionsVersion() {
+        return globalDefaultPositionsVersion;
+    }
+
+    async function tryLoadGlobalDefaultsDoc() {
+        try {
+            const defaultsDoc = await db.collection(GLOBAL_COORDS_COLLECTION).doc(GLOBAL_COORDS_DOC_ID).get();
+            if (!defaultsDoc.exists) {
+                return false;
+            }
+            const data = defaultsDoc.data() || {};
+            const events = normalizeEventPositionsPayload(data.events || {});
+            const version = Number(data.version);
+            if (!hasAnyPositions(events)) {
+                return false;
+            }
+            setGlobalDefaultPositions(events, Number.isFinite(version) && version > 0 ? version : 0);
+            return true;
+        } catch (error) {
+            console.warn('Unable to load shared coordinate defaults:', error.message || error);
+            return false;
+        }
+    }
+
+    async function tryLoadGlobalDefaultsFromOwnerUser() {
+        try {
+            let query = await db.collection('users')
+                .where('metadata.emailLower', '==', GLOBAL_COORD_OWNER_EMAIL)
+                .limit(1)
+                .get();
+            if (query.empty) {
+                query = await db.collection('users')
+                    .where('metadata.email', '==', GLOBAL_COORD_OWNER_EMAIL)
+                    .limit(1)
+                    .get();
+            }
+            if (query.empty) {
+                return false;
+            }
+
+            const ownerData = query.docs[0].data() || {};
+            const events = extractPositionsFromUserData(ownerData);
+            if (!hasAnyPositions(events)) {
+                return false;
+            }
+            const version = Math.max(extractVersionFromUserData(ownerData), 1);
+            setGlobalDefaultPositions(events, version);
+            return true;
+        } catch (error) {
+            console.warn('Unable to load owner coordinate defaults:', error.message || error);
+            return false;
+        }
+    }
+
+    async function loadGlobalDefaultBuildingPositions() {
+        if (!db) {
+            setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
+            return false;
+        }
+        const fromSharedDoc = await tryLoadGlobalDefaultsDoc();
+        if (fromSharedDoc) {
+            return true;
+        }
+        return tryLoadGlobalDefaultsFromOwnerUser();
+    }
+
+    async function maybePublishGlobalDefaultsFromCurrentUser(userData) {
+        if (!currentUser || !currentUser.email || currentUser.email.toLowerCase() !== GLOBAL_COORD_OWNER_EMAIL) {
+            return false;
+        }
+        const events = extractPositionsFromUserData(userData || {});
+        if (!hasAnyPositions(events)) {
+            return false;
+        }
+        const version = Math.max(Date.now(), extractVersionFromUserData(userData || {}), 1);
+        try {
+            await db.collection(GLOBAL_COORDS_COLLECTION).doc(GLOBAL_COORDS_DOC_ID).set({
+                sourceEmail: GLOBAL_COORD_OWNER_EMAIL,
+                version: version,
+                events: events,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            setGlobalDefaultPositions(events, version);
+            return true;
+        } catch (error) {
+            console.warn('Unable to publish shared coordinate defaults:', error.message || error);
+            return false;
+        }
+    }
 
     function normalizeUserProfile(profile) {
         const next = profile && typeof profile === 'object' ? profile : {};
@@ -123,6 +352,7 @@ const FirebaseManager = (function() {
             playerSource = 'personal';
             pendingInvitations = [];
             userProfile = normalizeUserProfile(null);
+            setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
 
             if (onAuthCallback) {
                 onAuthCallback(false, null);
@@ -345,6 +575,9 @@ const FirebaseManager = (function() {
                     });
                 }
 
+                await loadGlobalDefaultBuildingPositions();
+                await maybePublishGlobalDefaultsFromCurrentUser(data);
+
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
 
                 if (allianceId) {
@@ -371,6 +604,7 @@ const FirebaseManager = (function() {
                 allianceName = null;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
+                await loadGlobalDefaultBuildingPositions();
                 await checkInvitations();
                 return { success: true, data: {}, playerCount: 0 };
             }
@@ -397,6 +631,7 @@ const FirebaseManager = (function() {
                 userProfile: userProfile,
                 metadata: {
                     email: currentUser.email || null,
+                    emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
                     totalPlayers: Object.keys(playerDatabase).length,
                     lastUpload: new Date().toISOString(),
                     lastModified: firebase.firestore.FieldValue.serverTimestamp()
@@ -1112,6 +1347,8 @@ const FirebaseManager = (function() {
         setBuildingPositions: setBuildingPositions,
         getBuildingPositionsVersion: getBuildingPositionsVersion,
         setBuildingPositionsVersion: setBuildingPositionsVersion,
+        getGlobalDefaultBuildingPositions: getGlobalDefaultBuildingPositions,
+        getGlobalDefaultBuildingPositionsVersion: getGlobalDefaultBuildingPositionsVersion,
         
         // Backup & restore
         exportBackup: exportBackup,

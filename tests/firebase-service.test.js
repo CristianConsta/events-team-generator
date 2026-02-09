@@ -18,6 +18,8 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
   assert.equal(global.FirebaseService.isAvailable(), false);
   assert.deepEqual(await global.FirebaseService.signOut(), { success: false, error: 'Firebase not loaded' });
   assert.equal(global.FirebaseService.getPlayerSource(), 'personal');
+  assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingPositions('desert_storm'), {});
+  assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 0);
 });
 
 test('firebase service delegates calls to FirebaseManager', async () => {
@@ -25,6 +27,8 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   global.FirebaseManager = {
     signOut: async () => { called = true; return { success: true }; },
     isSignedIn: () => true,
+    getGlobalDefaultBuildingPositions: () => ({ 'Info Center': [100, 200] }),
+    getGlobalDefaultBuildingPositionsVersion: () => 123,
   };
   loadModule();
 
@@ -32,4 +36,6 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   assert.deepEqual(result, { success: true });
   assert.equal(called, true);
   assert.equal(global.FirebaseService.isSignedIn(), true);
+  assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingPositions('desert_storm'), { 'Info Center': [100, 200] });
+  assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 123);
 });

@@ -85,6 +85,12 @@
         setBuildingPositionsVersion: function setBuildingPositionsVersion(eventId, version) {
             return withManager((svc) => svc.setBuildingPositionsVersion(eventId, version), null);
         },
+        getGlobalDefaultBuildingPositions: function getGlobalDefaultBuildingPositions(eventId) {
+            return withManager((svc) => svc.getGlobalDefaultBuildingPositions(eventId), {});
+        },
+        getGlobalDefaultBuildingPositionsVersion: function getGlobalDefaultBuildingPositionsVersion() {
+            return withManager((svc) => svc.getGlobalDefaultBuildingPositionsVersion(), 0);
+        },
         createAlliance: async function createAlliance(name) {
             return withManager((svc) => svc.createAlliance(name), notLoadedResult());
         },
