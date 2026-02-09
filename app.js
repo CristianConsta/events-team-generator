@@ -556,24 +556,11 @@ function updateLanguageMenuUI() {
     });
 }
 
-function getSafeUserEmail(user) {
-    if (!user || typeof user.email !== 'string') {
+function getSignInDisplayName(user) {
+    if (!user || typeof user.displayName !== 'string') {
         return '';
     }
-    return user.email.trim();
-}
-
-function deriveDefaultDisplayName(user) {
-    const providerName = user && typeof user.displayName === 'string' ? user.displayName.trim() : '';
-    if (providerName) {
-        return providerName.slice(0, PROFILE_TEXT_LIMIT);
-    }
-    const email = getSafeUserEmail(user);
-    if (!email) {
-        return t('settings_default_name');
-    }
-    const localPart = email.split('@')[0].trim();
-    return (localPart || email).slice(0, PROFILE_TEXT_LIMIT);
+    return user.displayName.trim().slice(0, PROFILE_TEXT_LIMIT);
 }
 
 function getProfileFromService() {
@@ -626,27 +613,23 @@ function updateUserHeaderIdentity(user) {
         currentAuthUser = user;
     }
     const profile = getProfileFromService();
-    const displayName = profile.displayName || deriveDefaultDisplayName(currentAuthUser);
-    const nickname = profile.nickname;
+    const nickname = profile.nickname || '';
+    const displayName = profile.displayName || '';
+    const visibleLabel = nickname || displayName;
 
-    const nameEl = document.getElementById('userDisplayName');
-    if (nameEl) {
-        nameEl.textContent = displayName || t('settings_default_name');
+    const labelEl = document.getElementById('userIdentityLabel');
+    if (labelEl) {
+        labelEl.textContent = visibleLabel;
     }
-    const nicknameEl = document.getElementById('userNickname');
-    if (nicknameEl) {
-        if (nickname) {
-            nicknameEl.textContent = '@' + nickname;
-            nicknameEl.classList.remove('hidden');
-        } else {
-            nicknameEl.textContent = '';
-            nicknameEl.classList.add('hidden');
-        }
+    const userTextEl = document.getElementById('headerUserText');
+    if (userTextEl) {
+        userTextEl.classList.toggle('hidden', !visibleLabel);
     }
 
     const avatarImageEl = document.getElementById('headerAvatarImage');
     const avatarInitialsEl = document.getElementById('headerAvatarInitials');
-    applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, getAvatarInitials(displayName, nickname));
+    const initialsSource = visibleLabel || getSignInDisplayName(currentAuthUser);
+    applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, getAvatarInitials(initialsSource, ''));
 }
 
 function openSettingsModal() {
@@ -659,8 +642,9 @@ function openSettingsModal() {
     const profile = getProfileFromService();
     const displayInput = document.getElementById('settingsDisplayNameInput');
     const nicknameInput = document.getElementById('settingsNicknameInput');
+    const signInName = getSignInDisplayName(currentAuthUser);
     if (displayInput) {
-        displayInput.value = profile.displayName || '';
+        displayInput.value = profile.displayName || signInName || '';
     }
     if (nicknameInput) {
         nicknameInput.value = profile.nickname || '';
@@ -706,7 +690,7 @@ function removeSettingsAvatar() {
 function updateSettingsAvatarPreview() {
     const displayInput = document.getElementById('settingsDisplayNameInput');
     const nicknameInput = document.getElementById('settingsNicknameInput');
-    const name = displayInput && displayInput.value ? displayInput.value.trim() : deriveDefaultDisplayName(currentAuthUser);
+    const name = displayInput && displayInput.value ? displayInput.value.trim() : getSignInDisplayName(currentAuthUser);
     const nickname = nicknameInput && nicknameInput.value ? nicknameInput.value.trim().replace(/^@+/, '') : '';
     const previewImg = document.getElementById('settingsAvatarImage');
     const previewInitials = document.getElementById('settingsAvatarInitials');

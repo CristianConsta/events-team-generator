@@ -598,31 +598,29 @@ select {
     gap: 8px;
     margin-left: auto;
     flex: 0 0 auto;
+    min-width: 0;
 }
 #headerUserInfo {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-        "profile meta"
-        "count count";
+    display: flex;
     align-items: center;
-    gap: 4px 10px;
+    justify-content: flex-end;
+    gap: 10px;
     min-width: 0;
 }
 #headerProfileBtn {
-    grid-area: profile;
     display: flex;
     align-items: center;
     gap: 10px;
     min-width: 0;
+    max-width: 260px;
     margin: 0;
-    padding: 6px;
+    padding: 6px 8px;
     border: 1px solid transparent;
     background: transparent;
     box-shadow: none;
     transform: none;
     justify-content: flex-start;
-    width: 100%;
+    min-height: 44px;
 }
 #headerProfileBtn:hover {
     background: rgba(255,255,255,0.08);
@@ -652,28 +650,19 @@ select {
 }
 #headerUserText {
     display: flex;
-    flex-direction: column;
     align-items: flex-start;
     min-width: 0;
 }
-#userDisplayName,
-#userNickname {
+#userIdentityLabel {
     display: block;
     max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-#userDisplayName {
     font-size: 17px;
     line-height: 1.15;
 }
-#userNickname {
-    color: rgba(255,255,255,0.7);
-    font-size: 12px;
-}
 #headerMetaRow {
-    grid-area: meta;
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -686,7 +675,6 @@ select {
     text-overflow: ellipsis;
 }
 #playerCount {
-    grid-area: count;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1093,11 +1081,10 @@ select {
     #userHeaderTop            { gap: 8px !important; }
     #headerLeft               { gap: 8px !important; }
     #headerActions            { gap: 6px !important; }
-    #headerUserInfo           { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px !important; }
-    #headerProfileBtn         { padding: 4px !important; gap: 8px !important; }
+    #headerUserInfo           { justify-content: flex-end !important; gap: 8px !important; }
+    #headerProfileBtn         { padding: 4px !important; gap: 6px !important; max-width: 120px !important; }
     .header-avatar            { width: 34px !important; height: 34px !important; min-width: 34px !important; font-size: 12px !important; }
-    #userDisplayName          { font-size: 14px !important; }
-    #userNickname             { font-size: 11px !important; }
+    #userIdentityLabel        { font-size: 13px !important; }
     #playerCount               { font-size: 12px !important; }
     .language-current-flag    { font-size: 18px !important; }
     #languageMenuBtn          { padding: 9px !important; min-width: 44px; min-height: 44px; }
