@@ -37,15 +37,6 @@ function onI18nApplied() {
     if (navMenuPanel) {
         navMenuPanel.setAttribute('aria-label', t('navigation_menu'));
     }
-    const languageMenuBtn = document.getElementById('languageMenuBtn');
-    if (languageMenuBtn) {
-        languageMenuBtn.title = t('language_button');
-        languageMenuBtn.setAttribute('aria-label', t('language_button'));
-    }
-    const languageMenuPanel = document.getElementById('languageMenuPanel');
-    if (languageMenuPanel) {
-        languageMenuPanel.setAttribute('aria-label', t('language_button'));
-    }
     const profileBtn = document.getElementById('headerProfileBtn');
     if (profileBtn) {
         profileBtn.title = t('settings_button');
@@ -55,7 +46,6 @@ function onI18nApplied() {
     if (notificationBtn) {
         notificationBtn.title = t('notifications_title');
     }
-    updateLanguageMenuUI();
     updateUserHeaderIdentity(currentAuthUser);
     syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
@@ -77,11 +67,6 @@ function applyTranslations() {
 
 function setLanguage(lang) {
     window.DSI18N.setLanguage(lang);
-}
-
-function selectLanguage(lang) {
-    setLanguage(lang);
-    closeLanguageMenu();
 }
 
 function initLanguage() {
@@ -289,12 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeNavigationMenu();
-            closeLanguageMenu();
             closeSettingsModal();
         }
     });
 
-    updateLanguageMenuUI();
     updateUserHeaderIdentity(currentAuthUser);
 });
 
@@ -375,15 +358,6 @@ const AVATAR_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AVATAR_ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const AVATAR_MIN_DIMENSION = 96;
 const AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-const LANGUAGE_META = {
-    en: { flag: '🇺🇸', labelKey: 'language_name_en' },
-    fr: { flag: '🇫🇷', labelKey: 'language_name_fr' },
-    de: { flag: '🇩🇪', labelKey: 'language_name_de' },
-    it: { flag: '🇮🇹', labelKey: 'language_name_it' },
-    ko: { flag: '🇰🇷', labelKey: 'language_name_ko' },
-    ro: { flag: '🇷🇴', labelKey: 'language_name_ro' },
-};
-
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
@@ -431,7 +405,6 @@ function toggleNavigationMenu(event) {
         return;
     }
     if (panel.classList.contains('hidden')) {
-        closeLanguageMenu();
         openNavigationMenu();
     } else {
         closeNavigationMenu();
@@ -502,62 +475,6 @@ function showConfigurationPage() {
 
 function showGeneratorPage() {
     setPageView('generator');
-}
-
-function closeLanguageMenu() {
-    const panel = document.getElementById('languageMenuPanel');
-    const menuBtn = document.getElementById('languageMenuBtn');
-    if (panel) {
-        panel.classList.add('hidden');
-    }
-    if (menuBtn) {
-        menuBtn.setAttribute('aria-expanded', 'false');
-    }
-}
-
-function openLanguageMenu() {
-    const panel = document.getElementById('languageMenuPanel');
-    const menuBtn = document.getElementById('languageMenuBtn');
-    if (panel) {
-        panel.classList.remove('hidden');
-    }
-    if (menuBtn) {
-        menuBtn.setAttribute('aria-expanded', 'true');
-    }
-}
-
-function toggleLanguageMenu(event) {
-    if (event) {
-        event.stopPropagation();
-    }
-    const panel = document.getElementById('languageMenuPanel');
-    if (!panel) {
-        return;
-    }
-    closeNavigationMenu();
-    if (panel.classList.contains('hidden')) {
-        openLanguageMenu();
-    } else {
-        closeLanguageMenu();
-    }
-}
-
-function updateLanguageMenuUI() {
-    const lang = window.DSI18N && window.DSI18N.getLanguage ? window.DSI18N.getLanguage() : 'en';
-    const currentFlagEl = document.getElementById('currentLanguageFlag');
-    if (currentFlagEl) {
-        currentFlagEl.textContent = LANGUAGE_META[lang] ? LANGUAGE_META[lang].flag : LANGUAGE_META.en.flag;
-    }
-    document.querySelectorAll('.lang-flag-btn').forEach((button) => {
-        const code = button.getAttribute('data-lang');
-        const isActive = code === lang;
-        button.classList.toggle('active', isActive);
-        button.setAttribute('aria-checked', isActive ? 'true' : 'false');
-        const langMeta = LANGUAGE_META[code];
-        if (langMeta) {
-            button.title = t(langMeta.labelKey);
-        }
-    });
 }
 
 function getSignInDisplayName(user) {
@@ -638,7 +555,6 @@ function updateUserHeaderIdentity(user) {
 
 function openSettingsModal() {
     closeNavigationMenu();
-    closeLanguageMenu();
     const modal = document.getElementById('settingsModal');
     if (!modal) {
         return;
@@ -646,12 +562,16 @@ function openSettingsModal() {
     const profile = getProfileFromService();
     const displayInput = document.getElementById('settingsDisplayNameInput');
     const nicknameInput = document.getElementById('settingsNicknameInput');
+    const languageSelect = document.getElementById('languageSelect');
     const signInName = getSignInDisplayName(currentAuthUser);
     if (displayInput) {
         displayInput.value = profile.displayName || signInName || '';
     }
     if (nicknameInput) {
         nicknameInput.value = profile.nickname || '';
+    }
+    if (languageSelect && window.DSI18N && window.DSI18N.getLanguage) {
+        languageSelect.value = window.DSI18N.getLanguage();
     }
     settingsDraftAvatarDataUrl = profile.avatarDataUrl || '';
     const statusEl = document.getElementById('settingsStatus');
@@ -2934,9 +2854,7 @@ document.addEventListener('click', (event) => {
     if (navMenu && !navMenu.contains(event.target)) {
         closeNavigationMenu();
     }
-    const languageMenu = document.getElementById('languageMenu');
-    if (languageMenu && !languageMenu.contains(event.target)) {
-        closeLanguageMenu();
-    }
 });
+
+
 

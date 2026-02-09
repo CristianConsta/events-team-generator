@@ -724,28 +724,6 @@ select {
     color: #1a1a2e;
     border-color: rgba(var(--gold-rgb), 0.65);
 }
-.lang-flag-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-}
-.lang-flag-btn .lang-flag {
-    font-size: 18px;
-    line-height: 1;
-}
-.lang-flag-btn.active {
-    border-color: rgba(var(--gold-rgb), 0.65);
-}
-.language-current-flag {
-    font-size: 20px;
-    line-height: 1;
-}
-#languageMenu .header-menu-panel {
-    right: 0;
-    left: auto;
-    min-width: 140px;
-}
 .header-menu-item.danger {
     border-color: rgba(255, 107, 53, 0.45);
     color: #FF9A6E;
@@ -772,11 +750,6 @@ select {
     width: 18px;
     height: 18px;
 }
-#languageMenuBtn:hover {
-    background: rgba(255,255,255,0.1);
-    transform: none;
-    box-shadow: none;
-}
 #navMenuBtn:hover {
     background: rgba(255,255,255,0.1);
     transform: none;
@@ -791,7 +764,8 @@ select {
     font-size: 13px;
     color: rgba(255,255,255,0.82);
 }
-.settings-form-grid input {
+.settings-form-grid input,
+.settings-form-grid select {
     width: 100%;
     border: 1px solid rgba(255,255,255,0.2);
     border-radius: 8px;
@@ -1086,8 +1060,6 @@ select {
     .header-avatar            { width: 34px !important; height: 34px !important; min-width: 34px !important; font-size: 12px !important; }
     #userIdentityLabel        { font-size: 13px !important; }
     #playerCount               { font-size: 12px !important; }
-    .language-current-flag    { font-size: 18px !important; }
-    #languageMenuBtn          { padding: 9px !important; min-width: 44px; min-height: 44px; }
     #notificationBtn          { padding: 9px !important; min-width: 44px; min-height: 44px; }
     .settings-avatar-wrap     { gap: 10px !important; }
     .settings-avatar-preview  { width: 62px !important; height: 62px !important; font-size: 18px !important; }

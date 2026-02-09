@@ -91,28 +91,6 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                         <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
                     </button>
-                    <div id="languageMenu" class="header-menu language-menu">
-                        <button id="languageMenuBtn" class="secondary header-icon-btn" onclick="toggleLanguageMenu(event)" title="Language" aria-label="Language" aria-haspopup="menu" aria-expanded="false" aria-controls="languageMenuPanel">
-                            <span id="currentLanguageFlag" class="language-current-flag" aria-hidden="true">🇺🇸</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </button>
-                        <div id="languageMenuPanel" class="header-menu-panel hidden" role="menu" aria-label="Language">
-                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="en" onclick="selectLanguage('en')"><span class="lang-flag" aria-hidden="true">🇺🇸</span><span>EN</span></button>
-                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="fr" onclick="selectLanguage('fr')"><span class="lang-flag" aria-hidden="true">🇫🇷</span><span>FR</span></button>
-                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="de" onclick="selectLanguage('de')"><span class="lang-flag" aria-hidden="true">🇩🇪</span><span>DE</span></button>
-                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="it" onclick="selectLanguage('it')"><span class="lang-flag" aria-hidden="true">🇮🇹</span><span>IT</span></button>
-                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="ko" onclick="selectLanguage('ko')"><span class="lang-flag" aria-hidden="true">🇰🇷</span><span>KO</span></button>
-                            <button class="header-menu-item lang-flag-btn" role="menuitemradio" aria-checked="false" data-lang="ro" onclick="selectLanguage('ro')"><span class="lang-flag" aria-hidden="true">🇷🇴</span><span>RO</span></button>
-                        </div>
-                    </div>
-                    <select id="languageSelect" class="language-select-hidden" aria-hidden="true" tabindex="-1">
-                        <option value="en">EN</option>
-                        <option value="fr">FR</option>
-                        <option value="de">DE</option>
-                        <option value="it">IT</option>
-                        <option value="ko">KO</option>
-                        <option value="ro">RO</option>
-                    </select>
                 </div>
             </div>
 
@@ -158,6 +136,15 @@
                         <input id="settingsDisplayNameInput" type="text" maxlength="60" data-i18n-placeholder="settings_display_name_placeholder" placeholder="Name">
                         <label for="settingsNicknameInput" data-i18n="settings_nickname_label">Nickname</label>
                         <input id="settingsNicknameInput" type="text" maxlength="60" data-i18n-placeholder="settings_nickname_placeholder" placeholder="Nickname">
+                        <label for="languageSelect" data-i18n="settings_language_label">Language</label>
+                        <select id="languageSelect">
+                            <option value="en" data-i18n="language_name_en">English</option>
+                            <option value="fr" data-i18n="language_name_fr">French</option>
+                            <option value="de" data-i18n="language_name_de">German</option>
+                            <option value="it" data-i18n="language_name_it">Italian</option>
+                            <option value="ko" data-i18n="language_name_ko">Korean</option>
+                            <option value="ro" data-i18n="language_name_ro">Romanian</option>
+                        </select>
                     </div>
 
                     <div class="settings-avatar-wrap">
