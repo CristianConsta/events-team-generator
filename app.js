@@ -81,12 +81,12 @@ function initLanguage() {
 // ONBOARDING TOUR
 // ============================================================
 const ONBOARDING_STEPS = [
-    { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
-    { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
-    { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '.counter.team-a',       position: 'bottom' },
-    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '.counter.team-b',       position: 'bottom' },
-    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#floatingButtons',      position: 'top'    }
+    { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#navMenuBtn',           position: 'bottom' },
+    { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
+    { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
+    { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#generatorPage',        position: 'top'    }
 ];
 
 let onboardingActive      = false;
@@ -109,7 +109,7 @@ function showOnboardingStep(index) {
         return;
     }
     const step   = ONBOARDING_STEPS[index];
-    if (step.targetSelector === '#navConfigBtn') {
+    if (step.targetSelector === '#navConfigBtn' || step.targetSelector === '#navGeneratorBtn') {
         openNavigationMenu();
     }
     const target = document.querySelector(step.targetSelector);
@@ -228,28 +228,28 @@ function updateOnboardingTooltip() {
 
 // ── Dismiss event wiring (runs once DOM is ready) ──
 document.addEventListener('DOMContentLoaded', () => {
-    // Step 1 - Configuration menu item
-    document.getElementById('navConfigBtn').addEventListener('click', () => {
+    // Step 1 - Open menu button
+    document.getElementById('navMenuBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 0) dismissOnboardingStep();
     });
-    // Step 2 - Download Template button
-    document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
+    // Step 2 - Configuration menu item
+    document.getElementById('navConfigBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 1) dismissOnboardingStep();
     });
-    // Step 3 - Upload Player Data button
-    document.getElementById('uploadPlayerBtn').addEventListener('click', () => {
+    // Step 3 - Download Template button
+    document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 2) dismissOnboardingStep();
     });
-    // Steps 4 & 5 - delegated on players table body
-    document.getElementById('playersTableBody').addEventListener('click', (e) => {
-        if (!onboardingActive) return;
-        const btn = e.target.closest('button');
-        if (!btn) return;
-        if (currentOnboardingStep === 3 && btn.classList.contains('team-a-btn')) dismissOnboardingStep();
-        if (currentOnboardingStep === 4 && btn.classList.contains('team-b-btn')) dismissOnboardingStep();
+    // Step 4 - Upload Player Data button
+    document.getElementById('uploadPlayerBtn').addEventListener('click', () => {
+        if (onboardingActive && currentOnboardingStep === 3) dismissOnboardingStep();
     });
-    // Step 6 - floating generate buttons area
-    document.getElementById('floatingButtons').addEventListener('click', () => {
+    // Step 5 - Generator menu item
+    document.getElementById('navGeneratorBtn').addEventListener('click', () => {
+        if (onboardingActive && currentOnboardingStep === 4) dismissOnboardingStep();
+    });
+    // Step 6 - Generator page
+    document.getElementById('generatorPage').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 5) dismissOnboardingStep();
     });
     // Skip link
@@ -358,6 +358,7 @@ const AVATAR_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AVATAR_ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const AVATAR_MIN_DIMENSION = 96;
 const AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
@@ -579,6 +580,14 @@ function openSettingsModal() {
     if (statusEl) {
         statusEl.innerHTML = '';
     }
+    const deleteConfirmInput = document.getElementById('settingsDeleteConfirmInput');
+    if (deleteConfirmInput) {
+        deleteConfirmInput.value = '';
+    }
+    const deleteBtn = document.getElementById('settingsDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = false;
+    }
     updateSettingsAvatarPreview();
     modal.classList.remove('hidden');
 }
@@ -766,6 +775,60 @@ async function saveSettings() {
     } else {
         const errorText = result && result.error ? result.error : t('settings_avatar_processing_failed');
         showMessage('settingsStatus', t('settings_save_failed', { error: errorText }), 'error');
+    }
+}
+
+async function deleteAccountFromSettings() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.deleteUserAccountAndData !== 'function') {
+        showMessage('settingsStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+
+    const inputEl = document.getElementById('settingsDeleteConfirmInput');
+    const typedValue = inputEl && typeof inputEl.value === 'string' ? inputEl.value.trim().toLowerCase() : '';
+    if (typedValue !== DELETE_ACCOUNT_CONFIRM_WORD) {
+        showMessage('settingsStatus', t('settings_delete_account_word_error', { word: DELETE_ACCOUNT_CONFIRM_WORD }), 'error');
+        return;
+    }
+
+    if (!confirm(t('settings_delete_account_confirm_final'))) {
+        return;
+    }
+
+    const deleteBtn = document.getElementById('settingsDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = true;
+    }
+    showMessage('settingsStatus', t('settings_delete_account_processing'), 'processing');
+
+    try {
+        const result = await FirebaseService.deleteUserAccountAndData();
+        if (result && (result.success || result.accountDeleted)) {
+            showMessage('settingsStatus', t('settings_delete_account_success'), 'success');
+            return;
+        }
+
+        if (result && result.dataDeleted && result.reauthRequired) {
+            showMessage('settingsStatus', t('settings_delete_account_reauth'), 'warning');
+            return;
+        }
+
+        const errorText = result && result.error ? result.error : t('error_generic', { error: 'unknown' });
+        showMessage('settingsStatus', t('settings_delete_account_failed', { error: errorText }), 'error');
+    } catch (error) {
+        showMessage('settingsStatus', t('settings_delete_account_failed', { error: error.message || 'unknown' }), 'error');
+    } finally {
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.signOut === 'function') {
+            try {
+                await FirebaseService.signOut();
+            } catch (signOutError) {
+                console.warn('Sign-out after account deletion flow failed:', signOutError && signOutError.message ? signOutError.message : signOutError);
+            }
+        }
+        closeSettingsModal();
+        if (deleteBtn) {
+            deleteBtn.disabled = false;
+        }
     }
 }
 

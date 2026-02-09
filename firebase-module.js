@@ -648,6 +648,151 @@ const FirebaseManager = (function() {
             return { success: false, error: error.message };
         }
     }
+
+    function isReauthRequiredError(error) {
+        const code = error && error.code ? String(error.code) : '';
+        return code === 'auth/requires-recent-login' || code === 'auth/user-token-expired';
+    }
+
+    async function deleteDocsByRefs(refs) {
+        if (!Array.isArray(refs) || refs.length === 0) {
+            return;
+        }
+        const chunkSize = 400;
+        for (let i = 0; i < refs.length; i += chunkSize) {
+            const chunk = refs.slice(i, i + chunkSize);
+            const batch = db.batch();
+            chunk.forEach((ref) => {
+                batch.delete(ref);
+            });
+            await batch.commit();
+        }
+    }
+
+    async function collectInvitationRefs(uid, emailLower) {
+        const refMap = new Map();
+        if (!db) {
+            return [];
+        }
+        if (uid) {
+            const byInviter = await db.collection('invitations')
+                .where('invitedBy', '==', uid)
+                .get();
+            byInviter.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+        }
+        if (emailLower) {
+            const byInvitee = await db.collection('invitations')
+                .where('invitedEmail', '==', emailLower)
+                .get();
+            byInvitee.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+        }
+        return Array.from(refMap.values());
+    }
+
+    async function cleanupAllianceMembership(uid, emailLower) {
+        if (!allianceId || !uid) {
+            return;
+        }
+        try {
+            const allianceRef = db.collection('alliances').doc(allianceId);
+            const snap = await allianceRef.get();
+            if (!snap.exists) {
+                return;
+            }
+            const data = snap.data() || {};
+            const members = data.members && typeof data.members === 'object' ? data.members : {};
+            const memberIds = Object.keys(members);
+            const onlyCurrentMember = memberIds.length === 1 && memberIds[0] === uid;
+            if (onlyCurrentMember && data.createdBy === uid) {
+                await allianceRef.delete();
+                return;
+            }
+            const memberPath = `members.${uid}`;
+            await allianceRef.update({
+                [memberPath]: firebase.firestore.FieldValue.delete()
+            });
+        } catch (error) {
+            console.warn('Failed to clean alliance membership during account deletion:', error.message || error);
+        }
+    }
+
+    async function deleteUserAccountAndData() {
+        const authUser = (auth && auth.currentUser) || currentUser;
+        if (!authUser) {
+            return { success: false, error: 'No user signed in' };
+        }
+
+        const uid = authUser.uid;
+        const email = authUser.email || '';
+        const emailLower = email ? email.toLowerCase() : '';
+        const dataDeletionErrors = [];
+
+        try {
+            await cleanupAllianceMembership(uid, emailLower);
+        } catch (error) {
+            dataDeletionErrors.push(error);
+        }
+
+        try {
+            const invitationRefs = await collectInvitationRefs(uid, emailLower);
+            await deleteDocsByRefs(invitationRefs);
+        } catch (error) {
+            dataDeletionErrors.push(error);
+        }
+
+        try {
+            const userDocIds = Array.from(new Set([uid, email, emailLower].filter(Boolean)));
+            for (const docId of userDocIds) {
+                try {
+                    await db.collection('users').doc(docId).delete();
+                } catch (error) {
+                    if (docId === uid) {
+                        throw error;
+                    }
+                    console.warn(`Skipping optional user doc delete (${docId}):`, error.message || error);
+                }
+            }
+        } catch (error) {
+            dataDeletionErrors.push(error);
+        }
+
+        playerDatabase = {};
+        eventData = createEmptyEventData();
+        allianceId = null;
+        allianceName = null;
+        allianceData = null;
+        playerSource = 'personal';
+        pendingInvitations = [];
+        userProfile = normalizeUserProfile(null);
+        setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
+        setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+
+        try {
+            await authUser.delete();
+            return { success: dataDeletionErrors.length === 0, dataDeleted: true, accountDeleted: true };
+        } catch (error) {
+            if (isReauthRequiredError(error)) {
+                try {
+                    await auth.signOut();
+                } catch (signOutError) {
+                    console.warn('Failed to sign out after reauth-required delete:', signOutError.message || signOutError);
+                }
+                return {
+                    success: false,
+                    dataDeleted: true,
+                    accountDeleted: false,
+                    reauthRequired: true,
+                    error: error.message,
+                };
+            }
+            return {
+                success: false,
+                dataDeleted: dataDeletionErrors.length === 0,
+                accountDeleted: false,
+                error: error.message,
+            };
+        }
+    }
     
     /**
      * Get current user
@@ -1510,6 +1655,7 @@ const FirebaseManager = (function() {
         signUpWithEmail: signUpWithEmail,
         resetPassword: resetPassword,
         signOut: signOut,
+        deleteUserAccountAndData: deleteUserAccountAndData,
         getCurrentUser: getCurrentUser,
         isSignedIn: isSignedIn,
         

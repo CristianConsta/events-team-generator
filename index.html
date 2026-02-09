@@ -158,6 +158,14 @@
                         </div>
                     </div>
 
+                    <div class="settings-danger-zone">
+                        <h3 data-i18n="settings_delete_account_title">Delete Account</h3>
+                        <p data-i18n="settings_delete_account_desc">This will permanently remove your user and all data from the platform.</p>
+                        <label for="settingsDeleteConfirmInput" data-i18n="settings_delete_account_input_label">Type "delete" to confirm</label>
+                        <input id="settingsDeleteConfirmInput" type="text" maxlength="40" data-i18n-placeholder="settings_delete_account_input_placeholder" placeholder="Type delete">
+                        <button id="settingsDeleteBtn" class="danger-btn" onclick="deleteAccountFromSettings()"><span data-i18n="settings_delete_account_button">Delete My Account</span></button>
+                    </div>
+
                     <div id="settingsStatus"></div>
                     <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
                         <button class="secondary" onclick="closeSettingsModal()"><span data-i18n="settings_cancel">Cancel</span></button>
@@ -331,7 +339,7 @@
                             <thead>
                                 <tr>
                                     <th data-i18n="buildings_table_building">Building</th>
-                                    <th data-i18n="buildings_table_slots">Slots</th>
+                                    <th data-i18n="buildings_table_slots">#Players</th>
                                     <th data-i18n="buildings_table_priority">Priority</th>
                                 </tr>
                             </thead>

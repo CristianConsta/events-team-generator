@@ -814,6 +814,50 @@ select {
 #settingsAvatarInput {
     display: none;
 }
+.settings-danger-zone {
+    margin-top: 16px;
+    border: 1px solid rgba(255, 107, 53, 0.5);
+    border-radius: 12px;
+    padding: 14px;
+    background: rgba(255, 107, 53, 0.08);
+}
+.settings-danger-zone h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: #FF9A6E;
+}
+.settings-danger-zone p {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.78);
+}
+.settings-danger-zone label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.86);
+}
+.settings-danger-zone input {
+    width: 100%;
+    margin-bottom: 10px;
+    border: 1px solid rgba(255, 107, 53, 0.45);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    padding: 10px 12px;
+}
+.danger-btn {
+    background: linear-gradient(135deg, #B42318, #D92D20);
+    border-color: rgba(255, 107, 53, 0.72);
+    color: #fff;
+}
+.danger-btn:hover {
+    background: linear-gradient(135deg, #A01B12, #C2261C);
+}
+.danger-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
 /* ── Alliance Panel inputs ── */
 #alliancePanelContent input::placeholder {
     color: rgba(255,255,255,0.5);

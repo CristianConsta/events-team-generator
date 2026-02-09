@@ -1,106 +1,199 @@
-# Desert Storm Team Assignment Generator
+# LW- Events Players Selection
 
-Web app for assembling two 20-player teams, assigning them to buildings with a power-first troop-mix algorithm, and exporting battle-ready map images and Excel rosters. Player data and building configuration are stored per user in Firebase so team organizers can reuse everything across sessions.
+Web app for building event teams, assigning players to buildings, and exporting map + Excel outputs for Last War events.
 
 ## Features
 
-- **Player database** — upload from Excel, stored in Firestore per user account; filter by name or troop type, sort by power or name.
-- **Team selection** — pick 20 players per team (A and B) with live counters and one-click clear.
-- **Building & priority editor** — configure slots and priority for each building; slots and priority are validated and saved to Firestore.
-- **Power-first troop-mix pairing** — within each priority group buildings round-robin the strongest available players first, then each anchor is paired with the best different-troop-type player from the next three by power (falls back to next-by-power if no mix exists).
-- **Map coordinate picker** — click to place player-name labels on the map canvas for each building; positions persist in Firestore.
-- **Exports** — team map image (PNG) and team roster (Excel), triggered from a modal that opens immediately after generation.
-- **Multilingual UI** — English, Français, Deutsch, Italiano, 한국어, Română. Language preference saved to `localStorage`.
-- **Auth** — Google OAuth or email/password (email verification required). All vendor libraries vendored locally; no CDN dependency.
-- **Mobile-responsive** — tablet (≤ 768 px) and phone (≤ 480 px) breakpoints; tables convert to card layouts, touch targets enlarged.
+- Menu-based navigation with two main pages:
+  - `Configuration`
+  - `Generator`
+- Event support:
+  - `Desert Storm`
+  - `Canyon Battlefield`
+- Per-event configuration:
+  - building names
+  - `#Players` (slots)
+  - priorities
+  - map label coordinates
+- Player database import from Excel (stored per user in Firestore).
+- Team selection with starters and substitutes.
+- Export outputs:
+  - team map image (PNG)
+  - team roster (Excel)
+- Settings:
+  - display name
+  - nickname (shown instead of name when set)
+  - avatar upload
+  - language selection
+  - account deletion with explicit typed confirmation
+- Alliance support (shared data flow where enabled).
+- Onboarding tooltip tour for first-time users.
+
+## First-Time User Flow
+
+1. Sign in.
+2. Open `Menu` from the header.
+3. Go to `Configuration`.
+4. Download the Excel template.
+5. Upload your player database.
+6. Review per-event `Buildings & Priorities` (`#Players` + priority).
+7. Set per-event map coordinates for player name labels.
+8. Open `Menu` and switch to `Generator`.
+9. Select players and generate exports.
 
 ## Requirements
 
-- A Firebase project with **Authentication** and **Firestore** enabled.
+- Firebase project with:
+  - Authentication enabled
+  - Firestore enabled
 - Modern browser (Chrome, Edge, Firefox, Safari).
 
 ## Quick Start (Local)
 
-1. Copy `firebase-config.example.js` to `firebase-config.js` and fill in your Firebase project values.
-2. Open `index.html` in a browser (no build step).
-3. Sign in, upload a player Excel file, select teams, and generate exports.
+1. Copy `firebase-config.example.js` to `firebase-config.js`.
+2. Fill in your Firebase project config values.
+3. Open `index.html` in a browser.
+4. Sign in and use the Configuration -> Generator flow.
 
 ## GitHub Pages Deployment
 
-The workflow in `.github/workflows/pages.yml` injects `firebase-config.js` at build time from a repository secret — the file is never committed.
+`.github/workflows/pages.yml` injects `firebase-config.js` at build time from a repo secret, so the config file is not committed.
 
-1. Go to **Settings > Secrets and variables > Actions** in your GitHub repo.
-2. Create a secret named `FIREBASE_CONFIG_JS` and paste the full contents of your local `firebase-config.js`.
-3. Go to **Settings > Pages** and set Source to **GitHub Actions**.
-4. Push to `main`; the workflow builds and deploys automatically.
+1. In GitHub, go to `Settings -> Secrets and variables -> Actions`.
+2. Add a secret named `FIREBASE_CONFIG_JS` with the full content of `firebase-config.js`.
+3. In `Settings -> Pages`, set source to `GitHub Actions`.
+4. Push to `main`.
 
 ## Project Layout
 
-```
-index.html                  Main application (UI, styles, all client-side JS)
-firebase-module.js          Firebase Auth + Firestore wrapper (IIFE, public API)
-firebase-config.js          Local Firebase config (gitignored)
-firebase-config.example.js  Template with placeholder values
-desert-storm-map.png        Base map image drawn on the export canvas
-vendor/                     SheetJS (xlsx) + Firebase compat SDKs
-scripts/                    One-time Firestore migration utility
-package.json                Node deps for the migration script only
-.github/workflows/pages.yml GitHub Actions deploy workflow
+```text
+index.html                     Main UI structure
+styles.css                     Styling and responsive behavior
+app.js                         Main app behavior (UI + generation + onboarding)
+translations.js                i18n dictionaries
+firebase-module.js             Firebase Auth/Firestore module (IIFE)
+js/app-init.js                 Startup and callback wiring
+js/services/firebase-service.js Service adapter used by app.js
+js/core/events.js              Event registry, maps, default buildings/positions
+js/core/buildings.js           Building normalization and version helpers
+js/core/assignment.js          Team assignment logic
+js/core/i18n.js                Translation engine
+vendor/                        Vendored Firebase + SheetJS libraries
+scripts/migrate_users_email_to_uid.js One-time Firestore migration utility
+tests/                         Node test suite
 ```
 
 ## Firestore Data Model
 
-- **Collection:** `users`
-- **Document ID:** Firebase Auth `uid`
-- **Fields:**
+### Collection: `users`
+Document id is Firebase Auth `uid`.
 
-| Field | Type | Description |
-|---|---|---|
-| `playerDatabase` | map | Keyed by player name; each value holds `power`, `troops`, `lastUpdated` |
-| `buildingConfig` | array | Per-building `name`, `slots`, `priority` |
-| `buildingPositions` | map | Keyed by building name; `x` / `y` canvas coordinates |
-| `metadata` | map | `email`, `totalPlayers`, `lastUpload`, `lastModified` (server timestamp) |
+Main fields:
+
+- `playerDatabase` (map)
+  - keyed by player name
+  - value contains `power`, `troops`, `lastUpdated`
+- `events` (map)
+  - `events.desert_storm`
+  - `events.canyon_battlefield`
+  - each event entry stores:
+    - `buildingConfig` (array)
+    - `buildingConfigVersion` (number)
+    - `buildingPositions` (map of `buildingName -> [x, y]`)
+    - `buildingPositionsVersion` (number)
+- `userProfile` (map)
+  - `displayName`, `nickname`, `avatarDataUrl`
+- `metadata` (map)
+  - `email`, `emailLower`, `totalPlayers`, `lastUpload`, `lastModified`
+- optional alliance fields:
+  - `allianceId`, `allianceName`, `playerSource`
+
+### Collection: `app_config`
+
+Shared default documents used for bootstrapping user defaults:
+
+- `default_event_positions`
+  - `events.{eventId}.{buildingName} = [x, y]`
+  - `version`, `sourceEmail`, `updatedAt`
+- `default_event_building_config`
+  - `events.{eventId} = [{ name, label?, slots, priority }]`
+  - `version`, `sourceEmail`, `updatedAt`
+
+### Other collections
+
+- `alliances`
+- `invitations`
+
+Used by alliance membership, shared uploads, and invitation workflows.
 
 ## Upload Format
 
-The app expects an Excel file with a sheet named **Players**. Headers must be on **row 10**:
+Expected Excel sheet: `Players`
+Headers must be on row `10`:
 
-| Column | Required | Notes |
-|---|---|---|
-| Player Name | yes | Used as the primary key; duplicates silently overwrite |
-| E1 Total Power(M) | no | Numeric; defaults to 0 if missing |
-| E1 Troops | no | Tank / Aero / Missile; defaults to "Unknown" if missing |
+- `Player Name` (required)
+- `E1 Total Power(M)`
+- `E1 Troops`
 
-A pre-filled template can be downloaded from the UI.
+## Account Deletion
 
-## One-Time Migration (Email Doc IDs → UID Doc IDs)
+From `Settings`, users can delete their account by typing the confirmation word.
 
-If your Firestore still has documents keyed by email instead of `uid`:
+Current behavior:
 
-1. Install Node.js LTS and run `npm install`.
-2. Dry run (prints changes without writing):
-   ```
-   node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID
-   ```
+- user data is removed from Firestore
+- related alliance/invitation records are cleaned up where applicable
+- user is signed out after confirmation
+- Firebase Auth account deletion may require recent login (`auth/requires-recent-login`)
+
+## Migration Script (Email doc IDs -> UID doc IDs)
+
+If older data exists with email-based document ids:
+
+1. Install deps:
+
+```bash
+npm install
+```
+
+2. Dry run:
+
+```bash
+node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID
+```
+
 3. Apply:
-   ```
-   node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply
-   ```
-4. Optionally add `--delete-old` to remove the old email-keyed documents.
+
+```bash
+node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply
+```
+
+4. Optional cleanup of old docs:
+
+```bash
+node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply --delete-old
+```
+
+## Tests
+
+```bash
+npm test
+```
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---|---|
-| "Firebase config not found" | `firebase-config.js` is missing or empty locally; or the `FIREBASE_CONFIG_JS` secret is not set for Pages. |
-| "Permission denied" | Check Firestore security rules and confirm the user is signed in. |
-| "Email not verified" | Verify the email address in the inbox, then sign in again. |
-| "File too large" | Excel uploads are capped at 5 MB. |
-| Pages deploy not triggering | Ensure the workflow file has LF line endings (`.gitattributes` enforces this) and no BOM. |
+- `Firebase config not found`
+  - `firebase-config.js` is missing locally, or `FIREBASE_CONFIG_JS` secret is not set for Pages.
+- `Permission denied`
+  - verify Firestore rules and signed-in user permissions.
+- `Email not verified`
+  - verify email, then sign in again.
+- Upload rejected
+  - player Excel upload limit is 5 MB.
 
 ## Security Notes
 
-- `firebase-config.js` is in `.gitignore` — never commit it.
-- Restrict Firebase API keys to your deployed domain in the Firebase console.
-- Firestore security rules should scope reads/writes to the authenticated user's own document.
-- Player names are HTML-escaped before insertion into the DOM; team-selection buttons use `addEventListener` rather than inline handlers.
+- `firebase-config.js` is gitignored and should never be committed.
+- Restrict Firebase API keys to approved domains.
+- Firestore rules should scope access to the authenticated user (and alliance rules where needed).
+- Avatar uploads are restricted to common image formats and validated client-side.

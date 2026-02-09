@@ -17,6 +17,7 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
 
   assert.equal(global.FirebaseService.isAvailable(), false);
   assert.deepEqual(await global.FirebaseService.signOut(), { success: false, error: 'Firebase not loaded' });
+  assert.deepEqual(await global.FirebaseService.deleteUserAccountAndData(), { success: false, error: 'Firebase not loaded' });
   assert.equal(global.FirebaseService.getPlayerSource(), 'personal');
   assert.equal(global.FirebaseService.getBuildingConfigVersion('desert_storm'), 0);
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfig('canyon_battlefield'), null);
@@ -29,6 +30,7 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   let called = false;
   global.FirebaseManager = {
     signOut: async () => { called = true; return { success: true }; },
+    deleteUserAccountAndData: async () => ({ success: true, dataDeleted: true, accountDeleted: true }),
     isSignedIn: () => true,
     getBuildingConfigVersion: () => 11,
     getGlobalDefaultBuildingConfig: () => [{ name: 'Command Center', label: 'CC' }],
@@ -41,6 +43,7 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   const result = await global.FirebaseService.signOut();
   assert.deepEqual(result, { success: true });
   assert.equal(called, true);
+  assert.deepEqual(await global.FirebaseService.deleteUserAccountAndData(), { success: true, dataDeleted: true, accountDeleted: true });
   assert.equal(global.FirebaseService.isSignedIn(), true);
   assert.equal(global.FirebaseService.getBuildingConfigVersion('desert_storm'), 11);
   assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingConfig('canyon_battlefield'), [{ name: 'Command Center', label: 'CC' }]);

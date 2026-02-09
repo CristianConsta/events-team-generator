@@ -43,6 +43,9 @@
         signOut: async function signOut() {
             return withManager((svc) => svc.signOut(), notLoadedResult());
         },
+        deleteUserAccountAndData: async function deleteUserAccountAndData() {
+            return withManager((svc) => svc.deleteUserAccountAndData(), notLoadedResult());
+        },
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);
         },
