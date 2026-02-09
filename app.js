@@ -22,6 +22,10 @@ function onI18nApplied() {
     renderPlayersTable();
     renderBuildingsTable();
     updateTeamCounters();
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.title = t('configuration_button');
+    }
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
         updateCoordLabel();
@@ -266,6 +270,68 @@ function getSubstituteCount(teamKey) {
 }
 let uploadPanelExpanded = true;
 let activeDownloadTeam = null;
+let currentPageView = 'generator';
+
+function isConfigurationPageVisible() {
+    return currentPageView === 'configuration';
+}
+
+function syncSettingsButtonState() {
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.classList.toggle('is-active', isConfigurationPageVisible());
+    }
+}
+
+function resumePendingOnboardingStep() {
+    if (pendingOnboardingStep === null) {
+        return;
+    }
+    const pending = pendingOnboardingStep;
+    pendingOnboardingStep = null;
+    showOnboardingStep(pending);
+}
+
+function updateFloatingButtonsVisibility() {
+    const bar = document.getElementById('floatingButtons');
+    const selectionSection = document.getElementById('selectionSection');
+    if (!bar || !selectionSection) {
+        return;
+    }
+    const shouldShow = currentPageView === 'generator' && !selectionSection.classList.contains('hidden');
+    bar.style.display = shouldShow ? 'flex' : 'none';
+    reserveSpaceForFooter();
+}
+
+function setPageView(view) {
+    const generatorPage = document.getElementById('generatorPage');
+    const configurationPage = document.getElementById('configurationPage');
+    if (!generatorPage || !configurationPage) {
+        return;
+    }
+
+    currentPageView = view === 'configuration' ? 'configuration' : 'generator';
+    generatorPage.classList.toggle('hidden', currentPageView !== 'generator');
+    configurationPage.classList.toggle('hidden', currentPageView !== 'configuration');
+    syncSettingsButtonState();
+
+    if (currentPageView === 'configuration') {
+        loadBuildingConfig();
+        loadBuildingPositions();
+        renderBuildingsTable();
+    }
+
+    updateFloatingButtonsVisibility();
+    resumePendingOnboardingStep();
+}
+
+function showConfigurationPage() {
+    setPageView('configuration');
+}
+
+function showGeneratorPage() {
+    setPageView('generator');
+}
 
 // ============================================================
 // EVENT REGISTRY
@@ -358,16 +424,15 @@ function switchEvent(eventId) {
     loadBuildingConfig();
     loadBuildingPositions();
 
-    // Re-render buildings table if panel is open
-    const buildingsPanel = document.getElementById('buildingsPanel');
-    if (buildingsPanel && !buildingsPanel.classList.contains('hidden')) {
+    // Re-render buildings table if configuration page is visible
+    if (isConfigurationPageVisible()) {
         renderBuildingsTable();
     }
 
-    // Close coordinate picker if open
+    // Rebind coordinate picker to the selected event if open
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
-        closeCoordinatesPicker();
+        refreshCoordinatesPickerForCurrentEvent();
     }
 
     // Clear old event's assignments
@@ -920,37 +985,35 @@ function loadPlayerData() {
         
         showSelectionInterface();
     } else {
+        allPlayers = [];
+        teamSelections.teamA = [];
+        teamSelections.teamB = [];
+        assignmentsA = [];
+        assignmentsB = [];
+        substitutesA = [];
+        substitutesB = [];
+
         // Keep upload panel expanded
         uploadPanelExpanded = true;
         document.getElementById('uploadContent').classList.remove('collapsed');
         document.getElementById('uploadExpandIcon').classList.add('rotated');
         document.getElementById('uploadHint').textContent = '';
+        document.getElementById('selectionSection').classList.add('hidden');
+        renderPlayersTable();
+        updateTeamCounters();
+        showConfigurationPage();
     }
 }
 
 function showSelectionInterface() {
     document.getElementById('selectionSection').classList.remove('hidden');
-    document.getElementById('floatingButtons').style.display = 'flex';
-    reserveSpaceForFooter();
+    showGeneratorPage();
     renderPlayersTable();
     updateTeamCounters();
-    if (pendingOnboardingStep !== null) {
-        const pending = pendingOnboardingStep;
-        pendingOnboardingStep = null;
-        showOnboardingStep(pending);
-    }
 }
 
 function toggleBuildingsPanel() {
-    const panel = document.getElementById('buildingsPanel');
-    const opening = panel.classList.contains('hidden');
-    panel.classList.toggle('hidden');
-    if (opening) {
-        loadBuildingConfig();
-        loadBuildingPositions();
-    } else {
-        renderBuildingsTable();
-    }
+    showConfigurationPage();
 }
 
 function getDefaultBuildings() {
@@ -1230,8 +1293,7 @@ async function saveBuildingConfig() {
 }
 
 function refreshBuildingConfigForAssignments() {
-    const panel = document.getElementById('buildingsPanel');
-    if (panel && !panel.classList.contains('hidden')) {
+    if (isConfigurationPageVisible()) {
         return syncBuildingConfigFromTable();
     }
     loadBuildingConfig();
@@ -1240,8 +1302,7 @@ function refreshBuildingConfigForAssignments() {
 
 function syncBuildingConfigFromTable() {
     const tbody = document.getElementById('buildingsTableBody');
-    const panel = document.getElementById('buildingsPanel');
-    if (!tbody || !panel || panel.classList.contains('hidden')) {
+    if (!tbody || !isConfigurationPageVisible()) {
         return true;
     }
     const { updated, totalSlots } = readBuildingConfigFromTable();
@@ -1256,17 +1317,27 @@ function syncBuildingConfigFromTable() {
 let coordBuildingIndex = 0;
 let coordBuildings = [];
 
-function openCoordinatesPicker() {
+function refreshCoordinatesPickerForCurrentEvent() {
+    loadBuildingConfig();
     loadBuildingPositions();
-    coordBuildings = getBuildingConfig().filter((b) => b.name !== 'Bomb Squad').map((b) => b.name);
+    coordBuildings = getBuildingConfig()
+        .filter((b) => b.name !== 'Bomb Squad')
+        .map((b) => b.name);
+
     if (coordBuildings.length === 0) {
         showMessage('coordStatus', t('coord_no_buildings'), 'error');
-        return;
+        return false;
     }
+
     coordBuildingIndex = 0;
+    drawCoordCanvas();
+    return true;
+}
+
+function openCoordinatesPicker() {
     const overlay = document.getElementById('coordPickerOverlay');
     overlay.classList.remove('hidden');
-    drawCoordCanvas();
+    refreshCoordinatesPickerForCurrentEvent();
 }
 
 function closeCoordinatesPicker() {

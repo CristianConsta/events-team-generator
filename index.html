@@ -77,6 +77,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                     <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
                 </button>
+                <button id="settingsBtn" class="secondary header-icon-btn settings-btn" onclick="showConfigurationPage()" title="Configuration">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1 0 2.82 2 2 0 0 1-2.82 0l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.05 1.56V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.05-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 0 1-2.82 0 2 2 0 0 1 0-2.82l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.05H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 0 1 0-2.82 2 2 0 0 1 2.82 0l.06.06A1.7 1.7 0 0 0 9 4.65a1.7 1.7 0 0 0 1-1.56V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.05 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 0 1 2.82 0 2 2 0 0 1 0 2.82l-.06.06A1.7 1.7 0 0 0 19.35 9c.24.64.85 1.05 1.56 1.05H21a2 2 0 0 1 0 4h-.09c-.71 0-1.32.41-1.51 1.05z"/></svg>
+                    <span class="btn-label" data-i18n="configuration_button">Configuration</span>
+                </button>
                 <select id="languageSelect">
                     <option value="en">EN</option>
                     <option value="fr">FR</option>
@@ -92,48 +96,6 @@
         </div>
 
         <div class="container">
-            <div class="page-header">
-                <div style="display: flex; gap: 8px;">
-                    <button class="secondary header-icon-btn" onclick="toggleBuildingsPanel()" title="Buildings &amp; Priorities">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-                        <span class="btn-label" data-i18n="buildings_button">Buildings &amp; Priorities</span>
-                    </button>
-                </div>
-            </div>
-
-            <div id="buildingsPanel" class="card hidden">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <h2 style="margin: 0;" data-i18n="buildings_panel_title">Buildings &amp; Priorities</h2>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button class="clear-btn" onclick="openCoordinatesPicker()"><span data-i18n="map_coordinates">Map Coordinates</span></button>
-                        <button class="clear-btn" onclick="toggleBuildingsPanel()"><span data-i18n="close">Close</span></button>
-                    </div>
-                </div>
-                <div class="event-selector event-selector-inline" id="buildingsEventSelector" style="margin: 12px 0;">
-                    <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
-                    <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
-                </div>
-                <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
-                <div style="overflow-x: auto;">
-                    <table class="players-table" id="buildingsTable">
-                        <thead>
-                            <tr>
-                                <th data-i18n="buildings_table_building">Building</th>
-                                <th data-i18n="buildings_table_slots">Slots</th>
-                                <th data-i18n="buildings_table_priority">Priority</th>
-                            </tr>
-                        </thead>
-                        <tbody id="buildingsTableBody">
-                            <!-- Building rows will be rendered here -->
-                        </tbody>
-                    </table>
-                </div>
-                <div id="buildingsActions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
-                    <button class="secondary" onclick="resetBuildingsToDefault()"><span data-i18n="reset_default">Reset to Default</span></button>
-                    <button onclick="saveBuildingConfig()"><span data-i18n="save_changes">Save Changes</span></button>
-                </div>
-                <div id="buildingsStatus"></div>
-            </div>
 
             <div id="alliancePanel" class="card hidden">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -170,6 +132,10 @@
                         <button class="clear-btn" onclick="closeCoordinatesPicker()"><span data-i18n="close">Close</span></button>
                     </div>
                     <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click on the map to set the position for the selected building. Coordinates update one by one.</p>
+                    <div class="event-selector event-selector-inline" id="coordEventSelector" style="margin: 0 0 12px;">
+                        <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
+                        <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
+                    </div>
                     <div id="coordBuildingRow" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
                         <strong id="coordBuildingLabel" data-i18n="coord_label_building">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
@@ -185,100 +151,147 @@
                     <div id="coordStatus" style="margin-top: 10px;"></div>
                 </div>
             </div>
-            
-            <!-- Upload Section (Collapsible when players exist) -->
-            <div id="uploadSection" class="card">
-                <div class="collapsible-header" onclick="toggleUploadPanel()">
-                    <div>
-                        <h2 style="display: inline; margin: 0;" data-i18n="player_db_title">📊 Player Database</h2>
-                        <span id="uploadHint" style="margin-left: 15px; opacity: 0.7; font-size: 14px;"></span>
+
+            <div id="generatorPage" class="app-view">
+                <!-- Player Selection Section -->
+                <div id="selectionSection" class="card hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h2 style="margin: 0;" data-i18n="select_teams_title">⚔️ Select Teams</h2>
                     </div>
-                    <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
-                </div>
-                
-                <div class="collapsible-content" id="uploadContent">
-                    <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_help">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
+                    <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 12px 0;">
+                        <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
+                        <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
+                    </div>
+                    <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="select_teams_help">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
                     
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button id="downloadTemplateBtn" class="secondary" onclick="downloadPlayerTemplate()">📥 <span data-i18n="download_template">Download Template</span></button>
-                        <button id="uploadPlayerBtn" onclick="document.getElementById('playerFileInput').click()">📤 <span data-i18n="upload_player_data">Upload Player Data</span></button>
-                        <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
+                    <!-- Team Counters -->
+                    <div class="team-counters">
+                        <div class="counter team-a">
+                            <span data-i18n="team_a_label">Team A</span>:
+                            <span id="teamAStarterCount">0</span>/20 |
+                            <span data-i18n="subs_short">Sub</span>: <span id="teamASubCount">0</span>/10
+                        </div>
+                        <div class="counter team-b">
+                            <span data-i18n="team_b_label">Team B</span>:
+                            <span id="teamBStarterCount">0</span>/20 |
+                            <span data-i18n="subs_short">Sub</span>: <span id="teamBSubCount">0</span>/10
+                        </div>
                     </div>
                     
-                    <div id="uploadMessage"></div>
+                    <!-- Filters -->
+                    <div class="filters">
+                        <input type="text" id="searchFilter" placeholder="🔍 Search player name..." data-i18n-placeholder="search_placeholder" onkeyup="filterPlayers()">
+                        <div class="filter-dropdown" id="troopsFilterWrapper">
+                            <button class="filter-icon-btn" id="troopsFilterBtn">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4h14l-5 6v4l-4 2V10L2 4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                            </button>
+                            <div class="filter-dropdown-panel" id="troopsFilterPanel">
+                                <div class="filter-option selected" data-value="" data-i18n="troops_filter_all">All Troop Types</div>
+                                <div class="filter-option" data-value="Tank" data-i18n="troops_filter_tank">Tank</div>
+                                <div class="filter-option" data-value="Aero" data-i18n="troops_filter_aero">Aero</div>
+                                <div class="filter-option" data-value="Missile" data-i18n="troops_filter_missile">Missile</div>
+                            </div>
+                        </div>
+                        <div class="filter-dropdown" id="sortFilterWrapper">
+                            <button class="filter-icon-btn" id="sortFilterBtn">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6 11l3 3 3-3M12 7L9 4 6 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </button>
+                            <div class="filter-dropdown-panel" id="sortFilterPanel">
+                                <div class="filter-option selected" data-value="power-desc" data-i18n="sort_power_desc">Sort by Power (High to Low)</div>
+                                <div class="filter-option" data-value="power-asc" data-i18n="sort_power_asc">Sort by Power (Low to High)</div>
+                                <div class="filter-option" data-value="name-asc" data-i18n="sort_name_asc">Sort by Name (A-Z)</div>
+                                <div class="filter-option" data-value="name-desc" data-i18n="sort_name_desc">Sort by Name (Z-A)</div>
+                            </div>
+                        </div>
+                        <button class="filter-icon-btn" id="clearAllBtn" onclick="clearAllSelections()" style="margin-left: auto;" title="Clear All">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l6 6M12 6l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Players Table -->
+                    <div style="overflow-x: auto;">
+                        <table class="players-table" id="playersTable">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="table_header_player_name">Player Name</th>
+                                    <th data-i18n="table_header_power">E1 Power (M)</th>
+                                    <th data-i18n="table_header_troop">Troop Type</th>
+                                    <th data-i18n="table_header_team_selection">Team Selection</th>
+                                </tr>
+                            </thead>
+                            <tbody id="playersTableBody">
+                                <!-- Players will be dynamically inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            
-            <!-- Player Selection Section -->
-            <div id="selectionSection" class="card hidden">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <h2 style="margin: 0;" data-i18n="select_teams_title">⚔️ Select Teams</h2>
+
+            <div id="configurationPage" class="app-view hidden">
+                <div class="page-header">
+                    <h2 class="config-title" data-i18n="configuration_page_title">Configuration</h2>
+                    <button class="secondary" onclick="showGeneratorPage()"><span data-i18n="back_to_generator">Back to Generator</span></button>
                 </div>
-                <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 12px 0;">
-                    <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
-                    <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
-                </div>
-                <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="select_teams_help">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
-                
-                <!-- Team Counters -->
-                <div class="team-counters">
-                    <div class="counter team-a">
-                        <span data-i18n="team_a_label">Team A</span>:
-                        <span id="teamAStarterCount">0</span>/20 |
-                        <span data-i18n="subs_short">Sub</span>: <span id="teamASubCount">0</span>/10
-                    </div>
-                    <div class="counter team-b">
-                        <span data-i18n="team_b_label">Team B</span>:
-                        <span id="teamBStarterCount">0</span>/20 |
-                        <span data-i18n="subs_short">Sub</span>: <span id="teamBSubCount">0</span>/10
-                    </div>
-                </div>
-                
-                <!-- Filters -->
-                <div class="filters">
-                    <input type="text" id="searchFilter" placeholder="🔍 Search player name..." data-i18n-placeholder="search_placeholder" onkeyup="filterPlayers()">
-                    <div class="filter-dropdown" id="troopsFilterWrapper">
-                        <button class="filter-icon-btn" id="troopsFilterBtn">
-                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2 4h14l-5 6v4l-4 2V10L2 4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-                        </button>
-                        <div class="filter-dropdown-panel" id="troopsFilterPanel">
-                            <div class="filter-option selected" data-value="" data-i18n="troops_filter_all">All Troop Types</div>
-                            <div class="filter-option" data-value="Tank" data-i18n="troops_filter_tank">Tank</div>
-                            <div class="filter-option" data-value="Aero" data-i18n="troops_filter_aero">Aero</div>
-                            <div class="filter-option" data-value="Missile" data-i18n="troops_filter_missile">Missile</div>
+
+                <!-- Upload Section (Collapsible when players exist) -->
+                <div id="uploadSection" class="card">
+                    <div class="collapsible-header" onclick="toggleUploadPanel()">
+                        <div>
+                            <h2 style="display: inline; margin: 0;" data-i18n="player_db_title">📊 Player Database</h2>
+                            <span id="uploadHint" style="margin-left: 15px; opacity: 0.7; font-size: 14px;"></span>
                         </div>
+                        <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
                     </div>
-                    <div class="filter-dropdown" id="sortFilterWrapper">
-                        <button class="filter-icon-btn" id="sortFilterBtn">
-                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M6 11l3 3 3-3M12 7L9 4 6 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </button>
-                        <div class="filter-dropdown-panel" id="sortFilterPanel">
-                            <div class="filter-option selected" data-value="power-desc" data-i18n="sort_power_desc">Sort by Power (High to Low)</div>
-                            <div class="filter-option" data-value="power-asc" data-i18n="sort_power_asc">Sort by Power (Low to High)</div>
-                            <div class="filter-option" data-value="name-asc" data-i18n="sort_name_asc">Sort by Name (A-Z)</div>
-                            <div class="filter-option" data-value="name-desc" data-i18n="sort_name_desc">Sort by Name (Z-A)</div>
+                    
+                    <div class="collapsible-content" id="uploadContent">
+                        <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_help">Upload your player data. Template headers start at row 10: Player Name, E1 Total Power(M), E1 Troops.</p>
+                        
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <button id="downloadTemplateBtn" class="secondary" onclick="downloadPlayerTemplate()">📥 <span data-i18n="download_template">Download Template</span></button>
+                            <button id="uploadPlayerBtn" onclick="document.getElementById('playerFileInput').click()">📤 <span data-i18n="upload_player_data">Upload Player Data</span></button>
+                            <input type="file" id="playerFileInput" accept=".xlsx,.xls" onchange="uploadPlayerData()">
                         </div>
+                        
+                        <div id="uploadMessage"></div>
                     </div>
-                    <button class="filter-icon-btn" id="clearAllBtn" onclick="clearAllSelections()" style="margin-left: auto;" title="Clear All">
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M6 6l6 6M12 6l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                    </button>
                 </div>
-                
-                <!-- Players Table -->
-                <div style="overflow-x: auto;">
-                    <table class="players-table" id="playersTable">
-                        <thead>
-                            <tr>
-                                <th data-i18n="table_header_player_name">Player Name</th>
-                                <th data-i18n="table_header_power">E1 Power (M)</th>
-                                <th data-i18n="table_header_troop">Troop Type</th>
-                                <th data-i18n="table_header_team_selection">Team Selection</th>
-                            </tr>
-                        </thead>
-                        <tbody id="playersTableBody">
-                            <!-- Players will be dynamically inserted here -->
-                        </tbody>
-                    </table>
+
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h2 style="margin: 0;" data-i18n="map_coordinates_tool_title">Map Coordinates Tool</h2>
+                        <button class="secondary" onclick="openCoordinatesPicker()"><span data-i18n="map_coordinates">Map Coordinates</span></button>
+                    </div>
+                    <p style="opacity: 0.9; margin: 10px 0 0;" data-i18n="map_coordinates_tool_help">Set or fine-tune building map positions used by assignment map exports.</p>
+                </div>
+
+                <div id="buildingsPanel" class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h2 style="margin: 0;" data-i18n="buildings_panel_title">Buildings &amp; Priorities</h2>
+                    </div>
+                    <div class="event-selector event-selector-inline" id="buildingsEventSelector" style="margin: 12px 0;">
+                        <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
+                        <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
+                    </div>
+                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
+                    <div style="overflow-x: auto;">
+                        <table class="players-table" id="buildingsTable">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="buildings_table_building">Building</th>
+                                    <th data-i18n="buildings_table_slots">Slots</th>
+                                    <th data-i18n="buildings_table_priority">Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody id="buildingsTableBody">
+                                <!-- Building rows will be rendered here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="buildingsActions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                        <button class="secondary" onclick="resetBuildingsToDefault()"><span data-i18n="reset_default">Reset to Default</span></button>
+                        <button onclick="saveBuildingConfig()"><span data-i18n="save_changes">Save Changes</span></button>
+                    </div>
+                    <div id="buildingsStatus"></div>
                 </div>
             </div>
             
