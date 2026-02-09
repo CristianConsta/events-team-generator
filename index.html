@@ -78,27 +78,24 @@
                 </div>
 
                 <div id="headerActions">
-                    <button id="headerProfileBtn" onclick="openSettingsModal()" title="Settings">
-                        <span id="headerAvatar" class="header-avatar" aria-hidden="true">
-                            <img id="headerAvatarImage" class="hidden" alt="User avatar">
-                            <span id="headerAvatarInitials">U</span>
-                        </span>
-                        <span id="headerUserText">
-                            <span id="userIdentityLabel" style="color: var(--gold); font-weight: bold;"></span>
-                        </span>
-                    </button>
+                    <div id="headerProfileCluster">
+                        <button id="headerProfileBtn" onclick="openSettingsModal()" title="Settings">
+                            <span id="headerAvatar" class="header-avatar" aria-hidden="true">
+                                <img id="headerAvatarImage" class="hidden" alt="User avatar">
+                                <span id="headerAvatarInitials">U</span>
+                            </span>
+                            <span id="headerUserText">
+                                <span id="userIdentityLabel" style="color: var(--gold); font-weight: bold;"></span>
+                            </span>
+                        </button>
+                        <span id="allianceDisplay" style="display: none; color: var(--gold); font-weight: bold; opacity: 0.7; cursor: pointer;" onclick="toggleAlliancePanel()"></span>
+                        <button id="allianceCreateBtn" onclick="toggleAlliancePanel()" title="Create/Join Alliance" style="display: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
+                        </button>
+                    </div>
                     <button id="notificationBtn" onclick="toggleNotificationsPanel()" title="Notifications" style="position: relative; padding: 8px 10px; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; margin: 0;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                         <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
-                    </button>
-                </div>
-            </div>
-
-            <div id="headerUserInfo">
-                <div id="headerMetaRow">
-                    <span id="allianceDisplay" style="display: none; color: var(--gold); font-weight: bold; opacity: 0.7; cursor: pointer;" onclick="toggleAlliancePanel()"></span>
-                    <button id="allianceCreateBtn" onclick="toggleAlliancePanel()" title="Create/Join Alliance" style="display: none;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
                     </button>
                 </div>
             </div>

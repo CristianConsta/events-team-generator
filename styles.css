@@ -600,6 +600,12 @@ select {
     flex: 0 0 auto;
     min-width: 0;
 }
+#headerProfileCluster {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
 #headerUserInfo {
     display: flex;
     align-items: center;
@@ -1056,6 +1062,7 @@ select {
     #userHeaderTop            { gap: 8px !important; }
     #headerLeft               { gap: 8px !important; }
     #headerActions            { gap: 6px !important; }
+    #headerProfileCluster     { gap: 6px !important; min-width: 0; }
     #headerUserInfo           { justify-content: flex-end !important; gap: 8px !important; }
     #headerProfileBtn         { padding: 4px !important; gap: 6px !important; max-width: 120px !important; }
     .header-avatar            { width: 34px !important; height: 34px !important; min-width: 34px !important; font-size: 12px !important; }
