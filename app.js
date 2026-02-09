@@ -2713,6 +2713,37 @@ function generateMap(team, assignments, statusId) {
             return output + '...';
         }
 
+        function drawSwordIcon(cx, cy, size, color) {
+            const s = Math.max(6, Math.floor(size));
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+
+            // Blade 1
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.7, cy + s * 0.6);
+            ctx.lineTo(cx + s * 0.55, cy - s * 0.55);
+            ctx.stroke();
+            // Guard 1
+            ctx.beginPath();
+            ctx.moveTo(cx - s * 0.25, cy + s * 0.15);
+            ctx.lineTo(cx - s * 0.75, cy - s * 0.35);
+            ctx.stroke();
+
+            // Blade 2
+            ctx.beginPath();
+            ctx.moveTo(cx + s * 0.7, cy + s * 0.6);
+            ctx.lineTo(cx - s * 0.55, cy - s * 0.55);
+            ctx.stroke();
+            // Guard 2
+            ctx.beginPath();
+            ctx.moveTo(cx + s * 0.25, cy + s * 0.15);
+            ctx.lineTo(cx + s * 0.75, cy - s * 0.35);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, totalWidth, totalHeight);
 
@@ -2732,6 +2763,13 @@ function generateMap(team, assignments, statusId) {
         ctx.drawImage(activeMapImage, 0, titleHeight, 1080, mapHeight);
 
         let drawnCount = 0;
+        const priorityPalette = {
+            1: '#FF4D5A',
+            2: '#FF8A3D',
+            3: '#F7C948',
+            4: '#40C9A2',
+            5: '#6BA8FF',
+        };
         const effectivePositions = getEffectiveBuildingPositions();
         Object.keys(grouped).forEach(building => {
             if (!effectivePositions[building]) return;
@@ -2739,37 +2777,86 @@ function generateMap(team, assignments, statusId) {
             const [x, y_base] = effectivePositions[building];
             const y = y_base + titleHeight;
             const players = grouped[building];
-            const anchor = (getActiveEvent().buildingAnchors[building]) || 'left';
+            const starterCardWidth = 182;
+            const starterCardHeight = 28;
+            const starterGapY = 34;
+            const firstLabelCenterX = x;
+            const firstLabelCenterY = y;
 
             players.forEach((player, i) => {
                 const name = player.player;
+                const priorityColor = priorityPalette[player.priority] || teamPrimary;
+                const yPos = firstLabelCenterY + (i * starterGapY);
 
-                ctx.font = 'bold 14px Arial';
-                const metrics = ctx.measureText(name);
-                const pad = 8;
-                const boxW = metrics.width + pad * 2;
-                const boxH = 24;
+                const troopCode = (player.troops || '').toLowerCase().startsWith('tank')
+                    ? 'T'
+                    : (player.troops || '').toLowerCase().startsWith('aero')
+                        ? 'A'
+                        : (player.troops || '').toLowerCase().startsWith('missile')
+                            ? 'M'
+                            : '?';
 
-                const yPos = y + (i * 35) - 15;
-                let boxX = anchor === 'left' ? x - boxW - 15 : x + 15;
-                const boxY = yPos - boxH / 2;
+                const fittedName = fitText(name, starterCardWidth - 72, 'bold 13px Arial');
+                const cardX = firstLabelCenterX - (starterCardWidth / 2);
+                const cardY = yPos - (starterCardHeight / 2);
 
-                if (boxX < 5) boxX = 5;
-                else if (boxX + boxW > 1075) boxX = 1075 - boxW;
-
-                ctx.fillStyle = bgColors[player.priority] || 'rgba(255,255,255,0.9)';
+                // Tactical starter card.
+                const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + starterCardWidth, cardY);
+                cardGrad.addColorStop(0, 'rgba(26, 31, 44, 0.95)');
+                cardGrad.addColorStop(1, 'rgba(18, 22, 32, 0.95)');
+                ctx.fillStyle = cardGrad;
                 ctx.beginPath();
-                ctx.roundRect(boxX, boxY, boxW, boxH, 8);
+                ctx.roundRect(cardX, cardY, starterCardWidth, starterCardHeight, 8);
                 ctx.fill();
 
-                ctx.strokeStyle = 'black';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.44)';
+                ctx.lineWidth = 1;
                 ctx.stroke();
 
-                ctx.fillStyle = textColors[player.priority] || '#000000';
-                ctx.textAlign = 'left';
+                // Priority accent strip.
+                ctx.fillStyle = priorityColor;
+                ctx.beginPath();
+                ctx.roundRect(cardX + 1.4, cardY + 1.4, 6, starterCardHeight - 2.8, 4);
+                ctx.fill();
+
+                // Index chip.
+                const chipX = cardX + 16;
+                ctx.beginPath();
+                ctx.arc(chipX, yPos, 8, 0, Math.PI * 2);
+                ctx.fillStyle = teamPrimary;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.font = 'bold 9px Arial';
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(name, boxX + pad, yPos);
+                ctx.fillText(String(i + 1), chipX, yPos + 0.5);
+
+                // Name.
+                ctx.font = 'bold 13px Arial';
+                ctx.fillStyle = '#F3F6FF';
+                ctx.textAlign = 'left';
+                ctx.fillText(fittedName, cardX + 30, yPos + 0.5);
+
+                // Troop badge.
+                const badgeW = 20;
+                const badgeH = 16;
+                const badgeX = cardX + starterCardWidth - badgeW - 6;
+                const badgeY = yPos - badgeH / 2;
+                ctx.fillStyle = 'rgba(255,255,255,0.13)';
+                ctx.beginPath();
+                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                drawSwordIcon(badgeX + 6, yPos, 4, priorityColor);
+                ctx.font = 'bold 10px Arial';
+                ctx.fillStyle = '#FFFFFF';
+                ctx.textAlign = 'center';
+                ctx.fillText(troopCode, badgeX + 14, yPos + 0.5);
 
                 drawnCount++;
             });
