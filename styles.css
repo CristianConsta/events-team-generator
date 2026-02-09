@@ -6,9 +6,12 @@
     --team-a-rgb: 65, 105, 225;
     --team-b: #DC143C;
     --team-b-rgb: 220, 20, 60;
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 }
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213E 100%);
     color: white;
     min-height: 100vh;
@@ -36,7 +39,8 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
     overflow: hidden;
 }
 .event-btn {
-    padding: 8px 18px;
+    padding: 10px 18px;
+    min-height: 44px;
     border: none;
     background: transparent;
     color: var(--gold);
@@ -60,7 +64,8 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
     align-self: flex-start;
 }
 .event-selector-inline .event-btn {
-    padding: 6px 14px;
+    padding: 9px 14px;
+    min-height: 42px;
     font-size: 13px;
 }
 
@@ -100,6 +105,7 @@ button {
     cursor: pointer;
     transition: all 0.3s;
     margin: 10px 5px;
+    min-height: 44px;
 }
 button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 107, 53, 0.5); }
 button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
@@ -117,6 +123,12 @@ button.secondary { background: linear-gradient(135deg, var(--gold), #F7931E); }
     padding: 20px;
 }
 input[type="file"] { display: none; }
+input[type="text"],
+input[type="email"],
+input[type="password"],
+select {
+    min-height: 44px;
+}
 
 /* ── Onboarding Tour Tooltip ── */
 @keyframes onboarding-pulse {
@@ -232,7 +244,8 @@ input[type="file"] { display: none; }
     align-items: center;
 }
 .filters input {
-    padding: 10px;
+    padding: 10px 12px;
+    min-height: 44px;
     border-radius: 8px;
     border: 1px solid rgba(255,255,255,0.3);
     background: rgba(255,255,255,0.1);
@@ -240,13 +253,13 @@ input[type="file"] { display: none; }
     font-size: 14px;
 }
 .filters input::placeholder { color: rgba(255,255,255,0.6); }
-#searchFilter { height: 36px; padding: 0 10px; box-sizing: border-box; }
+#searchFilter { min-height: 44px; padding: 10px 12px; box-sizing: border-box; }
 
 /* Custom filter dropdowns */
 .filter-dropdown { position: relative; }
 .filter-icon-btn {
-    width: 38px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: 8px;
     border: 1px solid rgba(255,255,255,0.3);
     background: rgba(255,255,255,0.1);
@@ -344,6 +357,7 @@ input[type="file"] { display: none; }
 }
 #buildingsTable input[type="number"] {
     width: 70px;
+    min-height: 40px;
     padding: 6px 8px;
     border-radius: 6px;
     border: 1px solid rgba(255,255,255,0.2);
@@ -373,9 +387,9 @@ input[type="file"] { display: none; }
     gap: 8px;
 }
 .building-edit-btn {
-    width: 30px;
-    height: 30px;
-    min-width: 30px;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
     border-radius: 7px;
     border: 1px solid rgba(255,255,255,0.25);
     background: rgba(255,255,255,0.08);
@@ -396,7 +410,8 @@ input[type="file"] { display: none; }
     color: var(--gold);
 }
 #languageSelect {
-    padding: 6px 8px;
+    padding: 8px 10px;
+    min-height: 40px;
     border-radius: 6px;
     border: 1px solid rgba(255,255,255,0.3);
     background: rgba(255,255,255,0.1);
@@ -414,7 +429,8 @@ input[type="file"] { display: none; }
     gap: 10px;
 }
 .team-btn {
-    padding: 8px 16px;
+    padding: 10px 16px;
+    min-height: 44px;
     border-radius: 6px;
     border: 2px solid;
     background: transparent;
@@ -443,14 +459,15 @@ input[type="file"] { display: none; }
 .team-label-short { display: none; }
 
 .clear-btn {
-    padding: 6px 12px;
+    padding: 10px 12px;
     background: transparent;
     border: 1px solid rgba(255,255,255,0.3);
     color: rgba(255,255,255,0.6);
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
     margin: 0;
+    min-height: 40px;
 }
 .clear-btn:hover {
     background: rgba(255,255,255,0.1);
@@ -468,7 +485,7 @@ input[type="file"] { display: none; }
 .role-toggle.team-b-selected { border-color: var(--team-b); }
 
 .role-btn {
-    padding: 8px 12px;
+    padding: 10px 12px;
     border: none;
     background: transparent;
     cursor: pointer;
@@ -476,6 +493,7 @@ input[type="file"] { display: none; }
     font-weight: bold;
     margin: 0;
     transition: background 0.2s, color 0.2s;
+    min-height: 44px;
 }
 .role-btn:hover:not(:disabled) {
     transform: none;
@@ -510,7 +528,7 @@ input[type="file"] { display: none; }
     left: 0;
     right: 0;
     background: linear-gradient(180deg, rgba(26, 26, 46, 0) 0%, rgba(26, 26, 46, 0.95) 20%, rgba(26, 26, 46, 1) 100%);
-    padding: 20px;
+    padding: 14px 16px calc(12px + var(--safe-area-inset-bottom));
     display: flex;
     gap: 20px;
     justify-content: center;
@@ -519,7 +537,8 @@ input[type="file"] { display: none; }
 }
 .floating-buttons button {
     min-width: 280px;
-    padding: 18px 40px;
+    min-height: 52px;
+    padding: 14px 24px;
     font-size: 18px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
@@ -554,6 +573,8 @@ input[type="file"] { display: none; }
     gap: 6px;
     padding: 8px 14px;
     margin: 0;
+    min-height: 44px;
+    min-width: 44px;
 }
 .header-icon-btn svg {
     flex-shrink: 0;
@@ -604,6 +625,16 @@ input[type="file"] { display: none; }
     transform: none;
     box-shadow: none;
 }
+#notificationBtn,
+#signOutBtn {
+    min-width: 44px;
+    min-height: 44px;
+}
+#notificationBtn svg,
+#signOutBtn svg {
+    width: 18px;
+    height: 18px;
+}
 #navMenuBtn:hover {
     background: rgba(255,255,255,0.1);
     transform: none;
@@ -647,14 +678,14 @@ input[type="file"] { display: none; }
     .card h2 { font-size: 1.2rem; }
 
     /* Global button tweaks */
-    button { margin: 4px 0; touch-action: manipulation; padding: 12px 20px; font-size: 15px; }
+    button { margin: 4px 0; touch-action: manipulation; padding: 12px 16px; font-size: 15px; min-height: 44px; }
 
     /* Page header */
     .page-header { gap: 8px; }
-    .event-btn { padding: 6px 12px; font-size: 12px; }
-    .event-selector-inline .event-btn { padding: 5px 10px; font-size: 11px; }
+    .event-btn { padding: 10px 12px; font-size: 13px; min-height: 44px; }
+    .event-selector-inline .event-btn { padding: 10px 12px; font-size: 13px; min-height: 44px; }
     .header-icon-btn .btn-label { display: none; }
-    .header-icon-btn { padding: 10px !important; }
+    .header-icon-btn { padding: 10px !important; min-width: 44px; min-height: 44px; }
     .header-menu-panel {
         width: min(240px, calc(100vw - 30px));
         right: 0;
@@ -732,11 +763,11 @@ input[type="file"] { display: none; }
 
     /* Team buttons — touch-friendly */
     .team-buttons { gap: 8px; }
-    .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
+    .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; min-height: 44px; }
     .clear-btn {
         padding: 10px 12px;
         font-size: 13px;
-        min-height: 40px;
+        min-height: 44px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -744,7 +775,7 @@ input[type="file"] { display: none; }
 
     /* Role toggle — touch-friendly */
     .role-toggle { flex: 1; }
-    .role-btn { padding: 10px 10px; font-size: 12px; flex: 1; }
+    .role-btn { padding: 10px 10px; font-size: 13px; flex: 1; min-height: 44px; }
 
     /* ── Buildings table → card layout ── */
     #buildingsTable td:first-child {
@@ -783,15 +814,15 @@ input[type="file"] { display: none; }
         gap: 6px;
     }
     .building-edit-btn {
-        width: 34px;
-        height: 34px;
-        min-width: 34px;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
     }
 
     /* ── Floating generate buttons — vertical stack ── */
     .floating-buttons {
         flex-direction: column;
-        padding: 10px 14px;
+        padding: 10px 12px calc(10px + var(--safe-area-inset-bottom));
         gap: 10px;
     }
     .floating-buttons button {
@@ -850,12 +881,12 @@ input[type="file"] { display: none; }
     /* ── User header ── */
     #userHeader                { padding: 10px !important; }
     #userHeader > div:first-child { gap: 10px !important; }
-    #userEmail                 { font-size: 13px !important; }
-    #playerCount               { font-size: 11px !important; }
+    #userEmail                 { font-size: 14px !important; }
+    #playerCount               { font-size: 12px !important; }
     #headerRight               { gap: 6px !important; }
-    #languageSelect            { padding: 4px 6px !important; font-size: 11px !important; }
-    #signOutBtn                { padding: 6px 8px !important; }
-    #signOutBtn svg            { width: 16px !important; height: 16px !important; }
+    #languageSelect            { padding: 8px 10px !important; font-size: 13px !important; min-height: 40px; }
+    #signOutBtn                { padding: 10px 12px !important; min-height: 44px; min-width: 44px; }
+    #signOutBtn svg            { width: 18px !important; height: 18px !important; }
 
     /* ── Onboarding tooltip ── */
     .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }

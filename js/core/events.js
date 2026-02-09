@@ -4,6 +4,8 @@
             id: 'desert_storm',
             titleKey: 'event_desert_storm',
             mapFile: 'desert-storm-map.png',
+            previewMapFile: 'desert-storm-map-preview.webp',
+            exportMapFile: 'desert-storm-map.png',
             mapTitle: 'DESERT STORM',
             excelPrefix: 'desert_storm',
             buildings: [
@@ -42,6 +44,8 @@
             id: 'canyon_battlefield',
             titleKey: 'event_canyon_battlefield',
             mapFile: 'canon-storm-map.png',
+            previewMapFile: 'canon-storm-map-preview.webp',
+            exportMapFile: 'canon-storm-map.png',
             mapTitle: 'CANYON BATTLEFIELD',
             excelPrefix: 'canyon_battlefield',
             buildings: [

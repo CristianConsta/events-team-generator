@@ -234,21 +234,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     // Skip link
     document.getElementById('onboardingSkip').addEventListener('click', completeOnboarding);
+
+    // Pointer-first canvas interaction improves mobile precision.
+    const coordCanvas = document.getElementById('coordCanvas');
+    if (coordCanvas) {
+        coordCanvas.style.touchAction = 'none';
+        coordCanvas.addEventListener('pointerdown', coordCanvasClick, { passive: false });
+    }
 });
 
 // ============================================================
 // INITIALIZATION CHECK
 // ============================================================
 
+const XLSX_SCRIPT_SRC = 'vendor/xlsx.full.min.js';
+let xlsxLoadPromise = null;
+
+function loadScriptOnce(src, markerName) {
+    if (markerName && typeof window[markerName] !== 'undefined') {
+        return Promise.resolve(true);
+    }
+    const existingScript = document.querySelector(`script[data-src="${src}"]`);
+    if (existingScript) {
+        return new Promise((resolve, reject) => {
+            existingScript.addEventListener('load', () => resolve(true), { once: true });
+            existingScript.addEventListener('error', () => reject(new Error(`Failed loading ${src}`)), { once: true });
+        });
+    }
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.defer = true;
+        script.async = false;
+        script.dataset.src = src;
+        script.onload = () => resolve(true);
+        script.onerror = () => reject(new Error(`Failed loading ${src}`));
+        document.head.appendChild(script);
+    });
+}
+
+async function ensureXLSXLoaded() {
+    if (typeof XLSX !== 'undefined') {
+        return true;
+    }
+    if (!xlsxLoadPromise) {
+        xlsxLoadPromise = loadScriptOnce(XLSX_SCRIPT_SRC, 'XLSX').catch((error) => {
+            xlsxLoadPromise = null;
+            throw error;
+        });
+    }
+    await xlsxLoadPromise;
+    return true;
+}
+
 // Check if Firebase modules are loaded
 if (typeof firebase === 'undefined') {
     alert(t('error_firebase_sdk_missing'));
     console.error('Firebase SDK failed to load from CDN');
-}
-
-if (typeof XLSX === 'undefined') {
-    alert(t('error_xlsx_missing'));
-    console.error('XLSX library failed to load from CDN');
 }
 
 if (typeof FirebaseService === 'undefined') {
@@ -405,58 +447,128 @@ function getActiveEvent() {
 let buildingConfigs = { desert_storm: null, canyon_battlefield: null };
 let buildingPositionsMap = { desert_storm: {}, canyon_battlefield: {} };
 
-// Per-event map images
-const mapImages = { desert_storm: new Image(), canyon_battlefield: new Image() };
-let mapLoadedFlags = { desert_storm: false, canyon_battlefield: false };
-let mapLoadRetries = { desert_storm: 0, canyon_battlefield: 0 };
-let mapUnavailableFlags = { desert_storm: false, canyon_battlefield: false };
-let mapLoadPromises = { desert_storm: null, canyon_battlefield: null };
+const MAP_PREVIEW = 'preview';
+const MAP_EXPORT = 'export';
+
+function createMapEventState(factory) {
+    return {
+        desert_storm: factory(),
+        canyon_battlefield: factory(),
+    };
+}
+
+// Per-event map images, split by purpose so preview can stay lightweight.
+const mapImages = {
+    [MAP_PREVIEW]: createMapEventState(() => new Image()),
+    [MAP_EXPORT]: createMapEventState(() => new Image()),
+};
+let mapLoadedFlags = {
+    [MAP_PREVIEW]: createMapEventState(() => false),
+    [MAP_EXPORT]: createMapEventState(() => false),
+};
+let mapLoadRetries = {
+    [MAP_PREVIEW]: createMapEventState(() => 0),
+    [MAP_EXPORT]: createMapEventState(() => 0),
+};
+let mapUnavailableFlags = {
+    [MAP_PREVIEW]: createMapEventState(() => false),
+    [MAP_EXPORT]: createMapEventState(() => false),
+};
+let mapLoadPromises = {
+    [MAP_PREVIEW]: createMapEventState(() => null),
+    [MAP_EXPORT]: createMapEventState(() => null),
+};
 let coordMapWarningShown = { desert_storm: false, canyon_battlefield: false };
 const maxRetries = 3;
 
-function loadMapImage(eventId) {
-    const eid = eventId || currentEvent;
-    if (mapLoadedFlags[eid]) {
-        return Promise.resolve(true);
+function getEventMapFile(eventId, purpose) {
+    const evt = EVENT_REGISTRY[eventId];
+    if (!evt) return null;
+    if (purpose === MAP_EXPORT) {
+        return evt.exportMapFile || evt.mapFile || evt.previewMapFile || null;
     }
-    if (mapLoadPromises[eid]) {
-        return mapLoadPromises[eid];
-    }
-
-    const evt = EVENT_REGISTRY[eid];
-    mapLoadPromises[eid] = new Promise((resolve, reject) => {
-        mapImages[eid].onload = () => {
-            mapLoadedFlags[eid] = true;
-            mapUnavailableFlags[eid] = false;
-            mapLoadRetries[eid] = 0;
-            mapLoadPromises[eid] = null;
-            console.log('Map loaded for ' + eid);
-            resolve(true);
-        };
-        mapImages[eid].onerror = () => {
-            console.error('Map failed to load for ' + eid + ', attempt:', mapLoadRetries[eid] + 1);
-            if (mapLoadRetries[eid] < maxRetries) {
-                mapLoadRetries[eid]++;
-                setTimeout(() => {
-                    mapImages[eid].src = evt.mapFile + '?' + Date.now();
-                }, 1000 * mapLoadRetries[eid]);
-            } else {
-                console.error('Map loading failed for ' + eid + ' after ' + maxRetries + ' attempts');
-                mapUnavailableFlags[eid] = true;
-                mapLoadPromises[eid] = null;
-                reject(false);
-            }
-        };
-        mapImages[eid].src = evt.mapFile;
-    });
-
-    return mapLoadPromises[eid];
+    return evt.previewMapFile || evt.mapFile || evt.exportMapFile || null;
 }
 
-// Start loading Desert Storm map immediately; Canyon loaded on first switch
-loadMapImage('desert_storm').catch(() => {
-    console.warn('Desert Storm map failed to load, continuing without it');
-});
+function getEventMapFallbackFile(eventId, purpose) {
+    const evt = EVENT_REGISTRY[eventId];
+    if (!evt) return null;
+    if (purpose === MAP_EXPORT) {
+        if (evt.mapFile && evt.mapFile !== evt.exportMapFile) {
+            return evt.mapFile;
+        }
+        return null;
+    }
+    return evt.mapFile || evt.exportMapFile || null;
+}
+
+function loadMapImage(eventId, purpose) {
+    const eid = eventId || currentEvent;
+    const mapPurpose = purpose === MAP_EXPORT ? MAP_EXPORT : MAP_PREVIEW;
+    if (mapLoadedFlags[mapPurpose][eid]) {
+        return Promise.resolve(true);
+    }
+    if (mapLoadPromises[mapPurpose][eid]) {
+        return mapLoadPromises[mapPurpose][eid];
+    }
+
+    const primaryFile = getEventMapFile(eid, mapPurpose);
+    const fallbackFile = getEventMapFallbackFile(eid, mapPurpose);
+    const candidateFiles = [...new Set([primaryFile, fallbackFile].filter(Boolean))];
+
+    mapLoadPromises[mapPurpose][eid] = new Promise((resolve, reject) => {
+        const imageEl = mapImages[mapPurpose][eid];
+        let candidateIndex = 0;
+
+        const tryLoadCandidate = () => {
+            const src = candidateFiles[candidateIndex];
+            if (!src) {
+                mapUnavailableFlags[mapPurpose][eid] = true;
+                mapLoadPromises[mapPurpose][eid] = null;
+                reject(new Error(`No map source available for ${eid}/${mapPurpose}`));
+                return;
+            }
+            const bust = src.includes('?') ? '&' : '?';
+            imageEl.src = `${src}${bust}v=${Date.now()}`;
+        };
+
+        imageEl.onload = () => {
+            mapLoadedFlags[mapPurpose][eid] = true;
+            mapUnavailableFlags[mapPurpose][eid] = false;
+            mapLoadRetries[mapPurpose][eid] = 0;
+            mapLoadPromises[mapPurpose][eid] = null;
+            console.log(`Map loaded for ${eid}/${mapPurpose}`);
+            resolve(true);
+        };
+
+        imageEl.onerror = () => {
+            if (candidateIndex < candidateFiles.length - 1) {
+                candidateIndex += 1;
+                tryLoadCandidate();
+                return;
+            }
+
+            const retry = mapLoadRetries[mapPurpose][eid] + 1;
+            console.error(`Map failed to load for ${eid}/${mapPurpose}, attempt: ${retry}`);
+            if (mapLoadRetries[mapPurpose][eid] < maxRetries) {
+                mapLoadRetries[mapPurpose][eid] += 1;
+                setTimeout(() => {
+                    candidateIndex = 0;
+                    tryLoadCandidate();
+                }, 700 * mapLoadRetries[mapPurpose][eid]);
+            } else {
+                console.error(`Map loading failed for ${eid}/${mapPurpose} after ${maxRetries} attempts`);
+                mapUnavailableFlags[mapPurpose][eid] = true;
+                mapLoadPromises[mapPurpose][eid] = null;
+                reject(new Error(`Map failed to load: ${eid}/${mapPurpose}`));
+            }
+        };
+
+        tryLoadCandidate();
+    });
+
+    return mapLoadPromises[mapPurpose][eid];
+}
 
 const BUILDING_POSITIONS_VERSION = 1;
 
@@ -500,10 +612,11 @@ function switchEvent(eventId) {
     // Update generate button event labels
     updateGenerateEventLabels();
 
-    // Load map for new event if needed
-    if (!mapLoadedFlags[eventId]) {
-        loadMapImage(eventId).catch(() => {
-            console.warn(eventId + ' map failed to load');
+    // If the coordinate picker is currently open, warm the lightweight preview map.
+    const coordOverlayVisible = coordOverlay && !coordOverlay.classList.contains('hidden');
+    if (coordOverlayVisible && !mapLoadedFlags[MAP_PREVIEW][eventId]) {
+        loadMapImage(eventId, MAP_PREVIEW).catch(() => {
+            console.warn(eventId + ' preview map failed to load');
         });
     }
 }
@@ -672,7 +785,15 @@ function toggleUploadPanel() {
 // TEMPLATE GENERATION
 // ============================================================
 
-function downloadPlayerTemplate() {
+async function downloadPlayerTemplate() {
+    try {
+        await ensureXLSXLoaded();
+    } catch (error) {
+        console.error(error);
+        showMessage('uploadMessage', t('error_xlsx_missing'), 'error');
+        return;
+    }
+
     const wb = XLSX.utils.book_new();
     
     const instructions = [
@@ -964,6 +1085,15 @@ async function uploadPlayerData() {
 
     if (!file) return;
 
+    try {
+        await ensureXLSXLoaded();
+    } catch (error) {
+        console.error(error);
+        showMessage('uploadMessage', t('error_xlsx_missing'), 'error');
+        fileInput.value = '';
+        return;
+    }
+
     if (FirebaseService.getAllianceId()) {
         window._pendingUploadFile = file;
         document.getElementById('uploadTargetModal').classList.remove('hidden');
@@ -992,6 +1122,14 @@ async function uploadToAlliance() {
 }
 
 async function performUpload(file, target) {
+    try {
+        await ensureXLSXLoaded();
+    } catch (error) {
+        console.error(error);
+        showMessage('uploadMessage', t('error_xlsx_missing'), 'error');
+        return;
+    }
+
     showMessage('uploadMessage', t('message_upload_processing'), 'processing');
 
     try {
@@ -1418,13 +1556,13 @@ function drawCoordCanvas() {
 
     updateCoordLabel();
 
-    const activeMapImage = mapImages[currentEvent];
-    const activeMapLoaded = mapLoadedFlags[currentEvent];
-    const activeMapUnavailable = mapUnavailableFlags[currentEvent];
+    const activeMapImage = mapImages[MAP_PREVIEW][currentEvent];
+    const activeMapLoaded = mapLoadedFlags[MAP_PREVIEW][currentEvent];
+    const activeMapUnavailable = mapUnavailableFlags[MAP_PREVIEW][currentEvent];
     const statusEl = document.getElementById('coordStatus');
 
     if (!activeMapLoaded && !activeMapUnavailable) {
-        loadMapImage(currentEvent)
+        loadMapImage(currentEvent, MAP_PREVIEW)
             .then(() => drawCoordCanvas())
             .catch(() => {
                 drawCoordCanvas();
@@ -1474,10 +1612,10 @@ function drawCoordCanvas() {
         ctx.fillText('MAP PREVIEW UNAVAILABLE', 540, 52);
         ctx.font = '16px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(getActiveEvent().mapFile, 540, 80);
+        ctx.fillText(getEventMapFile(currentEvent, MAP_PREVIEW) || '', 540, 80);
 
         if (!coordMapWarningShown[currentEvent]) {
-            showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getActiveEvent().mapFile})`, 'warning');
+            showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getEventMapFile(currentEvent, MAP_PREVIEW)})`, 'warning');
             coordMapWarningShown[currentEvent] = true;
         }
     }
@@ -1498,6 +1636,10 @@ function drawCoordCanvas() {
 function coordCanvasClick(event) {
     const canvas = document.getElementById('coordCanvas');
     if (!canvas) return;
+    if (event && event.type === 'pointerdown' && event.button !== 0) return;
+    if (event && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+    }
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -1549,10 +1691,15 @@ function reserveSpaceForFooter() {
     if (!bar) return;
     const visible = bar.style.display !== 'none';
     const barHeight = visible ? bar.getBoundingClientRect().height : 0;
-    document.body.style.paddingBottom = visible ? (barHeight + 30) + 'px' : '';
+    const safeAreaInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom')) || 0;
+    document.body.style.paddingBottom = visible ? `${Math.ceil(barHeight + 18 + safeAreaInset)}px` : '';
 }
 
 window.addEventListener('resize', reserveSpaceForFooter);
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', reserveSpaceForFooter);
+    window.visualViewport.addEventListener('scroll', reserveSpaceForFooter);
+}
 
 // ============================================================
 // PLAYER SELECTION INTERFACE
@@ -2004,7 +2151,15 @@ function closeDownloadModal() {
 // DOWNLOAD FUNCTIONS
 // ============================================================
 
-function downloadTeamExcel(team) {
+async function downloadTeamExcel(team) {
+    try {
+        await ensureXLSXLoaded();
+    } catch (error) {
+        console.error(error);
+        showMessage('downloadStatus', t('error_xlsx_missing'), 'error');
+        return;
+    }
+
     const wb = XLSX.utils.book_new();
     const assignments = team === 'A' ? assignmentsA : assignmentsB;
     
@@ -2026,7 +2181,7 @@ function downloadTeamExcel(team) {
     showMessage(statusId, t('message_excel_downloaded'), 'success');
 }
 
-function downloadTeamMap(team) {
+async function downloadTeamMap(team) {
     const assignments = team === 'A' ? assignmentsA : assignmentsB;
     
     if (assignments.length === 0) {
@@ -2036,25 +2191,21 @@ function downloadTeamMap(team) {
     
     const statusId = 'downloadStatus';
     
-    if (!mapLoadedFlags[currentEvent]) {
+    if (!mapLoadedFlags[MAP_EXPORT][currentEvent]) {
         showMessage(statusId, t('message_map_wait'), 'processing');
-        // Wait up to 10 seconds for map to load
-        let waitTime = 0;
-        const checkInterval = setInterval(() => {
-            waitTime += 500;
-            if (mapLoadedFlags[currentEvent]) {
-                clearInterval(checkInterval);
-                generateMap(team, assignments, statusId);
-            } else if (waitTime >= 10000) {
-                clearInterval(checkInterval);
-                if (confirm(t('confirm_map_without_background'))) {
-                    generateMapWithoutBackground(team, assignments, statusId);
-                } else {
-                    showMessage(statusId, t('message_map_cancelled'), 'warning');
-                }
+        try {
+            await Promise.race([
+                loadMapImage(currentEvent, MAP_EXPORT),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+            ]);
+        } catch (error) {
+            if (confirm(t('confirm_map_without_background'))) {
+                generateMapWithoutBackground(team, assignments, statusId);
+            } else {
+                showMessage(statusId, t('message_map_cancelled'), 'warning');
             }
-        }, 500);
-        return;
+            return;
+        }
     }
     
     generateMap(team, assignments, statusId);
@@ -2152,7 +2303,7 @@ function generateMap(team, assignments, statusId) {
 
         const titleHeight = 100;
         const bombHeight = 250;
-        const activeMapImage = mapImages[currentEvent];
+        const activeMapImage = mapImages[MAP_EXPORT][currentEvent];
         const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
         const totalHeight = titleHeight + mapHeight + bombHeight;
 
@@ -2365,9 +2516,6 @@ document.addEventListener('click', (event) => {
     const navMenu = document.getElementById('navMenu');
     if (navMenu && !navMenu.contains(event.target)) {
         closeNavigationMenu();
-    }
-    if (event.target && event.target.id === 'coordCanvas') {
-        coordCanvasClick(event);
     }
 });
 
