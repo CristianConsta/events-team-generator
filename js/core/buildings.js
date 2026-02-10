@@ -54,7 +54,13 @@
         const label = normalizeLabel(item.label, fallbackLabel);
         const priority = clampPriority(item.priority, fallbackPriority);
         const slots = clampSlots(item.slots, fallbackSlots, minSlots, maxSlots);
-        return { name, label, slots, priority };
+        const fallbackShowOnMap = fallback && Object.prototype.hasOwnProperty.call(fallback, 'showOnMap')
+            ? fallback.showOnMap !== false
+            : true;
+        const showOnMap = Object.prototype.hasOwnProperty.call(item, 'showOnMap')
+            ? item.showOnMap !== false
+            : fallbackShowOnMap;
+        return { name, label, slots, priority, showOnMap };
     }
 
     function normalizeBuildingConfig(config, defaults, minSlots, maxSlots) {

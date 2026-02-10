@@ -24,8 +24,8 @@ test('normalizeBuildingConfig clamps values and preserves default order', () => 
 
   const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
   assert.deepEqual(normalized, [
-    { name: 'A', label: 'A', priority: 1, slots: 20 },
-    { name: 'B', label: 'B', priority: 6, slots: 0 },
+    { name: 'A', label: 'A', priority: 1, slots: 20, showOnMap: true },
+    { name: 'B', label: 'B', priority: 6, slots: 0, showOnMap: true },
   ]);
 });
 
@@ -40,7 +40,7 @@ test('normalizeBuildingConfig keeps custom labels when present', () => {
 
   const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
   assert.deepEqual(normalized, [
-    { name: 'Bomb Squad', label: 'Alpha Team', priority: 1, slots: 4 },
+    { name: 'Bomb Squad', label: 'Alpha Team', priority: 1, slots: 4, showOnMap: true },
   ]);
 });
 
@@ -55,7 +55,7 @@ test('normalizeBuildingConfig preserves default label when stored label is missi
 
   const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
   assert.deepEqual(normalized, [
-    { name: 'Command Center', label: 'HQ North', priority: 3, slots: 2 },
+    { name: 'Command Center', label: 'HQ North', priority: 3, slots: 2, showOnMap: true },
   ]);
 });
 
@@ -72,8 +72,23 @@ test('normalizeBuildingConfig preserves custom building names not present in def
 
   const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
   assert.deepEqual(normalized, [
-    { name: 'Data Center 1', label: 'Data Center 1', priority: 4, slots: 1 },
-    { name: 'Virus Lab', label: 'Virus Lab', priority: 1, slots: 4 },
+    { name: 'Data Center 1', label: 'Data Center 1', priority: 4, slots: 1, showOnMap: true },
+    { name: 'Virus Lab', label: 'Virus Lab', priority: 1, slots: 4, showOnMap: true },
+  ]);
+});
+
+test('normalizeBuildingConfig respects stored showOnMap flag', () => {
+  loadModule();
+  const defaults = [
+    { name: 'Bomb Squad', priority: 1, slots: 4, showOnMap: true },
+  ];
+  const stored = [
+    { name: 'Bomb Squad', priority: 1, slots: 4, showOnMap: false },
+  ];
+
+  const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
+  assert.deepEqual(normalized, [
+    { name: 'Bomb Squad', label: 'Bomb Squad', priority: 1, slots: 4, showOnMap: false },
   ]);
 });
 

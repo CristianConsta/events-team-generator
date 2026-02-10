@@ -199,7 +199,10 @@ const FirebaseManager = (function() {
         if (!Array.isArray(defaults)) {
             return [];
         }
-        return JSON.parse(JSON.stringify(defaults));
+        return JSON.parse(JSON.stringify(defaults)).map((entry) => ({
+            ...entry,
+            showOnMap: entry && entry.showOnMap !== false,
+        }));
     }
 
     function normalizeBuildingConfigForDefaults(config) {
@@ -227,6 +230,7 @@ const FirebaseManager = (function() {
             if (Number.isFinite(priority)) {
                 next.priority = Math.round(priority);
             }
+            next.showOnMap = item.showOnMap !== false;
             normalized.push(next);
         });
         return normalized.length > 0 ? normalized : null;
@@ -422,6 +426,7 @@ const FirebaseManager = (function() {
             if (Number.isFinite(priority)) {
                 next.priority = Math.round(priority);
             }
+            next.showOnMap = item.showOnMap !== false;
             normalized.push(next);
         });
         return normalized.length > 0 ? normalized : null;

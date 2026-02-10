@@ -102,6 +102,7 @@ function normalizeBuildingConfig(config) {
                 label: label,
                 slots: Number.isFinite(slots) ? Math.round(slots) : 0,
                 priority: Number.isFinite(priority) ? Math.round(priority) : 1,
+                showOnMap: item.showOnMap !== false,
             };
         })
         .filter(Boolean);

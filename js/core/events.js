@@ -130,6 +130,7 @@
                     label: label,
                     slots: Number.isFinite(slots) ? Math.round(slots) : 0,
                     priority: Number.isFinite(priority) ? Math.round(priority) : 1,
+                    showOnMap: item.showOnMap !== false,
                 };
             })
             .filter(Boolean);
@@ -216,7 +217,10 @@
         if (!evt) {
             return [];
         }
-        return evt.buildings.map((building) => ({ ...building }));
+        return evt.buildings.map((building) => ({
+            ...building,
+            showOnMap: building && building.showOnMap !== false,
+        }));
     }
 
     function cloneDefaultPositions(eventId) {

@@ -50,7 +50,7 @@ test('upsertEvent stores sanitized custom event definitions', () => {
   assert.equal(created.id, 'custom_event');
   assert.equal(created.name, 'My Custom Event');
   assert.equal(created.buildings.length, 1);
-  assert.deepEqual(created.buildings[0], { name: 'Tower', label: 'Tower', slots: 2, priority: 4 });
+  assert.deepEqual(created.buildings[0], { name: 'Tower', label: 'Tower', slots: 2, priority: 4, showOnMap: true });
   assert.ok(global.DSCoreEvents.EVENT_REGISTRY.custom_event);
 });
 

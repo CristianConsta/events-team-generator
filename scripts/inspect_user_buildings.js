@@ -57,6 +57,7 @@ function normalizeBuildingConfig(config) {
             label: typeof item.label === 'string' ? item.label : '',
             slots: Number.isFinite(Number(item.slots)) ? Number(item.slots) : null,
             priority: Number.isFinite(Number(item.priority)) ? Number(item.priority) : null,
+            showOnMap: item.showOnMap !== false,
         }))
         .filter((item) => item.name);
 }
@@ -72,7 +73,7 @@ function printLegacyFields(data) {
     console.log(`- buildingConfig entries: ${legacyConfig.length}`);
     if (legacyConfig.length > 0) {
         legacyConfig.forEach((entry, index) => {
-            console.log(`  ${index + 1}. ${entry.name} | #Players=${entry.slots ?? 'n/a'} | priority=${entry.priority ?? 'n/a'}`);
+            console.log(`  ${index + 1}. ${entry.name} | #Players=${entry.slots ?? 'n/a'} | priority=${entry.priority ?? 'n/a'} | onMap=${entry.showOnMap}`);
         });
     }
     console.log(`- buildingConfigVersion: ${data.buildingConfigVersion ?? 'missing'}`);
@@ -108,7 +109,7 @@ function printEvents(data) {
         if (config.length > 0) {
             console.log('  Building config:');
             config.forEach((entry, index) => {
-                console.log(`    ${index + 1}. ${entry.name} | #Players=${entry.slots ?? 'n/a'} | priority=${entry.priority ?? 'n/a'}`);
+                console.log(`    ${index + 1}. ${entry.name} | #Players=${entry.slots ?? 'n/a'} | priority=${entry.priority ?? 'n/a'} | onMap=${entry.showOnMap}`);
             });
         }
     });

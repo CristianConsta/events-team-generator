@@ -1700,12 +1700,14 @@ function createEditorBuildingRow(rowData) {
     const name = typeof source.name === 'string' ? source.name : '';
     const slots = Number(source.slots);
     const priority = Number(source.priority);
+    const showOnMap = source.showOnMap !== false;
 
     const row = document.createElement('tr');
     row.innerHTML = `
         <td><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
         <td><input type="number" data-field="slots" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${Number.isFinite(slots) ? Math.max(MIN_BUILDING_SLOTS, Math.min(MAX_BUILDING_SLOTS_TOTAL, Math.round(slots))) : 0}"></td>
         <td><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
+        <td><input type="checkbox" data-field="showOnMap" ${showOnMap ? 'checked' : ''} aria-label="${escapeAttribute(t('buildings_table_on_map'))}"></td>
         <td><button class="clear-btn" type="button" data-action="remove-row">${t('events_manager_remove')}</button></td>
     `;
     return row;
@@ -1719,7 +1721,7 @@ function renderEventBuildingsEditor(buildings) {
     tbody.innerHTML = '';
     const source = Array.isArray(buildings) && buildings.length > 0
         ? buildings
-        : [{ name: '', slots: 0, priority: 1 }];
+        : [{ name: '', slots: 0, priority: 1, showOnMap: true }];
     source.forEach((building) => {
         tbody.appendChild(createEditorBuildingRow(building));
     });
@@ -1733,7 +1735,7 @@ function addEventBuildingRow() {
     if (!tbody) {
         return;
     }
-    tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1 }));
+    tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1, showOnMap: true }));
 }
 
 function readEventBuildingsEditor() {
@@ -1749,6 +1751,7 @@ function readEventBuildingsEditor() {
         const nameInput = row.querySelector('input[data-field="name"]');
         const slotsInput = row.querySelector('input[data-field="slots"]');
         const priorityInput = row.querySelector('input[data-field="priority"]');
+        const showOnMapInput = row.querySelector('input[data-field="showOnMap"]');
         const name = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
         if (!name) {
             continue;
@@ -1759,11 +1762,13 @@ function readEventBuildingsEditor() {
         seenNames.add(name.toLowerCase());
         const slots = clampSlots(Number(slotsInput ? slotsInput.value : 0), 0);
         const priority = clampPriority(Number(priorityInput ? priorityInput.value : 1), 1);
+        const showOnMap = !showOnMapInput || showOnMapInput.checked;
         buildings.push({
             name: name,
             label: name,
             slots: slots,
             priority: priority,
+            showOnMap: showOnMap,
         });
     }
     if (buildings.length === 0) {
@@ -1874,7 +1879,7 @@ function startNewEventDraft() {
     eventDraftMapDataUrl = '';
     updateEventLogoPreview();
     updateEventMapPreview();
-    renderEventBuildingsEditor([{ name: 'Bomb Squad', slots: 4, priority: 1 }]);
+    renderEventBuildingsEditor([{ name: 'Bomb Squad', slots: 4, priority: 1, showOnMap: true }]);
     updateEventEditorState();
     const deleteBtn = document.getElementById('eventDeleteBtn');
     if (deleteBtn) {
@@ -2908,6 +2913,14 @@ function getBuildingDisplayName(internalName) {
     return (typeof building.label === 'string' && building.label.trim()) ? building.label.trim() : internalName;
 }
 
+function isBuildingShownOnMap(internalName) {
+    const building = getBuildingConfig().find((b) => b.name === internalName);
+    if (!building) {
+        return true;
+    }
+    return building.showOnMap !== false;
+}
+
 function getBuildingEditIcon(editing) {
     if (editing) {
         return `
@@ -3096,6 +3109,11 @@ function loadBuildingConfig() {
         if (storedLabel !== match.label) {
             return true;
         }
+        const storedShowOnMap = !Object.prototype.hasOwnProperty.call(item, 'showOnMap') || item.showOnMap !== false;
+        const matchShowOnMap = !Object.prototype.hasOwnProperty.call(match, 'showOnMap') || match.showOnMap !== false;
+        if (storedShowOnMap !== matchShowOnMap) {
+            return true;
+        }
         return false;
     });
 
@@ -3265,11 +3283,11 @@ function refreshCoordinatesPickerForCurrentEvent() {
     loadBuildingConfig();
     loadBuildingPositions();
     coordBuildings = getBuildingConfig()
-        .filter((b) => b.name !== 'Bomb Squad')
+        .filter((b) => b.showOnMap !== false)
         .map((b) => b.name);
 
     if (coordBuildings.length === 0) {
-        showMessage('coordStatus', t('coord_no_buildings'), 'error');
+        showMessage('coordStatus', t('coord_no_mapped_buildings'), 'error');
         return false;
     }
 
@@ -3389,8 +3407,10 @@ function drawCoordCanvas() {
         }
     }
 
+    const coordBuildingSet = new Set(coordBuildings);
     Object.entries(getBuildingPositions()).forEach(([name, pos]) => {
         if (!pos) return;
+        if (!coordBuildingSet.has(name)) return;
         const isActive = name === coordBuildings[coordBuildingIndex];
         ctx.beginPath();
         ctx.arc(pos[0], pos[1], isActive ? 8 : 5, 0, Math.PI * 2);
@@ -4015,18 +4035,37 @@ function generateMapWithoutBackground(team, assignments, statusId) {
     showMessage(statusId, t('message_generating_map_no_bg', { team: team }), 'processing');
     
     try {
-        const grouped = {};
-        const bombSquad = [];
-        
-        assignments.forEach(a => {
+        const mappedAssignments = {};
+        const unmappedAssignments = {};
+        const effectivePositions = getEffectiveBuildingPositions();
+
+        assignments.forEach((a) => {
             if (!a.player) return;
             const buildingKey = a.buildingKey || a.building;
-            if (buildingKey === 'Bomb Squad') {
-                bombSquad.push(a);
-            } else {
-                if (!grouped[buildingKey]) grouped[buildingKey] = [];
-                grouped[buildingKey].push(a);
+            const showOnMap = isBuildingShownOnMap(buildingKey);
+            const hasCoordinates = Array.isArray(effectivePositions[buildingKey]);
+            if (showOnMap && hasCoordinates) {
+                if (!mappedAssignments[buildingKey]) mappedAssignments[buildingKey] = [];
+                mappedAssignments[buildingKey].push(a);
+                return;
             }
+            if (!unmappedAssignments[buildingKey]) unmappedAssignments[buildingKey] = [];
+            unmappedAssignments[buildingKey].push(a);
+        });
+
+        const orderedBuildingKeys = getBuildingConfig().map((building) => building.name);
+        const orderedUnmappedKeys = [
+            ...orderedBuildingKeys.filter((key) => Array.isArray(unmappedAssignments[key]) && unmappedAssignments[key].length > 0),
+            ...Object.keys(unmappedAssignments).filter((key) => !orderedBuildingKeys.includes(key)),
+        ];
+        const unmappedPlayers = [];
+        orderedUnmappedKeys.forEach((key) => {
+            unmappedAssignments[key].forEach((entry) => {
+                unmappedPlayers.push({
+                    ...entry,
+                    __buildingLabel: getBuildingDisplayName(key),
+                });
+            });
         });
         
         // Create simplified version without map
@@ -4091,28 +4130,47 @@ function generateMap(team, assignments, statusId) {
             ? FirebaseService.getActivePlayerDatabase()
             : {};
 
-        const grouped = {};
-        const bombSquad = [];
+        const mappedAssignments = {};
+        const unmappedAssignments = {};
+        const effectivePositions = getEffectiveBuildingPositions();
 
-        assignments.forEach(a => {
+        assignments.forEach((a) => {
             if (!a.player) return;
             const buildingKey = a.buildingKey || a.building;
-            if (buildingKey === 'Bomb Squad') {
-                bombSquad.push(a);
-            } else {
-                if (!grouped[buildingKey]) grouped[buildingKey] = [];
-                grouped[buildingKey].push(a);
+            const showOnMap = isBuildingShownOnMap(buildingKey);
+            const hasCoordinates = Array.isArray(effectivePositions[buildingKey]);
+            if (showOnMap && hasCoordinates) {
+                if (!mappedAssignments[buildingKey]) mappedAssignments[buildingKey] = [];
+                mappedAssignments[buildingKey].push(a);
+                return;
             }
+            if (!unmappedAssignments[buildingKey]) unmappedAssignments[buildingKey] = [];
+            unmappedAssignments[buildingKey].push(a);
+        });
+
+        const orderedBuildingKeys = getBuildingConfig().map((building) => building.name);
+        const orderedUnmappedKeys = [
+            ...orderedBuildingKeys.filter((key) => Array.isArray(unmappedAssignments[key]) && unmappedAssignments[key].length > 0),
+            ...Object.keys(unmappedAssignments).filter((key) => !orderedBuildingKeys.includes(key)),
+        ];
+        const unmappedPlayers = [];
+        orderedUnmappedKeys.forEach((key) => {
+            unmappedAssignments[key].forEach((entry) => {
+                unmappedPlayers.push({
+                    ...entry,
+                    __buildingLabel: getBuildingDisplayName(key),
+                });
+            });
         });
 
         // Get substitutes for this team
         const substitutes = team === 'A' ? substitutesA : substitutesB;
 
         const titleHeight = 100;
-        const bombHeight = 280;
+        const unmappedHeight = 280;
         const activeMapImage = mapImages[MAP_EXPORT][currentEvent];
         const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
-        const totalHeight = titleHeight + mapHeight + bombHeight;
+        const totalHeight = titleHeight + mapHeight + unmappedHeight;
 
         // Add substitutes panel width if there are substitutes
         const subsPanelWidth = substitutes.length > 0 ? 260 : 0;
@@ -4325,13 +4383,10 @@ function generateMap(team, assignments, statusId) {
             4: '#40C9A2',
             5: '#6BA8FF',
         };
-        const effectivePositions = getEffectiveBuildingPositions();
-        Object.keys(grouped).forEach(building => {
-            if (!effectivePositions[building]) return;
-
+        Object.keys(mappedAssignments).forEach((building) => {
             const [x, y_base] = effectivePositions[building];
             const y = y_base + titleHeight;
-            const players = grouped[building];
+            const players = mappedAssignments[building];
             const starterCardWidth = 182;
             const starterCardHeight = 28;
             const starterGapY = 34;
@@ -4418,22 +4473,22 @@ function generateMap(team, assignments, statusId) {
             });
         });
 
-        // Bomb Squad panel (war card style)
-        const bombY = titleHeight + mapHeight + 26;
-        const bombPanel = {
+        // Unmapped buildings panel (same bottom area previously used by Bomb Squad).
+        const unmappedY = titleHeight + mapHeight + 26;
+        const unmappedPanel = {
             x: 190,
-            y: bombY,
+            y: unmappedY,
             width: 700,
             height: 200,
             radius: 18,
         };
 
-        const bombGrad = ctx.createLinearGradient(0, bombPanel.y, 0, bombPanel.y + bombPanel.height);
-        bombGrad.addColorStop(0, '#2A3344');
-        bombGrad.addColorStop(1, '#1A202C');
-        ctx.fillStyle = bombGrad;
+        const unmappedGrad = ctx.createLinearGradient(0, unmappedPanel.y, 0, unmappedPanel.y + unmappedPanel.height);
+        unmappedGrad.addColorStop(0, '#2A3344');
+        unmappedGrad.addColorStop(1, '#1A202C');
+        ctx.fillStyle = unmappedGrad;
         ctx.beginPath();
-        ctx.roundRect(bombPanel.x, bombPanel.y, bombPanel.width, bombPanel.height, bombPanel.radius);
+        ctx.roundRect(unmappedPanel.x, unmappedPanel.y, unmappedPanel.width, unmappedPanel.height, unmappedPanel.radius);
         ctx.fill();
         ctx.strokeStyle = teamPrimary;
         ctx.lineWidth = 2.2;
@@ -4442,28 +4497,28 @@ function generateMap(team, assignments, statusId) {
         // Subtle tactical grid texture.
         ctx.save();
         ctx.beginPath();
-        ctx.roundRect(bombPanel.x + 1, bombPanel.y + 1, bombPanel.width - 2, bombPanel.height - 2, bombPanel.radius);
+        ctx.roundRect(unmappedPanel.x + 1, unmappedPanel.y + 1, unmappedPanel.width - 2, unmappedPanel.height - 2, unmappedPanel.radius);
         ctx.clip();
         ctx.strokeStyle = 'rgba(255,255,255,0.06)';
         ctx.lineWidth = 1;
-        for (let gx = bombPanel.x + 18; gx < bombPanel.x + bombPanel.width; gx += 22) {
+        for (let gx = unmappedPanel.x + 18; gx < unmappedPanel.x + unmappedPanel.width; gx += 22) {
             ctx.beginPath();
-            ctx.moveTo(gx, bombPanel.y);
-            ctx.lineTo(gx, bombPanel.y + bombPanel.height);
+            ctx.moveTo(gx, unmappedPanel.y);
+            ctx.lineTo(gx, unmappedPanel.y + unmappedPanel.height);
             ctx.stroke();
         }
-        for (let gy = bombPanel.y + 18; gy < bombPanel.y + bombPanel.height; gy += 22) {
+        for (let gy = unmappedPanel.y + 18; gy < unmappedPanel.y + unmappedPanel.height; gy += 22) {
             ctx.beginPath();
-            ctx.moveTo(bombPanel.x, gy);
-            ctx.lineTo(bombPanel.x + bombPanel.width, gy);
+            ctx.moveTo(unmappedPanel.x, gy);
+            ctx.lineTo(unmappedPanel.x + unmappedPanel.width, gy);
             ctx.stroke();
         }
         ctx.restore();
 
         // Hazard stripe bar.
-        const hazardY = bombPanel.y + 8;
-        const hazardX = bombPanel.x + 14;
-        const hazardW = bombPanel.width - 28;
+        const hazardY = unmappedPanel.y + 8;
+        const hazardX = unmappedPanel.x + 14;
+        const hazardW = unmappedPanel.width - 28;
         const hazardH = 12;
         ctx.save();
         ctx.beginPath();
@@ -4477,43 +4532,44 @@ function generateMap(team, assignments, statusId) {
         }
         ctx.restore();
 
-        drawCrosshairIcon(bombPanel.x + 30, bombPanel.y + 37, 20, '#FFB84C');
+        drawCrosshairIcon(unmappedPanel.x + 30, unmappedPanel.y + 37, 20, '#FFB84C');
         ctx.font = 'bold 21px Arial';
         ctx.fillStyle = '#F6F7FB';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText('BOMB SQUAD', bombPanel.x + 52, bombPanel.y + 37);
+        ctx.fillText(t('map_unmapped_title'), unmappedPanel.x + 52, unmappedPanel.y + 37);
 
         ctx.font = '12px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.75)';
         ctx.textAlign = 'right';
-        ctx.fillText(`${bombSquad.length} OPERATORS`, bombPanel.x + bombPanel.width - 22, bombPanel.y + 37);
+        ctx.fillText(`${unmappedPlayers.length} ${t('map_unmapped_count_suffix')}`, unmappedPanel.x + unmappedPanel.width - 22, unmappedPanel.y + 37);
 
-        const bombCardsTop = bombPanel.y + 58;
-        const bombCardGapX = 16;
-        const bombCardGapY = 10;
-        const bombCardColumns = 2;
-        const bombCardWidth = Math.floor((bombPanel.width - 30 - bombCardGapX) / bombCardColumns);
-        const bombCardHeight = 30;
-        const bombRowsCapacity = Math.max(1, Math.floor((bombPanel.height - (bombCardsTop - bombPanel.y) - 12) / (bombCardHeight + bombCardGapY)));
-        const bombCardCapacity = bombRowsCapacity * bombCardColumns;
-        const visibleBombPlayers = bombSquad.slice(0, bombCardCapacity);
+        const unmappedCardsTop = unmappedPanel.y + 58;
+        const unmappedCardGapX = 16;
+        const unmappedCardGapY = 10;
+        const unmappedCardColumns = 2;
+        const unmappedCardWidth = Math.floor((unmappedPanel.width - 30 - unmappedCardGapX) / unmappedCardColumns);
+        const unmappedCardHeight = 30;
+        const unmappedRowsCapacity = Math.max(1, Math.floor((unmappedPanel.height - (unmappedCardsTop - unmappedPanel.y) - 12) / (unmappedCardHeight + unmappedCardGapY)));
+        const unmappedCardCapacity = unmappedRowsCapacity * unmappedCardColumns;
+        const visibleUnmappedPlayers = unmappedPlayers.slice(0, unmappedCardCapacity);
 
-        visibleBombPlayers.forEach((player, index) => {
-            const col = index % bombCardColumns;
-            const row = Math.floor(index / bombCardColumns);
-            const cardX = bombPanel.x + 14 + col * (bombCardWidth + bombCardGapX);
-            const cardY = bombCardsTop + row * (bombCardHeight + bombCardGapY);
+        visibleUnmappedPlayers.forEach((player, index) => {
+            const col = index % unmappedCardColumns;
+            const row = Math.floor(index / unmappedCardColumns);
+            const cardX = unmappedPanel.x + 14 + col * (unmappedCardWidth + unmappedCardGapX);
+            const cardY = unmappedCardsTop + row * (unmappedCardHeight + unmappedCardGapY);
             const troopValue = player.troops || (activePlayerDB[player.player] && activePlayerDB[player.player].troops);
             const troopKind = getTroopKind(troopValue);
-            const displayName = fitText(player.player, bombCardWidth - 68, 'bold 13px Arial');
+            const displayName = fitText(player.player, unmappedCardWidth - 146, 'bold 13px Arial');
+            const buildingName = fitText(player.__buildingLabel || getBuildingDisplayName(player.buildingKey || player.building), 70, 'bold 10px Arial');
 
-            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + bombCardWidth, cardY);
+            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + unmappedCardWidth, cardY);
             cardGrad.addColorStop(0, 'rgba(255,255,255,0.94)');
             cardGrad.addColorStop(1, 'rgba(236,240,248,0.98)');
             ctx.fillStyle = cardGrad;
             ctx.beginPath();
-            ctx.roundRect(cardX, cardY, bombCardWidth, bombCardHeight, 8);
+            ctx.roundRect(cardX, cardY, unmappedCardWidth, unmappedCardHeight, 8);
             ctx.fill();
 
             ctx.strokeStyle = teamPrimary;
@@ -4522,19 +4578,36 @@ function generateMap(team, assignments, statusId) {
 
             ctx.fillStyle = teamPrimary;
             ctx.beginPath();
-            ctx.arc(cardX + 12, cardY + bombCardHeight / 2, 4, 0, Math.PI * 2);
+            ctx.arc(cardX + 12, cardY + unmappedCardHeight / 2, 4, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.font = 'bold 13px Arial';
             ctx.fillStyle = '#1A1E29';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.fillText(displayName, cardX + 22, cardY + bombCardHeight / 2 + 0.5);
+            ctx.fillText(displayName, cardX + 22, cardY + unmappedCardHeight / 2 + 0.5);
+
+            // Building tag from event-defined building names.
+            const tagX = cardX + unmappedCardWidth - 98;
+            const tagY = cardY + 6;
+            const tagW = 70;
+            const tagH = 18;
+            ctx.fillStyle = 'rgba(65, 105, 225, 0.16)';
+            ctx.beginPath();
+            ctx.roundRect(tagX, tagY, tagW, tagH, 5);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(65, 105, 225, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.font = 'bold 10px Arial';
+            ctx.fillStyle = '#284074';
+            ctx.textAlign = 'center';
+            ctx.fillText(buildingName, tagX + (tagW / 2), tagY + (tagH / 2) + 0.5);
 
             const badgeW = 18;
             const badgeH = 16;
-            const badgeX = cardX + bombCardWidth - badgeW - 7;
-            const badgeY = cardY + ((bombCardHeight - badgeH) / 2);
+            const badgeX = cardX + unmappedCardWidth - badgeW - 7;
+            const badgeY = cardY + ((unmappedCardHeight - badgeH) / 2);
             const iconColor = troopKind === 'unknown' ? '#7F5A00' : teamPrimary;
             const iconCx = badgeX + (badgeW / 2);
             const iconCy = badgeY + (badgeH / 2) + 0.3;
@@ -4558,18 +4631,18 @@ function generateMap(team, assignments, statusId) {
             }
         });
 
-        if (bombSquad.length > bombCardCapacity) {
+        if (unmappedPlayers.length > unmappedCardCapacity) {
             ctx.font = '12px Arial';
             ctx.fillStyle = 'rgba(255,255,255,0.82)';
             ctx.textAlign = 'right';
-            ctx.fillText(`+${bombSquad.length - bombCardCapacity} more`, bombPanel.x + bombPanel.width - 16, bombPanel.y + bombPanel.height - 12);
+            ctx.fillText(`+${unmappedPlayers.length - unmappedCardCapacity} more`, unmappedPanel.x + unmappedPanel.width - 16, unmappedPanel.y + unmappedPanel.height - 12);
         }
 
         // Substitutes Panel (right side)
         if (substitutes.length > 0) {
             const panelX = 1080;
             const panelY = titleHeight;
-            const panelHeight = mapHeight + bombHeight;
+            const panelHeight = mapHeight + unmappedHeight;
 
             // Panel background
             const subsGrad = ctx.createLinearGradient(panelX, panelY, panelX + subsPanelWidth, panelY + panelHeight);
@@ -4705,7 +4778,7 @@ function generateMap(team, assignments, statusId) {
         a.click();
         document.body.removeChild(a);
 
-        showMessage(statusId, t('message_team_map_downloaded', { team: team, drawnCount: drawnCount, bombSquad: bombSquad.length, substitutes: substitutes.length }), 'success');
+        showMessage(statusId, t('message_team_map_downloaded', { team: team, drawnCount: drawnCount, bombSquad: unmappedPlayers.length, substitutes: substitutes.length }), 'success');
     } catch (error) {
         console.error(error);
         showMessage(statusId, t('error_generic', { error: error.message }), 'error');

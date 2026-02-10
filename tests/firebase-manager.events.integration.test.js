@@ -48,6 +48,8 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   assert.ok(initialData.canyon_battlefield.buildingConfig.length > 0);
   assert.ok(initialData.desert_storm.buildingConfig.every((entry) => typeof entry.name === 'string' && Number.isFinite(Number(entry.slots)) && Number.isFinite(Number(entry.priority))));
   assert.ok(initialData.canyon_battlefield.buildingConfig.every((entry) => typeof entry.name === 'string' && Number.isFinite(Number(entry.slots)) && Number.isFinite(Number(entry.priority))));
+  assert.ok(initialData.desert_storm.buildingConfig.every((entry) => typeof entry.showOnMap === 'boolean'));
+  assert.ok(initialData.canyon_battlefield.buildingConfig.every((entry) => typeof entry.showOnMap === 'boolean'));
 
   const created = global.FirebaseManager.upsertEvent('test_event', {
     name: 'Test Event',

@@ -1119,6 +1119,17 @@ select {
 .event-map-coordinates-row {
     margin-top: 10px;
 }
+.events-editor-card #eventBuildingsEditorTable td input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--gold);
+    cursor: pointer;
+}
+.events-editor-card #eventBuildingsEditorTable th:nth-child(4),
+.events-editor-card #eventBuildingsEditorTable td:nth-child(4) {
+    text-align: center;
+    width: 88px;
+}
 .event-coordinates-btn {
     margin: 0;
     display: inline-flex;
