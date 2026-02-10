@@ -59,6 +59,24 @@ test('normalizeBuildingConfig preserves default label when stored label is missi
   ]);
 });
 
+test('normalizeBuildingConfig preserves custom building names not present in defaults', () => {
+  loadModule();
+  const defaults = [
+    { name: 'Missile Silo 1', priority: 2, slots: 2 },
+    { name: 'Missile Silo 2', priority: 2, slots: 2 },
+  ];
+  const stored = [
+    { name: 'Data Center 1', priority: 4, slots: 1 },
+    { name: 'Virus Lab', priority: 1, slots: 4 },
+  ];
+
+  const normalized = global.DSCoreBuildings.normalizeBuildingConfig(stored, defaults, 0, 20);
+  assert.deepEqual(normalized, [
+    { name: 'Data Center 1', label: 'Data Center 1', priority: 4, slots: 1 },
+    { name: 'Virus Lab', label: 'Virus Lab', priority: 1, slots: 4 },
+  ]);
+});
+
 test('normalizeBuildingPositions keeps only valid names and numeric pairs', () => {
   loadModule();
   const positions = {

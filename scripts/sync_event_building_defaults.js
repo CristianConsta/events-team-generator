@@ -2,11 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 
-const DEFAULT_SOURCE_EMAIL = 'constantinescu.cristian@gmail.com';
-const DEFAULT_EVENT_ID = 'canyon_battlefield';
 const DEFAULT_BATCH_SIZE = 250;
 const APP_CONFIG_COLLECTION = 'app_config';
 const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
+const GLOBAL_BUILDING_POSITIONS_DOC_ID = 'default_event_positions';
 
 function usage() {
     console.log('Usage:');
@@ -15,22 +14,23 @@ function usage() {
     console.log('Options:');
     console.log('  --service-account, -s   Path to service account JSON (or set FIREBASE_SERVICE_ACCOUNT)');
     console.log('  --project-id, -p        Firebase project ID (optional if present in service account)');
-    console.log(`  --source-email          Source user email (default: ${DEFAULT_SOURCE_EMAIL})`);
-    console.log('  --source-uid            Source user UID (optional; overrides email lookup when provided)');
-    console.log(`  --event-id              Event id to sync (default: ${DEFAULT_EVENT_ID})`);
+    console.log('  --source-doc-id         Source user document id (required)');
+    console.log('  --event-id              Sync one event id only (optional; default is all source events)');
+    console.log('  --preserve-existing     Skip users who already have building config for any synced event');
     console.log(`  --batch-size            Firestore page size (default: ${DEFAULT_BATCH_SIZE})`);
-    console.log('  --limit                 Stop after N users (for testing)');
+    console.log('  --limit                 Stop after N scanned users (for testing)');
     console.log('  --apply                 Perform writes (default is dry-run)');
+    console.log('  --help, -h              Show this help');
 }
 
 function parseArgs(argv) {
     const args = {
-        sourceEmail: DEFAULT_SOURCE_EMAIL,
-        sourceUid: '',
-        eventId: DEFAULT_EVENT_ID,
+        sourceDocId: '',
+        eventId: '',
         batchSize: DEFAULT_BATCH_SIZE,
         limit: null,
         apply: false,
+        preserveExisting: false,
     };
 
     for (let i = 0; i < argv.length; i += 1) {
@@ -41,11 +41,8 @@ function parseArgs(argv) {
         } else if (arg === '--project-id' || arg === '-p') {
             args.projectId = argv[i + 1];
             i += 1;
-        } else if (arg === '--source-email') {
-            args.sourceEmail = argv[i + 1];
-            i += 1;
-        } else if (arg === '--source-uid') {
-            args.sourceUid = argv[i + 1];
+        } else if (arg === '--source-doc-id') {
+            args.sourceDocId = argv[i + 1];
             i += 1;
         } else if (arg === '--event-id') {
             args.eventId = argv[i + 1];
@@ -58,6 +55,8 @@ function parseArgs(argv) {
             i += 1;
         } else if (arg === '--apply') {
             args.apply = true;
+        } else if (arg === '--preserve-existing') {
+            args.preserveExisting = true;
         } else if (arg === '--help' || arg === '-h') {
             usage();
             process.exit(0);
@@ -108,78 +107,111 @@ function normalizeBuildingConfig(config) {
         .filter(Boolean);
 }
 
-async function resolveSourceDocId({ db, auth, sourceEmail, sourceUid }) {
-    const candidates = new Set();
-    const normalizedEmail = typeof sourceEmail === 'string' ? sourceEmail.trim().toLowerCase() : '';
-
-    if (sourceUid) {
-        candidates.add(sourceUid);
+function normalizeBuildingPositions(positions) {
+    if (!positions || typeof positions !== 'object' || Array.isArray(positions)) {
+        return {};
     }
 
-    if (normalizedEmail) {
-        try {
-            const userRecord = await auth.getUserByEmail(normalizedEmail);
-            if (userRecord && userRecord.uid) {
-                candidates.add(userRecord.uid);
-            }
-        } catch (error) {
-            console.warn(`Source auth user not found for email: ${normalizedEmail}. Falling back to Firestore lookup.`);
+    const result = {};
+    Object.keys(positions).forEach((key) => {
+        const pair = positions[key];
+        if (!Array.isArray(pair) || pair.length < 2) {
+            return;
         }
-
-        candidates.add(normalizedEmail);
-        candidates.add(sourceEmail);
-
-        const byEmailLower = await db.collection('users')
-            .where('metadata.emailLower', '==', normalizedEmail)
-            .limit(1)
-            .get();
-        if (!byEmailLower.empty) {
-            candidates.add(byEmailLower.docs[0].id);
+        const x = Number(pair[0]);
+        const y = Number(pair[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return;
         }
-
-        const byEmail = await db.collection('users')
-            .where('metadata.email', '==', sourceEmail)
-            .limit(1)
-            .get();
-        if (!byEmail.empty) {
-            candidates.add(byEmail.docs[0].id);
-        }
-    }
-
-    for (const docId of candidates) {
-        if (!docId) continue;
-        const snap = await db.collection('users').doc(docId).get();
-        if (snap.exists) {
-            return docId;
-        }
-    }
-
-    return '';
+        result[key] = [x, y];
+    });
+    return result;
 }
 
-function readSourceEventConfig(sourceData, eventId) {
+function readSourceEvents(sourceData) {
     const events = sourceData && sourceData.events && typeof sourceData.events === 'object' ? sourceData.events : {};
-    const entry = events[eventId];
-    if (!entry || typeof entry !== 'object') {
-        return null;
+    const result = {};
+
+    Object.keys(events).forEach((rawEventId) => {
+        const normalizedId = normalizeEventId(rawEventId);
+        if (!normalizedId) {
+            return;
+        }
+
+        const eventEntry = events[rawEventId];
+        if (!eventEntry || typeof eventEntry !== 'object') {
+            return;
+        }
+
+        const buildingConfig = normalizeBuildingConfig(eventEntry.buildingConfig);
+        if (buildingConfig.length === 0) {
+            return;
+        }
+
+        result[normalizedId] = {
+            buildingConfig: buildingConfig,
+            buildingPositions: normalizeBuildingPositions(eventEntry.buildingPositions),
+        };
+    });
+
+    return result;
+}
+
+function printSourcePreview(eventIds, sourceConfigs, sourcePositions) {
+    console.log('--- Source Values Preview ---');
+    eventIds.forEach((eventId) => {
+        const config = sourceConfigs[eventId] || [];
+        const positions = sourcePositions[eventId] || {};
+        const positionKeys = Object.keys(positions);
+
+        console.log(`Event: ${eventId}`);
+        console.log(`  Building config entries: ${config.length}`);
+        config.forEach((item, index) => {
+            console.log(`    ${index + 1}. ${item.name} | #Players=${item.slots} | Priority=${item.priority}`);
+        });
+
+        console.log(`  Building position entries: ${positionKeys.length}`);
+        positionKeys.forEach((name) => {
+            const pair = positions[name];
+            console.log(`    - ${name}: [${pair[0]}, ${pair[1]}]`);
+        });
+    });
+    console.log('--- End Source Preview ---');
+}
+
+function hasExistingBuildingConfig(userEvents, eventIds) {
+    return eventIds.some((eventId) => {
+        const eventEntry = userEvents[eventId];
+        if (!eventEntry || typeof eventEntry !== 'object') {
+            return false;
+        }
+        return Array.isArray(eventEntry.buildingConfig) && eventEntry.buildingConfig.length > 0;
+    });
+}
+
+async function loadServiceAccount(servicePath) {
+    const resolvedPath = path.resolve(servicePath);
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`Service account file not found: ${resolvedPath}`);
     }
-    const config = normalizeBuildingConfig(entry.buildingConfig);
-    if (config.length === 0) {
-        return null;
-    }
-    return config;
+    return JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
 }
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
-    const eventId = normalizeEventId(args.eventId);
     const servicePath = args.serviceAccount || process.env.FIREBASE_SERVICE_ACCOUNT;
+    const sourceDocId = typeof args.sourceDocId === 'string' ? args.sourceDocId.trim() : '';
+    const requestedEventId = normalizeEventId(args.eventId || '');
 
     if (!servicePath) {
         usage();
         process.exit(1);
     }
-    if (!eventId) {
+    if (!sourceDocId) {
+        console.error('Missing required --source-doc-id');
+        process.exit(1);
+    }
+    if (args.eventId && !requestedEventId) {
         console.error('Invalid --event-id');
         process.exit(1);
     }
@@ -187,14 +219,12 @@ async function main() {
         console.error('Invalid --batch-size');
         process.exit(1);
     }
-
-    const resolvedPath = path.resolve(servicePath);
-    if (!fs.existsSync(resolvedPath)) {
-        console.error(`Service account file not found: ${resolvedPath}`);
+    if (args.limit != null && (!Number.isFinite(args.limit) || args.limit <= 0)) {
+        console.error('Invalid --limit');
         process.exit(1);
     }
 
-    const serviceAccount = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+    const serviceAccount = await loadServiceAccount(servicePath);
     const projectId = args.projectId || serviceAccount.project_id;
     if (!projectId) {
         console.error('Project ID is required (use --project-id or include project_id in service account).');
@@ -207,59 +237,105 @@ async function main() {
     });
 
     const db = admin.firestore();
-    const auth = admin.auth();
-
-    const sourceDocId = await resolveSourceDocId({
-        db,
-        auth,
-        sourceEmail: args.sourceEmail,
-        sourceUid: args.sourceUid,
-    });
-
-    if (!sourceDocId) {
-        console.error(`Source user document not found for email=${args.sourceEmail || 'n/a'} uid=${args.sourceUid || 'n/a'}`);
+    const sourceRef = db.collection('users').doc(sourceDocId);
+    const sourceSnap = await sourceRef.get();
+    if (!sourceSnap.exists) {
+        console.error(`Source user document not found: users/${sourceDocId}`);
         process.exit(1);
     }
 
-    const sourceSnap = await db.collection('users').doc(sourceDocId).get();
     const sourceData = sourceSnap.data() || {};
-    const sourceConfig = readSourceEventConfig(sourceData, eventId);
-    if (!sourceConfig) {
-        console.error(`Source user does not have a valid events.${eventId}.buildingConfig`);
+    const sourceEmail = sourceData && sourceData.metadata && typeof sourceData.metadata === 'object'
+        ? (sourceData.metadata.emailLower || sourceData.metadata.email || null)
+        : null;
+    const sourceEvents = readSourceEvents(sourceData);
+
+    let syncedEvents = sourceEvents;
+    if (requestedEventId) {
+        if (!sourceEvents[requestedEventId]) {
+            console.error(`Source user does not have valid events.${requestedEventId}.buildingConfig`);
+            process.exit(1);
+        }
+        syncedEvents = {
+            [requestedEventId]: sourceEvents[requestedEventId],
+        };
+    }
+
+    const eventIds = Object.keys(syncedEvents);
+    if (eventIds.length === 0) {
+        console.error('Source user does not have any valid events.{eventId}.buildingConfig entries');
         process.exit(1);
     }
 
     const version = Date.now();
-    const sourceEmailNormalized = typeof args.sourceEmail === 'string' ? args.sourceEmail.trim().toLowerCase() : '';
+    const sourceConfigs = {};
+    const sourcePositions = {};
+    const eventsWithPositions = {};
+    eventIds.forEach((eventId) => {
+        sourceConfigs[eventId] = syncedEvents[eventId].buildingConfig;
+        sourcePositions[eventId] = syncedEvents[eventId].buildingPositions;
+        eventsWithPositions[eventId] = Object.keys(sourcePositions[eventId]).length > 0;
+    });
 
     console.log(args.apply ? 'Running sync in APPLY mode' : 'Running sync in DRY-RUN mode');
+    console.log(args.preserveExisting
+        ? 'Preserve mode: users with existing building config for synced events will be skipped.'
+        : 'Overwrite mode: existing users will be forced to source values.');
     console.log(`Project: ${projectId}`);
-    console.log(`Event: ${eventId}`);
     console.log(`Source user doc: ${sourceDocId}`);
-    console.log(`Config entries: ${sourceConfig.length}`);
+    console.log('Safety guard: source user is always excluded from updates.');
+    console.log(`Events to sync (${eventIds.length}):`);
+    eventIds.forEach((eventId) => {
+        const configEntries = sourceConfigs[eventId].length;
+        const positionEntries = Object.keys(sourcePositions[eventId]).length;
+        console.log(`  - ${eventId}: configEntries=${configEntries}, positionEntries=${positionEntries}`);
+        if (!eventsWithPositions[eventId]) {
+            console.log(`    ! No source positions for ${eventId}; existing user coordinates will be preserved.`);
+        }
+    });
+    printSourcePreview(eventIds, sourceConfigs, sourcePositions);
 
     if (args.apply) {
         await db.collection(APP_CONFIG_COLLECTION).doc(GLOBAL_BUILDING_CONFIG_DOC_ID).set({
-            sourceEmail: sourceEmailNormalized || null,
+            sourceDocId: sourceDocId,
+            sourceEmail: sourceEmail,
             version: version,
-            events: {
-                [eventId]: sourceConfig,
-            },
+            events: sourceConfigs,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
+
+        const positionEventsToWrite = {};
+        eventIds.forEach((eventId) => {
+            if (eventsWithPositions[eventId]) {
+                positionEventsToWrite[eventId] = sourcePositions[eventId];
+            }
+        });
+        await db.collection(APP_CONFIG_COLLECTION).doc(GLOBAL_BUILDING_POSITIONS_DOC_ID).set({
+            sourceDocId: sourceDocId,
+            sourceEmail: sourceEmail,
+            version: version,
+            events: positionEventsToWrite,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
         console.log(`Updated ${APP_CONFIG_COLLECTION}/${GLOBAL_BUILDING_CONFIG_DOC_ID}`);
+        console.log(`Updated ${APP_CONFIG_COLLECTION}/${GLOBAL_BUILDING_POSITIONS_DOC_ID}`);
     } else {
         console.log(`[Dry-run] Would update ${APP_CONFIG_COLLECTION}/${GLOBAL_BUILDING_CONFIG_DOC_ID}`);
+        console.log(`[Dry-run] Would update ${APP_CONFIG_COLLECTION}/${GLOBAL_BUILDING_POSITIONS_DOC_ID}`);
     }
 
-    let lastDoc = null;
     let scanned = 0;
     let updated = 0;
+    let skippedSource = 0;
+    let skippedPreserveExisting = 0;
+    let lastDoc = null;
 
     while (true) {
         let query = db.collection('users')
             .orderBy(admin.firestore.FieldPath.documentId())
             .limit(args.batchSize);
+
         if (lastDoc) {
             query = query.startAfter(lastDoc);
         }
@@ -277,12 +353,41 @@ async function main() {
                 break;
             }
             scanned += 1;
-            const payload = {};
-            payload[`events.${eventId}.buildingConfig`] = sourceConfig;
-            payload[`events.${eventId}.buildingConfigVersion`] = version;
-            payload['metadata.lastModified'] = admin.firestore.FieldValue.serverTimestamp();
+
+            if (userDoc.id === sourceDocId) {
+                skippedSource += 1;
+                continue;
+            }
+
+            const userData = userDoc.data() || {};
+            const userEvents = userData.events && typeof userData.events === 'object' ? userData.events : {};
+
+            if (args.preserveExisting && hasExistingBuildingConfig(userEvents, eventIds)) {
+                skippedPreserveExisting += 1;
+                continue;
+            }
+
+            const payload = {
+                'metadata.lastModified': admin.firestore.FieldValue.serverTimestamp(),
+                buildingConfig: admin.firestore.FieldValue.delete(),
+                buildingConfigVersion: admin.firestore.FieldValue.delete(),
+                buildingPositions: admin.firestore.FieldValue.delete(),
+                buildingPositionsVersion: admin.firestore.FieldValue.delete(),
+            };
+
+            eventIds.forEach((eventId) => {
+                payload[`events.${eventId}.buildingConfig`] = sourceConfigs[eventId];
+                payload[`events.${eventId}.buildingConfigVersion`] = version;
+                if (eventsWithPositions[eventId]) {
+                    payload[`events.${eventId}.buildingPositions`] = sourcePositions[eventId];
+                    payload[`events.${eventId}.buildingPositionsVersion`] = version;
+                }
+            });
 
             if (args.apply) {
+                if (userDoc.id === sourceDocId) {
+                    throw new Error(`Safety check failed: attempted write on source user ${sourceDocId}`);
+                }
                 batch.update(userDoc.ref, payload);
                 batchOps += 1;
             }
@@ -301,7 +406,10 @@ async function main() {
 
     console.log('--- Summary ---');
     console.log(`Users scanned: ${scanned}`);
+    console.log(`Source user skipped: ${skippedSource}`);
+    console.log(`Preserve-existing skipped: ${skippedPreserveExisting}`);
     console.log(`Users ${args.apply ? 'updated' : 'to update'}: ${updated}`);
+    console.log(`Events synced per user: ${eventIds.length}`);
     console.log(args.apply ? 'Sync complete.' : 'Dry-run complete. Use --apply to write changes.');
 }
 

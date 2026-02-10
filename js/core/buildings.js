@@ -33,22 +33,94 @@
         return trimmed || fallback;
     }
 
+    function sanitizeStoredEntry(item, fallback, minSlots, maxSlots) {
+        if (!item || typeof item !== 'object') {
+            return null;
+        }
+        const rawName = typeof item.name === 'string' ? item.name.trim() : '';
+        const fallbackName = fallback && typeof fallback.name === 'string' ? fallback.name : '';
+        const name = rawName || fallbackName;
+        if (!name) {
+            return null;
+        }
+
+        const fallbackPriority = fallback && Number.isFinite(Number(fallback.priority))
+            ? Number(fallback.priority)
+            : 1;
+        const fallbackSlots = fallback && Number.isFinite(Number(fallback.slots))
+            ? Number(fallback.slots)
+            : 0;
+        const fallbackLabel = normalizeLabel(fallback && fallback.label, name);
+        const label = normalizeLabel(item.label, fallbackLabel);
+        const priority = clampPriority(item.priority, fallbackPriority);
+        const slots = clampSlots(item.slots, fallbackSlots, minSlots, maxSlots);
+        return { name, label, slots, priority };
+    }
+
     function normalizeBuildingConfig(config, defaults, minSlots, maxSlots) {
         if (!Array.isArray(defaults)) {
             return [];
         }
         if (!Array.isArray(config)) {
-            return defaults.map((item) => ({ ...item }));
+            return defaults.map((item) => sanitizeStoredEntry(item, item, minSlots, maxSlots)).filter(Boolean);
         }
 
-        return defaults.map((def) => {
-            const stored = config.find((item) => item && item.name === def.name);
-            const priority = clampPriority(stored && stored.priority, def.priority);
-            const slots = clampSlots(stored && stored.slots, def.slots, minSlots, maxSlots);
-            const defaultLabel = normalizeLabel(def && def.label, def.name);
-            const label = normalizeLabel(stored && stored.label, defaultLabel);
-            return { name: def.name, label: label, slots: slots, priority: priority };
+        const defaultsByName = new Map();
+        defaults.forEach((def) => {
+            if (!def || typeof def !== 'object' || typeof def.name !== 'string' || !def.name.trim()) {
+                return;
+            }
+            defaultsByName.set(def.name, def);
         });
+
+        const configByName = new Map();
+        const configOrder = [];
+        config.forEach((item) => {
+            if (!item || typeof item !== 'object') {
+                return;
+            }
+            const storedName = typeof item.name === 'string' ? item.name.trim() : '';
+            if (!storedName || configByName.has(storedName)) {
+                return;
+            }
+            configByName.set(storedName, item);
+            configOrder.push(storedName);
+        });
+
+        const normalized = [];
+        defaults.forEach((def) => {
+            if (!def || typeof def !== 'object' || typeof def.name !== 'string') {
+                return;
+            }
+            const stored = configByName.get(def.name);
+            if (!stored) {
+                return;
+            }
+            const sanitized = sanitizeStoredEntry(stored, def, minSlots, maxSlots);
+            if (sanitized) {
+                normalized.push(sanitized);
+            }
+            configByName.delete(def.name);
+        });
+
+        configOrder.forEach((name) => {
+            const stored = configByName.get(name);
+            if (!stored) {
+                return;
+            }
+            const fallback = { name: name, label: name, slots: 0, priority: 1 };
+            const sanitized = sanitizeStoredEntry(stored, fallback, minSlots, maxSlots);
+            if (sanitized) {
+                normalized.push(sanitized);
+            }
+            configByName.delete(name);
+        });
+
+        if (normalized.length > 0) {
+            return normalized;
+        }
+
+        return defaults.map((item) => sanitizeStoredEntry(item, item, minSlots, maxSlots)).filter(Boolean);
     }
 
     function normalizeBuildingPositions(positions, validNames) {
