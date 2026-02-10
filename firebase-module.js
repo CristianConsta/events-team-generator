@@ -21,14 +21,17 @@ const FirebaseManager = (function() {
     // DO NOT hardcode your API key here - use firebase-config.js instead
     let firebaseConfig = null;
     
-    // Check if config is loaded from firebase-config.js
-    if (typeof FIREBASE_CONFIG !== 'undefined') {
+    // Check if config is loaded from firebase-config.js (global const or window property)
+    if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG) {
         firebaseConfig = FIREBASE_CONFIG;
         console.log('✅ Firebase config loaded from firebase-config.js');
+    } else if (typeof window !== 'undefined' && window.FIREBASE_CONFIG) {
+        firebaseConfig = window.FIREBASE_CONFIG;
+        console.log('✅ Firebase config loaded from window.FIREBASE_CONFIG');
     } else {
         console.error('❌ Firebase config not found!');
         console.error('Please create firebase-config.js with your Firebase credentials');
-        alert('Firebase configuration missing! Please create firebase-config.js file.');
+        console.error('For GitHub Pages, ensure FIREBASE_CONFIG_JS secret is configured.');
     }
     
     function createEmptyEventEntry(overrides) {

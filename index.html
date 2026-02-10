@@ -28,18 +28,20 @@
             
             <div style="text-align: center; margin: 20px 0; color: #999;" data-i18n="login_or">or</div>
             
-            <input type="email" id="emailInput" placeholder="Email" data-i18n-placeholder="login_email_placeholder" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-            <input type="password" id="passwordInput" placeholder="Password" data-i18n-placeholder="login_password_placeholder" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+            <form onsubmit="event.preventDefault(); handleEmailSignIn();" style="margin: 0;">
+                <input type="email" id="emailInput" placeholder="Email" data-i18n-placeholder="login_email_placeholder" autocomplete="username" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+                <input type="password" id="passwordInput" placeholder="Password" data-i18n-placeholder="login_password_placeholder" autocomplete="current-password" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+                
+                <button type="submit" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
+                    <span data-i18n="login_sign_in">Sign In</span>
+                </button>
+            </form>
             
-            <button onclick="handleEmailSignIn()" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
-                <span data-i18n="login_sign_in">Sign In</span>
-            </button>
-            
-            <button onclick="showSignUpForm()" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
+            <button type="button" onclick="showSignUpForm()" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
                 <span data-i18n="login_create_account">Create New Account</span>
             </button>
             
-            <button onclick="handlePasswordReset()" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
+            <button type="button" onclick="handlePasswordReset()" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
                 <span data-i18n="login_forgot_password">Forgot Password?</span>
             </button>
             
