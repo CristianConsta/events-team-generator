@@ -52,6 +52,34 @@ const FirebaseManager = (function() {
     const MAX_PROFILE_TEXT_LEN = 60;
     const MAX_AVATAR_DATA_URL_LEN = 400000;
     const LEGACY_EVENT_IDS = ['desert_storm', 'canyon_battlefield'];
+    const LEGACY_EVENT_BUILDING_DEFAULTS = {
+        desert_storm: [
+            { name: 'Bomb Squad', priority: 1, slots: 4, label: 'Bomb Squad' },
+            { name: 'Oil Refinery 1', priority: 3, slots: 2, label: 'Oil Refinery 1' },
+            { name: 'Oil Refinery 2', priority: 3, slots: 2, label: 'Oil Refinery 2' },
+            { name: 'Field Hospital 1', priority: 4, slots: 2, label: 'Field Hospital 1' },
+            { name: 'Field Hospital 2', priority: 4, slots: 2, label: 'Field Hospital 2' },
+            { name: 'Field Hospital 3', priority: 4, slots: 2, label: 'Field Hospital 3' },
+            { name: 'Field Hospital 4', priority: 4, slots: 2, label: 'Field Hospital 4' },
+            { name: 'Info Center', priority: 5, slots: 2, label: 'Info Center' },
+            { name: 'Science Hub', priority: 5, slots: 2, label: 'Science Hub' },
+        ],
+        canyon_battlefield: [
+            { name: 'Bomb Squad', priority: 1, slots: 4, label: 'Bomb Squad' },
+            { name: 'Missile Silo 1', priority: 2, slots: 2, label: 'Missile Silo 1' },
+            { name: 'Missile Silo 2', priority: 2, slots: 2, label: 'Missile Silo 2' },
+            { name: 'Radar Station 1', priority: 3, slots: 2, label: 'Radar Station 1' },
+            { name: 'Radar Station 2', priority: 3, slots: 2, label: 'Radar Station 2' },
+            { name: 'Watchtower 1', priority: 4, slots: 1, label: 'Watchtower 1' },
+            { name: 'Watchtower 2', priority: 4, slots: 1, label: 'Watchtower 2' },
+            { name: 'Watchtower 3', priority: 4, slots: 1, label: 'Watchtower 3' },
+            { name: 'Watchtower 4', priority: 4, slots: 1, label: 'Watchtower 4' },
+            { name: 'Command Center', priority: 3, slots: 2, label: 'Command Center' },
+            { name: 'Supply Depot', priority: 5, slots: 1, label: 'Supply Depot' },
+            { name: 'Armory', priority: 5, slots: 1, label: 'Armory' },
+            { name: 'Comm Tower', priority: 5, slots: 0, label: 'Comm Tower' },
+        ],
+    };
     const GLOBAL_COORD_OWNER_EMAIL = 'constantinescu.cristian@gmail.com';
     const GLOBAL_COORDS_COLLECTION = 'app_config';
     const GLOBAL_COORDS_DOC_ID = 'default_event_positions';
@@ -155,16 +183,75 @@ const FirebaseManager = (function() {
         return eventId;
     }
 
-    function ensureLegacyEventEntries(map) {
+    function cloneDefaultLegacyBuildingConfig(eventId) {
+        const defaults = LEGACY_EVENT_BUILDING_DEFAULTS[eventId];
+        if (!Array.isArray(defaults)) {
+            return [];
+        }
+        return JSON.parse(JSON.stringify(defaults));
+    }
+
+    function normalizeBuildingConfigForDefaults(config) {
+        if (!Array.isArray(config)) {
+            return null;
+        }
+        const normalized = [];
+        config.forEach((item) => {
+            if (!item || typeof item !== 'object') {
+                return;
+            }
+            const name = typeof item.name === 'string' ? item.name.trim() : '';
+            if (!name) {
+                return;
+            }
+            const next = { name: name };
+            if (typeof item.label === 'string' && item.label.trim()) {
+                next.label = item.label.trim();
+            }
+            const slots = Number(item.slots);
+            if (Number.isFinite(slots)) {
+                next.slots = Math.round(slots);
+            }
+            const priority = Number(item.priority);
+            if (Number.isFinite(priority)) {
+                next.priority = Math.round(priority);
+            }
+            normalized.push(next);
+        });
+        return normalized.length > 0 ? normalized : null;
+    }
+
+    function ensureLegacyEventEntriesWithDefaults(map) {
         const target = map && typeof map === 'object' ? map : {};
+        let changed = false;
         LEGACY_EVENT_IDS.forEach((eventId) => {
             if (!target[eventId]) {
                 target[eventId] = createEmptyEventEntry({ name: getDefaultEventName(eventId) });
-            } else if (!target[eventId].name) {
-                target[eventId].name = getDefaultEventName(eventId);
+                changed = true;
+            }
+            const entry = target[eventId];
+            if (!entry.name) {
+                entry.name = getDefaultEventName(eventId);
+                changed = true;
+            }
+
+            const normalizedConfig = normalizeBuildingConfigForDefaults(entry.buildingConfig);
+            if (!Array.isArray(normalizedConfig) || normalizedConfig.length === 0) {
+                entry.buildingConfig = cloneDefaultLegacyBuildingConfig(eventId);
+                if (!Number.isFinite(Number(entry.buildingConfigVersion)) || Number(entry.buildingConfigVersion) <= 0) {
+                    entry.buildingConfigVersion = 1;
+                }
+                changed = true;
+            } else if (!Array.isArray(entry.buildingConfig) || entry.buildingConfig.length !== normalizedConfig.length) {
+                entry.buildingConfig = normalizedConfig;
+                changed = true;
             }
         });
-        return target;
+        return { events: target, changed: changed };
+    }
+
+    function ensureLegacyEventEntries(map) {
+        return ensureLegacyEventEntriesWithDefaults(map).events;
     }
 
     eventData = ensureLegacyEventEntries(eventData);
@@ -977,6 +1064,7 @@ const FirebaseManager = (function() {
             
             if (doc.exists) {
                 const data = doc.data();
+                let shouldPersistLegacyDefaults = false;
                 playerDatabase = data.playerDatabase || {};
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
@@ -986,6 +1074,9 @@ const FirebaseManager = (function() {
                 // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
                     eventData = normalizeEventsMap(data.events);
+                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(eventData);
+                    eventData = ensuredLegacy.events;
+                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
                 } else if (
                     Array.isArray(data.buildingConfig)
                     || (data.buildingPositions && typeof data.buildingPositions === 'object')
@@ -1021,7 +1112,20 @@ const FirebaseManager = (function() {
                     }
                 } else {
                     // No building data at all — reset
-                    eventData = ensureLegacyEventEntries(createEmptyEventData());
+                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(createEmptyEventData());
+                    eventData = ensuredLegacy.events;
+                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
+                }
+
+                if (shouldPersistLegacyDefaults) {
+                    try {
+                        await db.collection('users').doc(user.uid).set({
+                            events: eventData,
+                        }, { merge: true });
+                        console.log('✅ Legacy default events enforced for user');
+                    } catch (defaultErr) {
+                        console.warn('⚠️ Failed to persist legacy default events:', defaultErr);
+                    }
                 }
 
                 await loadGlobalDefaultBuildingPositions();

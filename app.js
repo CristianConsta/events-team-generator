@@ -396,6 +396,7 @@ function getSubstituteCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'substitute').length;
 }
 let uploadPanelExpanded = true;
+let eventsPanelExpanded = true;
 let activeDownloadTeam = null;
 let currentPageView = 'generator';
 
@@ -1364,14 +1365,27 @@ function updateEventLogoPreview() {
     image.src = eventDraftLogoDataUrl || generateEventAvatarDataUrl(seedName, eventEditorCurrentId || seedName);
 }
 
+function getEventMapPreviewSource(eventId) {
+    if (!eventId) {
+        return '';
+    }
+    const event = window.DSCoreEvents.getEvent(eventId);
+    if (!event) {
+        return '';
+    }
+    return event.mapDataUrl || event.previewMapFile || event.mapFile || event.exportMapFile || '';
+}
+
 function updateEventMapPreview() {
     const image = document.getElementById('eventMapPreviewImage');
     const placeholder = document.getElementById('eventMapPreviewPlaceholder');
     if (!image || !placeholder) {
         return;
     }
-    if (eventDraftMapDataUrl) {
-        image.src = eventDraftMapDataUrl;
+    const fallbackMapSource = getEventMapPreviewSource(eventEditorCurrentId);
+    const mapSource = eventDraftMapDataUrl || fallbackMapSource;
+    if (mapSource) {
+        image.src = mapSource;
         image.classList.remove('hidden');
         placeholder.classList.add('hidden');
     } else {
@@ -2458,6 +2472,23 @@ function toggleBuildingsPanel() {
 function getDefaultBuildings() {
     const defaults = window.DSCoreEvents.cloneEventBuildings(currentEvent);
     return Array.isArray(defaults) ? defaults : [];
+}
+
+function toggleEventsPanel() {
+    eventsPanelExpanded = !eventsPanelExpanded;
+    const content = document.getElementById('eventsContent');
+    const icon = document.getElementById('eventsExpandIcon');
+    if (!content || !icon) {
+        return;
+    }
+
+    if (eventsPanelExpanded) {
+        content.classList.remove('collapsed');
+        icon.classList.add('rotated');
+    } else {
+        content.classList.add('collapsed');
+        icon.classList.remove('rotated');
+    }
 }
 
 function getBuildingConfig() {
@@ -4244,6 +4275,9 @@ function generateMap(team, assignments, statusId) {
 
 function showMessage(elementId, message, type) {
     const element = document.getElementById(elementId);
+    if (!element) {
+        return;
+    }
     element.innerHTML = `<div class="message ${type}">${message}</div>`;
     
     if (type === 'success') {

@@ -312,11 +312,15 @@
                 </div>
 
                 <div id="eventsPanel" class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <h2 style="margin: 0;" data-i18n="events_manager_title">Events Manager</h2>
+                    <div class="collapsible-header" onclick="toggleEventsPanel()">
+                        <div>
+                            <h2 style="margin: 0;" data-i18n="events_manager_title">Events Manager</h2>
+                            <p style="opacity: 0.9; margin: 8px 0 0;" data-i18n="events_manager_help">Create custom events with name, logo, map, and building setup.</p>
+                        </div>
+                        <span class="expand-icon rotated" id="eventsExpandIcon">▼</span>
                     </div>
-                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="events_manager_help">Create custom events with name, logo, map, and building setup.</p>
-                    <div class="events-manager-grid">
+                    <div class="collapsible-content" id="eventsContent">
+                    <div class="events-manager-grid" style="margin-top: 14px;">
                         <div class="events-list-card">
                             <h3 style="margin-top: 0;" data-i18n="events_manager_existing_title">Existing Events</h3>
                             <div id="eventsList" class="events-list"></div>
@@ -380,6 +384,7 @@
                             <div id="eventsStatus"></div>
                         </div>
                     </div>
+                    </div>
                 </div>
 
                 <div class="card">
@@ -390,32 +395,6 @@
                     <p style="opacity: 0.9; margin: 10px 0 0;" data-i18n="map_coordinates_tool_help">Set where player name labels are displayed on the exported map for each building.</p>
                 </div>
 
-                <div id="buildingsPanel" class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                        <h2 style="margin: 0;" data-i18n="buildings_panel_title">Buildings &amp; Priorities</h2>
-                    </div>
-                    <div class="event-selector event-selector-inline" id="buildingsEventSelector" style="margin: 12px 0;"></div>
-                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
-                    <div style="overflow-x: auto;">
-                        <table class="players-table" id="buildingsTable">
-                            <thead>
-                                <tr>
-                                    <th data-i18n="buildings_table_building">Building</th>
-                                    <th data-i18n="buildings_table_slots">#Players</th>
-                                    <th data-i18n="buildings_table_priority">Priority</th>
-                                </tr>
-                            </thead>
-                            <tbody id="buildingsTableBody">
-                                <!-- Building rows will be rendered here -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div id="buildingsActions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
-                        <button class="secondary" onclick="resetBuildingsToDefault()"><span data-i18n="reset_default">Reset to Default</span></button>
-                        <button onclick="saveBuildingConfig()"><span data-i18n="save_changes">Save Changes</span></button>
-                    </div>
-                    <div id="buildingsStatus"></div>
-                </div>
             </div>
             
             <!-- Team A & B Sections removed - replaced with floating buttons -->
