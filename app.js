@@ -3425,27 +3425,121 @@ if (window.visualViewport) {
 let currentTroopsFilter = '';
 let currentSortFilter = 'power-desc';
 
+function getCurrentTeamCounts() {
+    return {
+        teamAStarterCount: getStarterCount('teamA'),
+        teamASubCount: getSubstituteCount('teamA'),
+        teamBStarterCount: getStarterCount('teamB'),
+        teamBSubCount: getSubstituteCount('teamB'),
+    };
+}
+
+function buildTeamSelectionMaps() {
+    return {
+        teamA: new Map(teamSelections.teamA.map((item) => [item.name, item])),
+        teamB: new Map(teamSelections.teamB.map((item) => [item.name, item])),
+    };
+}
+
+function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps) {
+    const selectionA = selectionMaps.teamA.get(playerName);
+    const selectionB = selectionMaps.teamB.get(playerName);
+
+    if (selectionA) {
+        const role = selectionA.role;
+        const starterDisabled = role === 'substitute' && counts.teamAStarterCount >= 20;
+        const subDisabled = role === 'starter' && counts.teamASubCount >= 10;
+        return `
+            <div class="role-toggle team-a-selected">
+                <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
+                        ${starterDisabled ? 'disabled' : ''}
+                        data-role="starter">${t('role_starter')}</button>
+                <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
+                        ${subDisabled ? 'disabled' : ''}
+                        data-role="substitute">${t('role_substitute')}</button>
+            </div>
+            <button class="clear-btn">${t('clear_button')}</button>
+        `;
+    }
+
+    if (selectionB) {
+        const role = selectionB.role;
+        const starterDisabled = role === 'substitute' && counts.teamBStarterCount >= 20;
+        const subDisabled = role === 'starter' && counts.teamBSubCount >= 10;
+        return `
+            <div class="role-toggle team-b-selected">
+                <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
+                        ${starterDisabled ? 'disabled' : ''}
+                        data-role="starter">${t('role_starter')}</button>
+                <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
+                        ${subDisabled ? 'disabled' : ''}
+                        data-role="substitute">${t('role_substitute')}</button>
+            </div>
+            <button class="clear-btn">${t('clear_button')}</button>
+        `;
+    }
+
+    const teamAFullyDisabled = counts.teamAStarterCount >= 20 && counts.teamASubCount >= 10;
+    const teamBFullyDisabled = counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
+
+    return `
+        <button class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
+            <span class="team-label-full">${t('team_a_button')}</span>
+            <span class="team-label-short">${t('team_a_short')}</span>
+        </button>
+        <button class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
+            <span class="team-label-full">${t('team_b_button')}</span>
+            <span class="team-label-short">${t('team_b_short')}</span>
+        </button>
+    `;
+}
+
+function applyPlayerRowSelectionState(row, player, counts, selectionMaps) {
+    const selectionA = selectionMaps.teamA.get(player.name);
+    const selectionB = selectionMaps.teamB.get(player.name);
+    row.classList.toggle('selected-a', !!selectionA);
+    row.classList.toggle('selected-b', !!selectionB);
+    const teamButtons = row.querySelector('.team-buttons');
+    if (teamButtons) {
+        teamButtons.innerHTML = buildPlayerActionButtonsHtml(player.name, counts, selectionMaps);
+    }
+}
+
+function refreshVisiblePlayerRows() {
+    const tbody = document.getElementById('playersTableBody');
+    if (!tbody) return;
+    const counts = getCurrentTeamCounts();
+    const selectionMaps = buildTeamSelectionMaps();
+    const playersByName = new Map(allPlayers.map((player) => [player.name, player]));
+    tbody.querySelectorAll('tr[data-player]').forEach((row) => {
+        const playerName = row.dataset.player;
+        const player = playersByName.get(playerName);
+        if (!player) return;
+        applyPlayerRowSelectionState(row, player, counts, selectionMaps);
+    });
+}
+
 function renderPlayersTable() {
     const tbody = document.getElementById('playersTableBody');
     tbody.innerHTML = '';
-    
+
     let displayPlayers = [...allPlayers];
-    
+
     // Apply filters
     const searchTerm = document.getElementById('searchFilter').value.toLowerCase();
     const troopsFilter = currentTroopsFilter;
     const sortFilter = currentSortFilter;
-    
+
     if (searchTerm) {
-        displayPlayers = displayPlayers.filter(p => 
+        displayPlayers = displayPlayers.filter(p =>
             p.name.toLowerCase().includes(searchTerm)
         );
     }
-    
+
     if (troopsFilter) {
         displayPlayers = displayPlayers.filter(p => p.troops === troopsFilter);
     }
-    
+
     switch(sortFilter) {
         case 'power-desc':
             displayPlayers.sort((a, b) => b.power - a.power);
@@ -3460,90 +3554,27 @@ function renderPlayersTable() {
             displayPlayers.sort((a, b) => b.name.localeCompare(a.name));
             break;
     }
-    
-    // Calculate current counts for disable logic
-    const teamAStarterCount = getStarterCount('teamA');
-    const teamASubCount = getSubstituteCount('teamA');
-    const teamBStarterCount = getStarterCount('teamB');
-    const teamBSubCount = getSubstituteCount('teamB');
+
+    const counts = getCurrentTeamCounts();
+    const selectionMaps = buildTeamSelectionMaps();
+    const fragment = document.createDocumentFragment();
 
     displayPlayers.forEach(player => {
         const row = document.createElement('tr');
-
-        const selectionA = teamSelections.teamA.find(p => p.name === player.name);
-        const selectionB = teamSelections.teamB.find(p => p.name === player.name);
-        const isTeamA = !!selectionA;
-        const isTeamB = !!selectionB;
-
-        if (isTeamA) row.classList.add('selected-a');
-        if (isTeamB) row.classList.add('selected-b');
-
-        let buttonsHtml;
-
-        if (isTeamA) {
-            const role = selectionA.role;
-            const starterDisabled = role === 'substitute' && teamAStarterCount >= 20;
-            const subDisabled = role === 'starter' && teamASubCount >= 10;
-
-            buttonsHtml = `
-                <div class="role-toggle team-a-selected">
-                    <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
-                            ${starterDisabled ? 'disabled' : ''}
-                            data-role="starter">${t('role_starter')}</button>
-                    <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
-                            ${subDisabled ? 'disabled' : ''}
-                            data-role="substitute">${t('role_substitute')}</button>
-                </div>
-                <button class="clear-btn">${t('clear_button')}</button>
-            `;
-        } else if (isTeamB) {
-            const role = selectionB.role;
-            const starterDisabled = role === 'substitute' && teamBStarterCount >= 20;
-            const subDisabled = role === 'starter' && teamBSubCount >= 10;
-
-            buttonsHtml = `
-                <div class="role-toggle team-b-selected">
-                    <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
-                            ${starterDisabled ? 'disabled' : ''}
-                            data-role="starter">${t('role_starter')}</button>
-                    <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
-                            ${subDisabled ? 'disabled' : ''}
-                            data-role="substitute">${t('role_substitute')}</button>
-                </div>
-                <button class="clear-btn">${t('clear_button')}</button>
-            `;
-        } else {
-            // Disable if both starter and sub slots are full
-            const teamAFullyDisabled = teamAStarterCount >= 20 && teamASubCount >= 10;
-            const teamBFullyDisabled = teamBStarterCount >= 20 && teamBSubCount >= 10;
-
-            buttonsHtml = `
-                <button class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
-                    <span class="team-label-full">${t('team_a_button')}</span>
-                    <span class="team-label-short">${t('team_a_short')}</span>
-                </button>
-                <button class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
-                    <span class="team-label-full">${t('team_b_button')}</span>
-                    <span class="team-label-short">${t('team_b_short')}</span>
-                </button>
-            `;
-        }
-
+        row.dataset.player = player.name;
         row.innerHTML = `
             <td><strong>${escapeHtml(player.name)}</strong></td>
             <td>${player.power}M</td>
             <td>${escapeHtml(getTroopLabel(player.troops))}</td>
             <td>
-                <div class="team-buttons">
-                    ${buttonsHtml}
-                </div>
+                <div class="team-buttons"></div>
             </td>
         `;
-
-        row.dataset.player = player.name;
-
-        tbody.appendChild(row);
+        applyPlayerRowSelectionState(row, player, counts, selectionMaps);
+        fragment.appendChild(row);
     });
+
+    tbody.appendChild(fragment);
 }
 
 function toggleTeam(playerName, team) {
@@ -3588,7 +3619,7 @@ function toggleTeam(playerName, team) {
     }
 
     updateTeamCounters();
-    renderPlayersTable();
+    refreshVisiblePlayerRows();
 }
 
 function togglePlayerRole(playerName, newRole) {
@@ -3627,7 +3658,7 @@ function togglePlayerRole(playerName, newRole) {
     teamSelections[teamKey][playerIndex].role = newRole;
 
     updateTeamCounters();
-    renderPlayersTable();
+    refreshVisiblePlayerRows();
 }
 
 function clearPlayerSelection(playerName) {
@@ -3638,7 +3669,7 @@ function clearPlayerSelection(playerName) {
     if (bIndex > -1) teamSelections.teamB.splice(bIndex, 1);
 
     updateTeamCounters();
-    renderPlayersTable();
+    refreshVisiblePlayerRows();
 }
 
 function clearAllSelections() {
