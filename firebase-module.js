@@ -91,6 +91,8 @@ const FirebaseManager = (function() {
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
     const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
+    const INVITE_COOLDOWN_FREE_INVITES = 3;
+    const INVITE_COOLDOWN_STEP_MS = 60 * 1000;
 
     // Private variables
     let auth = null;
@@ -104,6 +106,7 @@ const FirebaseManager = (function() {
     let allianceData = null;
     let playerSource = 'personal';
     let pendingInvitations = [];
+    let inviteThrottleState = { sentCount: 0, cooldownUntilMs: 0 };
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let inviteUserLookupPermissionLogged = false;
     let onAuthCallback = null;
@@ -341,6 +344,52 @@ const FirebaseManager = (function() {
             return Number.isFinite(value) && value > 0 ? value : 0;
         }
         return 0;
+    }
+
+    function normalizeInviteThrottleState(payload) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const sentRaw = Number(source.sentCount);
+        const sentCount = Number.isFinite(sentRaw) && sentRaw > 0 ? Math.floor(sentRaw) : 0;
+        const cooldownUntilMs = toMillis(source.cooldownUntil);
+        return {
+            sentCount,
+            cooldownUntilMs: Number.isFinite(cooldownUntilMs) && cooldownUntilMs > 0 ? cooldownUntilMs : 0
+        };
+    }
+
+    function buildInviteThrottlePayload(nextState) {
+        const cooldownUntilMs = Number(nextState && nextState.cooldownUntilMs);
+        return {
+            sentCount: Number(nextState && nextState.sentCount) > 0 ? Math.floor(Number(nextState.sentCount)) : 0,
+            cooldownUntil: Number.isFinite(cooldownUntilMs) && cooldownUntilMs > 0
+                ? firebase.firestore.Timestamp.fromMillis(cooldownUntilMs)
+                : null,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        };
+    }
+
+    function buildInviteCooldownError(remainingMs) {
+        const totalSeconds = Math.max(1, Math.ceil(Number(remainingMs || 0) / 1000));
+        const minutes = Math.max(1, Math.ceil(totalSeconds / 60));
+        return {
+            success: false,
+            errorKey: 'alliance_invite_cooldown',
+            errorParams: { minutes, seconds: totalSeconds },
+            error: `Invite cooldown active. Try again in ${minutes} minute(s).`
+        };
+    }
+
+    function computeNextInviteThrottleState(nowMs) {
+        const currentCount = Number.isFinite(Number(inviteThrottleState.sentCount))
+            ? Math.max(0, Math.floor(Number(inviteThrottleState.sentCount)))
+            : 0;
+        const sentCount = currentCount + 1;
+        const overtimeInvites = Math.max(0, sentCount - INVITE_COOLDOWN_FREE_INVITES);
+        const cooldownMs = overtimeInvites > 0 ? overtimeInvites * INVITE_COOLDOWN_STEP_MS : 0;
+        return {
+            sentCount,
+            cooldownUntilMs: cooldownMs > 0 ? nowMs + cooldownMs : 0
+        };
     }
 
     function extractVersionFromUserData(data) {
@@ -1022,6 +1071,7 @@ const FirebaseManager = (function() {
             allianceData = null;
             playerSource = 'personal';
             pendingInvitations = [];
+            inviteThrottleState = normalizeInviteThrottleState(null);
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
@@ -1284,6 +1334,7 @@ const FirebaseManager = (function() {
         allianceData = null;
         playerSource = 'personal';
         pendingInvitations = [];
+        inviteThrottleState = normalizeInviteThrottleState(null);
         userProfile = normalizeUserProfile(null);
         setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
         setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
@@ -1351,6 +1402,7 @@ const FirebaseManager = (function() {
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
+                inviteThrottleState = normalizeInviteThrottleState(data.inviteThrottle);
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
 
                 // Event-scoped model: read only from events map.
@@ -1465,6 +1517,7 @@ const FirebaseManager = (function() {
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
+                inviteThrottleState = normalizeInviteThrottleState(null);
                 userProfile = normalizeUserProfile(null);
                 await loadGlobalDefaultBuildingPositions();
                 await loadGlobalDefaultBuildingConfig();
@@ -1983,6 +2036,24 @@ const FirebaseManager = (function() {
         }
 
         try {
+            const userRef = db.collection('users').doc(currentUser.uid);
+            try {
+                const currentUserDoc = await userRef.get();
+                if (currentUserDoc.exists) {
+                    inviteThrottleState = normalizeInviteThrottleState((currentUserDoc.data() || {}).inviteThrottle);
+                }
+            } catch (throttleLoadError) {
+                if (!isPermissionDeniedError(throttleLoadError)) {
+                    console.warn('Unable to refresh invite cooldown state from user profile:', throttleLoadError.message || throttleLoadError);
+                }
+            }
+
+            const nowMs = Date.now();
+            const remainingMs = Math.max(0, Number(inviteThrottleState.cooldownUntilMs || 0) - nowMs);
+            if (remainingMs > 0) {
+                return buildInviteCooldownError(remainingMs);
+            }
+
             let invitedUserId = '';
             const invitedUser = await resolveUserByEmailLower(normalizedEmail);
             if (invitedUser && invitedUser.uid) {
@@ -2017,7 +2088,10 @@ const FirebaseManager = (function() {
                 }
             }
 
-            await db.collection('invitations').add({
+            const invitationRef = db.collection('invitations').doc();
+            const nextInviteThrottleState = computeNextInviteThrottleState(nowMs);
+            const batch = db.batch();
+            batch.set(invitationRef, {
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
@@ -2029,9 +2103,24 @@ const FirebaseManager = (function() {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 respondedAt: null
             });
+            batch.set(userRef, {
+                inviteThrottle: buildInviteThrottlePayload(nextInviteThrottleState)
+            }, { merge: true });
+            await batch.commit();
+            inviteThrottleState = nextInviteThrottleState;
 
-            return { success: true };
+            const nextCooldownMinutes = Math.max(0, Math.ceil((Number(nextInviteThrottleState.cooldownUntilMs || 0) - nowMs) / 60000));
+            return {
+                success: true,
+                cooldownMinutes: nextCooldownMinutes
+            };
         } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                return {
+                    success: false,
+                    error: 'Permission denied while sending invitation. Verify Firestore rules for invitations and users profile updates.'
+                };
+            }
             return { success: false, error: error.message };
         }
     }
