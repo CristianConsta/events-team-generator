@@ -71,7 +71,8 @@
                         </button>
                         <div id="navMenuPanel" class="header-menu-panel hidden" role="menu" aria-label="Menu">
                             <button id="navGeneratorBtn" class="header-menu-item" role="menuitem"><span data-i18n="generator_button">Generator</span></button>
-                            <button id="navConfigBtn" class="header-menu-item" role="menuitem"><span data-i18n="configuration_button">Configuration</span></button>
+                            <button id="navConfigBtn" class="header-menu-item" role="menuitem"><span data-i18n="events_manager_title">Events Manager</span></button>
+                            <button id="navPlayersBtn" class="header-menu-item" role="menuitem"><span data-i18n="players_management_button">Players Management</span></button>
                             <button id="navAllianceBtn" class="header-menu-item" role="menuitem"><span data-i18n="alliance_button">Alliance</span></button>
                             <button id="navSettingsBtn" class="header-menu-item" role="menuitem"><span data-i18n="settings_button">Settings</span></button>
                             <div class="header-menu-divider"></div>
@@ -294,9 +295,9 @@
                 </div>
             </div>
 
-            <div id="configurationPage" class="app-view hidden">
+            <div id="playersManagementPage" class="app-view hidden">
                 <div class="page-header">
-                    <h2 class="config-title" data-i18n="configuration_page_title">Configuration</h2>
+                    <h2 class="config-title" data-i18n="players_management_page_title">Players Management</h2>
                 </div>
 
                 <!-- Upload Section (Collapsible when players exist) -->
@@ -321,6 +322,12 @@
                         
                         <div id="uploadMessage"></div>
                     </div>
+                </div>
+            </div>
+
+            <div id="configurationPage" class="app-view hidden">
+                <div class="page-header">
+                    <h2 class="config-title" data-i18n="events_manager_title">Events Manager</h2>
                 </div>
 
                 <div id="eventsPanel" class="card">

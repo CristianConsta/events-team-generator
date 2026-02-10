@@ -253,6 +253,7 @@ function bindStaticUiActions() {
     on('navMenuBtn', 'click', toggleNavigationMenu);
     on('navGeneratorBtn', 'click', showGeneratorPage);
     on('navConfigBtn', 'click', showConfigurationPage);
+    on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', openAlliancePanelFromMenu);
     on('navSettingsBtn', 'click', openSettingsModal);
     on('navSignOutBtn', 'click', () => {
@@ -533,6 +534,7 @@ function toggleNavigationMenu(event) {
 function syncNavigationMenuState() {
     const generatorBtn = document.getElementById('navGeneratorBtn');
     const configBtn = document.getElementById('navConfigBtn');
+    const playersBtn = document.getElementById('navPlayersBtn');
     if (generatorBtn) {
         const isActive = currentPageView === 'generator';
         generatorBtn.classList.toggle('active', isActive);
@@ -542,6 +544,11 @@ function syncNavigationMenuState() {
         const isActive = currentPageView === 'configuration';
         configBtn.classList.toggle('active', isActive);
         configBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (playersBtn) {
+        const isActive = currentPageView === 'players';
+        playersBtn.classList.toggle('active', isActive);
+        playersBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
 }
 
@@ -569,13 +576,21 @@ function updateFloatingButtonsVisibility() {
 function setPageView(view) {
     const generatorPage = document.getElementById('generatorPage');
     const configurationPage = document.getElementById('configurationPage');
-    if (!generatorPage || !configurationPage) {
+    const playersManagementPage = document.getElementById('playersManagementPage');
+    if (!generatorPage || !configurationPage || !playersManagementPage) {
         return;
     }
 
-    currentPageView = view === 'configuration' ? 'configuration' : 'generator';
+    if (view === 'configuration') {
+        currentPageView = 'configuration';
+    } else if (view === 'players') {
+        currentPageView = 'players';
+    } else {
+        currentPageView = 'generator';
+    }
     generatorPage.classList.toggle('hidden', currentPageView !== 'generator');
     configurationPage.classList.toggle('hidden', currentPageView !== 'configuration');
+    playersManagementPage.classList.toggle('hidden', currentPageView !== 'players');
     syncNavigationMenuState();
     closeNavigationMenu();
 
@@ -597,6 +612,10 @@ function showConfigurationPage() {
 
 function showGeneratorPage() {
     setPageView('generator');
+}
+
+function showPlayersManagementPage() {
+    setPageView('players');
 }
 
 function openAlliancePanelFromMenu() {
@@ -2954,7 +2973,7 @@ function loadPlayerData() {
         document.getElementById('selectionSection').classList.remove('hidden');
         renderPlayersTable();
         updateTeamCounters();
-        showConfigurationPage();
+        showPlayersManagementPage();
     }
 }
 
