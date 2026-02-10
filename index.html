@@ -392,11 +392,20 @@
                                     </table>
                                 </div>
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
-                                    <button id="eventAddBuildingBtn" class="secondary" type="button"><span data-i18n="events_manager_add_building">Add Building</span></button>
+                                    <button id="eventAddBuildingBtn" class="secondary event-add-building-btn" type="button">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M3 21h18"/>
+                                            <path d="M5 21V9l7-5 7 5v12"/>
+                                            <path d="M9 21v-6h6v6"/>
+                                        </svg>
+                                        <span class="event-add-building-plus" aria-hidden="true">+</span>
+                                        <span class="sr-only" data-i18n="events_manager_add_building">Add Building</span>
+                                    </button>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px;">
+                            <div class="event-editor-actions">
                                 <button id="eventSaveBtn" type="button"><span data-i18n="events_manager_save_event">Save Event</span></button>
+                                <button id="eventCancelEditBtn" class="secondary hidden" type="button"><span data-i18n="settings_cancel">Cancel</span></button>
                                 <button id="eventDeleteBtn" class="secondary" type="button"><span data-i18n="events_manager_delete_event">Delete Event</span></button>
                             </div>
                             <div id="eventsStatus"></div>

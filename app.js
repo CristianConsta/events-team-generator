@@ -303,6 +303,7 @@ function bindStaticUiActions() {
     on('eventMapInput', 'change', handleEventMapChange);
     on('eventAddBuildingBtn', 'click', addEventBuildingRow);
     on('eventSaveBtn', 'click', saveEventDefinition);
+    on('eventCancelEditBtn', 'click', cancelEventEditing);
     on('eventDeleteBtn', 'click', deleteSelectedEvent);
 
     on('mapCoordinatesBtn', 'click', openCoordinatesPickerFromEditor);
@@ -1569,7 +1570,7 @@ function updateEventEditorState() {
         eventNameInput.disabled = readOnly;
     }
 
-    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn'].forEach((id) => {
+    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn', 'eventCancelEditBtn'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
             element.disabled = readOnly;
@@ -1602,8 +1603,22 @@ function updateEventEditorState() {
         editBtn.setAttribute('aria-label', t('events_manager_edit_action'));
     }
 
+    const cancelBtn = document.getElementById('eventCancelEditBtn');
+    if (cancelBtn) {
+        const showCancelBtn = eventEditorIsEditMode;
+        cancelBtn.classList.toggle('hidden', !showCancelBtn);
+        cancelBtn.disabled = !showCancelBtn;
+        cancelBtn.title = t('settings_cancel');
+        cancelBtn.setAttribute('aria-label', t('settings_cancel'));
+    }
+
     const logoUploadBtn = document.getElementById('eventLogoUploadBtn');
     const logoRandomBtn = document.getElementById('eventLogoRandomBtn');
+    const addBuildingBtn = document.getElementById('eventAddBuildingBtn');
+    if (addBuildingBtn) {
+        addBuildingBtn.title = t('events_manager_add_building');
+        addBuildingBtn.setAttribute('aria-label', t('events_manager_add_building'));
+    }
     if (logoUploadBtn) {
         logoUploadBtn.title = t('events_manager_logo_upload');
         logoUploadBtn.setAttribute('aria-label', t('events_manager_logo_upload'));
@@ -1637,6 +1652,32 @@ function enterEventEditMode() {
     }
     eventEditorIsEditMode = true;
     updateEventEditorState();
+}
+
+function cancelEventEditing() {
+    if (!eventEditorIsEditMode) {
+        return;
+    }
+    if (!eventEditorCurrentId) {
+        const fallbackEventId = (currentEvent && window.DSCoreEvents.getEvent(currentEvent))
+            ? currentEvent
+            : (getEventIds()[0] || '');
+        eventEditorCurrentId = fallbackEventId;
+    }
+
+    if (!eventEditorCurrentId || !window.DSCoreEvents.getEvent(eventEditorCurrentId)) {
+        startNewEventDraft();
+        return;
+    }
+
+    eventEditorIsEditMode = false;
+    applySelectedEventToEditor();
+    renderEventsList();
+    refreshEventEditorDeleteState();
+    const statusEl = document.getElementById('eventsStatus');
+    if (statusEl) {
+        statusEl.replaceChildren();
+    }
 }
 
 function openCoordinatesPickerFromEditor() {
