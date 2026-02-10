@@ -193,7 +193,7 @@
                         <button class="clear-btn" onclick="closeCoordinatesPicker()"><span data-i18n="close">Close</span></button>
                     </div>
                     <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click the map to set the center point where player name labels will appear for the selected building. Update buildings one by one.</p>
-                    <div class="event-selector event-selector-inline" id="coordEventSelector" style="margin: 0 0 12px;"></div>
+                    <div id="coordEventName" style="opacity: 0.85; margin: 0 0 12px; font-weight: 700;"></div>
                     <div id="coordBuildingRow" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
                         <strong id="coordBuildingLabel" data-i18n="coord_label_building">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
@@ -370,12 +370,6 @@
                                             <span class="sr-only" data-i18n="events_manager_map_remove">Remove Map</span>
                                         </button>
                                     </div>
-                                    <div id="eventCoordinatesRow" class="event-map-coordinates-row hidden">
-                                        <button id="eventCoordinatesBtn" class="secondary event-coordinates-btn" type="button" onclick="openCoordinatesPickerFromEditor()">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11z"/></svg>
-                                            <span data-i18n="events_manager_coordinates">Player Name Label Coordinates</span>
-                                        </button>
-                                    </div>
                                     <input id="eventMapInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onchange="handleEventMapChange(event)">
                                 </div>
                             </div>
@@ -408,7 +402,13 @@
                     </div>
                     </div>
                 </div>
-
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h2 style="margin: 0;" data-i18n="map_coordinates_tool_title">Player Name Label Coordinates</h2>
+                        <button class="secondary" onclick="openCoordinatesPickerFromEditor()"><span data-i18n="map_coordinates">Map Coordinates</span></button>
+                    </div>
+                    <p style="opacity: 0.9; margin: 10px 0 0;" data-i18n="map_coordinates_tool_help">Use this after Buildings setup. The picker uses the currently selected event and its building names, then lets you place one coordinate per building on the event map. Each click sets the center point for the first player label for that building; the rest align from that anchor. Save when finished to apply these positions to generated and exported maps.</p>
+                </div>
             </div>
             
             <!-- Team A & B Sections removed - replaced with floating buttons -->

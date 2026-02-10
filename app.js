@@ -3094,6 +3094,13 @@ function openCoordinatesPicker() {
     refreshCoordinatesPickerForCurrentEvent();
 }
 
+function openCoordinatesPickerForEvent(eventId) {
+    if (EVENT_REGISTRY[eventId]) {
+        switchEvent(eventId);
+    }
+    openCoordinatesPicker();
+}
+
 function closeCoordinatesPicker() {
     document.getElementById('coordPickerOverlay').classList.add('hidden');
     document.body.style.overflow = '';
@@ -3103,6 +3110,11 @@ function updateCoordLabel() {
     const name = coordBuildings[coordBuildingIndex];
     const displayName = getBuildingDisplayName(name);
     const pos = getBuildingPositions()[name];
+    const eventNameEl = document.getElementById('coordEventName');
+    if (eventNameEl) {
+        const activeEvent = getActiveEvent();
+        eventNameEl.textContent = t(activeEvent.titleKey);
+    }
     document.getElementById('coordBuildingLabel').textContent = displayName || '';
     document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
     document.getElementById('coordBuildingValue').textContent = pos
