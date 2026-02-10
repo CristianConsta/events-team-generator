@@ -2485,25 +2485,64 @@ function renderNotifications() {
     const invitations = typeof FirebaseService !== 'undefined' ? FirebaseService.getPendingInvitations() : [];
 
     if (invitations.length === 0) {
-        container.innerHTML = `<p style="opacity: 0.6; text-align: center;">${t('notifications_empty')}</p>`;
+        const emptyState = document.createElement('p');
+        emptyState.style.opacity = '0.6';
+        emptyState.style.textAlign = 'center';
+        emptyState.textContent = t('notifications_empty');
+        container.replaceChildren(emptyState);
         return;
     }
 
-    container.innerHTML = invitations.map(inv => `
-        <div style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1);">
-            <div style="margin-bottom: 8px;">
-                <strong>${escapeHtml(inv.allianceName || '')}</strong>
-                <span style="opacity: 0.6;"> (ID: ${escapeHtml(inv.allianceId || '')})</span>
-            </div>
-            <div style="opacity: 0.7; font-size: 13px; margin-bottom: 10px;">
-                ${t('notification_invited_by', { email: escapeHtml(inv.inviterEmail || '') })}
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="handleAcceptInvitation('${inv.id}')" style="flex: 1; padding: 8px;">${t('notification_accept')}</button>
-                <button class="clear-btn" onclick="handleRejectInvitation('${inv.id}')" style="flex: 1; padding: 8px;">${t('notification_reject')}</button>
-            </div>
-        </div>
-    `).join('');
+    container.replaceChildren();
+    invitations.forEach((inv) => {
+        const card = document.createElement('div');
+        card.style.padding = '12px';
+        card.style.background = 'rgba(255,255,255,0.05)';
+        card.style.borderRadius = '8px';
+        card.style.marginBottom = '10px';
+        card.style.border = '1px solid rgba(255,255,255,0.1)';
+
+        const heading = document.createElement('div');
+        heading.style.marginBottom = '8px';
+        const title = document.createElement('strong');
+        title.textContent = String(inv.allianceName || '');
+        const idMeta = document.createElement('span');
+        idMeta.style.opacity = '0.6';
+        idMeta.textContent = ` (ID: ${String(inv.allianceId || '')})`;
+        heading.appendChild(title);
+        heading.appendChild(idMeta);
+
+        const detail = document.createElement('div');
+        detail.style.opacity = '0.7';
+        detail.style.fontSize = '13px';
+        detail.style.marginBottom = '10px';
+        detail.textContent = t('notification_invited_by', { email: String(inv.inviterEmail || '') });
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '10px';
+
+        const acceptBtn = document.createElement('button');
+        acceptBtn.style.flex = '1';
+        acceptBtn.style.padding = '8px';
+        acceptBtn.textContent = t('notification_accept');
+        acceptBtn.addEventListener('click', () => handleAcceptInvitation(inv.id));
+
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'clear-btn';
+        rejectBtn.style.flex = '1';
+        rejectBtn.style.padding = '8px';
+        rejectBtn.textContent = t('notification_reject');
+        rejectBtn.addEventListener('click', () => handleRejectInvitation(inv.id));
+
+        actions.appendChild(acceptBtn);
+        actions.appendChild(rejectBtn);
+
+        card.appendChild(heading);
+        card.appendChild(detail);
+        card.appendChild(actions);
+        container.appendChild(card);
+    });
 }
 
 async function handleAcceptInvitation(invitationId) {
