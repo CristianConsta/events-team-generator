@@ -1954,6 +1954,94 @@ const FirebaseManager = (function() {
         }
     }
 
+    async function loadAcceptedInvitationsForAlliance(targetAllianceId) {
+        if (!currentUser || !targetAllianceId) {
+            return [];
+        }
+
+        const acceptedInvitations = [];
+        const seenIds = new Set();
+        const addInvitation = (doc) => {
+            if (!doc || !doc.exists || seenIds.has(doc.id)) {
+                return;
+            }
+            seenIds.add(doc.id);
+            const payload = doc.data() || {};
+            if (payload && payload.allianceId === targetAllianceId && payload.status === 'accepted') {
+                acceptedInvitations.push({ id: doc.id, ...payload });
+            }
+        };
+
+        try {
+            const snapshot = await db.collection('invitations')
+                .where('allianceId', '==', targetAllianceId)
+                .where('status', '==', 'accepted')
+                .get();
+            snapshot.docs.forEach(addInvitation);
+            return acceptedInvitations;
+        } catch (error) {
+            if (!isPermissionDeniedError(error)) {
+                console.warn('Failed to load accepted invitations by alliance id:', error.message || error);
+            }
+        }
+
+        try {
+            const fallbackSnapshot = await db.collection('invitations')
+                .where('invitedBy', '==', currentUser.uid)
+                .where('status', '==', 'accepted')
+                .get();
+            fallbackSnapshot.docs.forEach(addInvitation);
+        } catch (fallbackError) {
+            if (!isPermissionDeniedError(fallbackError)) {
+                console.warn('Failed to load accepted invitations by inviter fallback:', fallbackError.message || fallbackError);
+            }
+        }
+
+        return acceptedInvitations;
+    }
+
+    async function reconcileAllianceMembersFromAcceptedInvites(targetAllianceId, membersInput) {
+        const currentMembers = membersInput && typeof membersInput === 'object'
+            ? JSON.parse(JSON.stringify(membersInput))
+            : {};
+        const acceptedInvitations = await loadAcceptedInvitationsForAlliance(targetAllianceId);
+        if (!Array.isArray(acceptedInvitations) || acceptedInvitations.length === 0) {
+            return currentMembers;
+        }
+
+        const missingMemberUpdates = {};
+        acceptedInvitations.forEach((inv) => {
+            const invitedUserId = typeof inv.invitedUserId === 'string' ? inv.invitedUserId.trim() : '';
+            if (!invitedUserId || currentMembers[invitedUserId]) {
+                return;
+            }
+            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.trim() : '';
+            currentMembers[invitedUserId] = {
+                email: invitedEmail,
+                role: 'member'
+            };
+            missingMemberUpdates[`members.${invitedUserId}`] = {
+                email: invitedEmail,
+                role: 'member',
+                joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+        });
+
+        if (Object.keys(missingMemberUpdates).length === 0) {
+            return currentMembers;
+        }
+
+        try {
+            await db.collection('alliances').doc(targetAllianceId).update(missingMemberUpdates);
+        } catch (error) {
+            if (!isPermissionDeniedError(error)) {
+                console.warn('Failed to persist accepted-invite members back to alliance doc:', error.message || error);
+            }
+        }
+
+        return currentMembers;
+    }
+
     async function loadAllianceData() {
         if (!currentUser || !allianceId) {
             allianceData = null;
@@ -1962,7 +2050,11 @@ const FirebaseManager = (function() {
         try {
             const doc = await db.collection('alliances').doc(allianceId).get();
             if (doc.exists) {
-                allianceData = doc.data();
+                allianceData = doc.data() || {};
+                allianceData.members = await reconcileAllianceMembersFromAcceptedInvites(
+                    allianceId,
+                    allianceData.members
+                );
                 if (!allianceData.members || !allianceData.members[currentUser.uid]) {
                     const syncResult = await trySyncCurrentUserAllianceMembership(allianceId);
                     if (syncResult.success) {
