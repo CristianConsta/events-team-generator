@@ -181,9 +181,10 @@
                 <div style="width: min(400px, 90vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 30px;">
                     <h2 style="margin: 0 0 10px;" data-i18n="upload_target_title">Upload Destination</h2>
                     <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_target_desc">Where should this player data be stored?</p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
                         <button id="uploadPersonalBtn" style="padding: 16px;"><span data-i18n="upload_target_personal">My Database</span></button>
                         <button id="uploadAllianceBtn" class="secondary" style="padding: 16px;"><span data-i18n="upload_target_alliance">Alliance Database</span></button>
+                        <button id="uploadBothBtn" class="secondary" style="padding: 16px;"><span data-i18n="upload_target_both">Both</span></button>
                     </div>
                     <button id="uploadTargetCloseBtn" class="clear-btn" style="display: block; margin: 15px auto 0;"><span data-i18n="close">Close</span></button>
                 </div>
@@ -220,6 +221,14 @@
                         <h2 style="margin: 0;" data-i18n="select_teams_title">⚔️ Select Teams</h2>
                     </div>
                     <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 12px 0;"></div>
+                    <div id="selectionSourceControls" class="selection-source-controls hidden">
+                        <span class="selection-source-title" data-i18n="alliance_player_source_title">Player Source</span>
+                        <div class="selection-source-actions">
+                            <button id="selectionSourcePersonalBtn" class="secondary" type="button"><span data-i18n="alliance_source_personal">My Database</span></button>
+                            <button id="selectionSourceAllianceBtn" class="secondary" type="button"><span data-i18n="alliance_source_alliance">Alliance Database</span></button>
+                        </div>
+                        <div id="selectionSourceStatus"></div>
+                    </div>
                     <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="select_teams_help">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
                     
                     <!-- Team Counters -->

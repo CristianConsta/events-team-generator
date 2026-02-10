@@ -1126,6 +1126,33 @@ select {
 .event-map-coordinates-row {
     margin-top: 10px;
 }
+.selection-source-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 4px 0 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(var(--gold-rgb), 0.28);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.selection-source-title {
+    font-size: 13px;
+    opacity: 0.88;
+    font-weight: 700;
+}
+.selection-source-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.selection-source-actions button {
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 36px;
+}
 .events-editor-card #eventBuildingsEditorTable td input[type="checkbox"] {
     width: 18px;
     height: 18px;

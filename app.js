@@ -277,7 +277,10 @@ function bindStaticUiActions() {
 
     on('uploadPersonalBtn', 'click', uploadToPersonal);
     on('uploadAllianceBtn', 'click', uploadToAlliance);
+    on('uploadBothBtn', 'click', uploadToBoth);
     on('uploadTargetCloseBtn', 'click', closeUploadTargetModal);
+    on('selectionSourcePersonalBtn', 'click', () => switchPlayerSource('personal', 'selectionSourceStatus'));
+    on('selectionSourceAllianceBtn', 'click', () => switchPlayerSource('alliance', 'selectionSourceStatus'));
 
     on('coordCloseBtn', 'click', closeCoordinatesPicker);
     on('coordPrevBtn', 'click', prevCoordBuilding);
@@ -2599,11 +2602,15 @@ async function handleLeaveAlliance() {
     }
 }
 
-async function switchPlayerSource(source) {
+async function switchPlayerSource(source, statusElementId) {
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    if (source === 'alliance' && !hasAlliance) {
+        return;
+    }
     await FirebaseService.setPlayerSource(source);
     loadPlayerData();
     renderAlliancePanel();
-    showMessage('playerSourceStatus', t('alliance_source_switched', { source: t('alliance_source_' + source) }), 'success');
+    showMessage(statusElementId || 'playerSourceStatus', t('alliance_source_switched', { source: t('alliance_source_' + source) }), 'success');
 }
 
 function updateAllianceHeaderDisplay() {
@@ -2778,7 +2785,7 @@ async function uploadPlayerData() {
 
     if (FirebaseService.getAllianceId()) {
         window._pendingUploadFile = file;
-        document.getElementById('uploadTargetModal').classList.remove('hidden');
+        openUploadTargetModal();
     } else {
         await performUpload(file, 'personal');
     }
@@ -2789,6 +2796,21 @@ async function uploadPlayerData() {
 function closeUploadTargetModal() {
     window._pendingUploadFile = null;
     document.getElementById('uploadTargetModal').classList.add('hidden');
+}
+
+function openUploadTargetModal() {
+    const modal = document.getElementById('uploadTargetModal');
+    if (!modal) {
+        return;
+    }
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const personalBtn = document.getElementById('uploadPersonalBtn');
+    const allianceBtn = document.getElementById('uploadAllianceBtn');
+    const bothBtn = document.getElementById('uploadBothBtn');
+    if (personalBtn) personalBtn.classList.remove('hidden');
+    if (allianceBtn) allianceBtn.classList.toggle('hidden', !hasAlliance);
+    if (bothBtn) bothBtn.classList.toggle('hidden', !hasAlliance);
+    modal.classList.remove('hidden');
 }
 
 async function uploadToPersonal() {
@@ -2803,6 +2825,12 @@ async function uploadToAlliance() {
     if (file) await performUpload(file, 'alliance');
 }
 
+async function uploadToBoth() {
+    const file = window._pendingUploadFile;
+    closeUploadTargetModal();
+    if (file) await performUpload(file, 'both');
+}
+
 async function performUpload(file, target) {
     try {
         await ensureXLSXLoaded();
@@ -2815,19 +2843,57 @@ async function performUpload(file, target) {
     showMessage('uploadMessage', t('message_upload_processing'), 'processing');
 
     try {
-        let result;
-        if (target === 'alliance') {
-            result = await FirebaseService.uploadAlliancePlayerDatabase(file);
-        } else {
-            result = await FirebaseService.uploadPlayerDatabase(file);
+        if (target === 'both') {
+            let personalResult = null;
+            let allianceResult = null;
+            let personalError = '';
+            let allianceError = '';
+
+            try {
+                personalResult = await FirebaseService.uploadPlayerDatabase(file);
+            } catch (error) {
+                personalError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
+            }
+
+            try {
+                allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file);
+            } catch (error) {
+                allianceError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
+            }
+
+            const personalOk = !!(personalResult && personalResult.success);
+            const allianceOk = !!(allianceResult && allianceResult.success);
+            if (personalOk && allianceOk) {
+                showMessage('uploadMessage', `${personalResult.message} | ${allianceResult.message}`, 'success');
+                loadPlayerData();
+                return;
+            }
+
+            if (personalOk || allianceOk) {
+                const personalStatus = personalOk ? t('success_generic') : t('message_upload_failed', { error: personalError || (personalResult && personalResult.error) || 'unknown' });
+                const allianceStatus = allianceOk ? t('success_generic') : t('message_upload_failed', { error: allianceError || (allianceResult && allianceResult.error) || 'unknown' });
+                showMessage('uploadMessage', `${t('upload_target_personal')}: ${personalStatus} | ${t('upload_target_alliance')}: ${allianceStatus}`, 'warning');
+                loadPlayerData();
+                return;
+            }
+
+            const mergedError = [personalError || (personalResult && personalResult.error), allianceError || (allianceResult && allianceResult.error)]
+                .filter(Boolean)
+                .join(' | ');
+            showMessage('uploadMessage', t('message_upload_failed', { error: mergedError || 'unknown' }), 'error');
+            return;
         }
 
-        if (result.success) {
-            showMessage('uploadMessage', result.message, 'success');
-            loadPlayerData();
-        } else {
-            showMessage('uploadMessage', t('message_upload_failed', { error: result.error }), 'error');
+        const result = target === 'alliance'
+            ? await FirebaseService.uploadAlliancePlayerDatabase(file)
+            : await FirebaseService.uploadPlayerDatabase(file);
+
+        if (!result || !result.success) {
+            showMessage('uploadMessage', t('message_upload_failed', { error: result && result.error ? result.error : 'unknown' }), 'error');
+            return;
         }
+        showMessage('uploadMessage', result.message, 'success');
+        loadPlayerData();
     } catch (error) {
         showMessage('uploadMessage', t('message_upload_failed', { error: error.error || error.message }), 'error');
     }
@@ -2853,6 +2919,7 @@ function loadPlayerData() {
     const count = Object.keys(playerDB).length;
     const source = FirebaseService.getPlayerSource();
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
+    renderSelectionSourceControls();
 
     document.getElementById('playerCount').textContent = t('player_count_with_source', { count: count, source: sourceLabel });
     
@@ -2894,8 +2961,33 @@ function loadPlayerData() {
 function showSelectionInterface() {
     document.getElementById('selectionSection').classList.remove('hidden');
     showGeneratorPage();
+    renderSelectionSourceControls();
     renderPlayersTable();
     updateTeamCounters();
+}
+
+function renderSelectionSourceControls() {
+    const controls = document.getElementById('selectionSourceControls');
+    const personalBtn = document.getElementById('selectionSourcePersonalBtn');
+    const allianceBtn = document.getElementById('selectionSourceAllianceBtn');
+    if (!controls || !personalBtn || !allianceBtn || typeof FirebaseService === 'undefined') {
+        return;
+    }
+
+    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    if (!hasAlliance) {
+        controls.classList.add('hidden');
+        return;
+    }
+    controls.classList.remove('hidden');
+
+    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource() : 'personal';
+    const personalActive = source !== 'alliance';
+    const allianceActive = source === 'alliance';
+    personalBtn.classList.toggle('secondary', !personalActive);
+    allianceBtn.classList.toggle('secondary', !allianceActive);
+    personalBtn.disabled = personalActive;
+    allianceBtn.disabled = allianceActive;
 }
 
 function toggleBuildingsPanel() {
