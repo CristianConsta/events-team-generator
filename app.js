@@ -4497,11 +4497,14 @@ function showMessage(elementId, message, type) {
     if (!element) {
         return;
     }
-    element.innerHTML = `<div class="message ${type}">${message}</div>`;
+    const wrapper = document.createElement('div');
+    wrapper.className = `message ${type}`;
+    wrapper.textContent = String(message ?? '');
+    element.replaceChildren(wrapper);
     
     if (type === 'success') {
         setTimeout(() => {
-            element.innerHTML = '';
+            element.replaceChildren();
         }, 5000);
     }
 }
