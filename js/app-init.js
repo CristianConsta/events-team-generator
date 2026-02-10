@@ -35,10 +35,7 @@
                     updateUserHeaderIdentity(user);
                 }
                 applyTranslations();
-                loadPlayerData();
                 initOnboarding();
-                updateAllianceHeaderDisplay();
-                checkAndDisplayNotifications();
                 startNotificationPolling();
             } else {
                 document.getElementById('loginScreen').style.display = 'block';
