@@ -627,14 +627,21 @@ function openAlliancePanelFromMenu() {
 
 function showAlliancePage() {
     setPageView('alliance');
-    checkAndDisplayNotifications()
+    Promise.resolve()
+        .then(async () => {
+            if (typeof FirebaseService !== 'undefined' && FirebaseService.isSignedIn()) {
+                await FirebaseService.loadAllianceData();
+            }
+            await checkAndDisplayNotifications();
+        })
         .then(() => {
             if (currentPageView === 'alliance') {
                 renderAlliancePanel();
+                updateAllianceHeaderDisplay();
             }
         })
         .catch(() => {
-            // Ignore transient invitation refresh failures when opening alliance page.
+            // Ignore transient refresh failures when opening alliance page.
         });
 }
 
