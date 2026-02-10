@@ -1035,6 +1035,9 @@ function getEventDisplayName(eventId) {
     if (!event) {
         return eventId;
     }
+    if (typeof event.name === 'string' && event.name.trim()) {
+        return event.name.trim();
+    }
     if (event.titleKey) {
         const translated = t(event.titleKey);
         if (translated && translated !== event.titleKey) {
@@ -1068,7 +1071,6 @@ function renderEventSelector(containerId) {
 
 function renderAllEventSelectors() {
     renderEventSelector('selectionEventSelector');
-    renderEventSelector('coordEventSelector');
 }
 
 function normalizeStoredEventsData(rawData) {
@@ -3112,8 +3114,7 @@ function updateCoordLabel() {
     const pos = getBuildingPositions()[name];
     const eventNameEl = document.getElementById('coordEventName');
     if (eventNameEl) {
-        const activeEvent = getActiveEvent();
-        eventNameEl.textContent = t(activeEvent.titleKey);
+        eventNameEl.textContent = getEventDisplayName(currentEvent);
     }
     document.getElementById('coordBuildingLabel').textContent = displayName || '';
     document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
