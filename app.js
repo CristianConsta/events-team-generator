@@ -1431,14 +1431,38 @@ function isEventMapAvailable(eventId) {
 
 function updateEventCoordinatesButton() {
     const button = document.getElementById('eventCoordinatesBtn');
+    const row = document.getElementById('eventCoordinatesRow');
     if (!button) {
         return;
     }
     const hasDraftMap = Boolean(eventDraftMapDataUrl);
     const hasSavedMap = isEventMapAvailable(eventEditorCurrentId);
     const showButton = hasDraftMap || hasSavedMap;
+    if (row) {
+        row.classList.toggle('hidden', !showButton);
+    }
     button.classList.toggle('hidden', !showButton);
     button.disabled = !showButton;
+}
+
+function updateEventMapActionButtons(readOnly) {
+    const uploadBtn = document.getElementById('eventMapUploadBtn');
+    const removeBtn = document.getElementById('eventMapRemoveBtn');
+    const hasDraftMap = Boolean(eventDraftMapDataUrl);
+    const hasSavedMap = isEventMapAvailable(eventEditorCurrentId);
+    const hasMap = hasDraftMap || hasSavedMap;
+    const canEditMap = !readOnly;
+
+    if (uploadBtn) {
+        const showUpload = canEditMap && !hasMap;
+        uploadBtn.classList.toggle('hidden', !showUpload);
+        uploadBtn.disabled = !showUpload;
+    }
+    if (removeBtn) {
+        const showRemove = canEditMap && hasMap;
+        removeBtn.classList.toggle('hidden', !showRemove);
+        removeBtn.disabled = !showRemove;
+    }
 }
 
 function updateEventEditorState() {
@@ -1450,7 +1474,7 @@ function updateEventEditorState() {
         eventNameInput.disabled = readOnly;
     }
 
-    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventMapUploadBtn', 'eventMapRemoveBtn', 'eventAddBuildingBtn', 'eventSaveBtn'].forEach((id) => {
+    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
             element.disabled = readOnly;
@@ -1483,6 +1507,31 @@ function updateEventEditorState() {
         editBtn.setAttribute('aria-label', t('events_manager_edit_action'));
     }
 
+    const logoUploadBtn = document.getElementById('eventLogoUploadBtn');
+    const logoRandomBtn = document.getElementById('eventLogoRandomBtn');
+    if (logoUploadBtn) {
+        logoUploadBtn.title = t('events_manager_logo_upload');
+        logoUploadBtn.setAttribute('aria-label', t('events_manager_logo_upload'));
+        logoUploadBtn.classList.toggle('hidden', readOnly);
+    }
+    if (logoRandomBtn) {
+        logoRandomBtn.title = t('events_manager_logo_randomize');
+        logoRandomBtn.setAttribute('aria-label', t('events_manager_logo_randomize'));
+        logoRandomBtn.classList.toggle('hidden', readOnly);
+    }
+
+    const mapUploadBtn = document.getElementById('eventMapUploadBtn');
+    const mapRemoveBtn = document.getElementById('eventMapRemoveBtn');
+    if (mapUploadBtn) {
+        mapUploadBtn.title = t('events_manager_map_upload');
+        mapUploadBtn.setAttribute('aria-label', t('events_manager_map_upload'));
+    }
+    if (mapRemoveBtn) {
+        mapRemoveBtn.title = t('events_manager_map_remove');
+        mapRemoveBtn.setAttribute('aria-label', t('events_manager_map_remove'));
+    }
+
+    updateEventMapActionButtons(readOnly);
     updateEventCoordinatesButton();
     updateEventEditorTitle();
 }
@@ -1747,7 +1796,7 @@ function removeEventMap() {
         input.value = '';
     }
     updateEventMapPreview();
-    updateEventCoordinatesButton();
+    updateEventEditorState();
 }
 
 async function createEventImageDataUrl(file, options) {
@@ -1840,7 +1889,7 @@ async function handleEventMapChange(event) {
             tooLargeMessage: t('events_manager_map_too_large'),
         });
         updateEventMapPreview();
-        updateEventCoordinatesButton();
+        updateEventEditorState();
         showMessage('eventsStatus', t('events_manager_map_saved'), 'success');
     } catch (error) {
         showMessage('eventsStatus', error.message || t('events_manager_image_process_failed'), 'error');
