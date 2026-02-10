@@ -548,6 +548,22 @@ const FirebaseManager = (function() {
         return globalDefaultPositionsVersion;
     }
 
+    function isPermissionDeniedError(error) {
+        if (!error) return false;
+        const code = typeof error.code === 'string' ? error.code.toLowerCase() : '';
+        const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+        return code.includes('permission-denied') || message.includes('missing or insufficient permissions');
+    }
+
+    function logOptionalSharedDefaultsIssue(message, error) {
+        const details = (error && (error.message || error.code)) ? (error.message || error.code) : String(error || 'unknown');
+        if (isPermissionDeniedError(error)) {
+            console.info(`${message} (optional feature disabled by Firestore rules):`, details);
+            return;
+        }
+        console.warn(message, details);
+    }
+
     async function tryLoadGlobalDefaultsDoc() {
         try {
             const defaultsDoc = await db.collection(GLOBAL_COORDS_COLLECTION).doc(GLOBAL_COORDS_DOC_ID).get();
@@ -563,12 +579,20 @@ const FirebaseManager = (function() {
             setGlobalDefaultPositions(events, Number.isFinite(version) && version > 0 ? version : 0);
             return true;
         } catch (error) {
-            console.warn('Unable to load shared coordinate defaults:', error.message || error);
+            logOptionalSharedDefaultsIssue('Unable to load shared coordinate defaults:', error);
             return false;
         }
     }
 
     async function tryLoadGlobalDefaultsFromOwnerUser() {
+        if (currentUser && currentUser.email && currentUser.email.toLowerCase() === GLOBAL_COORD_OWNER_EMAIL) {
+            const localOwnerEvents = extractPositionsFromUserData({ events: eventData });
+            if (hasAnyPositions(localOwnerEvents)) {
+                const localVersion = Math.max(extractVersionFromUserData({ events: eventData }), 1);
+                setGlobalDefaultPositions(localOwnerEvents, localVersion);
+                return true;
+            }
+        }
         try {
             let query = await db.collection('users')
                 .where('metadata.emailLower', '==', GLOBAL_COORD_OWNER_EMAIL)
@@ -593,7 +617,7 @@ const FirebaseManager = (function() {
             setGlobalDefaultPositions(events, version);
             return true;
         } catch (error) {
-            console.warn('Unable to load owner coordinate defaults:', error.message || error);
+            logOptionalSharedDefaultsIssue('Unable to load owner coordinate defaults:', error);
             return false;
         }
     }
@@ -632,7 +656,7 @@ const FirebaseManager = (function() {
             setGlobalDefaultPositions(events, version);
             return true;
         } catch (error) {
-            console.warn('Unable to publish shared coordinate defaults:', error.message || error);
+            logOptionalSharedDefaultsIssue('Unable to publish shared coordinate defaults:', error);
             return false;
         }
     }
@@ -658,7 +682,7 @@ const FirebaseManager = (function() {
             setGlobalDefaultBuildingConfig(events, Number.isFinite(version) && version > 0 ? version : 0);
             return true;
         } catch (error) {
-            console.warn('Unable to load shared building config defaults:', error.message || error);
+            logOptionalSharedDefaultsIssue('Unable to load shared building config defaults:', error);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
             return false;
         }
@@ -683,7 +707,7 @@ const FirebaseManager = (function() {
             setGlobalDefaultBuildingConfig(events, version);
             return true;
         } catch (error) {
-            console.warn('Unable to publish shared building config defaults:', error.message || error);
+            logOptionalSharedDefaultsIssue('Unable to publish shared building config defaults:', error);
             return false;
         }
     }
