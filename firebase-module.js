@@ -105,6 +105,7 @@ const FirebaseManager = (function() {
     let playerSource = 'personal';
     let pendingInvitations = [];
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
+    let inviteUserLookupPermissionLogged = false;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
     let eventMediaSubcollectionEnabled = true;
@@ -1946,6 +1947,13 @@ const FirebaseManager = (function() {
                 data: query.docs[0].data() || {}
             };
         } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                if (!inviteUserLookupPermissionLogged) {
+                    console.info('Invited-user lookup by email is disabled by Firestore rules. Falling back to email-only invitations.');
+                    inviteUserLookupPermissionLogged = true;
+                }
+                return null;
+            }
             console.warn('Unable to resolve invited user by email; using email-only invitation lookup:', error.message || error);
             return null;
         }
@@ -2056,7 +2064,16 @@ const FirebaseManager = (function() {
                 byEmailSnapshot.docs.forEach((doc) => invitationMap.set(doc.id, { id: doc.id, ...doc.data() }));
             }
 
-            pendingInvitations = Array.from(invitationMap.values());
+            pendingInvitations = Array.from(invitationMap.values()).filter((invitation) => {
+                if (!invitation || typeof invitation !== 'object') {
+                    return false;
+                }
+                if (!allianceId) {
+                    return true;
+                }
+                const invitationAllianceId = typeof invitation.allianceId === 'string' ? invitation.allianceId : '';
+                return !invitationAllianceId || invitationAllianceId !== allianceId;
+            });
 
             return pendingInvitations;
         } catch (error) {
@@ -2070,7 +2087,8 @@ const FirebaseManager = (function() {
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
-            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invDoc = await invitationRef.get();
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
 
             const inv = invDoc.data();
@@ -2087,31 +2105,72 @@ const FirebaseManager = (function() {
                 };
             }
 
+            const allianceRef = db.collection('alliances').doc(inv.allianceId);
+            const userRef = db.collection('users').doc(currentUser.uid);
             const memberPath = `members.${currentUser.uid}`;
-            await db.collection('alliances').doc(inv.allianceId).update({
-                [memberPath]: {
-                    email: currentUser.email,
-                    joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    role: 'member'
+            await db.runTransaction(async (transaction) => {
+                const allianceDoc = await transaction.get(allianceRef);
+                if (!allianceDoc.exists) {
+                    throw new Error('Alliance not found');
                 }
+
+                const alliancePayload = allianceDoc.data() || {};
+                const members = alliancePayload.members && typeof alliancePayload.members === 'object'
+                    ? alliancePayload.members
+                    : {};
+                const existingMember = members[currentUser.uid];
+                if (!existingMember) {
+                    transaction.update(allianceRef, {
+                        [memberPath]: {
+                            email: currentUser.email,
+                            joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            role: 'member'
+                        }
+                    });
+                }
+
+                transaction.set(userRef, {
+                    allianceId: inv.allianceId,
+                    allianceName: inv.allianceName || '',
+                    playerSource: 'personal'
+                }, { merge: true });
             });
 
-            await db.collection('invitations').doc(invitationId).update({
-                status: 'accepted',
-                respondedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            try {
+                await invitationRef.update({
+                    status: 'accepted',
+                    respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    invitedUserId: inv.invitedUserId || currentUser.uid
+                });
+            } catch (invitationUpdateError) {
+                if (!isPermissionDeniedError(invitationUpdateError)) {
+                    throw invitationUpdateError;
+                }
+                console.info('Invitation accepted, but invitation status update is blocked by Firestore rules.');
+            }
 
             allianceId = inv.allianceId;
             allianceName = inv.allianceName;
-            await db.collection('users').doc(currentUser.uid).set({
-                allianceId: inv.allianceId,
-                allianceName: inv.allianceName
-            }, { merge: true });
-
-            pendingInvitations = pendingInvitations.filter((item) => item.id !== invitationId);
+            playerSource = 'personal';
+            pendingInvitations = pendingInvitations.filter((item) => {
+                if (!item || typeof item !== 'object') {
+                    return false;
+                }
+                if (item.id === invitationId) {
+                    return false;
+                }
+                const itemAllianceId = typeof item.allianceId === 'string' ? item.allianceId : '';
+                return !itemAllianceId || itemAllianceId !== inv.allianceId;
+            });
             await loadAllianceData();
             return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
         } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                return {
+                    success: false,
+                    error: 'Permission denied while accepting invitation. Verify Firestore rules for alliance membership and invitation updates.'
+                };
+            }
             return { success: false, error: error.message };
         }
     }
