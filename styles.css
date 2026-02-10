@@ -225,44 +225,73 @@ select {
 .onboarding-tooltip {
     position: fixed;
     z-index: 3000;
-    max-width: 280px;
-    background: linear-gradient(180deg, rgba(17, 24, 42, 0.97) 0%, rgba(10, 15, 28, 0.97) 100%);
-    border: 1px solid rgba(var(--gold-rgb), 0.5);
-    border-radius: 14px;
-    padding: 18px 20px 14px;
-    box-shadow: 0 14px 28px rgba(2, 7, 18, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.09);
-    backdrop-filter: blur(8px);
+    max-width: 320px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.01) 100%),
+        var(--panel-bg-strong);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 16px;
+    padding: 20px 22px 14px;
+    box-shadow: var(--shadow-elev), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
     pointer-events: auto;
+}
+.onboarding-tooltip::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(var(--gold-rgb), 0), rgba(var(--gold-rgb), 0.85), rgba(var(--gold-rgb), 0));
 }
 .onboarding-tooltip .onboarding-step-label {
     color: var(--gold);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 5px;
+    letter-spacing: 0.45px;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(var(--gold-rgb), 0.16);
+    border: 1px solid rgba(var(--gold-rgb), 0.34);
+    width: fit-content;
 }
 .onboarding-tooltip .onboarding-title {
     color: var(--gold);
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 .onboarding-tooltip .onboarding-desc {
     color: var(--text-muted);
     font-size: 13px;
-    line-height: 1.45;
-    margin-bottom: 10px;
+    line-height: 1.5;
+    margin-bottom: 12px;
 }
 .onboarding-tooltip .onboarding-skip {
-    display: block;
-    text-align: right;
-    color: rgba(255, 255, 255, 0.4);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    color: rgba(255, 255, 255, 0.78);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
     font-size: 12px;
+    padding: 6px 10px;
     cursor: pointer;
     user-select: none;
 }
-.onboarding-tooltip .onboarding-skip:hover { color: rgba(255, 255, 255, 0.7); }
+.onboarding-tooltip .onboarding-skip:hover {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.13);
+}
 /* Arrow pointing down (tooltip is above target) */
 .onboarding-tooltip[data-arrow="bottom"]::after {
     content: '';
@@ -1559,7 +1588,7 @@ select {
     .settings-avatar-preview  { width: 62px !important; height: 62px !important; font-size: 18px !important; }
 
     /* ── Onboarding tooltip ── */
-    .onboarding-tooltip { max-width: 240px; padding: 14px 16px 10px; font-size: 12px; }
+    .onboarding-tooltip { max-width: 250px; padding: 14px 16px 10px; font-size: 12px; }
     .onboarding-tooltip .onboarding-title { font-size: 14px; }
     .onboarding-tooltip .onboarding-desc { font-size: 12px; }
 

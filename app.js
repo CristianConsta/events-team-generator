@@ -86,12 +86,16 @@ function initLanguage() {
 // ============================================================
 const ONBOARDING_STEPS = [
     { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#navMenuBtn',           position: 'bottom' },
-    { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
+    { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#navPlayersBtn',        position: 'bottom' },
     { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
     { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#eventsPanel',          position: 'top'    },
-    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step7_title', descKey: 'onboarding_step7_desc', targetSelector: '#generatorPage',        position: 'top'    }
+    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
+    { titleKey: 'onboarding_step7_title', descKey: 'onboarding_step7_desc', targetSelector: '#eventsList',           position: 'top'    },
+    { titleKey: 'onboarding_step8_title', descKey: 'onboarding_step8_desc', targetSelector: '#mapCoordinatesBtn',    position: 'top'    },
+    { titleKey: 'onboarding_step9_title', descKey: 'onboarding_step9_desc', targetSelector: '#navAllianceBtn',       position: 'bottom' },
+    { titleKey: 'onboarding_step10_title', descKey: 'onboarding_step10_desc', targetSelector: '#alliancePanel',      position: 'top'    },
+    { titleKey: 'onboarding_step11_title', descKey: 'onboarding_step11_desc', targetSelector: '#navGeneratorBtn',    position: 'bottom' }
 ];
 
 let onboardingActive      = false;
@@ -114,7 +118,12 @@ function showOnboardingStep(index) {
         return;
     }
     const step   = ONBOARDING_STEPS[index];
-    if (step.targetSelector === '#navConfigBtn' || step.targetSelector === '#navGeneratorBtn') {
+    if (
+        step.targetSelector === '#navPlayersBtn' ||
+        step.targetSelector === '#navConfigBtn' ||
+        step.targetSelector === '#navGeneratorBtn' ||
+        step.targetSelector === '#navAllianceBtn'
+    ) {
         openNavigationMenu();
     }
     const target = document.querySelector(step.targetSelector);
@@ -321,33 +330,16 @@ function bindStaticUiActions() {
 document.addEventListener('DOMContentLoaded', () => {
     bindStaticUiActions();
 
-    // Step 1 - Open menu button
-    document.getElementById('navMenuBtn').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 0) dismissOnboardingStep();
-    });
-    // Step 2 - Configuration menu item
-    document.getElementById('navConfigBtn').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 1) dismissOnboardingStep();
-    });
-    // Step 3 - Download Template button
-    document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 2) dismissOnboardingStep();
-    });
-    // Step 4 - Upload Player Data button
-    document.getElementById('uploadPlayerBtn').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 3) dismissOnboardingStep();
-    });
-    // Step 5 - Generator menu item
-    document.getElementById('eventsPanel').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 4) dismissOnboardingStep();
-    });
-    // Step 6 - Generator menu item
-    document.getElementById('navGeneratorBtn').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 5) dismissOnboardingStep();
-    });
-    // Step 7 - Generator page
-    document.getElementById('generatorPage').addEventListener('click', () => {
-        if (onboardingActive && currentOnboardingStep === 6) dismissOnboardingStep();
+    // Advance onboarding when the user interacts with the active target.
+    document.addEventListener('click', (event) => {
+        if (!onboardingActive) return;
+        const step = ONBOARDING_STEPS[currentOnboardingStep];
+        if (!step) return;
+        const target = document.querySelector(step.targetSelector);
+        if (!target) return;
+        if (target.contains(event.target)) {
+            dismissOnboardingStep();
+        }
     });
     // Skip link
     document.getElementById('onboardingSkip').addEventListener('click', completeOnboarding);
