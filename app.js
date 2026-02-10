@@ -1218,7 +1218,7 @@ function buildRegistryFromStorage() {
         const base = nextRegistry[eventId] || {};
         const baseBuildings = Array.isArray(base.buildings) ? base.buildings : [];
         const storedBuildings = Array.isArray(stored.buildingConfig)
-            ? normalizeBuildingConfig(stored.buildingConfig, baseBuildings)
+            ? normalizeBuildingConfig(stored.buildingConfig, stored.buildingConfig)
             : null;
         const buildings = Array.isArray(storedBuildings) && storedBuildings.length > 0
             ? storedBuildings
@@ -3209,7 +3209,7 @@ function loadBuildingConfig() {
     const shouldResetToDefaults = !Array.isArray(stored) || stored.length === 0;
     const normalized = shouldResetToDefaults
         ? normalizeBuildingConfig(defaultConfig, defaultConfig)
-        : normalizeBuildingConfig(stored, defaultConfig);
+        : normalizeBuildingConfig(stored, stored);
     setBuildingConfig(normalized);
     const totalSlots = getBuildingSlotsTotal(normalized);
     const slotsOverLimit = totalSlots > MAX_BUILDING_SLOTS_TOTAL;
@@ -3405,6 +3405,40 @@ function syncBuildingConfigFromTable() {
 let coordBuildingIndex = 0;
 let coordBuildings = [];
 
+function getCoordinatePickerBuildingNames() {
+    const event = getActiveEvent();
+    if (!event) {
+        return [];
+    }
+
+    const sourceBuildings = Array.isArray(event.buildings) ? event.buildings : [];
+    const names = [];
+    const seen = new Set();
+
+    sourceBuildings.forEach((building) => {
+        if (!building || typeof building.name !== 'string') {
+            return;
+        }
+        const name = building.name.trim();
+        if (!name || seen.has(name)) {
+            return;
+        }
+        if (building.showOnMap === false) {
+            return;
+        }
+        seen.add(name);
+        names.push(name);
+    });
+
+    if (names.length > 0) {
+        return names;
+    }
+
+    return getBuildingConfig()
+        .filter((building) => building && building.showOnMap !== false && typeof building.name === 'string' && building.name.trim())
+        .map((building) => building.name.trim());
+}
+
 function refreshCoordinatesPickerForCurrentEvent() {
     if (!getActiveEvent()) {
         showMessage('coordStatus', t('events_manager_no_events'), 'error');
@@ -3412,9 +3446,7 @@ function refreshCoordinatesPickerForCurrentEvent() {
     }
     loadBuildingConfig();
     loadBuildingPositions();
-    coordBuildings = getBuildingConfig()
-        .filter((b) => b.showOnMap !== false)
-        .map((b) => b.name);
+    coordBuildings = getCoordinatePickerBuildingNames();
 
     if (coordBuildings.length === 0) {
         showMessage('coordStatus', t('coord_no_mapped_buildings'), 'error');
@@ -3451,7 +3483,7 @@ function closeCoordinatesPicker() {
 
 function updateCoordLabel() {
     const name = coordBuildings[coordBuildingIndex];
-    const displayName = getBuildingDisplayName(name);
+    const displayName = name || '';
     const pos = getBuildingPositions()[name];
     const eventNameEl = document.getElementById('coordEventName');
     if (eventNameEl) {
