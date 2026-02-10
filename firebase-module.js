@@ -1927,6 +1927,33 @@ const FirebaseManager = (function() {
         }
     }
 
+    function buildCurrentAllianceMemberPayload() {
+        return {
+            email: currentUser && currentUser.email ? currentUser.email : '',
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            role: 'member'
+        };
+    }
+
+    async function trySyncCurrentUserAllianceMembership(targetAllianceId) {
+        if (!currentUser || !targetAllianceId) {
+            return { success: false, permissionDenied: false };
+        }
+
+        const memberPath = `members.${currentUser.uid}`;
+        try {
+            await db.collection('alliances').doc(targetAllianceId).update({
+                [memberPath]: buildCurrentAllianceMemberPayload()
+            });
+            return { success: true, permissionDenied: false };
+        } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                return { success: false, permissionDenied: true };
+            }
+            throw error;
+        }
+    }
+
     async function loadAllianceData() {
         if (!currentUser || !allianceId) {
             allianceData = null;
@@ -1937,6 +1964,31 @@ const FirebaseManager = (function() {
             if (doc.exists) {
                 allianceData = doc.data();
                 if (!allianceData.members || !allianceData.members[currentUser.uid]) {
+                    const syncResult = await trySyncCurrentUserAllianceMembership(allianceId);
+                    if (syncResult.success) {
+                        const refreshedDoc = await db.collection('alliances').doc(allianceId).get();
+                        if (refreshedDoc.exists) {
+                            allianceData = refreshedDoc.data();
+                        }
+                        return;
+                    }
+                    if (syncResult.permissionDenied) {
+                        if (!allianceName) {
+                            allianceName = (allianceData && typeof allianceData.name === 'string')
+                                ? allianceData.name
+                                : allianceId;
+                        }
+                        if (!allianceData.members || typeof allianceData.members !== 'object') {
+                            allianceData.members = {};
+                        }
+                        if (!allianceData.members[currentUser.uid]) {
+                            allianceData.members[currentUser.uid] = {
+                                email: currentUser.email || '',
+                                role: 'member'
+                            };
+                        }
+                        return;
+                    }
                     allianceId = null;
                     allianceName = null;
                     allianceData = null;
@@ -2195,52 +2247,48 @@ const FirebaseManager = (function() {
             }
 
             const allianceRef = db.collection('alliances').doc(inv.allianceId);
-            const userRef = db.collection('users').doc(currentUser.uid);
-            const memberPath = `members.${currentUser.uid}`;
-            await db.runTransaction(async (transaction) => {
-                const allianceDoc = await transaction.get(allianceRef);
-                if (!allianceDoc.exists) {
-                    throw new Error('Alliance not found');
-                }
-
-                const alliancePayload = allianceDoc.data() || {};
-                const members = alliancePayload.members && typeof alliancePayload.members === 'object'
-                    ? alliancePayload.members
-                    : {};
-                const existingMember = members[currentUser.uid];
-                if (!existingMember) {
-                    transaction.update(allianceRef, {
-                        [memberPath]: {
-                            email: currentUser.email,
-                            joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            role: 'member'
-                        }
-                    });
-                }
-
-                transaction.set(userRef, {
-                    allianceId: inv.allianceId,
-                    allianceName: inv.allianceName || '',
-                    playerSource: 'personal'
-                }, { merge: true });
-            });
-
-            try {
-                await invitationRef.update({
-                    status: 'accepted',
-                    respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    invitedUserId: inv.invitedUserId || currentUser.uid
-                });
-            } catch (invitationUpdateError) {
-                if (!isPermissionDeniedError(invitationUpdateError)) {
-                    throw invitationUpdateError;
-                }
-                console.info('Invitation accepted, but invitation status update is blocked by Firestore rules.');
+            const allianceSnap = await allianceRef.get();
+            if (!allianceSnap.exists) {
+                return { success: false, error: 'Alliance not found' };
             }
+            const userRef = db.collection('users').doc(currentUser.uid);
+            let membershipSyncPermissionDenied = false;
+            try {
+                const membershipSync = await trySyncCurrentUserAllianceMembership(inv.allianceId);
+                membershipSyncPermissionDenied = !!membershipSync.permissionDenied;
+            } catch (membershipSyncError) {
+                return { success: false, error: membershipSyncError.message || String(membershipSyncError) };
+            }
+
+            const acceptBatch = db.batch();
+            acceptBatch.set(invitationRef, {
+                status: 'accepted',
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                invitedUserId: inv.invitedUserId || currentUser.uid
+            }, { merge: true });
+            acceptBatch.set(userRef, {
+                allianceId: inv.allianceId,
+                allianceName: inv.allianceName || '',
+                playerSource: 'personal'
+            }, { merge: true });
+            await acceptBatch.commit();
 
             allianceId = inv.allianceId;
             allianceName = inv.allianceName;
             playerSource = 'personal';
+            if (membershipSyncPermissionDenied) {
+                const localAllianceData = allianceSnap.data() || {};
+                if (!localAllianceData.members || typeof localAllianceData.members !== 'object') {
+                    localAllianceData.members = {};
+                }
+                if (!localAllianceData.members[currentUser.uid]) {
+                    localAllianceData.members[currentUser.uid] = {
+                        email: currentUser.email || '',
+                        role: 'member'
+                    };
+                }
+                allianceData = localAllianceData;
+            }
             pendingInvitations = pendingInvitations.filter((item) => {
                 if (!item || typeof item !== 'object') {
                     return false;
