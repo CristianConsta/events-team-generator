@@ -1237,6 +1237,12 @@ function getEventMapFile(eventId, purpose) {
     ensureEventRuntimeState(eventId);
     const evt = window.DSCoreEvents.getEvent(eventId);
     if (!evt) return null;
+
+    // Uploaded map at event level is authoritative for both picker and export flows.
+    if (evt.mapDataUrl) {
+        return evt.mapDataUrl;
+    }
+
     if (purpose === MAP_EXPORT) {
         return evt.exportMapFile || evt.mapFile || evt.previewMapFile || null;
     }
@@ -1246,6 +1252,11 @@ function getEventMapFile(eventId, purpose) {
 function getEventMapFallbackFile(eventId, purpose) {
     const evt = window.DSCoreEvents.getEvent(eventId);
     if (!evt) return null;
+
+    if (evt.mapDataUrl) {
+        return null;
+    }
+
     if (purpose === MAP_EXPORT) {
         if (evt.mapFile && evt.mapFile !== evt.exportMapFile) {
             return evt.mapFile;
