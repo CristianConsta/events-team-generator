@@ -1636,6 +1636,11 @@ const FirebaseManager = (function() {
 
             const inv = invDoc.data();
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
+            const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
+            if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
+                return { success: false, error: 'Invitation does not belong to this user' };
+            }
 
             if (allianceId) {
                 await leaveAlliance();
@@ -1673,6 +1678,16 @@ const FirebaseManager = (function() {
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
+            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
+            const inv = invDoc.data() || {};
+            if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
+            const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
+            if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
+                return { success: false, error: 'Invitation does not belong to this user' };
+            }
+
             await db.collection('invitations').doc(invitationId).update({
                 status: 'rejected',
                 respondedAt: firebase.firestore.FieldValue.serverTimestamp()
