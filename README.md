@@ -83,6 +83,7 @@ js/core/assignment.js          Team assignment logic
 js/core/i18n.js                Translation engine
 vendor/                        Vendored Firebase + SheetJS libraries
 scripts/migrate_users_email_to_uid.js One-time Firestore migration utility
+scripts/migrate_legacy_building_fields_to_events.js One-time model migration utility
 tests/                         Node test suite
 ```
 
@@ -177,6 +178,29 @@ node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACC
 
 ```bash
 node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply --delete-old
+```
+
+## Migration Script (Legacy Building Fields -> Event Model)
+
+Removes deprecated top-level fields from `users/*`:
+
+- `buildingConfig`
+- `buildingConfigVersion`
+- `buildingPositions`
+- `buildingPositionsVersion`
+
+And migrates values to `events.{eventId}` (default event: `desert_storm`) before deleting old fields.
+
+1. Dry run:
+
+```bash
+node scripts/migrate_legacy_building_fields_to_events.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID
+```
+
+2. Apply:
+
+```bash
+node scripts/migrate_legacy_building_fields_to_events.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply
 ```
 
 ## Tests

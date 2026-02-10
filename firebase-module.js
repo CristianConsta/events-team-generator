@@ -107,6 +107,8 @@ const FirebaseManager = (function() {
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let onAuthCallback = null;
     let onDataLoadCallback = null;
+    let eventMediaSubcollectionEnabled = true;
+    let eventMediaPermissionWarningShown = false;
     const SAVE_DEBOUNCE_MS = 250;
     let lastSavedUserState = null;
     let saveDebounceTimer = null;
@@ -367,15 +369,6 @@ const FirebaseManager = (function() {
                     eventVersion = configVersion;
                 }
             });
-        } else {
-            const legacyPositionsVersion = Number(data.buildingPositionsVersion);
-            if (Number.isFinite(legacyPositionsVersion) && legacyPositionsVersion > 0) {
-                eventVersion = legacyPositionsVersion;
-            }
-            const legacyConfigVersion = Number(data.buildingConfigVersion);
-            if (Number.isFinite(legacyConfigVersion) && legacyConfigVersion > eventVersion) {
-                eventVersion = legacyConfigVersion;
-            }
         }
         return Math.max(metaVersion, eventVersion);
     }
@@ -394,10 +387,6 @@ const FirebaseManager = (function() {
                 }
                 events[eid] = normalizePositionsMap(entry.buildingPositions);
             });
-            return events;
-        }
-        if (data && data.buildingPositions && typeof data.buildingPositions === 'object') {
-            events.desert_storm = normalizePositionsMap(data.buildingPositions);
         }
         return events;
     }
@@ -572,6 +561,10 @@ const FirebaseManager = (function() {
             });
             return media;
         } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                disableEventMediaSubcollection(error, 'load event media docs');
+                return {};
+            }
             console.warn('⚠️ Failed to load event media docs:', error.message || error);
             return {};
         }
@@ -587,36 +580,45 @@ const FirebaseManager = (function() {
         if (ids.size === 0) {
             return;
         }
-        const batch = db.batch();
-        let changes = 0;
-        ids.forEach((rawId) => {
-            const eventId = normalizeEventId(rawId);
-            if (!eventId) {
-                return;
+        try {
+            const batch = db.batch();
+            let changes = 0;
+            ids.forEach((rawId) => {
+                const eventId = normalizeEventId(rawId);
+                if (!eventId) {
+                    return;
+                }
+                const prevEntry = previous[eventId] || { logoDataUrl: '', mapDataUrl: '' };
+                const nextEntry = next[eventId] || { logoDataUrl: '', mapDataUrl: '' };
+                const prevLogo = sanitizeEventImageDataUrl(prevEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+                const prevMap = sanitizeEventImageDataUrl(prevEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+                const nextLogo = sanitizeEventImageDataUrl(nextEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+                const nextMap = sanitizeEventImageDataUrl(nextEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+                if (prevLogo === nextLogo && prevMap === nextMap) {
+                    return;
+                }
+                const ref = db.collection('users').doc(uid).collection(EVENT_MEDIA_SUBCOLLECTION).doc(eventId);
+                if (!nextLogo && !nextMap) {
+                    batch.delete(ref);
+                } else {
+                    batch.set(ref, {
+                        logoDataUrl: nextLogo,
+                        mapDataUrl: nextMap,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                }
+                changes += 1;
+            });
+            if (changes > 0) {
+                await batch.commit();
             }
-            const prevEntry = previous[eventId] || { logoDataUrl: '', mapDataUrl: '' };
-            const nextEntry = next[eventId] || { logoDataUrl: '', mapDataUrl: '' };
-            const prevLogo = sanitizeEventImageDataUrl(prevEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
-            const prevMap = sanitizeEventImageDataUrl(prevEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
-            const nextLogo = sanitizeEventImageDataUrl(nextEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
-            const nextMap = sanitizeEventImageDataUrl(nextEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
-            if (prevLogo === nextLogo && prevMap === nextMap) {
-                return;
+            return true;
+        } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                disableEventMediaSubcollection(error, 'save event media docs');
+                return false;
             }
-            const ref = db.collection('users').doc(uid).collection(EVENT_MEDIA_SUBCOLLECTION).doc(eventId);
-            if (!nextLogo && !nextMap) {
-                batch.delete(ref);
-            } else {
-                batch.set(ref, {
-                    logoDataUrl: nextLogo,
-                    mapDataUrl: nextMap,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                }, { merge: true });
-            }
-            changes += 1;
-        });
-        if (changes > 0) {
-            await batch.commit();
+            throw error;
         }
     }
 
@@ -654,12 +656,46 @@ const FirebaseManager = (function() {
                 }
                 result[eid] = normalizeBuildingConfigArray(entry.buildingConfig);
             });
-            return result;
-        }
-        if (data && Array.isArray(data.buildingConfig)) {
-            result.desert_storm = normalizeBuildingConfigArray(data.buildingConfig);
         }
         return result;
+    }
+
+    function hasLegacyTopLevelBuildingFields(data) {
+        if (!data || typeof data !== 'object') {
+            return false;
+        }
+        return (
+            Object.prototype.hasOwnProperty.call(data, 'buildingConfig')
+            || Object.prototype.hasOwnProperty.call(data, 'buildingConfigVersion')
+            || Object.prototype.hasOwnProperty.call(data, 'buildingPositions')
+            || Object.prototype.hasOwnProperty.call(data, 'buildingPositionsVersion')
+        );
+    }
+
+    function mergeLegacyTopLevelBuildingFieldsIntoEvents(data, currentEvents) {
+        if (!data || typeof data !== 'object') {
+            return currentEvents;
+        }
+        const nextEvents = currentEvents && typeof currentEvents === 'object'
+            ? currentEvents
+            : ensureLegacyEventEntries(createEmptyEventData());
+
+        const hasLegacyConfig = Array.isArray(data.buildingConfig) || typeof data.buildingConfigVersion === 'number';
+        const hasLegacyPositions = data.buildingPositions && typeof data.buildingPositions === 'object'
+            || typeof data.buildingPositionsVersion === 'number';
+        if (!hasLegacyConfig && !hasLegacyPositions) {
+            return nextEvents;
+        }
+
+        const desertEvent = sanitizeEventEntry('desert_storm', {
+            name: getDefaultEventName('desert_storm'),
+            buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : (nextEvents.desert_storm && nextEvents.desert_storm.buildingConfig),
+            buildingConfigVersion: typeof data.buildingConfigVersion === 'number' ? data.buildingConfigVersion : (nextEvents.desert_storm && nextEvents.desert_storm.buildingConfigVersion),
+            buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : (nextEvents.desert_storm && nextEvents.desert_storm.buildingPositions),
+            buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : (nextEvents.desert_storm && nextEvents.desert_storm.buildingPositionsVersion),
+        }, nextEvents.desert_storm);
+        nextEvents.desert_storm = desertEvent;
+        return nextEvents;
     }
 
     function setGlobalDefaultBuildingConfig(payload, version) {
@@ -700,6 +736,27 @@ const FirebaseManager = (function() {
             return;
         }
         console.warn(message, details);
+    }
+
+    function isEventMediaSubcollectionEnabled() {
+        return eventMediaSubcollectionEnabled;
+    }
+
+    function disableEventMediaSubcollection(error, context) {
+        eventMediaSubcollectionEnabled = false;
+        if (eventMediaPermissionWarningShown) {
+            return;
+        }
+        const details = (error && (error.message || error.code)) ? (error.message || error.code) : String(error || 'unknown');
+        console.info(`Event media subcollection disabled (${context}); falling back to inline events media:`, details);
+        eventMediaPermissionWarningShown = true;
+    }
+
+    function buildEventsPayloadForUserDoc() {
+        if (isEventMediaSubcollectionEnabled()) {
+            return buildEventsWithoutMedia(eventData);
+        }
+        return normalizeEventsMap(eventData);
     }
 
     async function tryLoadGlobalDefaultsDoc() {
@@ -870,10 +927,11 @@ const FirebaseManager = (function() {
     }
 
     function getCurrentPersistedUserState() {
+        const useSubcollection = isEventMediaSubcollectionEnabled();
         return {
             playerDatabase: playerDatabase || {},
-            events: buildEventsWithoutMedia(eventData),
-            eventMedia: getEventMediaMap(eventData),
+            events: useSubcollection ? buildEventsWithoutMedia(eventData) : normalizeEventsMap(eventData),
+            eventMedia: useSubcollection ? getEventMediaMap(eventData) : {},
             userProfile: normalizeUserProfile(userProfile),
         };
     }
@@ -897,6 +955,8 @@ const FirebaseManager = (function() {
 
     function resetSaveState() {
         lastSavedUserState = null;
+        eventMediaSubcollectionEnabled = true;
+        eventMediaPermissionWarningShown = false;
         clearSaveQueue();
     }
     
@@ -1272,89 +1332,100 @@ const FirebaseManager = (function() {
             if (doc.exists) {
                 const data = doc.data();
                 let shouldPersistLegacyDefaults = false;
+                const shouldRemoveLegacyTopLevelFields = hasLegacyTopLevelBuildingFields(data);
                 playerDatabase = data.playerDatabase || {};
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
 
-                // Load per-event building data
+                // Event-scoped model: read only from events map.
                 if (data.events && typeof data.events === 'object') {
                     eventData = normalizeEventsMap(data.events);
-                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(eventData);
-                    eventData = ensuredLegacy.events;
-                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
-                } else if (
-                    Array.isArray(data.buildingConfig)
-                    || (data.buildingPositions && typeof data.buildingPositions === 'object')
-                    || typeof data.buildingConfigVersion === 'number'
-                ) {
-                    // Migration: old top-level fields → move to events.desert_storm
-                    console.log('🔄 Migrating old building data to per-event schema...');
+                } else {
                     eventData = ensureLegacyEventEntries(createEmptyEventData());
-                    eventData.desert_storm = sanitizeEventEntry('desert_storm', {
-                        name: getDefaultEventName('desert_storm'),
-                        buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : null,
-                        buildingConfigVersion: typeof data.buildingConfigVersion === 'number' ? data.buildingConfigVersion : 0,
-                        buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null,
-                        buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0
-                    }, eventData.desert_storm);
-                    // Save migrated data and remove old top-level fields
+                }
+
+                if (shouldRemoveLegacyTopLevelFields) {
+                    console.log('🔄 Migrating legacy top-level building fields to events.* schema...');
+                    eventData = mergeLegacyTopLevelBuildingFieldsIntoEvents(data, eventData);
+                    shouldPersistLegacyDefaults = true;
+                }
+
+                const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(eventData);
+                eventData = ensuredLegacy.events;
+                shouldPersistLegacyDefaults = shouldPersistLegacyDefaults || ensuredLegacy.changed;
+
+                const inlineMedia = getEventMediaMap(eventData);
+                const storedMedia = await loadEventMediaForUser(user.uid);
+                const mergedMedia = Object.assign({}, inlineMedia, storedMedia);
+                if (isEventMediaSubcollectionEnabled()) {
+                    eventData = buildEventsWithoutMedia(eventData);
+                    applyEventMediaToEvents(mergedMedia);
+
+                    if (Object.keys(inlineMedia).length > 0) {
+                        try {
+                            const migrated = await saveEventMediaDiff(user.uid, storedMedia, mergedMedia);
+                            if (migrated) {
+                                shouldPersistLegacyDefaults = true;
+                                console.log('✅ Migrated inline event media to subcollection docs');
+                            }
+                        } catch (mediaErr) {
+                            console.warn('⚠️ Failed to migrate inline event media:', mediaErr);
+                        }
+                    }
+                } else {
+                    // Keep media inline when subcollection writes are blocked by rules.
+                    applyEventMediaToEvents(mergedMedia);
+                }
+
+                if (shouldPersistLegacyDefaults) {
                     try {
-                        const batch = db.batch();
-                        const userRef = db.collection('users').doc(user.uid);
-                        batch.set(userRef, {
-                            events: buildEventsWithoutMedia(eventData)
-                        }, { merge: true });
-                        batch.update(userRef, {
+                        if (shouldRemoveLegacyTopLevelFields) {
+                            const batch = db.batch();
+                            const userRef = db.collection('users').doc(user.uid);
+                            batch.set(userRef, {
+                                events: buildEventsPayloadForUserDoc(),
+                            }, { merge: true });
+                            batch.update(userRef, {
+                                buildingConfig: firebase.firestore.FieldValue.delete(),
+                                buildingConfigVersion: firebase.firestore.FieldValue.delete(),
+                                buildingPositions: firebase.firestore.FieldValue.delete(),
+                                buildingPositionsVersion: firebase.firestore.FieldValue.delete()
+                            });
+                            await batch.commit();
+                            console.log('✅ Event model enforced and legacy top-level fields removed');
+                        } else {
+                            await db.collection('users').doc(user.uid).set({
+                                events: buildEventsPayloadForUserDoc(),
+                            }, { merge: true });
+                            console.log('✅ Legacy default events enforced for user');
+                        }
+                    } catch (defaultErr) {
+                        console.warn('⚠️ Failed to persist event-scoped defaults/cleanup:', defaultErr);
+                    }
+                } else if (shouldRemoveLegacyTopLevelFields) {
+                    try {
+                        await db.collection('users').doc(user.uid).update({
                             buildingConfig: firebase.firestore.FieldValue.delete(),
                             buildingConfigVersion: firebase.firestore.FieldValue.delete(),
                             buildingPositions: firebase.firestore.FieldValue.delete(),
                             buildingPositionsVersion: firebase.firestore.FieldValue.delete()
                         });
-                        await batch.commit();
-                        console.log('✅ Migration complete');
-                    } catch (migErr) {
-                        console.warn('⚠️ Migration save failed (will retry next load):', migErr);
-                    }
-                } else {
-                    // No building data at all — reset
-                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(createEmptyEventData());
-                    eventData = ensuredLegacy.events;
-                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
-                }
-
-                const inlineMedia = getEventMediaMap(eventData);
-                const storedMedia = await loadEventMediaForUser(user.uid);
-                const mergedMedia = Object.assign({}, inlineMedia, storedMedia);
-                eventData = buildEventsWithoutMedia(eventData);
-                applyEventMediaToEvents(mergedMedia);
-
-                if (Object.keys(inlineMedia).length > 0) {
-                    shouldPersistLegacyDefaults = true;
-                    try {
-                        await saveEventMediaDiff(user.uid, storedMedia, mergedMedia);
-                        console.log('✅ Migrated inline event media to subcollection docs');
-                    } catch (mediaErr) {
-                        console.warn('⚠️ Failed to migrate inline event media:', mediaErr);
-                    }
-                }
-
-                if (shouldPersistLegacyDefaults) {
-                    try {
-                        await db.collection('users').doc(user.uid).set({
-                            events: buildEventsWithoutMedia(eventData),
-                        }, { merge: true });
-                        console.log('✅ Legacy default events enforced for user');
-                    } catch (defaultErr) {
-                        console.warn('⚠️ Failed to persist legacy default events:', defaultErr);
+                        console.log('✅ Removed legacy top-level building fields');
+                    } catch (cleanupErr) {
+                        console.warn('⚠️ Failed to remove legacy top-level building fields:', cleanupErr);
                     }
                 }
 
                 await loadGlobalDefaultBuildingPositions();
                 await loadGlobalDefaultBuildingConfig();
-                await maybePublishGlobalDefaultsFromCurrentUser(data);
-                await maybePublishGlobalBuildingConfigFromCurrentUser(data);
+                const normalizedUserData = {
+                    metadata: data.metadata || {},
+                    events: buildEventsPayloadForUserDoc(),
+                };
+                await maybePublishGlobalDefaultsFromCurrentUser(normalizedUserData);
+                await maybePublishGlobalBuildingConfigFromCurrentUser(normalizedUserData);
 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
 
@@ -1444,11 +1515,19 @@ const FirebaseManager = (function() {
             if (hasDocPayload) {
                 await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
             }
-            if (mediaChanged) {
+            if (mediaChanged && isEventMediaSubcollectionEnabled()) {
                 const previousMedia = lastSavedUserState && lastSavedUserState.eventMedia ? lastSavedUserState.eventMedia : {};
-                await saveEventMediaDiff(currentUser.uid, previousMedia, currentState.eventMedia);
+                const mediaSaved = await saveEventMediaDiff(currentUser.uid, previousMedia, currentState.eventMedia);
+                if (mediaSaved === false) {
+                    await db.collection('users').doc(currentUser.uid).set({
+                        events: normalizeEventsMap(eventData),
+                        metadata: {
+                            lastModified: firebase.firestore.FieldValue.serverTimestamp()
+                        }
+                    }, { merge: true });
+                }
             }
-            rememberLastSavedUserState(currentState);
+            rememberLastSavedUserState(getCurrentPersistedUserState());
             return { success: true, changedFields };
         } catch (error) {
             console.error('❌ Failed to save data:', error);
