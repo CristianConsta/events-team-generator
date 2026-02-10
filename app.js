@@ -253,6 +253,7 @@ function bindStaticUiActions() {
     on('navMenuBtn', 'click', toggleNavigationMenu);
     on('navGeneratorBtn', 'click', showGeneratorPage);
     on('navConfigBtn', 'click', showConfigurationPage);
+    on('navAllianceBtn', 'click', openAlliancePanelFromMenu);
     on('navSettingsBtn', 'click', openSettingsModal);
     on('navSignOutBtn', 'click', () => {
         closeNavigationMenu();
@@ -593,6 +594,11 @@ function showConfigurationPage() {
 
 function showGeneratorPage() {
     setPageView('generator');
+}
+
+function openAlliancePanelFromMenu() {
+    closeNavigationMenu();
+    openAlliancePanel();
 }
 
 function getSignInDisplayName(user) {
@@ -2429,10 +2435,31 @@ async function downloadPlayerTemplate() {
 
 function toggleAlliancePanel() {
     const panel = document.getElementById('alliancePanel');
-    panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) {
-        renderAlliancePanel();
+    if (!panel) {
+        return;
     }
+    if (panel.classList.contains('hidden')) {
+        openAlliancePanel();
+    } else {
+        closeAlliancePanel();
+    }
+}
+
+function openAlliancePanel() {
+    const panel = document.getElementById('alliancePanel');
+    if (!panel) {
+        return;
+    }
+    panel.classList.remove('hidden');
+    renderAlliancePanel();
+}
+
+function closeAlliancePanel() {
+    const panel = document.getElementById('alliancePanel');
+    if (!panel) {
+        return;
+    }
+    panel.classList.add('hidden');
 }
 
 function renderAlliancePanel() {
@@ -3466,7 +3493,7 @@ async function saveBuildingPositions() {
         return;
     }
     FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-    FirebaseService.setBuildingPositionsVersion(currentEvent, BUILDING_POSITIONS_VERSION);
+    FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion());
     const result = await FirebaseService.saveUserData();
     if (result.success) {
         showMessage('coordStatus', t('coord_saved'), 'success');

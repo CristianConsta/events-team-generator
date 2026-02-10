@@ -1031,15 +1031,22 @@ select {
 }
 .event-media-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(120px, 1fr) minmax(0, 4fr);
     gap: 12px;
     margin-top: 12px;
+    align-items: start;
 }
 .event-media-block {
     border: 1px solid rgba(var(--gold-rgb), 0.2);
     border-radius: 12px;
     padding: 12px;
     background: rgba(255,255,255,0.02);
+}
+.event-media-grid .event-media-block:first-child {
+    min-width: 0;
+}
+.event-media-grid .event-media-block:last-child {
+    min-width: 0;
 }
 .event-logo-preview {
     width: 96px;
