@@ -193,10 +193,7 @@
                         <button class="clear-btn" onclick="closeCoordinatesPicker()"><span data-i18n="close">Close</span></button>
                     </div>
                     <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="coord_picker_help">Click the map to set the center point where player name labels will appear for the selected building. Update buildings one by one.</p>
-                    <div class="event-selector event-selector-inline" id="coordEventSelector" style="margin: 0 0 12px;">
-                        <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
-                        <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
-                    </div>
+                    <div class="event-selector event-selector-inline" id="coordEventSelector" style="margin: 0 0 12px;"></div>
                     <div id="coordBuildingRow" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; margin-bottom: 6px;">
                         <strong id="coordBuildingLabel" data-i18n="coord_label_building">Building</strong>
                         <span id="coordBuildingIndex" style="opacity: 0.7;"></span>
@@ -219,10 +216,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;" data-i18n="select_teams_title">⚔️ Select Teams</h2>
                     </div>
-                    <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 12px 0;">
-                        <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
-                        <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
-                    </div>
+                    <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 12px 0;"></div>
                     <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="select_teams_help">Select players for Team A and Team B independently. Maximum 20 players per team.</p>
                     
                     <!-- Team Counters -->
@@ -317,6 +311,77 @@
                     </div>
                 </div>
 
+                <div id="eventsPanel" class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h2 style="margin: 0;" data-i18n="events_manager_title">Events Manager</h2>
+                    </div>
+                    <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="events_manager_help">Create custom events with name, logo, map, and building setup.</p>
+                    <div class="events-manager-grid">
+                        <div class="events-list-card">
+                            <h3 style="margin-top: 0;" data-i18n="events_manager_existing_title">Existing Events</h3>
+                            <div id="eventsList" class="events-list"></div>
+                        </div>
+                        <div class="events-editor-card">
+                            <h3 style="margin-top: 0;" id="eventEditorTitle" data-i18n="events_manager_create_title">Create Event</h3>
+                            <div class="settings-form-grid">
+                                <label for="eventNameInput" data-i18n="events_manager_name_label">Event Name</label>
+                                <input id="eventNameInput" type="text" maxlength="30" data-i18n-placeholder="events_manager_name_placeholder" placeholder="Event name">
+                            </div>
+                            <div class="event-media-grid">
+                                <div class="event-media-block">
+                                    <div style="font-size: 13px; opacity: 0.8; margin-bottom: 8px;" data-i18n="events_manager_logo_label">Event Avatar</div>
+                                    <div class="event-logo-preview">
+                                        <img id="eventLogoPreviewImage" alt="Event avatar preview">
+                                    </div>
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+                                        <button class="secondary" type="button" onclick="triggerEventLogoUpload()"><span data-i18n="events_manager_logo_upload">Upload Avatar</span></button>
+                                        <button class="clear-btn" type="button" onclick="removeEventLogo()"><span data-i18n="events_manager_logo_randomize">Random Avatar</span></button>
+                                    </div>
+                                    <input id="eventLogoInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onchange="handleEventLogoChange(event)">
+                                </div>
+                                <div class="event-media-block">
+                                    <div style="font-size: 13px; opacity: 0.8; margin-bottom: 8px;" data-i18n="events_manager_map_label">Event Map</div>
+                                    <div class="event-map-preview">
+                                        <img id="eventMapPreviewImage" class="hidden" alt="Event map preview">
+                                        <div id="eventMapPreviewPlaceholder" class="event-map-placeholder" data-i18n="events_manager_map_placeholder">No map uploaded</div>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+                                        <button class="secondary" type="button" onclick="triggerEventMapUpload()"><span data-i18n="events_manager_map_upload">Upload Map</span></button>
+                                        <button class="clear-btn" type="button" onclick="removeEventMap()"><span data-i18n="events_manager_map_remove">Remove Map</span></button>
+                                    </div>
+                                    <input id="eventMapInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onchange="handleEventMapChange(event)">
+                                </div>
+                            </div>
+                            <div style="margin-top: 16px;">
+                                <h4 style="margin: 0 0 8px;" data-i18n="events_manager_buildings_title">Buildings</h4>
+                                <p style="opacity: 0.84; margin: 0 0 10px;" data-i18n="events_manager_buildings_help">Define building name, #Players, and priority for this event.</p>
+                                <div style="overflow-x: auto;">
+                                    <table class="players-table" id="eventBuildingsEditorTable">
+                                        <thead>
+                                            <tr>
+                                                <th data-i18n="buildings_table_building">Building</th>
+                                                <th data-i18n="buildings_table_slots">#Players</th>
+                                                <th data-i18n="buildings_table_priority">Priority</th>
+                                                <th data-i18n="events_manager_actions">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="eventBuildingsEditorBody"></tbody>
+                                    </table>
+                                </div>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                                    <button class="secondary" type="button" onclick="addEventBuildingRow()"><span data-i18n="events_manager_add_building">Add Building</span></button>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px;">
+                                <button type="button" onclick="saveEventDefinition()"><span data-i18n="events_manager_save_event">Save Event</span></button>
+                                <button id="eventDeleteBtn" class="secondary" type="button" onclick="deleteSelectedEvent()"><span data-i18n="events_manager_delete_event">Delete Event</span></button>
+                                <button class="clear-btn" type="button" onclick="startNewEventDraft()"><span data-i18n="events_manager_new_event">New Event</span></button>
+                            </div>
+                            <div id="eventsStatus"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;" data-i18n="map_coordinates_tool_title">Player Name Label Coordinates</h2>
@@ -329,10 +394,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;" data-i18n="buildings_panel_title">Buildings &amp; Priorities</h2>
                     </div>
-                    <div class="event-selector event-selector-inline" id="buildingsEventSelector" style="margin: 12px 0;">
-                        <button class="event-btn active" onclick="switchEvent('desert_storm')" data-event="desert_storm" data-i18n="event_desert_storm">Desert Storm</button>
-                        <button class="event-btn" onclick="switchEvent('canyon_battlefield')" data-event="canyon_battlefield" data-i18n="event_canyon_battlefield">Canyon Battlefield</button>
-                    </div>
+                    <div class="event-selector event-selector-inline" id="buildingsEventSelector" style="margin: 12px 0;"></div>
                     <p style="opacity: 0.9; margin: 10px 0 15px;" data-i18n="buildings_intro">Update building slots and priorities. Total slots across all buildings must be 20 or less.</p>
                     <div style="overflow-x: auto;">
                         <table class="players-table" id="buildingsTable">

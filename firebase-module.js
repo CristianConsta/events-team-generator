@@ -31,23 +31,41 @@ const FirebaseManager = (function() {
         alert('Firebase configuration missing! Please create firebase-config.js file.');
     }
     
-    function createEmptyEventEntry() {
-        return { buildingConfig: null, buildingConfigVersion: 0, buildingPositions: null, buildingPositionsVersion: 0 };
+    function createEmptyEventEntry(overrides) {
+        const source = overrides && typeof overrides === 'object' ? overrides : {};
+        return {
+            name: typeof source.name === 'string' ? source.name : '',
+            logoDataUrl: typeof source.logoDataUrl === 'string' ? source.logoDataUrl : '',
+            mapDataUrl: typeof source.mapDataUrl === 'string' ? source.mapDataUrl : '',
+            buildingConfig: null,
+            buildingConfigVersion: 0,
+            buildingPositions: null,
+            buildingPositionsVersion: 0,
+        };
     }
 
     function createEmptyEventData() {
-        return {
-            desert_storm: createEmptyEventEntry(),
-            canyon_battlefield: createEmptyEventEntry()
-        };
+        return {};
     }
+
+    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    const MAX_PROFILE_TEXT_LEN = 60;
+    const MAX_AVATAR_DATA_URL_LEN = 400000;
+    const LEGACY_EVENT_IDS = ['desert_storm', 'canyon_battlefield'];
+    const GLOBAL_COORD_OWNER_EMAIL = 'constantinescu.cristian@gmail.com';
+    const GLOBAL_COORDS_COLLECTION = 'app_config';
+    const GLOBAL_COORDS_DOC_ID = 'default_event_positions';
+    const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
+    const EVENT_NAME_MAX_LEN = 30;
+    const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
+    const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
 
     // Private variables
     let auth = null;
     let db = null;
     let currentUser = null;
     let playerDatabase = {};
-    // Per-event building data: { desert_storm: { buildingConfig, buildingConfigVersion, buildingPositions, buildingPositionsVersion }, canyon_battlefield: { ... } }
+    // Per-event building data: { [eventId]: { name, logoDataUrl, mapDataUrl, buildingConfig, buildingConfigVersion, buildingPositions, buildingPositionsVersion } }
     let eventData = createEmptyEventData();
     let allianceId = null;
     let allianceName = null;
@@ -58,38 +76,100 @@ const FirebaseManager = (function() {
     let onAuthCallback = null;
     let onDataLoadCallback = null;
 
-    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-    const MAX_PROFILE_TEXT_LEN = 60;
-    const MAX_AVATAR_DATA_URL_LEN = 400000;
-    const EVENT_IDS = ['desert_storm', 'canyon_battlefield'];
-    const GLOBAL_COORD_OWNER_EMAIL = 'constantinescu.cristian@gmail.com';
-    const GLOBAL_COORDS_COLLECTION = 'app_config';
-    const GLOBAL_COORDS_DOC_ID = 'default_event_positions';
-    const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
-    let globalDefaultEventPositions = {
-        desert_storm: {},
-        canyon_battlefield: {}
-    };
+    let globalDefaultEventPositions = {};
     let globalDefaultPositionsVersion = 0;
-    let globalDefaultEventBuildingConfig = {
-        desert_storm: null,
-        canyon_battlefield: null
-    };
+    let globalDefaultEventBuildingConfig = {};
     let globalDefaultBuildingConfigVersion = 0;
 
-    function emptyGlobalEventPositions() {
-        return {
-            desert_storm: {},
-            canyon_battlefield: {}
-        };
+    function emptyGlobalEventPositions(payload) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const normalized = {};
+        LEGACY_EVENT_IDS.forEach((eventId) => {
+            normalized[eventId] = {};
+        });
+        Object.keys(source).forEach((rawId) => {
+            const eid = normalizeEventId(rawId);
+            if (!eid) {
+                return;
+            }
+            if (!normalized[eid]) {
+                normalized[eid] = {};
+            }
+        });
+        return normalized;
     }
 
-    function emptyGlobalBuildingConfig() {
-        return {
-            desert_storm: null,
-            canyon_battlefield: null
-        };
+    function emptyGlobalBuildingConfig(payload) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const normalized = {};
+        LEGACY_EVENT_IDS.forEach((eventId) => {
+            normalized[eventId] = null;
+        });
+        Object.keys(source).forEach((rawId) => {
+            const eid = normalizeEventId(rawId);
+            if (!eid) {
+                return;
+            }
+            if (!Object.prototype.hasOwnProperty.call(normalized, eid)) {
+                normalized[eid] = null;
+            }
+        });
+        return normalized;
     }
+
+    function normalizeEventId(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function normalizeEventName(value, fallback) {
+        const raw = typeof value === 'string' ? value.trim() : '';
+        const resolved = raw || (typeof fallback === 'string' ? fallback : '');
+        return resolved.slice(0, EVENT_NAME_MAX_LEN);
+    }
+
+    function sanitizeEventImageDataUrl(value, maxLength) {
+        const raw = typeof value === 'string' ? value.trim() : '';
+        if (!raw || !raw.startsWith('data:image/')) {
+            return '';
+        }
+        if (raw.length > maxLength) {
+            return '';
+        }
+        return raw;
+    }
+
+    function getDefaultEventName(eventId) {
+        if (eventId === 'desert_storm') {
+            return 'Desert Storm';
+        }
+        if (eventId === 'canyon_battlefield') {
+            return 'Canyon Storm';
+        }
+        return eventId;
+    }
+
+    function ensureLegacyEventEntries(map) {
+        const target = map && typeof map === 'object' ? map : {};
+        LEGACY_EVENT_IDS.forEach((eventId) => {
+            if (!target[eventId]) {
+                target[eventId] = createEmptyEventEntry({ name: getDefaultEventName(eventId) });
+            } else if (!target[eventId].name) {
+                target[eventId].name = getDefaultEventName(eventId);
+            }
+        });
+        return target;
+    }
+
+    eventData = ensureLegacyEventEntries(eventData);
+    globalDefaultEventPositions = emptyGlobalEventPositions();
+    globalDefaultEventBuildingConfig = emptyGlobalBuildingConfig();
 
     function normalizeCoordinatePair(value) {
         if (!Array.isArray(value) || value.length < 2) {
@@ -124,15 +204,22 @@ const FirebaseManager = (function() {
         const source = payload && typeof payload === 'object'
             ? payload
             : {};
-        const normalized = emptyGlobalEventPositions();
-        EVENT_IDS.forEach((eid) => {
-            normalized[eid] = normalizePositionsMap(source[eid]);
+        const normalized = emptyGlobalEventPositions(source);
+        Object.keys(source).forEach((rawId) => {
+            const eid = normalizeEventId(rawId);
+            if (!eid) {
+                return;
+            }
+            normalized[eid] = normalizePositionsMap(source[rawId]);
         });
         return normalized;
     }
 
     function hasAnyPositions(events) {
-        return EVENT_IDS.some((eid) => Object.keys((events && events[eid]) || {}).length > 0);
+        if (!events || typeof events !== 'object') {
+            return false;
+        }
+        return Object.keys(events).some((eid) => Object.keys(events[eid] || {}).length > 0);
     }
 
     function toMillis(value) {
@@ -166,8 +253,12 @@ const FirebaseManager = (function() {
         );
         let eventVersion = 0;
         if (data.events && typeof data.events === 'object') {
-            EVENT_IDS.forEach((eid) => {
-                const entry = data.events[eid];
+            Object.keys(data.events).forEach((rawId) => {
+                const eid = normalizeEventId(rawId);
+                if (!eid) {
+                    return;
+                }
+                const entry = data.events[rawId];
                 if (!entry || typeof entry !== 'object') {
                     return;
                 }
@@ -194,10 +285,14 @@ const FirebaseManager = (function() {
     }
 
     function extractPositionsFromUserData(data) {
-        const events = emptyGlobalEventPositions();
+        const events = emptyGlobalEventPositions(data && data.events ? data.events : null);
         if (data && data.events && typeof data.events === 'object') {
-            EVENT_IDS.forEach((eid) => {
-                const entry = data.events[eid];
+            Object.keys(data.events).forEach((rawId) => {
+                const eid = normalizeEventId(rawId);
+                if (!eid) {
+                    return;
+                }
+                const entry = data.events[rawId];
                 if (!entry || typeof entry !== 'object') {
                     return;
                 }
@@ -247,24 +342,85 @@ const FirebaseManager = (function() {
         return normalized.length > 0 ? normalized : null;
     }
 
+    function sanitizeEventEntry(eventId, payload, fallbackEntry) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const fallback = fallbackEntry && typeof fallbackEntry === 'object' ? fallbackEntry : {};
+        const fallbackName = fallback.name || getDefaultEventName(eventId) || eventId;
+        const normalized = createEmptyEventEntry({
+            name: normalizeEventName(source.name, fallbackName),
+            logoDataUrl: sanitizeEventImageDataUrl(source.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN),
+            mapDataUrl: sanitizeEventImageDataUrl(source.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN),
+        });
+
+        const normalizedConfig = normalizeBuildingConfigArray(source.buildingConfig);
+        normalized.buildingConfig = Array.isArray(normalizedConfig)
+            ? normalizedConfig
+            : (Array.isArray(fallback.buildingConfig) ? normalizeBuildingConfigArray(fallback.buildingConfig) : null);
+
+        const configVersion = Number(source.buildingConfigVersion);
+        normalized.buildingConfigVersion = Number.isFinite(configVersion) && configVersion > 0
+            ? Math.round(configVersion)
+            : (Number.isFinite(Number(fallback.buildingConfigVersion)) ? Math.round(Number(fallback.buildingConfigVersion)) : 0);
+
+        const normalizedPositions = normalizePositionsMap(source.buildingPositions);
+        normalized.buildingPositions = Object.keys(normalizedPositions).length > 0
+            ? normalizedPositions
+            : (fallback.buildingPositions && typeof fallback.buildingPositions === 'object' ? normalizePositionsMap(fallback.buildingPositions) : null);
+
+        const positionsVersion = Number(source.buildingPositionsVersion);
+        normalized.buildingPositionsVersion = Number.isFinite(positionsVersion) && positionsVersion > 0
+            ? Math.round(positionsVersion)
+            : (Number.isFinite(Number(fallback.buildingPositionsVersion)) ? Math.round(Number(fallback.buildingPositionsVersion)) : 0);
+
+        return normalized;
+    }
+
+    function normalizeEventsMap(payload, fallbackMap) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const fallback = fallbackMap && typeof fallbackMap === 'object' ? fallbackMap : {};
+        const normalized = {};
+
+        Object.keys(source).forEach((rawId) => {
+            const eventId = normalizeEventId(rawId);
+            if (!eventId) {
+                return;
+            }
+            normalized[eventId] = sanitizeEventEntry(eventId, source[rawId], fallback[eventId]);
+        });
+
+        ensureLegacyEventEntries(normalized);
+        return normalized;
+    }
+
     function normalizeEventBuildingConfigPayload(payload) {
         const source = payload && typeof payload === 'object' ? payload : {};
-        const normalized = emptyGlobalBuildingConfig();
-        EVENT_IDS.forEach((eid) => {
-            normalized[eid] = normalizeBuildingConfigArray(source[eid]);
+        const normalized = emptyGlobalBuildingConfig(source);
+        Object.keys(source).forEach((rawId) => {
+            const eid = normalizeEventId(rawId);
+            if (!eid) {
+                return;
+            }
+            normalized[eid] = normalizeBuildingConfigArray(source[rawId]);
         });
         return normalized;
     }
 
     function hasAnyBuildingConfig(payload) {
-        return EVENT_IDS.some((eid) => Array.isArray(payload && payload[eid]) && payload[eid].length > 0);
+        if (!payload || typeof payload !== 'object') {
+            return false;
+        }
+        return Object.keys(payload).some((eid) => Array.isArray(payload[eid]) && payload[eid].length > 0);
     }
 
     function extractBuildingConfigFromUserData(data) {
-        const result = emptyGlobalBuildingConfig();
+        const result = emptyGlobalBuildingConfig(data && data.events ? data.events : null);
         if (data && data.events && typeof data.events === 'object') {
-            EVENT_IDS.forEach((eid) => {
-                const entry = data.events[eid];
+            Object.keys(data.events).forEach((rawId) => {
+                const eid = normalizeEventId(rawId);
+                if (!eid) {
+                    return;
+                }
+                const entry = data.events[rawId];
                 if (!entry || typeof entry !== 'object') {
                     return;
                 }
@@ -502,9 +658,7 @@ const FirebaseManager = (function() {
         } else {
             console.log('ℹ️ User signed out');
             playerDatabase = {};
-            Object.keys(eventData).forEach(eid => {
-                eventData[eid] = createEmptyEventEntry();
-            });
+            eventData = ensureLegacyEventEntries(createEmptyEventData());
             allianceId = null;
             allianceName = null;
             allianceData = null;
@@ -757,7 +911,7 @@ const FirebaseManager = (function() {
         }
 
         playerDatabase = {};
-        eventData = createEmptyEventData();
+        eventData = ensureLegacyEventEntries(createEmptyEventData());
         allianceId = null;
         allianceName = null;
         allianceData = null;
@@ -831,20 +985,7 @@ const FirebaseManager = (function() {
 
                 // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
-                    // New schema: per-event data under events map
-                    Object.keys(eventData).forEach(eid => {
-                        const ed = data.events[eid];
-                        if (ed && typeof ed === 'object') {
-                            eventData[eid] = {
-                                buildingConfig: Array.isArray(ed.buildingConfig) ? ed.buildingConfig : null,
-                                buildingConfigVersion: typeof ed.buildingConfigVersion === 'number' ? ed.buildingConfigVersion : 0,
-                                buildingPositions: ed.buildingPositions && typeof ed.buildingPositions === 'object' ? ed.buildingPositions : null,
-                                buildingPositionsVersion: typeof ed.buildingPositionsVersion === 'number' ? ed.buildingPositionsVersion : 0
-                            };
-                        } else {
-                            eventData[eid] = createEmptyEventEntry();
-                        }
-                    });
+                    eventData = normalizeEventsMap(data.events);
                 } else if (
                     Array.isArray(data.buildingConfig)
                     || (data.buildingPositions && typeof data.buildingPositions === 'object')
@@ -852,22 +993,20 @@ const FirebaseManager = (function() {
                 ) {
                     // Migration: old top-level fields → move to events.desert_storm
                     console.log('🔄 Migrating old building data to per-event schema...');
-                    eventData.desert_storm = {
+                    eventData = ensureLegacyEventEntries(createEmptyEventData());
+                    eventData.desert_storm = sanitizeEventEntry('desert_storm', {
+                        name: getDefaultEventName('desert_storm'),
                         buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : null,
                         buildingConfigVersion: typeof data.buildingConfigVersion === 'number' ? data.buildingConfigVersion : 0,
                         buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null,
                         buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0
-                    };
-                    eventData.canyon_battlefield = createEmptyEventEntry();
+                    }, eventData.desert_storm);
                     // Save migrated data and remove old top-level fields
                     try {
                         const batch = db.batch();
                         const userRef = db.collection('users').doc(user.uid);
                         batch.set(userRef, {
-                            events: {
-                                desert_storm: eventData.desert_storm,
-                                canyon_battlefield: eventData.canyon_battlefield
-                            }
+                            events: eventData
                         }, { merge: true });
                         batch.update(userRef, {
                             buildingConfig: firebase.firestore.FieldValue.delete(),
@@ -882,9 +1021,7 @@ const FirebaseManager = (function() {
                     }
                 } else {
                     // No building data at all — reset
-                    Object.keys(eventData).forEach(eid => {
-                        eventData[eid] = createEmptyEventEntry();
-                    });
+                    eventData = ensureLegacyEventEntries(createEmptyEventData());
                 }
 
                 await loadGlobalDefaultBuildingPositions();
@@ -911,9 +1048,7 @@ const FirebaseManager = (function() {
             } else {
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
-                Object.keys(eventData).forEach(eid => {
-                    eventData[eid] = createEmptyEventEntry();
-                });
+                eventData = ensureLegacyEventEntries(createEmptyEventData());
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
@@ -1061,11 +1196,68 @@ const FirebaseManager = (function() {
         return playerDatabase;
     }
 
+    function resolveEventId(eventId) {
+        const normalized = normalizeEventId(eventId || '');
+        return normalized || 'desert_storm';
+    }
+
+    function ensureEventEntry(eventId, seed) {
+        const eid = resolveEventId(eventId);
+        if (!eventData[eid]) {
+            eventData[eid] = sanitizeEventEntry(eid, seed || {}, createEmptyEventEntry({ name: getDefaultEventName(eid) }));
+        } else if (!eventData[eid].name) {
+            eventData[eid].name = getDefaultEventName(eid);
+        }
+        return eid;
+    }
+
+    function getAllEventData() {
+        return JSON.parse(JSON.stringify(eventData));
+    }
+
+    function getEventIds() {
+        return Object.keys(eventData);
+    }
+
+    function getEventMeta(eventId) {
+        const eid = resolveEventId(eventId);
+        const entry = eventData[eid];
+        if (!entry) {
+            return null;
+        }
+        return {
+            id: eid,
+            name: entry.name || getDefaultEventName(eid),
+            logoDataUrl: entry.logoDataUrl || '',
+            mapDataUrl: entry.mapDataUrl || '',
+        };
+    }
+
+    function upsertEvent(eventId, payload) {
+        const requestedId = resolveEventId(eventId || (payload && payload.id) || (payload && payload.name));
+        const existing = eventData[requestedId] || createEmptyEventEntry({ name: getDefaultEventName(requestedId) });
+        const sanitized = sanitizeEventEntry(requestedId, payload || {}, existing);
+        eventData[requestedId] = sanitized;
+        return getEventMeta(requestedId);
+    }
+
+    function removeEvent(eventId) {
+        const eid = resolveEventId(eventId);
+        if (LEGACY_EVENT_IDS.includes(eid)) {
+            return false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(eventData, eid)) {
+            return false;
+        }
+        delete eventData[eid];
+        return true;
+    }
+
     /**
      * Get building configuration for an event
      */
     function getBuildingConfig(eventId) {
-        const eid = eventId || 'desert_storm';
+        const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingConfig : null;
     }
 
@@ -1073,27 +1265,26 @@ const FirebaseManager = (function() {
      * Set building configuration for an event
      */
     function setBuildingConfig(eventId, config) {
-        const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
-        eventData[eid].buildingConfig = config;
+        const eid = ensureEventEntry(eventId);
+        eventData[eid].buildingConfig = normalizeBuildingConfigArray(config);
     }
 
     function getBuildingConfigVersion(eventId) {
-        const eid = eventId || 'desert_storm';
+        const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingConfigVersion : 0;
     }
 
     function setBuildingConfigVersion(eventId, version) {
-        const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
-        eventData[eid].buildingConfigVersion = version;
+        const eid = ensureEventEntry(eventId);
+        const numeric = Number(version);
+        eventData[eid].buildingConfigVersion = Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
     }
 
     /**
      * Get building positions for an event
      */
     function getBuildingPositions(eventId) {
-        const eid = eventId || 'desert_storm';
+        const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingPositions : null;
     }
 
@@ -1101,20 +1292,35 @@ const FirebaseManager = (function() {
      * Set building positions for an event
      */
     function setBuildingPositions(eventId, positions) {
-        const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
-        eventData[eid].buildingPositions = positions;
+        const eid = ensureEventEntry(eventId);
+        eventData[eid].buildingPositions = normalizePositionsMap(positions);
     }
 
     function getBuildingPositionsVersion(eventId) {
-        const eid = eventId || 'desert_storm';
+        const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingPositionsVersion : 0;
     }
 
     function setBuildingPositionsVersion(eventId, version) {
-        const eid = eventId || 'desert_storm';
-        if (!eventData[eid]) eventData[eid] = createEmptyEventEntry();
-        eventData[eid].buildingPositionsVersion = version;
+        const eid = ensureEventEntry(eventId);
+        const numeric = Number(version);
+        eventData[eid].buildingPositionsVersion = Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
+    }
+
+    function setEventMetadata(eventId, metadata) {
+        const eid = ensureEventEntry(eventId, metadata);
+        const source = metadata && typeof metadata === 'object' ? metadata : {};
+        const current = eventData[eid] || createEmptyEventEntry({ name: getDefaultEventName(eid) });
+        eventData[eid] = sanitizeEventEntry(eid, {
+            name: Object.prototype.hasOwnProperty.call(source, 'name') ? source.name : current.name,
+            logoDataUrl: Object.prototype.hasOwnProperty.call(source, 'logoDataUrl') ? source.logoDataUrl : current.logoDataUrl,
+            mapDataUrl: Object.prototype.hasOwnProperty.call(source, 'mapDataUrl') ? source.mapDataUrl : current.mapDataUrl,
+            buildingConfig: current.buildingConfig,
+            buildingConfigVersion: current.buildingConfigVersion,
+            buildingPositions: current.buildingPositions,
+            buildingPositionsVersion: current.buildingPositionsVersion,
+        }, current);
+        return getEventMeta(eid);
     }
 
     /**
@@ -1666,6 +1872,12 @@ const FirebaseManager = (function() {
         getPlayerDatabase: getPlayerDatabase,
         getPlayerCount: getPlayerCount,
         getPlayer: getPlayer,
+        getAllEventData: getAllEventData,
+        getEventIds: getEventIds,
+        getEventMeta: getEventMeta,
+        upsertEvent: upsertEvent,
+        removeEvent: removeEvent,
+        setEventMetadata: setEventMetadata,
 
         // Building config
         getBuildingConfig: getBuildingConfig,

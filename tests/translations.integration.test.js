@@ -49,4 +49,6 @@ test('i18n renders translated values when translations are loaded from script', 
   global.DSI18N.init({});
 
   assert.notEqual(global.DSI18N.t('buildings_button'), 'buildings_button');
+  assert.notEqual(global.DSI18N.t('events_manager_title'), 'events_manager_title');
+  assert.notEqual(global.DSI18N.t('onboarding_step7_title'), 'onboarding_step7_title');
 });

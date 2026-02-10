@@ -58,6 +58,24 @@
         getPlayerDatabase: function getPlayerDatabase() {
             return withManager((svc) => svc.getPlayerDatabase(), {});
         },
+        getAllEventData: function getAllEventData() {
+            return withManager((svc) => svc.getAllEventData(), {});
+        },
+        getEventIds: function getEventIds() {
+            return withManager((svc) => svc.getEventIds(), []);
+        },
+        getEventMeta: function getEventMeta(eventId) {
+            return withManager((svc) => svc.getEventMeta(eventId), null);
+        },
+        upsertEvent: function upsertEvent(eventId, payload) {
+            return withManager((svc) => svc.upsertEvent(eventId, payload), null);
+        },
+        removeEvent: function removeEvent(eventId) {
+            return withManager((svc) => svc.removeEvent(eventId), false);
+        },
+        setEventMetadata: function setEventMetadata(eventId, metadata) {
+            return withManager((svc) => svc.setEventMetadata(eventId, metadata), null);
+        },
         getActivePlayerDatabase: function getActivePlayerDatabase() {
             return withManager((svc) => svc.getActivePlayerDatabase(), {});
         },

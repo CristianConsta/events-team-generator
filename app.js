@@ -24,6 +24,9 @@ function refreshLanguageDependentText() {
 }
 
 function onI18nApplied() {
+    renderAllEventSelectors();
+    renderEventsList();
+    updateEventEditorTitle();
     refreshLanguageDependentText();
     renderPlayersTable();
     renderBuildingsTable();
@@ -85,8 +88,9 @@ const ONBOARDING_STEPS = [
     { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
     { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
     { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#generatorPage',        position: 'top'    }
+    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#eventsPanel',          position: 'top'    },
+    { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step7_title', descKey: 'onboarding_step7_desc', targetSelector: '#generatorPage',        position: 'top'    }
 ];
 
 let onboardingActive      = false;
@@ -245,12 +249,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (onboardingActive && currentOnboardingStep === 3) dismissOnboardingStep();
     });
     // Step 5 - Generator menu item
-    document.getElementById('navGeneratorBtn').addEventListener('click', () => {
+    document.getElementById('eventsPanel').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 4) dismissOnboardingStep();
     });
-    // Step 6 - Generator page
-    document.getElementById('generatorPage').addEventListener('click', () => {
+    // Step 6 - Generator menu item
+    document.getElementById('navGeneratorBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 5) dismissOnboardingStep();
+    });
+    // Step 7 - Generator page
+    document.getElementById('generatorPage').addEventListener('click', () => {
+        if (onboardingActive && currentOnboardingStep === 6) dismissOnboardingStep();
     });
     // Skip link
     document.getElementById('onboardingSkip').addEventListener('click', completeOnboarding);
@@ -278,6 +286,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    bindEventEditorTableActions();
+    const eventNameInput = document.getElementById('eventNameInput');
+    if (eventNameInput) {
+        eventNameInput.addEventListener('input', () => {
+            if (!eventDraftLogoDataUrl) {
+                updateEventLogoPreview();
+            }
+        });
+    }
+    buildRegistryFromStorage();
+    renderAllEventSelectors();
+    renderEventsList();
+    startNewEventDraft();
+    switchEvent(currentEvent);
     updateUserHeaderIdentity(currentAuthUser);
 });
 
@@ -358,7 +380,13 @@ const AVATAR_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const AVATAR_ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const AVATAR_MIN_DIMENSION = 96;
 const AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const EVENT_NAME_LIMIT = 30;
+const EVENT_LOGO_DATA_URL_LIMIT = 220000;
+const EVENT_MAP_DATA_URL_LIMIT = 950000;
 const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
+let eventEditorCurrentId = '';
+let eventDraftLogoDataUrl = '';
+let eventDraftMapDataUrl = '';
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
@@ -465,6 +493,8 @@ function setPageView(view) {
         loadBuildingConfig();
         loadBuildingPositions();
         renderBuildingsTable();
+        renderEventsList();
+        refreshEventEditorDeleteState();
     }
 
     updateFloatingButtonsVisibility();
@@ -837,53 +867,289 @@ async function deleteAccountFromSettings() {
 // ============================================================
 
 const EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
+function getEventIds() {
+    return window.DSCoreEvents.getEventIds();
+}
 
-let currentEvent = 'desert_storm';
+let currentEvent = getEventIds()[0] || 'desert_storm';
 
 function getActiveEvent() {
-    return window.DSCoreEvents.getEvent(currentEvent);
+    const active = window.DSCoreEvents.getEvent(currentEvent);
+    if (active) {
+        return active;
+    }
+    const firstId = getEventIds()[0];
+    if (firstId) {
+        currentEvent = firstId;
+        return window.DSCoreEvents.getEvent(firstId);
+    }
+    return null;
 }
 
 // Per-event building state
-let buildingConfigs = { desert_storm: null, canyon_battlefield: null };
-let buildingPositionsMap = { desert_storm: {}, canyon_battlefield: {} };
+let buildingConfigs = {};
+let buildingPositionsMap = {};
 
 const MAP_PREVIEW = 'preview';
 const MAP_EXPORT = 'export';
 
-function createMapEventState(factory) {
-    return {
-        desert_storm: factory(),
-        canyon_battlefield: factory(),
-    };
-}
-
 // Per-event map images, split by purpose so preview can stay lightweight.
 const mapImages = {
-    [MAP_PREVIEW]: createMapEventState(() => new Image()),
-    [MAP_EXPORT]: createMapEventState(() => new Image()),
+    [MAP_PREVIEW]: {},
+    [MAP_EXPORT]: {},
 };
 let mapLoadedFlags = {
-    [MAP_PREVIEW]: createMapEventState(() => false),
-    [MAP_EXPORT]: createMapEventState(() => false),
+    [MAP_PREVIEW]: {},
+    [MAP_EXPORT]: {},
 };
 let mapLoadRetries = {
-    [MAP_PREVIEW]: createMapEventState(() => 0),
-    [MAP_EXPORT]: createMapEventState(() => 0),
+    [MAP_PREVIEW]: {},
+    [MAP_EXPORT]: {},
 };
 let mapUnavailableFlags = {
-    [MAP_PREVIEW]: createMapEventState(() => false),
-    [MAP_EXPORT]: createMapEventState(() => false),
+    [MAP_PREVIEW]: {},
+    [MAP_EXPORT]: {},
 };
 let mapLoadPromises = {
-    [MAP_PREVIEW]: createMapEventState(() => null),
-    [MAP_EXPORT]: createMapEventState(() => null),
+    [MAP_PREVIEW]: {},
+    [MAP_EXPORT]: {},
 };
-let coordMapWarningShown = { desert_storm: false, canyon_battlefield: false };
+let coordMapWarningShown = {};
+const mapSourceCache = {
+    [MAP_PREVIEW]: {},
+    [MAP_EXPORT]: {},
+};
 const maxRetries = 3;
 
+function normalizeEventId(value) {
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function isImageDataUrl(value, maxLength) {
+    const dataUrl = typeof value === 'string' ? value.trim() : '';
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+        return false;
+    }
+    return dataUrl.length <= maxLength;
+}
+
+function ensureEventRuntimeState(eventId) {
+    const event = normalizeEventId(eventId);
+    if (!event) {
+        return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(buildingConfigs, event)) {
+        buildingConfigs[event] = null;
+    }
+    if (!Object.prototype.hasOwnProperty.call(buildingPositionsMap, event)) {
+        buildingPositionsMap[event] = {};
+    }
+    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
+        if (!mapImages[purpose][event]) {
+            mapImages[purpose][event] = new Image();
+        }
+        if (!Object.prototype.hasOwnProperty.call(mapLoadedFlags[purpose], event)) {
+            mapLoadedFlags[purpose][event] = false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(mapLoadRetries[purpose], event)) {
+            mapLoadRetries[purpose][event] = 0;
+        }
+        if (!Object.prototype.hasOwnProperty.call(mapUnavailableFlags[purpose], event)) {
+            mapUnavailableFlags[purpose][event] = false;
+        }
+        if (!Object.prototype.hasOwnProperty.call(mapLoadPromises[purpose], event)) {
+            mapLoadPromises[purpose][event] = null;
+        }
+        if (!Object.prototype.hasOwnProperty.call(mapSourceCache[purpose], event)) {
+            mapSourceCache[purpose][event] = '';
+        }
+    });
+    if (!Object.prototype.hasOwnProperty.call(coordMapWarningShown, event)) {
+        coordMapWarningShown[event] = false;
+    }
+}
+
+function resetMapStateForEvent(eventId) {
+    const event = normalizeEventId(eventId);
+    if (!event) {
+        return;
+    }
+    ensureEventRuntimeState(event);
+    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
+        mapLoadedFlags[purpose][event] = false;
+        mapLoadRetries[purpose][event] = 0;
+        mapUnavailableFlags[purpose][event] = false;
+        mapLoadPromises[purpose][event] = null;
+        mapSourceCache[purpose][event] = '';
+        if (mapImages[purpose][event]) {
+            mapImages[purpose][event].src = '';
+        }
+    });
+    coordMapWarningShown[event] = false;
+}
+
+function syncRuntimeStateWithRegistry() {
+    const eventIds = getEventIds();
+    const eventIdSet = new Set(eventIds);
+
+    eventIds.forEach((eventId) => ensureEventRuntimeState(eventId));
+
+    Object.keys(buildingConfigs).forEach((eventId) => {
+        if (!eventIdSet.has(eventId)) {
+            delete buildingConfigs[eventId];
+        }
+    });
+    Object.keys(buildingPositionsMap).forEach((eventId) => {
+        if (!eventIdSet.has(eventId)) {
+            delete buildingPositionsMap[eventId];
+        }
+    });
+    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
+        [mapImages, mapLoadedFlags, mapLoadRetries, mapUnavailableFlags, mapLoadPromises, mapSourceCache].forEach((bucket) => {
+            Object.keys(bucket[purpose]).forEach((eventId) => {
+                if (!eventIdSet.has(eventId)) {
+                    delete bucket[purpose][eventId];
+                }
+            });
+        });
+    });
+    Object.keys(coordMapWarningShown).forEach((eventId) => {
+        if (!eventIdSet.has(eventId)) {
+            delete coordMapWarningShown[eventId];
+        }
+    });
+
+    if (!eventIdSet.has(currentEvent)) {
+        currentEvent = eventIds[0] || 'desert_storm';
+    }
+}
+
+function getEventDisplayName(eventId) {
+    const event = window.DSCoreEvents.getEvent(eventId);
+    if (!event) {
+        return eventId;
+    }
+    if (event.titleKey) {
+        const translated = t(event.titleKey);
+        if (translated && translated !== event.titleKey) {
+            return translated;
+        }
+    }
+    return event.name || eventId;
+}
+
+function createEventSelectorButton(eventId) {
+    const button = document.createElement('button');
+    button.className = `event-btn${eventId === currentEvent ? ' active' : ''}`;
+    button.type = 'button';
+    button.dataset.event = eventId;
+    button.textContent = getEventDisplayName(eventId);
+    button.addEventListener('click', () => switchEvent(eventId));
+    return button;
+}
+
+function renderEventSelector(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return;
+    }
+    const eventIds = getEventIds();
+    container.innerHTML = '';
+    eventIds.forEach((eventId) => {
+        container.appendChild(createEventSelectorButton(eventId));
+    });
+}
+
+function renderAllEventSelectors() {
+    renderEventSelector('selectionEventSelector');
+    renderEventSelector('buildingsEventSelector');
+    renderEventSelector('coordEventSelector');
+}
+
+function normalizeStoredEventsData(rawData) {
+    const source = rawData && typeof rawData === 'object' ? rawData : {};
+    const normalized = {};
+    Object.keys(source).forEach((rawId) => {
+        const eventId = normalizeEventId(rawId);
+        if (!eventId) {
+            return;
+        }
+        const entry = source[rawId];
+        if (!entry || typeof entry !== 'object') {
+            return;
+        }
+        normalized[eventId] = {
+            name: typeof entry.name === 'string' ? entry.name.trim().slice(0, EVENT_NAME_LIMIT) : '',
+            logoDataUrl: isImageDataUrl(entry.logoDataUrl, EVENT_LOGO_DATA_URL_LIMIT) ? entry.logoDataUrl.trim() : '',
+            mapDataUrl: isImageDataUrl(entry.mapDataUrl, EVENT_MAP_DATA_URL_LIMIT) ? entry.mapDataUrl.trim() : '',
+            buildingConfig: Array.isArray(entry.buildingConfig) ? entry.buildingConfig : null,
+            buildingPositions: entry.buildingPositions && typeof entry.buildingPositions === 'object' ? entry.buildingPositions : null,
+        };
+    });
+    return normalized;
+}
+
+function buildRegistryFromStorage() {
+    const legacyRegistry = window.DSCoreEvents.cloneLegacyEventRegistry
+        ? window.DSCoreEvents.cloneLegacyEventRegistry()
+        : window.DSCoreEvents.cloneEventRegistry();
+    const nextRegistry = {};
+
+    Object.keys(legacyRegistry).forEach((eventId) => {
+        nextRegistry[eventId] = { ...legacyRegistry[eventId] };
+    });
+
+    const storedEvents = (typeof FirebaseService !== 'undefined' && FirebaseService.getAllEventData)
+        ? normalizeStoredEventsData(FirebaseService.getAllEventData())
+        : {};
+
+    Object.keys(storedEvents).forEach((eventId) => {
+        const stored = storedEvents[eventId];
+        const base = nextRegistry[eventId] || {};
+        const baseBuildings = Array.isArray(base.buildings) ? base.buildings : [];
+        const storedBuildings = Array.isArray(stored.buildingConfig)
+            ? normalizeBuildingConfig(stored.buildingConfig, baseBuildings)
+            : null;
+        const buildings = Array.isArray(storedBuildings) && storedBuildings.length > 0
+            ? storedBuildings
+            : baseBuildings;
+        const validNames = new Set(buildings.map((item) => item.name));
+        const defaultPositions = stored.buildingPositions
+            ? window.DSCoreBuildings.normalizeBuildingPositions(stored.buildingPositions, validNames)
+            : (base.defaultPositions || {});
+        const mapDataUrl = stored.mapDataUrl || '';
+        const nextName = stored.name || base.name || eventId;
+        const preserveTitleKey = !stored.name || !base.name || stored.name === base.name;
+
+        nextRegistry[eventId] = {
+            ...base,
+            id: eventId,
+            name: nextName,
+            titleKey: preserveTitleKey ? (base.titleKey || '') : '',
+            mapFile: mapDataUrl || base.mapFile || '',
+            previewMapFile: mapDataUrl || base.previewMapFile || base.mapFile || '',
+            exportMapFile: mapDataUrl || base.exportMapFile || base.mapFile || '',
+            mapTitle: nextName.toUpperCase().slice(0, 50),
+            excelPrefix: normalizeEventId(base.excelPrefix || eventId) || eventId,
+            logoDataUrl: stored.logoDataUrl || '',
+            mapDataUrl: mapDataUrl,
+            buildings: buildings,
+            defaultPositions: defaultPositions,
+            buildingAnchors: base.buildingAnchors || {},
+        };
+    });
+
+    window.DSCoreEvents.setEventRegistry(nextRegistry);
+    syncRuntimeStateWithRegistry();
+    getEventIds().forEach((eventId) => resetMapStateForEvent(eventId));
+}
+
 function getEventMapFile(eventId, purpose) {
-    const evt = EVENT_REGISTRY[eventId];
+    ensureEventRuntimeState(eventId);
+    const evt = window.DSCoreEvents.getEvent(eventId);
     if (!evt) return null;
     if (purpose === MAP_EXPORT) {
         return evt.exportMapFile || evt.mapFile || evt.previewMapFile || null;
@@ -892,7 +1158,7 @@ function getEventMapFile(eventId, purpose) {
 }
 
 function getEventMapFallbackFile(eventId, purpose) {
-    const evt = EVENT_REGISTRY[eventId];
+    const evt = window.DSCoreEvents.getEvent(eventId);
     if (!evt) return null;
     if (purpose === MAP_EXPORT) {
         if (evt.mapFile && evt.mapFile !== evt.exportMapFile) {
@@ -906,6 +1172,7 @@ function getEventMapFallbackFile(eventId, purpose) {
 function loadMapImage(eventId, purpose) {
     const eid = eventId || currentEvent;
     const mapPurpose = purpose === MAP_EXPORT ? MAP_EXPORT : MAP_PREVIEW;
+    ensureEventRuntimeState(eid);
     if (mapLoadedFlags[mapPurpose][eid]) {
         return Promise.resolve(true);
     }
@@ -916,6 +1183,15 @@ function loadMapImage(eventId, purpose) {
     const primaryFile = getEventMapFile(eid, mapPurpose);
     const fallbackFile = getEventMapFallbackFile(eid, mapPurpose);
     const candidateFiles = [...new Set([primaryFile, fallbackFile].filter(Boolean))];
+    const mapSourceSignature = candidateFiles.join('|');
+
+    if (mapSourceCache[mapPurpose][eid] !== mapSourceSignature) {
+        mapLoadedFlags[mapPurpose][eid] = false;
+        mapUnavailableFlags[mapPurpose][eid] = false;
+        mapLoadRetries[mapPurpose][eid] = 0;
+        mapLoadPromises[mapPurpose][eid] = null;
+        mapSourceCache[mapPurpose][eid] = mapSourceSignature;
+    }
 
     mapLoadPromises[mapPurpose][eid] = new Promise((resolve, reject) => {
         const imageEl = mapImages[mapPurpose][eid];
@@ -982,13 +1258,17 @@ const MAX_BUILDING_SLOTS_TOTAL = 20;
 const MIN_BUILDING_SLOTS = 0;
 
 function switchEvent(eventId) {
-    if (!EVENT_REGISTRY[eventId] || eventId === currentEvent) return;
-    currentEvent = eventId;
+    const targetEventId = normalizeEventId(eventId);
+    if (!targetEventId || !window.DSCoreEvents.getEvent(targetEventId) || targetEventId === currentEvent) return;
+    ensureEventRuntimeState(targetEventId);
+    currentEvent = targetEventId;
+    eventEditorCurrentId = targetEventId;
 
-    // Update event selector buttons
-    document.querySelectorAll('.event-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.event === eventId);
-    });
+    renderAllEventSelectors();
+    renderEventsList();
+    updateEventEditorTitle();
+    applySelectedEventToEditor();
+    refreshEventEditorDeleteState();
 
     // Load building config for new event
     loadBuildingConfig();
@@ -1016,19 +1296,572 @@ function switchEvent(eventId) {
 
     // If the coordinate picker is currently open, warm the export map so picker/export sizes match.
     const coordOverlayVisible = coordOverlay && !coordOverlay.classList.contains('hidden');
-    if (coordOverlayVisible && !mapLoadedFlags[MAP_EXPORT][eventId]) {
-        loadMapImage(eventId, MAP_EXPORT).catch(() => {
-            console.warn(eventId + ' export map failed to load');
+    if (coordOverlayVisible && !mapLoadedFlags[MAP_EXPORT][targetEventId]) {
+        loadMapImage(targetEventId, MAP_EXPORT).catch(() => {
+            console.warn(targetEventId + ' export map failed to load');
         });
     }
 }
 
 function updateGenerateEventLabels() {
-    const label = getActiveEvent().mapTitle;
+    const activeEvent = getActiveEvent();
+    const label = activeEvent ? activeEvent.mapTitle : '';
     const elA = document.getElementById('generateEventLabelA');
     const elB = document.getElementById('generateEventLabelB');
     if (elA) elA.textContent = label;
     if (elB) elB.textContent = label;
+}
+
+const PROTECTED_EVENT_IDS = new Set(
+    Object.keys(window.DSCoreEvents.cloneLegacyEventRegistry ? window.DSCoreEvents.cloneLegacyEventRegistry() : {
+        desert_storm: true,
+        canyon_battlefield: true,
+    })
+);
+
+function hashString(value) {
+    const input = String(value || '');
+    let hash = 2166136261;
+    for (let index = 0; index < input.length; index += 1) {
+        hash ^= input.charCodeAt(index);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    }
+    return Math.abs(hash >>> 0);
+}
+
+function generateEventAvatarDataUrl(nameSeed, idSeed) {
+    const seed = `${nameSeed || ''}|${idSeed || ''}|event-avatar`;
+    const hue = hashString(seed) % 360;
+    const canvas = document.createElement('canvas');
+    canvas.width = 96;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        return '';
+    }
+    const grad = ctx.createLinearGradient(0, 0, 96, 96);
+    grad.addColorStop(0, `hsl(${hue}, 78%, 50%)`);
+    grad.addColorStop(1, `hsl(${(hue + 60) % 360}, 72%, 40%)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 96, 96);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = 'bold 34px Trebuchet MS';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(getAvatarInitials(nameSeed || 'Event', ''), 48, 50);
+    return canvas.toDataURL('image/png');
+}
+
+function updateEventLogoPreview() {
+    const image = document.getElementById('eventLogoPreviewImage');
+    if (!image) {
+        return;
+    }
+    const nameInput = document.getElementById('eventNameInput');
+    const seedName = nameInput && typeof nameInput.value === 'string' && nameInput.value.trim()
+        ? nameInput.value.trim()
+        : (eventEditorCurrentId || 'Event');
+    image.src = eventDraftLogoDataUrl || generateEventAvatarDataUrl(seedName, eventEditorCurrentId || seedName);
+}
+
+function updateEventMapPreview() {
+    const image = document.getElementById('eventMapPreviewImage');
+    const placeholder = document.getElementById('eventMapPreviewPlaceholder');
+    if (!image || !placeholder) {
+        return;
+    }
+    if (eventDraftMapDataUrl) {
+        image.src = eventDraftMapDataUrl;
+        image.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    } else {
+        image.src = '';
+        image.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+    }
+}
+
+function updateEventEditorTitle() {
+    const titleEl = document.getElementById('eventEditorTitle');
+    if (!titleEl) {
+        return;
+    }
+    if (!eventEditorCurrentId) {
+        titleEl.textContent = t('events_manager_create_title');
+        return;
+    }
+    const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
+    const eventName = event ? (event.name || eventEditorCurrentId) : eventEditorCurrentId;
+    titleEl.textContent = t('events_manager_edit_title', { name: eventName });
+}
+
+function createEditorBuildingRow(rowData) {
+    const source = rowData && typeof rowData === 'object' ? rowData : {};
+    const name = typeof source.name === 'string' ? source.name : '';
+    const slots = Number(source.slots);
+    const priority = Number(source.priority);
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
+        <td><input type="number" data-field="slots" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${Number.isFinite(slots) ? Math.max(MIN_BUILDING_SLOTS, Math.min(MAX_BUILDING_SLOTS_TOTAL, Math.round(slots))) : 0}"></td>
+        <td><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
+        <td><button class="clear-btn" type="button" data-action="remove-row">${t('events_manager_remove')}</button></td>
+    `;
+    return row;
+}
+
+function renderEventBuildingsEditor(buildings) {
+    const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (!tbody) {
+        return;
+    }
+    tbody.innerHTML = '';
+    const source = Array.isArray(buildings) && buildings.length > 0
+        ? buildings
+        : [{ name: '', slots: 0, priority: 1 }];
+    source.forEach((building) => {
+        tbody.appendChild(createEditorBuildingRow(building));
+    });
+}
+
+function addEventBuildingRow() {
+    const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (!tbody) {
+        return;
+    }
+    tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1 }));
+}
+
+function readEventBuildingsEditor() {
+    const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (!tbody) {
+        return { buildings: [], error: t('events_manager_buildings_required') };
+    }
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const buildings = [];
+    const seenNames = new Set();
+
+    for (const row of rows) {
+        const nameInput = row.querySelector('input[data-field="name"]');
+        const slotsInput = row.querySelector('input[data-field="slots"]');
+        const priorityInput = row.querySelector('input[data-field="priority"]');
+        const name = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
+        if (!name) {
+            continue;
+        }
+        if (seenNames.has(name.toLowerCase())) {
+            return { buildings: [], error: t('events_manager_duplicate_building', { name: name }) };
+        }
+        seenNames.add(name.toLowerCase());
+        const slots = clampSlots(Number(slotsInput ? slotsInput.value : 0), 0);
+        const priority = clampPriority(Number(priorityInput ? priorityInput.value : 1), 1);
+        buildings.push({
+            name: name,
+            label: name,
+            slots: slots,
+            priority: priority,
+        });
+    }
+    if (buildings.length === 0) {
+        return { buildings: [], error: t('events_manager_buildings_required') };
+    }
+    return { buildings: buildings, error: null };
+}
+
+function setEditorName(value) {
+    const input = document.getElementById('eventNameInput');
+    if (input) {
+        input.value = value || '';
+    }
+}
+
+function applySelectedEventToEditor() {
+    if (!eventEditorCurrentId) {
+        eventEditorCurrentId = currentEvent;
+    }
+    const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
+    if (!event) {
+        startNewEventDraft();
+        return;
+    }
+    setEditorName(event.name || eventEditorCurrentId);
+    eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
+    eventDraftMapDataUrl = event.mapDataUrl || '';
+    updateEventLogoPreview();
+    updateEventMapPreview();
+    renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
+    updateEventEditorTitle();
+    refreshEventEditorDeleteState();
+}
+
+function renderEventsList() {
+    const listEl = document.getElementById('eventsList');
+    if (!listEl) {
+        return;
+    }
+    const eventIds = getEventIds();
+    listEl.innerHTML = '';
+    eventIds.forEach((eventId) => {
+        const event = window.DSCoreEvents.getEvent(eventId);
+        if (!event) {
+            return;
+        }
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `events-list-item${eventId === currentEvent ? ' active' : ''}`;
+        button.addEventListener('click', () => {
+            eventEditorCurrentId = eventId;
+            switchEvent(eventId);
+        });
+
+        const avatar = document.createElement('img');
+        avatar.className = 'events-list-avatar';
+        avatar.alt = `${event.name || eventId} avatar`;
+        avatar.src = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventId, eventId);
+
+        const textWrap = document.createElement('span');
+        textWrap.className = 'events-list-text';
+        const title = document.createElement('span');
+        title.className = 'events-list-title';
+        title.textContent = event.name || eventId;
+        const meta = document.createElement('span');
+        meta.className = 'events-list-meta';
+        meta.textContent = t('events_manager_building_count', { count: Array.isArray(event.buildings) ? event.buildings.length : 0 });
+        textWrap.appendChild(title);
+        textWrap.appendChild(meta);
+
+        button.appendChild(avatar);
+        button.appendChild(textWrap);
+        listEl.appendChild(button);
+    });
+}
+
+function startNewEventDraft() {
+    eventEditorCurrentId = '';
+    setEditorName('');
+    eventDraftLogoDataUrl = '';
+    eventDraftMapDataUrl = '';
+    updateEventLogoPreview();
+    updateEventMapPreview();
+    renderEventBuildingsEditor([{ name: 'Bomb Squad', slots: 4, priority: 1 }]);
+    updateEventEditorTitle();
+    const deleteBtn = document.getElementById('eventDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = true;
+    }
+}
+
+function refreshEventEditorDeleteState() {
+    const deleteBtn = document.getElementById('eventDeleteBtn');
+    if (!deleteBtn) {
+        return;
+    }
+    deleteBtn.disabled = !eventEditorCurrentId || PROTECTED_EVENT_IDS.has(eventEditorCurrentId);
+}
+
+function triggerEventLogoUpload() {
+    const input = document.getElementById('eventLogoInput');
+    if (input) {
+        input.click();
+    }
+}
+
+function triggerEventMapUpload() {
+    const input = document.getElementById('eventMapInput');
+    if (input) {
+        input.click();
+    }
+}
+
+function removeEventLogo() {
+    eventDraftLogoDataUrl = '';
+    const input = document.getElementById('eventLogoInput');
+    if (input) {
+        input.value = '';
+    }
+    updateEventLogoPreview();
+}
+
+function removeEventMap() {
+    eventDraftMapDataUrl = '';
+    const input = document.getElementById('eventMapInput');
+    if (input) {
+        input.value = '';
+    }
+    updateEventMapPreview();
+}
+
+async function createEventImageDataUrl(file, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const maxBytes = Number(opts.maxBytes) || AVATAR_MAX_UPLOAD_BYTES;
+    const minDimension = Number(opts.minDimension) || AVATAR_MIN_DIMENSION;
+    const maxSide = Number(opts.maxSide) || 512;
+    const maxDataUrlLength = Number(opts.maxDataUrlLength) || EVENT_MAP_DATA_URL_LIMIT;
+    const tooLargeMessage = opts.tooLargeMessage || t('events_manager_image_too_large');
+    const tooSmallMessage = opts.tooSmallMessage || t('events_manager_image_too_small', { min: minDimension });
+
+    if (!isAllowedAvatarFile(file)) {
+        throw new Error(t('events_manager_invalid_image'));
+    }
+    if (typeof file.size === 'number' && file.size > maxBytes) {
+        throw new Error(tooLargeMessage);
+    }
+    const rawDataUrl = await readFileAsDataUrl(file);
+    const img = await loadImageFromDataUrl(rawDataUrl);
+    if ((img.width || 0) < minDimension || (img.height || 0) < minDimension) {
+        throw new Error(tooSmallMessage);
+    }
+
+    const longestSide = Math.max(img.width || 1, img.height || 1);
+    const scale = Math.min(1, maxSide / longestSide);
+    const width = Math.max(1, Math.round((img.width || 1) * scale));
+    const height = Math.max(1, Math.round((img.height || 1) * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        throw new Error(t('events_manager_image_process_failed'));
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const qualities = [0.9, 0.8, 0.7, 0.6];
+    for (const quality of qualities) {
+        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+        if (jpegDataUrl.length <= maxDataUrlLength) {
+            return jpegDataUrl;
+        }
+    }
+    const pngDataUrl = canvas.toDataURL('image/png');
+    if (pngDataUrl.length <= maxDataUrlLength) {
+        return pngDataUrl;
+    }
+    throw new Error(t('events_manager_image_data_too_large'));
+}
+
+async function handleEventLogoChange(event) {
+    const input = event && event.target ? event.target : document.getElementById('eventLogoInput');
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) {
+        return;
+    }
+    try {
+        eventDraftLogoDataUrl = await createEventImageDataUrl(file, {
+            maxBytes: AVATAR_MAX_UPLOAD_BYTES,
+            minDimension: AVATAR_MIN_DIMENSION,
+            maxSide: 320,
+            maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
+            tooLargeMessage: t('events_manager_logo_too_large'),
+        });
+        updateEventLogoPreview();
+        showMessage('eventsStatus', t('events_manager_logo_saved'), 'success');
+    } catch (error) {
+        showMessage('eventsStatus', error.message || t('events_manager_image_process_failed'), 'error');
+    } finally {
+        if (input) {
+            input.value = '';
+        }
+    }
+}
+
+async function handleEventMapChange(event) {
+    const input = event && event.target ? event.target : document.getElementById('eventMapInput');
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) {
+        return;
+    }
+    try {
+        eventDraftMapDataUrl = await createEventImageDataUrl(file, {
+            maxBytes: 4 * 1024 * 1024,
+            minDimension: 320,
+            maxSide: 1920,
+            maxDataUrlLength: EVENT_MAP_DATA_URL_LIMIT,
+            tooLargeMessage: t('events_manager_map_too_large'),
+        });
+        updateEventMapPreview();
+        showMessage('eventsStatus', t('events_manager_map_saved'), 'success');
+    } catch (error) {
+        showMessage('eventsStatus', error.message || t('events_manager_image_process_failed'), 'error');
+    } finally {
+        if (input) {
+            input.value = '';
+        }
+    }
+}
+
+function buildEventDefinition(eventId, name, buildings) {
+    const existing = window.DSCoreEvents.getEvent(eventId) || {};
+    const mapDataUrl = eventDraftMapDataUrl || '';
+    const logoDataUrl = eventDraftLogoDataUrl || generateEventAvatarDataUrl(name, eventId);
+    const validNames = new Set(buildings.map((item) => item.name));
+    const currentPositions = buildingPositionsMap[eventId] || (existing.defaultPositions || {});
+    const normalizedPositions = window.DSCoreBuildings.normalizeBuildingPositions(currentPositions, validNames);
+    return {
+        id: eventId,
+        name: name,
+        titleKey: existing.titleKey || '',
+        mapFile: mapDataUrl || existing.mapFile || '',
+        previewMapFile: mapDataUrl || existing.previewMapFile || existing.mapFile || '',
+        exportMapFile: mapDataUrl || existing.exportMapFile || existing.mapFile || '',
+        mapTitle: name.toUpperCase().slice(0, 50),
+        excelPrefix: normalizeEventId(existing.excelPrefix || eventId) || eventId,
+        logoDataUrl: logoDataUrl,
+        mapDataUrl: mapDataUrl,
+        buildings: buildings,
+        defaultPositions: normalizedPositions,
+        buildingAnchors: existing.buildingAnchors || {},
+    };
+}
+
+async function saveEventDefinition() {
+    const nameInput = document.getElementById('eventNameInput');
+    const rawName = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
+    const eventName = rawName.slice(0, EVENT_NAME_LIMIT);
+    if (!eventName) {
+        showMessage('eventsStatus', t('events_manager_name_required'), 'error');
+        return;
+    }
+
+    const { buildings, error } = readEventBuildingsEditor();
+    if (error) {
+        showMessage('eventsStatus', error, 'error');
+        return;
+    }
+
+    const existingIds = getEventIds();
+    const eventId = eventEditorCurrentId || window.DSCoreEvents.slugifyEventId(eventName, existingIds);
+    const definition = buildEventDefinition(eventId, eventName, buildings);
+    const isNewEvent = !eventEditorCurrentId;
+
+    window.DSCoreEvents.upsertEvent(eventId, definition);
+    ensureEventRuntimeState(eventId);
+    buildingConfigs[eventId] = normalizeBuildingConfig(buildings, buildings);
+    const validNames = new Set(buildings.map((item) => item.name));
+    buildingPositionsMap[eventId] = window.DSCoreBuildings.normalizeBuildingPositions(
+        buildingPositionsMap[eventId] || definition.defaultPositions || {},
+        validNames
+    );
+    resetMapStateForEvent(eventId);
+
+    if (typeof FirebaseService !== 'undefined') {
+        if (FirebaseService.upsertEvent) {
+            FirebaseService.upsertEvent(eventId, {
+                id: eventId,
+                name: definition.name,
+                logoDataUrl: definition.logoDataUrl,
+                mapDataUrl: definition.mapDataUrl,
+                buildingConfig: buildingConfigs[eventId],
+                buildingPositions: buildingPositionsMap[eventId],
+            });
+        }
+        FirebaseService.setBuildingConfig(eventId, buildingConfigs[eventId]);
+        FirebaseService.setBuildingConfigVersion(eventId, getTargetBuildingConfigVersion());
+        FirebaseService.setBuildingPositions(eventId, buildingPositionsMap[eventId]);
+        FirebaseService.setBuildingPositionsVersion(eventId, getTargetBuildingPositionsVersion());
+        const saveResult = await FirebaseService.saveUserData();
+        if (!saveResult || !saveResult.success) {
+            showMessage('eventsStatus', t('events_manager_save_failed', { error: (saveResult && saveResult.error) || 'unknown' }), 'error');
+            return;
+        }
+    }
+
+    eventEditorCurrentId = eventId;
+    currentEvent = eventId;
+    syncRuntimeStateWithRegistry();
+    renderAllEventSelectors();
+    renderEventsList();
+    refreshEventEditorDeleteState();
+    updateEventEditorTitle();
+    updateGenerateEventLabels();
+    loadBuildingConfig();
+    loadBuildingPositions();
+    renderBuildingsTable();
+    showMessage('eventsStatus', t('events_manager_saved'), 'success');
+
+    if (isNewEvent && definition.mapDataUrl) {
+        openCoordinatesPicker();
+    }
+}
+
+async function deleteSelectedEvent() {
+    if (!eventEditorCurrentId) {
+        showMessage('eventsStatus', t('events_manager_delete_pick_event'), 'error');
+        return;
+    }
+    if (PROTECTED_EVENT_IDS.has(eventEditorCurrentId)) {
+        showMessage('eventsStatus', t('events_manager_delete_protected'), 'warning');
+        return;
+    }
+    if (!confirm(t('events_manager_delete_confirm'))) {
+        return;
+    }
+
+    const eventId = eventEditorCurrentId;
+    const removed = window.DSCoreEvents.removeEvent(eventId);
+    if (!removed) {
+        showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
+        return;
+    }
+
+    delete buildingConfigs[eventId];
+    delete buildingPositionsMap[eventId];
+    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
+        delete mapImages[purpose][eventId];
+        delete mapLoadedFlags[purpose][eventId];
+        delete mapLoadRetries[purpose][eventId];
+        delete mapUnavailableFlags[purpose][eventId];
+        delete mapLoadPromises[purpose][eventId];
+        delete mapSourceCache[purpose][eventId];
+    });
+    delete coordMapWarningShown[eventId];
+
+    if (typeof FirebaseService !== 'undefined' && FirebaseService.removeEvent) {
+        FirebaseService.removeEvent(eventId);
+        const result = await FirebaseService.saveUserData();
+        if (!result || !result.success) {
+            showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
+            return;
+        }
+    }
+
+    syncRuntimeStateWithRegistry();
+    const firstEvent = getEventIds()[0] || '';
+    if (firstEvent) {
+        currentEvent = firstEvent;
+    }
+    startNewEventDraft();
+    renderAllEventSelectors();
+    renderEventsList();
+    updateGenerateEventLabels();
+    loadBuildingConfig();
+    loadBuildingPositions();
+    renderBuildingsTable();
+    showMessage('eventsStatus', t('events_manager_deleted'), 'success');
+}
+
+function bindEventEditorTableActions() {
+    const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (!tbody) {
+        return;
+    }
+    tbody.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-action="remove-row"]');
+        if (!btn) {
+            return;
+        }
+        const row = btn.closest('tr');
+        if (!row) {
+            return;
+        }
+        row.remove();
+        const remainingRows = tbody.querySelectorAll('tr').length;
+        if (remainingRows === 0) {
+            addEventBuildingRow();
+        }
+    });
 }
 
 // ============================================================
@@ -1558,6 +2391,16 @@ function loadPlayerData() {
         console.error('FirebaseService not available');
         return;
     }
+
+    buildRegistryFromStorage();
+    syncRuntimeStateWithRegistry();
+    renderAllEventSelectors();
+    renderEventsList();
+    refreshEventEditorDeleteState();
+    updateGenerateEventLabels();
+    if (!eventEditorCurrentId || !window.DSCoreEvents.getEvent(eventEditorCurrentId)) {
+        applySelectedEventToEditor();
+    }
     
     const playerDB = FirebaseService.getActivePlayerDatabase();
     const count = Object.keys(playerDB).length;
@@ -1613,10 +2456,12 @@ function toggleBuildingsPanel() {
 }
 
 function getDefaultBuildings() {
-    return window.DSCoreEvents.cloneEventBuildings(currentEvent);
+    const defaults = window.DSCoreEvents.cloneEventBuildings(currentEvent);
+    return Array.isArray(defaults) ? defaults : [];
 }
 
 function getBuildingConfig() {
+    ensureEventRuntimeState(currentEvent);
     if (!buildingConfigs[currentEvent]) {
         buildingConfigs[currentEvent] = getDefaultBuildings();
     }
@@ -1670,14 +2515,17 @@ function toggleBuildingFieldEdit(buttonEl) {
 }
 
 function setBuildingConfig(config) {
+    ensureEventRuntimeState(currentEvent);
     buildingConfigs[currentEvent] = config;
 }
 
 function getBuildingPositions() {
+    ensureEventRuntimeState(currentEvent);
     return buildingPositionsMap[currentEvent];
 }
 
 function setBuildingPositionsLocal(positions) {
+    ensureEventRuntimeState(currentEvent);
     buildingPositionsMap[currentEvent] = positions;
 }
 
@@ -1708,7 +2556,8 @@ function getDefaultBuildingPositions() {
 }
 
 function normalizeBuildingPositions(positions) {
-    const validNames = new Set(getActiveEvent().buildings.map((b) => b.name));
+    const activeEvent = getActiveEvent();
+    const validNames = new Set((activeEvent && Array.isArray(activeEvent.buildings) ? activeEvent.buildings : []).map((b) => b.name));
     return window.DSCoreBuildings.normalizeBuildingPositions(positions, validNames);
 }
 
@@ -1977,6 +2826,10 @@ let coordBuildingIndex = 0;
 let coordBuildings = [];
 
 function refreshCoordinatesPickerForCurrentEvent() {
+    if (!getActiveEvent()) {
+        showMessage('coordStatus', t('events_manager_no_events'), 'error');
+        return false;
+    }
     loadBuildingConfig();
     loadBuildingPositions();
     coordBuildings = getBuildingConfig()
@@ -1994,6 +2847,10 @@ function refreshCoordinatesPickerForCurrentEvent() {
 }
 
 function openCoordinatesPicker() {
+    if (!getActiveEvent()) {
+        showMessage('coordStatus', t('events_manager_no_events'), 'error');
+        return;
+    }
     const overlay = document.getElementById('coordPickerOverlay');
     overlay.classList.remove('hidden');
     document.body.style.overflow = 'hidden';

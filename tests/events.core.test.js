@@ -36,3 +36,41 @@ test('cloneDefaultPositions returns isolated object', () => {
   const second = global.DSCoreEvents.cloneDefaultPositions('desert_storm');
   assert.notEqual(second['Info Center'][0], 12345);
 });
+
+test('upsertEvent stores sanitized custom event definitions', () => {
+  loadModule();
+  const created = global.DSCoreEvents.upsertEvent(' custom_event ', {
+    name: '  My Custom Event  ',
+    buildings: [
+      { name: 'Tower', slots: 2.2, priority: 3.7 },
+      { name: '  ', slots: 9, priority: 2 },
+    ],
+  });
+
+  assert.equal(created.id, 'custom_event');
+  assert.equal(created.name, 'My Custom Event');
+  assert.equal(created.buildings.length, 1);
+  assert.deepEqual(created.buildings[0], { name: 'Tower', label: 'Tower', slots: 2, priority: 4 });
+  assert.ok(global.DSCoreEvents.EVENT_REGISTRY.custom_event);
+});
+
+test('setEventRegistry replaces runtime registry', () => {
+  loadModule();
+  global.DSCoreEvents.setEventRegistry({
+    test_event: {
+      id: 'test_event',
+      name: 'Test Event',
+      buildings: [{ name: 'HQ', slots: 2, priority: 1 }],
+    },
+  });
+
+  assert.deepEqual(global.DSCoreEvents.getEventIds(), ['test_event']);
+  assert.ok(global.DSCoreEvents.getEvent('test_event'));
+  assert.equal(global.DSCoreEvents.getEvent('desert_storm'), null);
+});
+
+test('slugifyEventId avoids collisions', () => {
+  loadModule();
+  const id = global.DSCoreEvents.slugifyEventId('Desert Storm');
+  assert.equal(id, 'desert_storm_2');
+});

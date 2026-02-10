@@ -19,6 +19,12 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
   assert.deepEqual(await global.FirebaseService.signOut(), { success: false, error: 'Firebase not loaded' });
   assert.deepEqual(await global.FirebaseService.deleteUserAccountAndData(), { success: false, error: 'Firebase not loaded' });
   assert.equal(global.FirebaseService.getPlayerSource(), 'personal');
+  assert.deepEqual(global.FirebaseService.getAllEventData(), {});
+  assert.deepEqual(global.FirebaseService.getEventIds(), []);
+  assert.equal(global.FirebaseService.getEventMeta('desert_storm'), null);
+  assert.equal(global.FirebaseService.upsertEvent('test_event', { name: 'Test' }), null);
+  assert.equal(global.FirebaseService.removeEvent('test_event'), false);
+  assert.equal(global.FirebaseService.setEventMetadata('test_event', { name: 'Test' }), null);
   assert.equal(global.FirebaseService.getBuildingConfigVersion('desert_storm'), 0);
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfig('canyon_battlefield'), null);
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfigVersion(), 0);
@@ -32,6 +38,12 @@ test('firebase service delegates calls to FirebaseManager', async () => {
     signOut: async () => { called = true; return { success: true }; },
     deleteUserAccountAndData: async () => ({ success: true, dataDeleted: true, accountDeleted: true }),
     isSignedIn: () => true,
+    getAllEventData: () => ({ desert_storm: { name: 'Desert Storm' } }),
+    getEventIds: () => ['desert_storm'],
+    getEventMeta: (eventId) => ({ id: eventId, name: 'Desert Storm', logoDataUrl: '', mapDataUrl: '' }),
+    upsertEvent: (eventId, payload) => ({ id: eventId, name: payload.name, logoDataUrl: '', mapDataUrl: '' }),
+    removeEvent: () => true,
+    setEventMetadata: (eventId, payload) => ({ id: eventId, name: payload.name, logoDataUrl: '', mapDataUrl: '' }),
     getBuildingConfigVersion: () => 11,
     getGlobalDefaultBuildingConfig: () => [{ name: 'Command Center', label: 'CC' }],
     getGlobalDefaultBuildingConfigVersion: () => 456,
@@ -45,6 +57,12 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   assert.equal(called, true);
   assert.deepEqual(await global.FirebaseService.deleteUserAccountAndData(), { success: true, dataDeleted: true, accountDeleted: true });
   assert.equal(global.FirebaseService.isSignedIn(), true);
+  assert.deepEqual(global.FirebaseService.getAllEventData(), { desert_storm: { name: 'Desert Storm' } });
+  assert.deepEqual(global.FirebaseService.getEventIds(), ['desert_storm']);
+  assert.deepEqual(global.FirebaseService.getEventMeta('desert_storm'), { id: 'desert_storm', name: 'Desert Storm', logoDataUrl: '', mapDataUrl: '' });
+  assert.deepEqual(global.FirebaseService.upsertEvent('test_event', { name: 'Test' }), { id: 'test_event', name: 'Test', logoDataUrl: '', mapDataUrl: '' });
+  assert.equal(global.FirebaseService.removeEvent('test_event'), true);
+  assert.deepEqual(global.FirebaseService.setEventMetadata('desert_storm', { name: 'Desert Storm' }), { id: 'desert_storm', name: 'Desert Storm', logoDataUrl: '', mapDataUrl: '' });
   assert.equal(global.FirebaseService.getBuildingConfigVersion('desert_storm'), 11);
   assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingConfig('canyon_battlefield'), [{ name: 'Command Center', label: 'CC' }]);
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfigVersion(), 456);

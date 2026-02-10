@@ -7,13 +7,15 @@ Web app for building event teams, assigning players to buildings, and exporting 
 - Menu-based navigation with two main pages:
   - `Configuration`
   - `Generator`
-- Event support:
-  - `Desert Storm`
-  - `Canyon Battlefield`
+- Multi-event support:
+  - built-in events: `Desert Storm`, `Canyon Storm`
+  - custom events created per user from `Configuration -> Events Manager`
 - Per-event configuration:
   - building names
   - `#Players` (slots)
   - priorities
+  - optional event avatar/logo
+  - optional event map
   - map label coordinates
 - Player database import from Excel (stored per user in Firestore).
 - Team selection with starters and substitutes.
@@ -36,10 +38,11 @@ Web app for building event teams, assigning players to buildings, and exporting 
 3. Go to `Configuration`.
 4. Download the Excel template.
 5. Upload your player database.
-6. Review per-event `Buildings & Priorities` (`#Players` + priority).
-7. Set per-event map coordinates for player name labels.
-8. Open `Menu` and switch to `Generator`.
-9. Select players and generate exports.
+6. Create or edit events in `Events Manager` (name, avatar, map, buildings, priorities).
+7. Review per-event `Buildings & Priorities` (`#Players` + priority).
+8. Set per-event map coordinates for player name labels.
+9. Open `Menu` and switch to `Generator`.
+10. Select players and generate exports.
 
 ## Requirements
 
@@ -94,9 +97,11 @@ Main fields:
   - keyed by player name
   - value contains `power`, `troops`, `lastUpdated`
 - `events` (map)
-  - `events.desert_storm`
-  - `events.canyon_battlefield`
+  - key = normalized event id (for example `desert_storm`, `canyon_battlefield`, `my_custom_event`)
   - each event entry stores:
+    - `name` (string, required when event is defined)
+    - `logoDataUrl` (optional image data URL)
+    - `mapDataUrl` (optional image data URL)
     - `buildingConfig` (array)
     - `buildingConfigVersion` (number)
     - `buildingPositions` (map of `buildingName -> [x, y]`)
@@ -177,7 +182,7 @@ node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACC
 ## Tests
 
 ```bash
-npm test
+node --test tests/*.test.js
 ```
 
 ## Troubleshooting
