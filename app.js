@@ -27,6 +27,7 @@ function onI18nApplied() {
     renderAllEventSelectors();
     renderEventsList();
     updateEventEditorTitle();
+    updateEventEditorState();
     refreshLanguageDependentText();
     renderPlayersTable();
     renderBuildingsTable();
@@ -387,6 +388,7 @@ const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
+let eventEditorIsEditMode = false;
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
@@ -1066,7 +1068,6 @@ function renderEventSelector(containerId) {
 
 function renderAllEventSelectors() {
     renderEventSelector('selectionEventSelector');
-    renderEventSelector('buildingsEventSelector');
     renderEventSelector('coordEventSelector');
 }
 
@@ -1260,16 +1261,26 @@ const MIN_BUILDING_SLOTS = 0;
 
 function switchEvent(eventId) {
     const targetEventId = normalizeEventId(eventId);
-    if (!targetEventId || !window.DSCoreEvents.getEvent(targetEventId) || targetEventId === currentEvent) return;
+    if (!targetEventId || !window.DSCoreEvents.getEvent(targetEventId)) return;
+    if (targetEventId === currentEvent) {
+        eventEditorCurrentId = targetEventId;
+        eventEditorIsEditMode = false;
+        applySelectedEventToEditor();
+        renderEventsList();
+        updateEventEditorState();
+        return;
+    }
     ensureEventRuntimeState(targetEventId);
     currentEvent = targetEventId;
     eventEditorCurrentId = targetEventId;
+    eventEditorIsEditMode = false;
 
     renderAllEventSelectors();
     renderEventsList();
     updateEventEditorTitle();
     applySelectedEventToEditor();
     refreshEventEditorDeleteState();
+    updateEventEditorState();
 
     // Load building config for new event
     loadBuildingConfig();
@@ -1406,7 +1417,97 @@ function updateEventEditorTitle() {
     }
     const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
     const eventName = event ? (event.name || eventEditorCurrentId) : eventEditorCurrentId;
-    titleEl.textContent = t('events_manager_edit_title', { name: eventName });
+    titleEl.textContent = eventEditorIsEditMode
+        ? t('events_manager_edit_title', { name: eventName })
+        : eventName;
+}
+
+function isEventMapAvailable(eventId) {
+    if (!eventId) {
+        return false;
+    }
+    return Boolean(getEventMapPreviewSource(eventId));
+}
+
+function updateEventCoordinatesButton() {
+    const button = document.getElementById('eventCoordinatesBtn');
+    if (!button) {
+        return;
+    }
+    const hasDraftMap = Boolean(eventDraftMapDataUrl);
+    const hasSavedMap = isEventMapAvailable(eventEditorCurrentId);
+    const showButton = hasDraftMap || hasSavedMap;
+    button.classList.toggle('hidden', !showButton);
+    button.disabled = !showButton;
+}
+
+function updateEventEditorState() {
+    const isNewDraft = !eventEditorCurrentId;
+    const readOnly = !isNewDraft && !eventEditorIsEditMode;
+
+    const eventNameInput = document.getElementById('eventNameInput');
+    if (eventNameInput) {
+        eventNameInput.disabled = readOnly;
+    }
+
+    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventMapUploadBtn', 'eventMapRemoveBtn', 'eventAddBuildingBtn', 'eventSaveBtn'].forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.disabled = readOnly;
+        }
+    });
+
+    ['eventLogoInput', 'eventMapInput'].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.disabled = readOnly;
+        }
+    });
+
+    const rows = document.querySelectorAll('#eventBuildingsEditorBody input, #eventBuildingsEditorBody button[data-action="remove-row"]');
+    rows.forEach((element) => {
+        element.disabled = readOnly;
+    });
+
+    const deleteBtn = document.getElementById('eventDeleteBtn');
+    if (deleteBtn) {
+        deleteBtn.disabled = readOnly || !eventEditorCurrentId || PROTECTED_EVENT_IDS.has(eventEditorCurrentId);
+    }
+
+    const editBtn = document.getElementById('eventEditModeBtn');
+    if (editBtn) {
+        const showEditBtn = !isNewDraft && !eventEditorIsEditMode;
+        editBtn.classList.toggle('hidden', !showEditBtn);
+        editBtn.disabled = !showEditBtn;
+        editBtn.title = t('events_manager_edit_action');
+        editBtn.setAttribute('aria-label', t('events_manager_edit_action'));
+    }
+
+    updateEventCoordinatesButton();
+    updateEventEditorTitle();
+}
+
+function enterEventEditMode() {
+    if (!eventEditorCurrentId) {
+        return;
+    }
+    eventEditorIsEditMode = true;
+    updateEventEditorState();
+}
+
+function openCoordinatesPickerFromEditor() {
+    if (!eventEditorCurrentId) {
+        showMessage('eventsStatus', t('events_manager_coordinates_save_first'), 'warning');
+        return;
+    }
+    if (!isEventMapAvailable(eventEditorCurrentId) && !eventDraftMapDataUrl) {
+        showMessage('eventsStatus', t('events_manager_coordinates_missing_map'), 'warning');
+        return;
+    }
+    if (currentEvent !== eventEditorCurrentId) {
+        switchEvent(eventEditorCurrentId);
+    }
+    openCoordinatesPicker();
 }
 
 function createEditorBuildingRow(rowData) {
@@ -1440,6 +1541,9 @@ function renderEventBuildingsEditor(buildings) {
 }
 
 function addEventBuildingRow() {
+    if (!eventEditorIsEditMode) {
+        return;
+    }
     const tbody = document.getElementById('eventBuildingsEditorBody');
     if (!tbody) {
         return;
@@ -1505,8 +1609,7 @@ function applySelectedEventToEditor() {
     updateEventLogoPreview();
     updateEventMapPreview();
     renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
-    updateEventEditorTitle();
-    refreshEventEditorDeleteState();
+    updateEventEditorState();
 }
 
 function renderEventsList() {
@@ -1549,17 +1652,45 @@ function renderEventsList() {
         button.appendChild(textWrap);
         listEl.appendChild(button);
     });
+
+    const newEventBtn = document.createElement('button');
+    newEventBtn.type = 'button';
+    newEventBtn.className = `events-list-item events-list-new${!eventEditorCurrentId ? ' active' : ''}`;
+    newEventBtn.addEventListener('click', () => {
+        startNewEventDraft();
+        renderEventsList();
+    });
+
+    const newAvatar = document.createElement('span');
+    newAvatar.className = 'events-list-avatar events-list-avatar-add';
+    newAvatar.textContent = '+';
+
+    const newTextWrap = document.createElement('span');
+    newTextWrap.className = 'events-list-text';
+    const newTitle = document.createElement('span');
+    newTitle.className = 'events-list-title';
+    newTitle.textContent = t('events_manager_new_event');
+    const newMeta = document.createElement('span');
+    newMeta.className = 'events-list-meta';
+    newMeta.textContent = t('events_manager_new_event_hint');
+    newTextWrap.appendChild(newTitle);
+    newTextWrap.appendChild(newMeta);
+
+    newEventBtn.appendChild(newAvatar);
+    newEventBtn.appendChild(newTextWrap);
+    listEl.appendChild(newEventBtn);
 }
 
 function startNewEventDraft() {
     eventEditorCurrentId = '';
+    eventEditorIsEditMode = true;
     setEditorName('');
     eventDraftLogoDataUrl = '';
     eventDraftMapDataUrl = '';
     updateEventLogoPreview();
     updateEventMapPreview();
     renderEventBuildingsEditor([{ name: 'Bomb Squad', slots: 4, priority: 1 }]);
-    updateEventEditorTitle();
+    updateEventEditorState();
     const deleteBtn = document.getElementById('eventDeleteBtn');
     if (deleteBtn) {
         deleteBtn.disabled = true;
@@ -1571,10 +1702,13 @@ function refreshEventEditorDeleteState() {
     if (!deleteBtn) {
         return;
     }
-    deleteBtn.disabled = !eventEditorCurrentId || PROTECTED_EVENT_IDS.has(eventEditorCurrentId);
+    deleteBtn.disabled = !eventEditorCurrentId || PROTECTED_EVENT_IDS.has(eventEditorCurrentId) || !eventEditorIsEditMode;
 }
 
 function triggerEventLogoUpload() {
+    if (!eventEditorIsEditMode) {
+        return;
+    }
     const input = document.getElementById('eventLogoInput');
     if (input) {
         input.click();
@@ -1582,6 +1716,9 @@ function triggerEventLogoUpload() {
 }
 
 function triggerEventMapUpload() {
+    if (!eventEditorIsEditMode) {
+        return;
+    }
     const input = document.getElementById('eventMapInput');
     if (input) {
         input.click();
@@ -1589,6 +1726,9 @@ function triggerEventMapUpload() {
 }
 
 function removeEventLogo() {
+    if (!eventEditorIsEditMode) {
+        return;
+    }
     eventDraftLogoDataUrl = '';
     const input = document.getElementById('eventLogoInput');
     if (input) {
@@ -1598,12 +1738,16 @@ function removeEventLogo() {
 }
 
 function removeEventMap() {
+    if (!eventEditorIsEditMode) {
+        return;
+    }
     eventDraftMapDataUrl = '';
     const input = document.getElementById('eventMapInput');
     if (input) {
         input.value = '';
     }
     updateEventMapPreview();
+    updateEventCoordinatesButton();
 }
 
 async function createEventImageDataUrl(file, options) {
@@ -1696,6 +1840,7 @@ async function handleEventMapChange(event) {
             tooLargeMessage: t('events_manager_map_too_large'),
         });
         updateEventMapPreview();
+        updateEventCoordinatesButton();
         showMessage('eventsStatus', t('events_manager_map_saved'), 'success');
     } catch (error) {
         showMessage('eventsStatus', error.message || t('events_manager_image_process_failed'), 'error');
@@ -1731,6 +1876,10 @@ function buildEventDefinition(eventId, name, buildings) {
 }
 
 async function saveEventDefinition() {
+    if (!eventEditorIsEditMode) {
+        showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
+        return;
+    }
     const nameInput = document.getElementById('eventNameInput');
     const rawName = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
     const eventName = rawName.slice(0, EVENT_NAME_LIMIT);
@@ -1784,11 +1933,12 @@ async function saveEventDefinition() {
 
     eventEditorCurrentId = eventId;
     currentEvent = eventId;
+    eventEditorIsEditMode = false;
     syncRuntimeStateWithRegistry();
     renderAllEventSelectors();
     renderEventsList();
     refreshEventEditorDeleteState();
-    updateEventEditorTitle();
+    updateEventEditorState();
     updateGenerateEventLabels();
     loadBuildingConfig();
     loadBuildingPositions();
@@ -1801,6 +1951,10 @@ async function saveEventDefinition() {
 }
 
 async function deleteSelectedEvent() {
+    if (!eventEditorIsEditMode) {
+        showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
+        return;
+    }
     if (!eventEditorCurrentId) {
         showMessage('eventsStatus', t('events_manager_delete_pick_event'), 'error');
         return;
@@ -1862,6 +2016,9 @@ function bindEventEditorTableActions() {
         return;
     }
     tbody.addEventListener('click', (event) => {
+        if (!eventEditorIsEditMode) {
+            return;
+        }
         const btn = event.target.closest('button[data-action="remove-row"]');
         if (!btn) {
             return;
@@ -2410,11 +2567,11 @@ function loadPlayerData() {
     syncRuntimeStateWithRegistry();
     renderAllEventSelectors();
     renderEventsList();
-    refreshEventEditorDeleteState();
     updateGenerateEventLabels();
     if (!eventEditorCurrentId || !window.DSCoreEvents.getEvent(eventEditorCurrentId)) {
         applySelectedEventToEditor();
     }
+    updateEventEditorState();
     
     const playerDB = FirebaseService.getActivePlayerDatabase();
     const count = Object.keys(playerDB).length;
