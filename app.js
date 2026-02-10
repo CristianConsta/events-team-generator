@@ -3953,15 +3953,15 @@ function generateMap(team, assignments, statusId) {
             return output + '...';
         }
 
-        // Keep starter labels within map bounds. If centered placement would overflow,
-        // treat the selected X as right edge for the whole label card.
-        function getStarterCardX(anchorX, cardWidth) {
+        // Coordinates pick the first card's start X. If it overflows right,
+        // use picked X as right edge to keep labels inside the map.
+        function getStarterCardStartX(anchorX, cardWidth) {
             const mapLeftBound = 0;
             const mapRightBound = 1080;
-            const centeredX = anchorX - (cardWidth / 2);
-            const centeredRight = centeredX + cardWidth;
-            if (centeredX >= mapLeftBound && centeredRight <= mapRightBound) {
-                return centeredX;
+            const startX = anchorX;
+            const startRight = startX + cardWidth;
+            if (startX >= mapLeftBound && startRight <= mapRightBound) {
+                return startX;
             }
 
             const rightAlignedX = anchorX - cardWidth;
@@ -3970,7 +3970,7 @@ function generateMap(team, assignments, statusId) {
                 return rightAlignedX;
             }
 
-            return Math.max(mapLeftBound, Math.min(mapRightBound - cardWidth, rightAlignedX));
+            return Math.max(mapLeftBound, Math.min(mapRightBound - cardWidth, startX));
         }
 
         function getTroopKind(troops) {
@@ -4111,19 +4111,19 @@ function generateMap(team, assignments, statusId) {
             const starterCardWidth = 182;
             const starterCardHeight = 28;
             const starterGapY = 34;
-            const firstLabelCenterX = x;
-            const firstLabelCenterY = y;
-            const starterCardX = getStarterCardX(firstLabelCenterX, starterCardWidth);
+            const firstLabelStartX = x;
+            const firstLabelStartY = y;
+            const starterCardX = getStarterCardStartX(firstLabelStartX, starterCardWidth);
 
             players.forEach((player, i) => {
                 const name = player.player;
                 const priorityColor = priorityPalette[player.priority] || teamPrimary;
-                const yPos = firstLabelCenterY + (i * starterGapY);
+                const cardY = firstLabelStartY + (i * starterGapY);
+                const yPos = cardY + (starterCardHeight / 2);
                 const troopValue = player.troops || (activePlayerDB[name] && activePlayerDB[name].troops);
                 const troopKind = getTroopKind(troopValue);
                 const fittedName = fitText(name, starterCardWidth - 62, 'bold 13px Arial');
                 const cardX = starterCardX;
-                const cardY = yPos - (starterCardHeight / 2);
 
                 // Tactical starter card.
                 const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + starterCardWidth, cardY);
