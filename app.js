@@ -4220,15 +4220,22 @@ function generateMapWithoutBackground(team, assignments, statusId) {
             ...orderedBuildingKeys.filter((key) => Array.isArray(unmappedAssignments[key]) && unmappedAssignments[key].length > 0),
             ...Object.keys(unmappedAssignments).filter((key) => !orderedBuildingKeys.includes(key)),
         ];
-        const unmappedPlayers = [];
-        orderedUnmappedKeys.forEach((key) => {
-            unmappedAssignments[key].forEach((entry) => {
-                unmappedPlayers.push({
-                    ...entry,
-                    __buildingLabel: getBuildingDisplayName(key),
-                });
-            });
-        });
+        const unmappedGroups = orderedUnmappedKeys
+            .map((key) => {
+                const players = Array.isArray(unmappedAssignments[key])
+                    ? unmappedAssignments[key].filter((entry) => entry && entry.player)
+                    : [];
+                if (players.length === 0) {
+                    return null;
+                }
+                return {
+                    key: key,
+                    label: getBuildingDisplayName(key),
+                    players: players,
+                };
+            })
+            .filter(Boolean);
+        const unmappedPlayers = unmappedGroups.flatMap((group) => group.players);
         
         // Create simplified version without map
         const canvas = document.createElement('canvas');
@@ -4621,170 +4628,153 @@ function generateMap(team, assignments, statusId) {
             });
         });
 
-        // Unmapped buildings panel (same bottom area previously used by Bomb Squad).
-        const unmappedY = titleHeight + mapHeight + 26;
-        const unmappedPanel = {
-            x: 190,
-            y: unmappedY,
-            width: 700,
-            height: 200,
-            radius: 18,
+        // Bottom area for buildings that are not rendered on the map itself.
+        // Each building gets its own panel.
+        const unmappedArea = {
+            x: 24,
+            y: titleHeight + mapHeight + 22,
+            width: 1032,
+            height: 236,
         };
+        const panelGapX = 14;
+        const panelGapY = 12;
+        const groupCount = unmappedGroups.length;
+        const panelColumns = groupCount <= 1 ? 1 : Math.min(3, groupCount);
+        const panelRows = groupCount > 0 ? Math.ceil(groupCount / panelColumns) : 0;
+        const panelWidth = panelRows > 0
+            ? Math.floor((unmappedArea.width - ((panelColumns - 1) * panelGapX)) / panelColumns)
+            : 0;
+        const panelHeight = panelRows > 0
+            ? Math.floor((unmappedArea.height - ((panelRows - 1) * panelGapY)) / panelRows)
+            : 0;
 
-        const unmappedGrad = ctx.createLinearGradient(0, unmappedPanel.y, 0, unmappedPanel.y + unmappedPanel.height);
-        unmappedGrad.addColorStop(0, '#2A3344');
-        unmappedGrad.addColorStop(1, '#1A202C');
-        ctx.fillStyle = unmappedGrad;
-        ctx.beginPath();
-        ctx.roundRect(unmappedPanel.x, unmappedPanel.y, unmappedPanel.width, unmappedPanel.height, unmappedPanel.radius);
-        ctx.fill();
-        ctx.strokeStyle = teamPrimary;
-        ctx.lineWidth = 2.2;
-        ctx.stroke();
+        unmappedGroups.forEach((group, groupIndex) => {
+            const row = Math.floor(groupIndex / panelColumns);
+            const col = groupIndex % panelColumns;
+            const panelX = unmappedArea.x + (col * (panelWidth + panelGapX));
+            const panelY = unmappedArea.y + (row * (panelHeight + panelGapY));
+            const panelRadius = 16;
 
-        // Subtle tactical grid texture.
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(unmappedPanel.x + 1, unmappedPanel.y + 1, unmappedPanel.width - 2, unmappedPanel.height - 2, unmappedPanel.radius);
-        ctx.clip();
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.lineWidth = 1;
-        for (let gx = unmappedPanel.x + 18; gx < unmappedPanel.x + unmappedPanel.width; gx += 22) {
+            const panelGrad = ctx.createLinearGradient(0, panelY, 0, panelY + panelHeight);
+            panelGrad.addColorStop(0, '#2A3344');
+            panelGrad.addColorStop(1, '#1A202C');
+            ctx.fillStyle = panelGrad;
             ctx.beginPath();
-            ctx.moveTo(gx, unmappedPanel.y);
-            ctx.lineTo(gx, unmappedPanel.y + unmappedPanel.height);
-            ctx.stroke();
-        }
-        for (let gy = unmappedPanel.y + 18; gy < unmappedPanel.y + unmappedPanel.height; gy += 22) {
-            ctx.beginPath();
-            ctx.moveTo(unmappedPanel.x, gy);
-            ctx.lineTo(unmappedPanel.x + unmappedPanel.width, gy);
-            ctx.stroke();
-        }
-        ctx.restore();
-
-        // Hazard stripe bar.
-        const hazardY = unmappedPanel.y + 8;
-        const hazardX = unmappedPanel.x + 14;
-        const hazardW = unmappedPanel.width - 28;
-        const hazardH = 12;
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(hazardX, hazardY, hazardW, hazardH, 5);
-        ctx.clip();
-        for (let sx = hazardX - 22; sx < hazardX + hazardW + 22; sx += 16) {
-            ctx.fillStyle = 'rgba(255,190,64,0.95)';
-            ctx.fillRect(sx, hazardY, 8, hazardH);
-            ctx.fillStyle = 'rgba(35,38,48,0.95)';
-            ctx.fillRect(sx + 8, hazardY, 8, hazardH);
-        }
-        ctx.restore();
-
-        drawCrosshairIcon(unmappedPanel.x + 30, unmappedPanel.y + 37, 20, '#FFB84C');
-        ctx.font = 'bold 21px Arial';
-        ctx.fillStyle = '#F6F7FB';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t('map_unmapped_title'), unmappedPanel.x + 52, unmappedPanel.y + 37);
-
-        ctx.font = '12px Arial';
-        ctx.fillStyle = 'rgba(255,255,255,0.75)';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${unmappedPlayers.length} ${t('map_unmapped_count_suffix')}`, unmappedPanel.x + unmappedPanel.width - 22, unmappedPanel.y + 37);
-
-        const unmappedCardsTop = unmappedPanel.y + 58;
-        const unmappedCardGapX = 16;
-        const unmappedCardGapY = 10;
-        const unmappedCardColumns = 2;
-        const unmappedCardWidth = Math.floor((unmappedPanel.width - 30 - unmappedCardGapX) / unmappedCardColumns);
-        const unmappedCardHeight = 30;
-        const unmappedRowsCapacity = Math.max(1, Math.floor((unmappedPanel.height - (unmappedCardsTop - unmappedPanel.y) - 12) / (unmappedCardHeight + unmappedCardGapY)));
-        const unmappedCardCapacity = unmappedRowsCapacity * unmappedCardColumns;
-        const visibleUnmappedPlayers = unmappedPlayers.slice(0, unmappedCardCapacity);
-
-        visibleUnmappedPlayers.forEach((player, index) => {
-            const col = index % unmappedCardColumns;
-            const row = Math.floor(index / unmappedCardColumns);
-            const cardX = unmappedPanel.x + 14 + col * (unmappedCardWidth + unmappedCardGapX);
-            const cardY = unmappedCardsTop + row * (unmappedCardHeight + unmappedCardGapY);
-            const troopValue = player.troops || (activePlayerDB[player.player] && activePlayerDB[player.player].troops);
-            const troopKind = getTroopKind(troopValue);
-            const displayName = fitText(player.player, unmappedCardWidth - 146, 'bold 13px Arial');
-            const buildingName = fitText(player.__buildingLabel || getBuildingDisplayName(player.buildingKey || player.building), 70, 'bold 10px Arial');
-
-            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + unmappedCardWidth, cardY);
-            cardGrad.addColorStop(0, 'rgba(255,255,255,0.94)');
-            cardGrad.addColorStop(1, 'rgba(236,240,248,0.98)');
-            ctx.fillStyle = cardGrad;
-            ctx.beginPath();
-            ctx.roundRect(cardX, cardY, unmappedCardWidth, unmappedCardHeight, 8);
+            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, panelRadius);
             ctx.fill();
-
             ctx.strokeStyle = teamPrimary;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 1.8;
             ctx.stroke();
 
-            ctx.fillStyle = teamPrimary;
+            ctx.save();
             ctx.beginPath();
-            ctx.arc(cardX + 12, cardY + unmappedCardHeight / 2, 4, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.roundRect(panelX + 1, panelY + 1, panelWidth - 2, panelHeight - 2, panelRadius);
+            ctx.clip();
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            for (let gx = panelX + 14; gx < panelX + panelWidth; gx += 20) {
+                ctx.beginPath();
+                ctx.moveTo(gx, panelY);
+                ctx.lineTo(gx, panelY + panelHeight);
+                ctx.stroke();
+            }
+            for (let gy = panelY + 14; gy < panelY + panelHeight; gy += 20) {
+                ctx.beginPath();
+                ctx.moveTo(panelX, gy);
+                ctx.lineTo(panelX + panelWidth, gy);
+                ctx.stroke();
+            }
+            ctx.restore();
 
-            ctx.font = 'bold 13px Arial';
-            ctx.fillStyle = '#1A1E29';
+            drawCrosshairIcon(panelX + 20, panelY + 24, 16, '#FFB84C');
+            ctx.font = 'bold 15px Arial';
+            ctx.fillStyle = '#F6F7FB';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.fillText(displayName, cardX + 22, cardY + unmappedCardHeight / 2 + 0.5);
+            ctx.fillText(fitText(group.label, panelWidth - 132, 'bold 15px Arial'), panelX + 36, panelY + 24);
 
-            // Building tag from event-defined building names.
-            const tagX = cardX + unmappedCardWidth - 98;
-            const tagY = cardY + 6;
-            const tagW = 70;
-            const tagH = 18;
-            ctx.fillStyle = 'rgba(65, 105, 225, 0.16)';
-            ctx.beginPath();
-            ctx.roundRect(tagX, tagY, tagW, tagH, 5);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(65, 105, 225, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.font = 'bold 10px Arial';
-            ctx.fillStyle = '#284074';
-            ctx.textAlign = 'center';
-            ctx.fillText(buildingName, tagX + (tagW / 2), tagY + (tagH / 2) + 0.5);
+            ctx.font = '11px Arial';
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${group.players.length} ${t('map_unmapped_count_suffix')}`, panelX + panelWidth - 12, panelY + 24);
 
-            const badgeW = 18;
-            const badgeH = 16;
-            const badgeX = cardX + unmappedCardWidth - badgeW - 7;
-            const badgeY = cardY + ((unmappedCardHeight - badgeH) / 2);
-            const iconColor = troopKind === 'unknown' ? '#7F5A00' : teamPrimary;
-            const iconCx = badgeX + (badgeW / 2);
-            const iconCy = badgeY + (badgeH / 2) + 0.3;
+            const cardsTop = panelY + 44;
+            const cardGapX = 10;
+            const cardGapY = 8;
+            const cardColumns = panelWidth >= 340 ? 2 : 1;
+            const cardWidth = Math.floor((panelWidth - 20 - ((cardColumns - 1) * cardGapX)) / cardColumns);
+            const cardHeight = 28;
+            const rowsCapacity = Math.max(1, Math.floor((panelHeight - (cardsTop - panelY) - 10) / (cardHeight + cardGapY)));
+            const cardCapacity = rowsCapacity * cardColumns;
+            const visiblePlayers = group.players.slice(0, cardCapacity);
 
-            ctx.fillStyle = 'rgba(255,255,255,0.88)';
-            ctx.beginPath();
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(32, 38, 52, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
+            visiblePlayers.forEach((player, playerIndex) => {
+                const rowIndex = Math.floor(playerIndex / cardColumns);
+                const colIndex = playerIndex % cardColumns;
+                const cardX = panelX + 10 + (colIndex * (cardWidth + cardGapX));
+                const cardY = cardsTop + (rowIndex * (cardHeight + cardGapY));
+                const troopValue = player.troops || (activePlayerDB[player.player] && activePlayerDB[player.player].troops);
+                const troopKind = getTroopKind(troopValue);
+                const displayName = fitText(player.player, cardWidth - 56, 'bold 12px Arial');
 
-            if (troopKind === 'tank') {
-                drawTankIcon(iconCx, iconCy, iconColor);
-            } else if (troopKind === 'aero') {
-                drawJetIcon(iconCx, iconCy, iconColor);
-            } else if (troopKind === 'missile') {
-                drawMissileLauncherIcon(iconCx, iconCy, iconColor);
-            } else {
-                drawFunFallbackIcon(iconCx, iconCy, iconColor, index);
+                const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardWidth, cardY);
+                cardGrad.addColorStop(0, 'rgba(255,255,255,0.94)');
+                cardGrad.addColorStop(1, 'rgba(236,240,248,0.98)');
+                ctx.fillStyle = cardGrad;
+                ctx.beginPath();
+                ctx.roundRect(cardX, cardY, cardWidth, cardHeight, 7);
+                ctx.fill();
+
+                ctx.strokeStyle = teamPrimary;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.fillStyle = teamPrimary;
+                ctx.beginPath();
+                ctx.arc(cardX + 10, cardY + (cardHeight / 2), 3.6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.font = 'bold 12px Arial';
+                ctx.fillStyle = '#1A1E29';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(displayName, cardX + 19, cardY + (cardHeight / 2) + 0.5);
+
+                const badgeW = 18;
+                const badgeH = 16;
+                const badgeX = cardX + cardWidth - badgeW - 6;
+                const badgeY = cardY + ((cardHeight - badgeH) / 2);
+                const iconColor = troopKind === 'unknown' ? '#7F5A00' : teamPrimary;
+                const iconCx = badgeX + (badgeW / 2);
+                const iconCy = badgeY + (badgeH / 2) + 0.3;
+
+                ctx.fillStyle = 'rgba(255,255,255,0.88)';
+                ctx.beginPath();
+                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(32, 38, 52, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                if (troopKind === 'tank') {
+                    drawTankIcon(iconCx, iconCy, iconColor);
+                } else if (troopKind === 'aero') {
+                    drawJetIcon(iconCx, iconCy, iconColor);
+                } else if (troopKind === 'missile') {
+                    drawMissileLauncherIcon(iconCx, iconCy, iconColor);
+                } else {
+                    drawFunFallbackIcon(iconCx, iconCy, iconColor, groupIndex + playerIndex);
+                }
+            });
+
+            if (group.players.length > cardCapacity) {
+                ctx.font = '11px Arial';
+                ctx.fillStyle = 'rgba(255,255,255,0.82)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText(`+${group.players.length - cardCapacity} more`, panelX + panelWidth - 10, panelY + panelHeight - 8);
             }
         });
-
-        if (unmappedPlayers.length > unmappedCardCapacity) {
-            ctx.font = '12px Arial';
-            ctx.fillStyle = 'rgba(255,255,255,0.82)';
-            ctx.textAlign = 'right';
-            ctx.fillText(`+${unmappedPlayers.length - unmappedCardCapacity} more`, unmappedPanel.x + unmappedPanel.width - 16, unmappedPanel.y + unmappedPanel.height - 12);
-        }
 
         // Substitutes Panel (right side)
         if (substitutes.length > 0) {
