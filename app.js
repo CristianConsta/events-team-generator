@@ -94,7 +94,7 @@ const ONBOARDING_STEPS = [
     { titleKey: 'onboarding_step7_title', descKey: 'onboarding_step7_desc', targetSelector: '#eventsList',           position: 'top'    },
     { titleKey: 'onboarding_step8_title', descKey: 'onboarding_step8_desc', targetSelector: '#mapCoordinatesBtn',    position: 'top'    },
     { titleKey: 'onboarding_step9_title', descKey: 'onboarding_step9_desc', targetSelector: '#navAllianceBtn',       position: 'bottom' },
-    { titleKey: 'onboarding_step10_title', descKey: 'onboarding_step10_desc', targetSelector: '#alliancePanel',      position: 'top'    },
+    { titleKey: 'onboarding_step10_title', descKey: 'onboarding_step10_desc', targetSelector: '#alliancePage',       position: 'top'    },
     { titleKey: 'onboarding_step11_title', descKey: 'onboarding_step11_desc', targetSelector: '#navGeneratorBtn',    position: 'bottom' }
 ];
 
@@ -263,17 +263,16 @@ function bindStaticUiActions() {
     on('navGeneratorBtn', 'click', showGeneratorPage);
     on('navConfigBtn', 'click', showConfigurationPage);
     on('navPlayersBtn', 'click', showPlayersManagementPage);
-    on('navAllianceBtn', 'click', openAlliancePanelFromMenu);
+    on('navAllianceBtn', 'click', showAlliancePage);
     on('navSettingsBtn', 'click', openSettingsModal);
     on('navSignOutBtn', 'click', () => {
         closeNavigationMenu();
         handleSignOut();
     });
     on('headerProfileBtn', 'click', openSettingsModal);
-    on('allianceDisplay', 'click', toggleAlliancePanel);
-    on('allianceCreateBtn', 'click', toggleAlliancePanel);
+    on('allianceDisplay', 'click', showAlliancePage);
+    on('allianceCreateBtn', 'click', showAlliancePage);
     on('notificationBtn', 'click', toggleNotificationsPanel);
-    on('alliancePanelCloseBtn', 'click', toggleAlliancePanel);
     on('notificationsPanelCloseBtn', 'click', toggleNotificationsPanel);
 
     on('settingsModal', 'click', handleSettingsOverlayClick);
@@ -527,6 +526,7 @@ function syncNavigationMenuState() {
     const generatorBtn = document.getElementById('navGeneratorBtn');
     const configBtn = document.getElementById('navConfigBtn');
     const playersBtn = document.getElementById('navPlayersBtn');
+    const allianceBtn = document.getElementById('navAllianceBtn');
     if (generatorBtn) {
         const isActive = currentPageView === 'generator';
         generatorBtn.classList.toggle('active', isActive);
@@ -541,6 +541,11 @@ function syncNavigationMenuState() {
         const isActive = currentPageView === 'players';
         playersBtn.classList.toggle('active', isActive);
         playersBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (allianceBtn) {
+        const isActive = currentPageView === 'alliance';
+        allianceBtn.classList.toggle('active', isActive);
+        allianceBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
 }
 
@@ -569,7 +574,8 @@ function setPageView(view) {
     const generatorPage = document.getElementById('generatorPage');
     const configurationPage = document.getElementById('configurationPage');
     const playersManagementPage = document.getElementById('playersManagementPage');
-    if (!generatorPage || !configurationPage || !playersManagementPage) {
+    const alliancePage = document.getElementById('alliancePage');
+    if (!generatorPage || !configurationPage || !playersManagementPage || !alliancePage) {
         return;
     }
 
@@ -577,12 +583,15 @@ function setPageView(view) {
         currentPageView = 'configuration';
     } else if (view === 'players') {
         currentPageView = 'players';
+    } else if (view === 'alliance') {
+        currentPageView = 'alliance';
     } else {
         currentPageView = 'generator';
     }
     generatorPage.classList.toggle('hidden', currentPageView !== 'generator');
     configurationPage.classList.toggle('hidden', currentPageView !== 'configuration');
     playersManagementPage.classList.toggle('hidden', currentPageView !== 'players');
+    alliancePage.classList.toggle('hidden', currentPageView !== 'alliance');
     syncNavigationMenuState();
     closeNavigationMenu();
 
@@ -592,6 +601,8 @@ function setPageView(view) {
         renderBuildingsTable();
         renderEventsList();
         refreshEventEditorDeleteState();
+    } else if (currentPageView === 'alliance') {
+        renderAlliancePanel();
     }
 
     updateFloatingButtonsVisibility();
@@ -611,8 +622,20 @@ function showPlayersManagementPage() {
 }
 
 function openAlliancePanelFromMenu() {
-    closeNavigationMenu();
-    openAlliancePanel();
+    showAlliancePage();
+}
+
+function showAlliancePage() {
+    setPageView('alliance');
+    checkAndDisplayNotifications()
+        .then(() => {
+            if (currentPageView === 'alliance') {
+                renderAlliancePanel();
+            }
+        })
+        .catch(() => {
+            // Ignore transient invitation refresh failures when opening alliance page.
+        });
 }
 
 function getSignInDisplayName(user) {
@@ -2448,41 +2471,162 @@ async function downloadPlayerTemplate() {
 // ============================================================
 
 function toggleAlliancePanel() {
-    const panel = document.getElementById('alliancePanel');
-    if (!panel) {
-        return;
-    }
-    if (panel.classList.contains('hidden')) {
-        openAlliancePanel();
-    } else {
-        closeAlliancePanel();
-    }
+    showAlliancePage();
 }
 
 function openAlliancePanel() {
-    const panel = document.getElementById('alliancePanel');
-    if (!panel) {
-        return;
-    }
-    panel.classList.remove('hidden');
-    renderAlliancePanel();
+    showAlliancePage();
 }
 
 function closeAlliancePanel() {
-    const panel = document.getElementById('alliancePanel');
-    if (!panel) {
-        return;
-    }
-    panel.classList.add('hidden');
+    showGeneratorPage();
 }
 
 function renderAlliancePanel() {
     const aid = typeof FirebaseService !== 'undefined' ? FirebaseService.getAllianceId() : null;
     const content = document.getElementById('alliancePanelContent');
+    if (!content) {
+        return;
+    }
     if (aid) {
         renderAllianceMemberView(content);
     } else {
         renderAllianceJoinView(content);
+    }
+}
+
+function getPendingInvitationsList() {
+    if (typeof FirebaseService === 'undefined' || !FirebaseService.getPendingInvitations) {
+        return [];
+    }
+    const invitations = FirebaseService.getPendingInvitations();
+    return Array.isArray(invitations) ? invitations : [];
+}
+
+function getInvitationSenderDisplay(invitation) {
+    if (!invitation || typeof invitation !== 'object') {
+        return '';
+    }
+    if (typeof invitation.inviterName === 'string' && invitation.inviterName.trim()) {
+        return invitation.inviterName.trim();
+    }
+    if (typeof invitation.inviterEmail === 'string' && invitation.inviterEmail.trim()) {
+        return invitation.inviterEmail.trim();
+    }
+    return '';
+}
+
+function formatInvitationCreatedAt(createdAt) {
+    if (!createdAt) {
+        return '';
+    }
+    try {
+        if (createdAt && typeof createdAt.toDate === 'function') {
+            return createdAt.toDate().toLocaleString();
+        }
+        if (createdAt instanceof Date) {
+            return createdAt.toLocaleString();
+        }
+        const value = new Date(createdAt);
+        if (!Number.isNaN(value.getTime())) {
+            return value.toLocaleString();
+        }
+    } catch (error) {
+        return '';
+    }
+    return '';
+}
+
+function translateAllianceError(result, fallbackText) {
+    if (result && result.errorKey) {
+        return t(result.errorKey, result.errorParams || {});
+    }
+    if (result && result.error) {
+        return result.error;
+    }
+    return fallbackText || t('error_generic', { error: 'unknown' });
+}
+
+let pendingAllianceInviteFocusId = '';
+
+function renderAllianceInvitesSection(container, hasAllianceMembership) {
+    const section = container.querySelector('#allianceInvitesSection');
+    if (!section) {
+        return;
+    }
+
+    const invitations = getPendingInvitationsList();
+    const lockedHint = hasAllianceMembership
+        ? `<div style="margin: 8px 0 10px; font-size: 12px; color: rgba(255,193,107,0.95);">${escapeHtml(t('alliance_invites_leave_first'))}</div>`
+        : '';
+
+    if (invitations.length === 0) {
+        section.innerHTML = `
+            <div style="margin-top: 16px;">
+                <h3 style="color: var(--gold); margin: 0 0 8px;">${t('alliance_received_invites_title')}</h3>
+                <p style="margin: 0; opacity: 0.75;">${t('alliance_received_invites_empty')}</p>
+            </div>
+        `;
+        return;
+    }
+
+    const cardsHtml = invitations.map((inv) => {
+        const inviteId = typeof inv.id === 'string' ? inv.id : '';
+        const allianceLabel = (typeof inv.allianceName === 'string' && inv.allianceName.trim())
+            ? inv.allianceName.trim()
+            : String(inv.allianceId || '');
+        const sender = getInvitationSenderDisplay(inv);
+        const createdAt = formatInvitationCreatedAt(inv.createdAt);
+        return `
+            <div data-invite-id="${escapeAttribute(inviteId)}" style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); margin-bottom: 10px;">
+                <div style="font-weight: 700; color: var(--gold); margin-bottom: 6px;">${escapeHtml(t('notification_alliance_label', { alliance: allianceLabel || '-' }))}</div>
+                <div style="font-size: 13px; opacity: 0.82; margin-bottom: 4px;">${escapeHtml(t('notification_invited_by', { email: sender || '-' }))}</div>
+                ${createdAt ? `<div style="font-size: 12px; opacity: 0.62; margin-bottom: 10px;">${escapeHtml(createdAt)}</div>` : '<div style="margin-bottom: 10px;"></div>'}
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" data-invite-action="accept" data-invite-id="${escapeAttribute(inviteId)}" style="flex: 1; min-width: 110px;">${t('notification_accept')}</button>
+                    <button type="button" class="clear-btn" data-invite-action="reject" data-invite-id="${escapeAttribute(inviteId)}" style="flex: 1; min-width: 110px;">${t('notification_reject')}</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    section.innerHTML = `
+        <div style="margin-top: 16px;">
+            <h3 style="color: var(--gold); margin: 0 0 8px;">${t('alliance_received_invites_title')}</h3>
+            <p style="margin: 0 0 10px; opacity: 0.8;">${t('alliance_received_invites_help')}</p>
+            ${lockedHint}
+            <div>${cardsHtml}</div>
+            <div id="allianceInvitesStatus"></div>
+        </div>
+    `;
+
+    section.querySelectorAll('[data-invite-action]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const action = button.getAttribute('data-invite-action');
+            const invitationId = button.getAttribute('data-invite-id');
+            if (!invitationId) {
+                return;
+            }
+            if (action === 'accept') {
+                await handleAcceptInvitation(invitationId, 'allianceInvitesStatus');
+                return;
+            }
+            if (action === 'reject') {
+                await handleRejectInvitation(invitationId, 'allianceInvitesStatus');
+            }
+        });
+    });
+
+    if (pendingAllianceInviteFocusId) {
+        const focusCard = section.querySelector(`[data-invite-id="${pendingAllianceInviteFocusId}"]`);
+        pendingAllianceInviteFocusId = '';
+        if (focusCard) {
+            focusCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            focusCard.style.boxShadow = '0 0 0 2px rgba(var(--gold-rgb), 0.65)';
+            setTimeout(() => {
+                focusCard.style.boxShadow = '';
+            }, 1600);
+        }
     }
 }
 
@@ -2497,11 +2641,13 @@ function renderAllianceJoinView(container) {
             </div>
             <div id="allianceCreateStatus"></div>
         </div>
+        <div id="allianceInvitesSection"></div>
     `;
     const createBtn = document.getElementById('allianceCreateActionBtn');
     if (createBtn) {
         createBtn.addEventListener('click', handleCreateAlliance);
     }
+    renderAllianceInvitesSection(container, false);
 }
 
 function renderAllianceMemberView(container) {
@@ -2535,8 +2681,10 @@ function renderAllianceMemberView(container) {
                        style="flex: 1; min-width: 200px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
                 <button id="allianceInviteActionBtn">${t('alliance_invite_button')}</button>
             </div>
+            <div style="font-size: 12px; opacity: 0.75; margin-top: 8px;">${t('alliance_invite_platform_hint')}</div>
             <div id="inviteStatus"></div>
         </div>
+        <div id="allianceInvitesSection"></div>
         <div style="margin-bottom: 20px;">
             <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_player_source_title')}</h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -2556,6 +2704,7 @@ function renderAllianceMemberView(container) {
     if (leaveBtn) {
         leaveBtn.addEventListener('click', handleLeaveAlliance);
     }
+    renderAllianceInvitesSection(container, true);
     container.querySelectorAll('[data-player-source]').forEach((button) => {
         button.addEventListener('click', () => {
             const sourceValue = button.getAttribute('data-player-source');
@@ -2595,10 +2744,10 @@ async function handleSendInvitation() {
 
     const result = await FirebaseService.sendInvitation(email);
     if (result.success) {
-        showMessage('inviteStatus', t('alliance_invite_sent'), 'success');
+        showMessage('inviteStatus', t('alliance_invite_sent_in_app'), 'success');
         document.getElementById('inviteEmail').value = '';
     } else {
-        showMessage('inviteStatus', result.error, 'error');
+        showMessage('inviteStatus', translateAllianceError(result), 'error');
     }
 }
 
@@ -2654,9 +2803,13 @@ async function checkAndDisplayNotifications() {
 
     const invitations = await FirebaseService.checkInvitations();
     const badge = document.getElementById('notificationBadge');
+    const notificationBtn = document.getElementById('notificationBtn');
     if (badge) {
         badge.textContent = invitations.length;
         badge.style.display = invitations.length > 0 ? 'flex' : 'none';
+    }
+    if (notificationBtn) {
+        notificationBtn.classList.toggle('has-notifications', invitations.length > 0);
     }
 }
 
@@ -2676,10 +2829,14 @@ function stopNotificationPolling() {
     }
 }
 
-function toggleNotificationsPanel() {
+async function toggleNotificationsPanel() {
     const panel = document.getElementById('notificationsPanel');
+    if (!panel) {
+        return;
+    }
     panel.classList.toggle('hidden');
     if (!panel.classList.contains('hidden')) {
+        await checkAndDisplayNotifications();
         renderNotifications();
     }
 }
@@ -2705,51 +2862,71 @@ function renderNotifications() {
         card.style.borderRadius = '8px';
         card.style.marginBottom = '10px';
         card.style.border = '1px solid rgba(255,255,255,0.1)';
+        card.style.cursor = 'pointer';
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
 
         const heading = document.createElement('div');
         heading.style.marginBottom = '8px';
+        const allianceLabel = (typeof inv.allianceName === 'string' && inv.allianceName.trim())
+            ? inv.allianceName.trim()
+            : String(inv.allianceId || '');
         const title = document.createElement('strong');
-        title.textContent = String(inv.allianceName || '');
-        const idMeta = document.createElement('span');
-        idMeta.style.opacity = '0.6';
-        idMeta.textContent = ` (ID: ${String(inv.allianceId || '')})`;
+        title.textContent = t('notification_alliance_label', { alliance: allianceLabel || '-' });
         heading.appendChild(title);
-        heading.appendChild(idMeta);
 
         const detail = document.createElement('div');
         detail.style.opacity = '0.7';
         detail.style.fontSize = '13px';
         detail.style.marginBottom = '10px';
-        detail.textContent = t('notification_invited_by', { email: String(inv.inviterEmail || '') });
+        detail.textContent = t('notification_invited_by', { email: getInvitationSenderDisplay(inv) || '-' });
 
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '10px';
-
-        const acceptBtn = document.createElement('button');
-        acceptBtn.style.flex = '1';
-        acceptBtn.style.padding = '8px';
-        acceptBtn.textContent = t('notification_accept');
-        acceptBtn.addEventListener('click', () => handleAcceptInvitation(inv.id));
-
-        const rejectBtn = document.createElement('button');
-        rejectBtn.className = 'clear-btn';
-        rejectBtn.style.flex = '1';
-        rejectBtn.style.padding = '8px';
-        rejectBtn.textContent = t('notification_reject');
-        rejectBtn.addEventListener('click', () => handleRejectInvitation(inv.id));
-
-        actions.appendChild(acceptBtn);
-        actions.appendChild(rejectBtn);
+        const cta = document.createElement('div');
+        cta.style.fontSize = '12px';
+        cta.style.opacity = '0.88';
+        cta.style.color = 'var(--gold)';
+        cta.textContent = t('notification_open_alliance');
 
         card.appendChild(heading);
         card.appendChild(detail);
-        card.appendChild(actions);
+        card.appendChild(cta);
+        card.addEventListener('click', () => openAllianceInvitesFromNotification(inv.id));
+        card.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openAllianceInvitesFromNotification(inv.id);
+            }
+        });
         container.appendChild(card);
     });
 }
 
-async function handleAcceptInvitation(invitationId) {
+function openAllianceInvitesFromNotification(invitationId) {
+    pendingAllianceInviteFocusId = invitationId || '';
+    const notificationPanel = document.getElementById('notificationsPanel');
+    if (notificationPanel) {
+        notificationPanel.classList.add('hidden');
+    }
+    closeNavigationMenu();
+    openAlliancePanel();
+}
+
+async function handleAcceptInvitation(invitationId, statusElementId) {
+    const invitation = getPendingInvitationsList().find((item) => item && item.id === invitationId);
+    const currentAllianceId = typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId
+        ? FirebaseService.getAllianceId()
+        : null;
+    if (currentAllianceId && invitation && invitation.allianceId && currentAllianceId !== invitation.allianceId) {
+        showMessage(statusElementId || 'allianceInvitesStatus', t('alliance_error_already_in_alliance'), 'error');
+        return;
+    }
+    const allianceName = invitation && (invitation.allianceName || invitation.allianceId)
+        ? String(invitation.allianceName || invitation.allianceId)
+        : '';
+    if (!confirm(t('alliance_confirm_join_invite', { alliance: allianceName || '-' }))) {
+        return;
+    }
+
     const result = await FirebaseService.acceptInvitation(invitationId);
     if (result.success) {
         await checkAndDisplayNotifications();
@@ -2758,15 +2935,19 @@ async function handleAcceptInvitation(invitationId) {
         updateAllianceHeaderDisplay();
         loadPlayerData();
     } else {
-        alert(result.error);
+        showMessage(statusElementId || 'allianceInvitesStatus', translateAllianceError(result), 'error');
     }
 }
 
-async function handleRejectInvitation(invitationId) {
+async function handleRejectInvitation(invitationId, statusElementId) {
     const result = await FirebaseService.rejectInvitation(invitationId);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
+        renderAlliancePanel();
+        showMessage(statusElementId || 'allianceInvitesStatus', t('success_generic'), 'success');
+    } else {
+        showMessage(statusElementId || 'allianceInvitesStatus', translateAllianceError(result), 'error');
     }
 }
 

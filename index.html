@@ -107,12 +107,13 @@
 
         <div class="container">
 
-            <div id="alliancePanel" class="card hidden">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <h2 style="margin: 0;" data-i18n="alliance_panel_title">Alliance</h2>
-                    <button id="alliancePanelCloseBtn" class="clear-btn"><span data-i18n="close">Close</span></button>
+            <div id="alliancePage" class="app-view hidden">
+                <div class="card">
+                    <div class="page-header">
+                        <h2 class="config-title" data-i18n="alliance_panel_title">Alliance</h2>
+                    </div>
+                    <div id="alliancePanelContent"></div>
                 </div>
-                <div id="alliancePanelContent"></div>
             </div>
 
             <div id="notificationsPanel" class="card hidden" style="position: fixed; top: 60px; right: 20px; z-index: 1500; max-width: 380px; width: calc(100vw - 40px); max-height: 400px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4); border: 1px solid rgba(var(--gold-rgb), 0.3);">

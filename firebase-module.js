@@ -1191,6 +1191,14 @@ const FirebaseManager = (function() {
                 .where('invitedBy', '==', uid)
                 .get();
             byInviter.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+            try {
+                const byInviteeUid = await db.collection('invitations')
+                    .where('invitedUserId', '==', uid)
+                    .get();
+                byInviteeUid.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+            } catch (error) {
+                console.warn('Unable to collect invitations by invitedUserId during account cleanup:', error.message || error);
+            }
         }
         if (emailLower) {
             const byInvitee = await db.collection('invitations')
@@ -1921,13 +1929,61 @@ const FirebaseManager = (function() {
         }
     }
 
+    async function resolveUserByEmailLower(emailLower) {
+        if (!emailLower) {
+            return null;
+        }
+        try {
+            const query = await db.collection('users')
+                .where('metadata.emailLower', '==', emailLower)
+                .limit(1)
+                .get();
+            if (query.empty) {
+                return null;
+            }
+            return {
+                uid: query.docs[0].id,
+                data: query.docs[0].data() || {}
+            };
+        } catch (error) {
+            console.warn('Unable to resolve invited user by email; using email-only invitation lookup:', error.message || error);
+            return null;
+        }
+    }
+
+    function invitationBelongsToCurrentUser(invitation) {
+        if (!invitation || !currentUser) {
+            return false;
+        }
+        const invitedUserId = typeof invitation.invitedUserId === 'string' ? invitation.invitedUserId : '';
+        const invitedEmail = typeof invitation.invitedEmail === 'string' ? invitation.invitedEmail.toLowerCase() : '';
+        const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
+        if (invitedUserId && invitedUserId === currentUser.uid) {
+            return true;
+        }
+        return !!(invitedEmail && userEmail && invitedEmail === userEmail);
+    }
+
     async function sendInvitation(email) {
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         const normalizedEmail = email.trim().toLowerCase();
         if (!normalizedEmail) return { success: false, error: 'Email is required' };
+        const currentEmailLower = currentUser.email ? currentUser.email.toLowerCase() : '';
+        if (currentEmailLower && normalizedEmail === currentEmailLower) {
+            return { success: false, errorKey: 'alliance_error_invite_self', error: 'You cannot invite your own account.' };
+        }
 
         try {
+            let invitedUserId = '';
+            const invitedUser = await resolveUserByEmailLower(normalizedEmail);
+            if (invitedUser && invitedUser.uid) {
+                invitedUserId = invitedUser.uid;
+                if (invitedUser.data && invitedUser.data.allianceId && invitedUser.data.allianceId === allianceId) {
+                    return { success: false, errorKey: 'alliance_error_invitee_already_member', error: 'This user is already in your alliance.' };
+                }
+            }
+
             const existing = await db.collection('invitations')
                 .where('allianceId', '==', allianceId)
                 .where('invitedEmail', '==', normalizedEmail)
@@ -1938,12 +1994,29 @@ const FirebaseManager = (function() {
                 return { success: false, error: 'Invitation already pending for this email' };
             }
 
+            if (invitedUserId) {
+                try {
+                    const existingByUid = await db.collection('invitations')
+                        .where('allianceId', '==', allianceId)
+                        .where('invitedUserId', '==', invitedUserId)
+                        .where('status', '==', 'pending')
+                        .get();
+                    if (!existingByUid.empty) {
+                        return { success: false, error: 'Invitation already pending for this user' };
+                    }
+                } catch (queryError) {
+                    console.warn('Unable to check pending invitations by invited user id:', queryError.message || queryError);
+                }
+            }
+
             await db.collection('invitations').add({
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
+                invitedUserId: invitedUserId || null,
                 invitedBy: currentUser.uid,
                 inviterEmail: currentUser.email,
+                inviterName: currentUser.displayName || '',
                 status: 'pending',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 respondedAt: null
@@ -1956,21 +2029,34 @@ const FirebaseManager = (function() {
     }
 
     async function checkInvitations() {
-        if (!currentUser || !currentUser.email) {
+        if (!currentUser) {
             pendingInvitations = [];
             return [];
         }
 
         try {
-            const snapshot = await db.collection('invitations')
-                .where('invitedEmail', '==', currentUser.email.toLowerCase())
-                .where('status', '==', 'pending')
-                .get();
+            const invitationMap = new Map();
 
-            pendingInvitations = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+            try {
+                const byIdSnapshot = await db.collection('invitations')
+                    .where('invitedUserId', '==', currentUser.uid)
+                    .where('status', '==', 'pending')
+                    .get();
+                byIdSnapshot.docs.forEach((doc) => invitationMap.set(doc.id, { id: doc.id, ...doc.data() }));
+            } catch (errorById) {
+                console.warn('Unable to check invitations by invitedUserId. Falling back to email lookup:', errorById.message || errorById);
+            }
+
+            const emailLower = currentUser.email ? currentUser.email.toLowerCase() : '';
+            if (emailLower) {
+                const byEmailSnapshot = await db.collection('invitations')
+                    .where('invitedEmail', '==', emailLower)
+                    .where('status', '==', 'pending')
+                    .get();
+                byEmailSnapshot.docs.forEach((doc) => invitationMap.set(doc.id, { id: doc.id, ...doc.data() }));
+            }
+
+            pendingInvitations = Array.from(invitationMap.values());
 
             return pendingInvitations;
         } catch (error) {
@@ -1989,14 +2075,16 @@ const FirebaseManager = (function() {
 
             const inv = invDoc.data();
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
-            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
-            const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
-            if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
+            if (!invitationBelongsToCurrentUser(inv)) {
                 return { success: false, error: 'Invitation does not belong to this user' };
             }
 
-            if (allianceId) {
-                await leaveAlliance();
+            if (allianceId && allianceId !== inv.allianceId) {
+                return {
+                    success: false,
+                    errorKey: 'alliance_error_already_in_alliance',
+                    error: 'Leave your current alliance before accepting another invitation.'
+                };
             }
 
             const memberPath = `members.${currentUser.uid}`;
@@ -2020,6 +2108,7 @@ const FirebaseManager = (function() {
                 allianceName: inv.allianceName
             }, { merge: true });
 
+            pendingInvitations = pendingInvitations.filter((item) => item.id !== invitationId);
             await loadAllianceData();
             return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
         } catch (error) {
@@ -2035,9 +2124,7 @@ const FirebaseManager = (function() {
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
             const inv = invDoc.data() || {};
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
-            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
-            const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
-            if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
+            if (!invitationBelongsToCurrentUser(inv)) {
                 return { success: false, error: 'Invitation does not belong to this user' };
             }
 
