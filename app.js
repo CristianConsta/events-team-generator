@@ -4322,15 +4322,22 @@ function generateMap(team, assignments, statusId) {
             ...orderedBuildingKeys.filter((key) => Array.isArray(unmappedAssignments[key]) && unmappedAssignments[key].length > 0),
             ...Object.keys(unmappedAssignments).filter((key) => !orderedBuildingKeys.includes(key)),
         ];
-        const unmappedPlayers = [];
-        orderedUnmappedKeys.forEach((key) => {
-            unmappedAssignments[key].forEach((entry) => {
-                unmappedPlayers.push({
-                    ...entry,
-                    __buildingLabel: getBuildingDisplayName(key),
-                });
-            });
-        });
+        const unmappedGroups = orderedUnmappedKeys
+            .map((key) => {
+                const players = Array.isArray(unmappedAssignments[key])
+                    ? unmappedAssignments[key].filter((entry) => entry && entry.player)
+                    : [];
+                if (players.length === 0) {
+                    return null;
+                }
+                return {
+                    key: key,
+                    label: getBuildingDisplayName(key),
+                    players: players,
+                };
+            })
+            .filter(Boolean);
+        const unmappedPlayers = unmappedGroups.flatMap((group) => group.players);
 
         // Get substitutes for this team
         const substitutes = team === 'A' ? substitutesA : substitutesB;
