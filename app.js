@@ -231,8 +231,90 @@ function updateOnboardingTooltip() {
     window.addEventListener(ev, () => { if (onboardingActive) positionOnboardingTooltip(); }, { passive: true })
 );
 
+function bindStaticUiActions() {
+    const on = (id, eventName, handler) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener(eventName, handler);
+        }
+    };
+
+    on('googleSignInBtn', 'click', handleGoogleSignIn);
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            handleEmailSignIn();
+        });
+    }
+    on('showSignUpBtn', 'click', showSignUpForm);
+    on('passwordResetBtn', 'click', handlePasswordReset);
+
+    on('navMenuBtn', 'click', toggleNavigationMenu);
+    on('navGeneratorBtn', 'click', showGeneratorPage);
+    on('navConfigBtn', 'click', showConfigurationPage);
+    on('navSettingsBtn', 'click', openSettingsModal);
+    on('navSignOutBtn', 'click', () => {
+        closeNavigationMenu();
+        handleSignOut();
+    });
+    on('headerProfileBtn', 'click', openSettingsModal);
+    on('allianceDisplay', 'click', toggleAlliancePanel);
+    on('allianceCreateBtn', 'click', toggleAlliancePanel);
+    on('notificationBtn', 'click', toggleNotificationsPanel);
+    on('alliancePanelCloseBtn', 'click', toggleAlliancePanel);
+    on('notificationsPanelCloseBtn', 'click', toggleNotificationsPanel);
+
+    on('settingsModal', 'click', handleSettingsOverlayClick);
+    on('settingsModalCloseBtn', 'click', closeSettingsModal);
+    on('settingsAvatarUploadBtn', 'click', triggerSettingsAvatarUpload);
+    on('settingsAvatarRemoveBtn', 'click', removeSettingsAvatar);
+    on('settingsAvatarInput', 'change', handleSettingsAvatarChange);
+    on('settingsDeleteBtn', 'click', deleteAccountFromSettings);
+    on('settingsCancelBtn', 'click', closeSettingsModal);
+    on('settingsSaveBtn', 'click', saveSettings);
+
+    on('uploadPersonalBtn', 'click', uploadToPersonal);
+    on('uploadAllianceBtn', 'click', uploadToAlliance);
+    on('uploadTargetCloseBtn', 'click', closeUploadTargetModal);
+
+    on('coordCloseBtn', 'click', closeCoordinatesPicker);
+    on('coordPrevBtn', 'click', prevCoordBuilding);
+    on('coordNextBtn', 'click', nextCoordBuilding);
+    on('coordSaveBtn', 'click', saveBuildingPositions);
+
+    on('searchFilter', 'input', filterPlayers);
+    on('clearAllBtn', 'click', clearAllSelections);
+    on('uploadPanelHeader', 'click', toggleUploadPanel);
+    on('downloadTemplateBtn', 'click', downloadPlayerTemplate);
+    on('uploadPlayerBtn', 'click', () => {
+        const input = document.getElementById('playerFileInput');
+        if (input) input.click();
+    });
+    on('playerFileInput', 'change', uploadPlayerData);
+
+    on('eventsPanelHeader', 'click', toggleEventsPanel);
+    on('eventEditModeBtn', 'click', enterEventEditMode);
+    on('eventLogoUploadBtn', 'click', triggerEventLogoUpload);
+    on('eventLogoRandomBtn', 'click', removeEventLogo);
+    on('eventLogoInput', 'change', handleEventLogoChange);
+    on('eventMapUploadBtn', 'click', triggerEventMapUpload);
+    on('eventMapRemoveBtn', 'click', removeEventMap);
+    on('eventMapInput', 'change', handleEventMapChange);
+    on('eventAddBuildingBtn', 'click', addEventBuildingRow);
+    on('eventSaveBtn', 'click', saveEventDefinition);
+    on('eventDeleteBtn', 'click', deleteSelectedEvent);
+
+    on('mapCoordinatesBtn', 'click', openCoordinatesPickerFromEditor);
+    on('downloadModalCloseBtn', 'click', closeDownloadModal);
+    on('generateBtnA', 'click', () => generateTeamAssignments('A'));
+    on('generateBtnB', 'click', () => generateTeamAssignments('B'));
+}
+
 // ── Dismiss event wiring (runs once DOM is ready) ──
 document.addEventListener('DOMContentLoaded', () => {
+    bindStaticUiActions();
+
     // Step 1 - Open menu button
     document.getElementById('navMenuBtn').addEventListener('click', () => {
         if (onboardingActive && currentOnboardingStep === 0) dismissOnboardingStep();
@@ -2313,11 +2395,15 @@ function renderAllianceJoinView(container) {
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
                 <input type="text" id="newAllianceName" placeholder="${t('alliance_name_placeholder')}"
                        maxlength="40" style="flex: 1; min-width: 150px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
-                <button onclick="handleCreateAlliance()">${t('alliance_create_button')}</button>
+                <button id="allianceCreateActionBtn">${t('alliance_create_button')}</button>
             </div>
             <div id="allianceCreateStatus"></div>
         </div>
     `;
+    const createBtn = document.getElementById('allianceCreateActionBtn');
+    if (createBtn) {
+        createBtn.addEventListener('click', handleCreateAlliance);
+    }
 }
 
 function renderAllianceMemberView(container) {
@@ -2349,21 +2435,37 @@ function renderAllianceMemberView(container) {
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <input type="email" id="inviteEmail" placeholder="${t('alliance_invite_placeholder')}"
                        style="flex: 1; min-width: 200px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
-                <button onclick="handleSendInvitation()">${t('alliance_invite_button')}</button>
+                <button id="allianceInviteActionBtn">${t('alliance_invite_button')}</button>
             </div>
             <div id="inviteStatus"></div>
         </div>
         <div style="margin-bottom: 20px;">
             <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_player_source_title')}</h3>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="${source === 'personal' ? '' : 'secondary'}" onclick="switchPlayerSource('personal')">${t('alliance_source_personal')}</button>
-                <button class="${source === 'alliance' ? '' : 'secondary'}" onclick="switchPlayerSource('alliance')">${t('alliance_source_alliance')}</button>
+                <button class="${source === 'personal' ? '' : 'secondary'}" data-player-source="personal">${t('alliance_source_personal')}</button>
+                <button class="${source === 'alliance' ? '' : 'secondary'}" data-player-source="alliance">${t('alliance_source_alliance')}</button>
             </div>
             <div id="playerSourceStatus"></div>
         </div>
-        <button class="clear-btn" onclick="handleLeaveAlliance()" style="color: #FF6B35; border-color: #FF6B35;">${t('alliance_leave_button')}</button>
+        <button id="allianceLeaveBtn" class="clear-btn" style="color: #FF6B35; border-color: #FF6B35;">${t('alliance_leave_button')}</button>
         <div id="allianceActionStatus"></div>
     `;
+    const inviteBtn = document.getElementById('allianceInviteActionBtn');
+    if (inviteBtn) {
+        inviteBtn.addEventListener('click', handleSendInvitation);
+    }
+    const leaveBtn = document.getElementById('allianceLeaveBtn');
+    if (leaveBtn) {
+        leaveBtn.addEventListener('click', handleLeaveAlliance);
+    }
+    container.querySelectorAll('[data-player-source]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const sourceValue = button.getAttribute('data-player-source');
+            if (sourceValue === 'personal' || sourceValue === 'alliance') {
+                switchPlayerSource(sourceValue);
+            }
+        });
+    });
 }
 
 async function handleCreateAlliance() {
