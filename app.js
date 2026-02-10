@@ -2654,7 +2654,6 @@ function renderAllianceMemberView(container) {
     const members = FirebaseService.getAllianceMembers();
     const memberCount = Object.keys(members).length;
     const aName = FirebaseService.getAllianceName();
-    const source = FirebaseService.getPlayerSource();
 
     let membersHtml = '';
     Object.entries(members).forEach(([uid, member]) => {
@@ -2685,14 +2684,6 @@ function renderAllianceMemberView(container) {
             <div id="inviteStatus"></div>
         </div>
         <div id="allianceInvitesSection"></div>
-        <div style="margin-bottom: 20px;">
-            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_player_source_title')}</h3>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="${source === 'personal' ? '' : 'secondary'}" data-player-source="personal">${t('alliance_source_personal')}</button>
-                <button class="${source === 'alliance' ? '' : 'secondary'}" data-player-source="alliance">${t('alliance_source_alliance')}</button>
-            </div>
-            <div id="playerSourceStatus"></div>
-        </div>
         <button id="allianceLeaveBtn" class="clear-btn" style="color: #FF6B35; border-color: #FF6B35;">${t('alliance_leave_button')}</button>
         <div id="allianceActionStatus"></div>
     `;
@@ -2705,14 +2696,6 @@ function renderAllianceMemberView(container) {
         leaveBtn.addEventListener('click', handleLeaveAlliance);
     }
     renderAllianceInvitesSection(container, true);
-    container.querySelectorAll('[data-player-source]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const sourceValue = button.getAttribute('data-player-source');
-            if (sourceValue === 'personal' || sourceValue === 'alliance') {
-                switchPlayerSource(sourceValue);
-            }
-        });
-    });
 }
 
 async function handleCreateAlliance() {
@@ -2770,7 +2753,14 @@ async function switchPlayerSource(source, statusElementId) {
     await FirebaseService.setPlayerSource(source);
     loadPlayerData();
     renderAlliancePanel();
-    showMessage(statusElementId || 'playerSourceStatus', t('alliance_source_switched', { source: t('alliance_source_' + source) }), 'success');
+    const sourceLabels = {
+        personal: t('alliance_source_personal'),
+        alliance: t('alliance_source_alliance'),
+    };
+    const sourceLabel = Object.prototype.hasOwnProperty.call(sourceLabels, source)
+        ? sourceLabels[source]
+        : source;
+    showMessage(statusElementId || 'playerSourceStatus', t('alliance_source_switched', { source: sourceLabel }), 'success');
 }
 
 function updateAllianceHeaderDisplay() {
