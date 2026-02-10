@@ -4235,24 +4235,10 @@ function generateMap(team, assignments, statusId) {
             return output + '...';
         }
 
-        // Coordinates pick the first card's start X. If it overflows right,
-        // use picked X as right edge to keep labels inside the map.
+        // Coordinates always represent the top-left start point of the first label,
+        // consistently for every event.
         function getStarterCardStartX(anchorX, cardWidth) {
-            const mapLeftBound = 0;
-            const mapRightBound = 1080;
-            const startX = anchorX;
-            const startRight = startX + cardWidth;
-            if (startX >= mapLeftBound && startRight <= mapRightBound) {
-                return startX;
-            }
-
-            const rightAlignedX = anchorX - cardWidth;
-            const rightAlignedRight = rightAlignedX + cardWidth;
-            if (rightAlignedX >= mapLeftBound && rightAlignedRight <= mapRightBound) {
-                return rightAlignedX;
-            }
-
-            return Math.max(mapLeftBound, Math.min(mapRightBound - cardWidth, startX));
+            return anchorX;
         }
 
         function getTroopKind(troops) {
