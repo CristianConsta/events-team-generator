@@ -49,8 +49,8 @@
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);
         },
-        saveUserData: async function saveUserData() {
-            return withManager((svc) => svc.saveUserData(), notLoadedResult());
+        saveUserData: async function saveUserData(options) {
+            return withManager((svc) => svc.saveUserData(options), notLoadedResult());
         },
         uploadPlayerDatabase: async function uploadPlayerDatabase(file) {
             return withManager((svc) => svc.uploadPlayerDatabase(file), Promise.reject(notLoadedResult()));

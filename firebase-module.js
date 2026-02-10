@@ -106,6 +106,11 @@ const FirebaseManager = (function() {
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let onAuthCallback = null;
     let onDataLoadCallback = null;
+    const SAVE_DEBOUNCE_MS = 250;
+    let lastSavedUserState = null;
+    let saveDebounceTimer = null;
+    let pendingSavePromise = null;
+    let pendingSaveResolve = null;
 
     let globalDefaultEventPositions = {};
     let globalDefaultPositionsVersion = 0;
@@ -722,6 +727,44 @@ const FirebaseManager = (function() {
         }
         return { displayName, nickname, avatarDataUrl };
     }
+
+    function cloneJson(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+
+    function areJsonEqual(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    function getCurrentPersistedUserState() {
+        return {
+            playerDatabase: playerDatabase || {},
+            events: eventData || {},
+            userProfile: normalizeUserProfile(userProfile),
+        };
+    }
+
+    function rememberLastSavedUserState(state) {
+        const source = state && typeof state === 'object' ? state : getCurrentPersistedUserState();
+        lastSavedUserState = cloneJson(source);
+    }
+
+    function clearSaveQueue() {
+        if (saveDebounceTimer) {
+            clearTimeout(saveDebounceTimer);
+            saveDebounceTimer = null;
+        }
+        if (typeof pendingSaveResolve === 'function') {
+            pendingSaveResolve({ success: false, cancelled: true, error: 'Save cancelled' });
+        }
+        pendingSavePromise = null;
+        pendingSaveResolve = null;
+    }
+
+    function resetSaveState() {
+        lastSavedUserState = null;
+        clearSaveQueue();
+    }
     
     /**
      * Initialize Firebase
@@ -764,6 +807,7 @@ const FirebaseManager = (function() {
             }
 
             console.log('✅ User signed in:', user.email);
+            resetSaveState();
             loadUserData(user);
             
             if (onAuthCallback) {
@@ -781,6 +825,7 @@ const FirebaseManager = (function() {
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+            resetSaveState();
 
             if (onAuthCallback) {
                 onAuthCallback(false, null);
@@ -1034,6 +1079,7 @@ const FirebaseManager = (function() {
         userProfile = normalizeUserProfile(null);
         setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
         setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+        resetSaveState();
 
         try {
             await authUser.delete();
@@ -1166,6 +1212,7 @@ const FirebaseManager = (function() {
                     await loadAllianceData();
                 }
                 await checkInvitations();
+                rememberLastSavedUserState();
 
                 if (onDataLoadCallback) {
                     onDataLoadCallback(playerDatabase);
@@ -1187,6 +1234,7 @@ const FirebaseManager = (function() {
                 await loadGlobalDefaultBuildingPositions();
                 await loadGlobalDefaultBuildingConfig();
                 await checkInvitations();
+                rememberLastSavedUserState();
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
@@ -1198,33 +1246,91 @@ const FirebaseManager = (function() {
     /**
      * Save user data to Firestore
      */
-    async function saveUserData() {
+    async function persistChangedUserData() {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
-        
+
+        const currentState = getCurrentPersistedUserState();
+        const payload = {};
+        const changedFields = [];
+
+        if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.playerDatabase, currentState.playerDatabase)) {
+            payload.playerDatabase = currentState.playerDatabase;
+            changedFields.push('playerDatabase');
+        }
+        if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.events, currentState.events)) {
+            payload.events = currentState.events;
+            changedFields.push('events');
+        }
+        if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.userProfile, currentState.userProfile)) {
+            payload.userProfile = currentState.userProfile;
+            changedFields.push('userProfile');
+        }
+
+        if (changedFields.length === 0) {
+            return { success: true, skipped: true };
+        }
+
+        payload.metadata = {
+            email: currentUser.email || null,
+            emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
+            totalPlayers: Object.keys(currentState.playerDatabase).length,
+            lastModified: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (changedFields.includes('playerDatabase')) {
+            payload.metadata.lastUpload = new Date().toISOString();
+        }
+
         try {
-            console.log('💾 Saving data...');
-            
-            await db.collection('users').doc(currentUser.uid).set({
-                playerDatabase: playerDatabase,
-                events: eventData,
-                userProfile: userProfile,
-                metadata: {
-                    email: currentUser.email || null,
-                    emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
-                    totalPlayers: Object.keys(playerDatabase).length,
-                    lastUpload: new Date().toISOString(),
-                    lastModified: firebase.firestore.FieldValue.serverTimestamp()
-                }
-            }, { merge: true });
-            
-            console.log('✅ Data saved successfully');
-            return { success: true };
+            console.log(`💾 Saving data (${changedFields.join(', ')})...`);
+            await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+            rememberLastSavedUserState(currentState);
+            return { success: true, changedFields };
         } catch (error) {
             console.error('❌ Failed to save data:', error);
             return { success: false, error: error.message };
         }
+    }
+
+    async function flushQueuedSave() {
+        if (!pendingSavePromise) {
+            return;
+        }
+        saveDebounceTimer = null;
+        const resolve = pendingSaveResolve;
+        pendingSaveResolve = null;
+        const result = await persistChangedUserData();
+        pendingSavePromise = null;
+        if (typeof resolve === 'function') {
+            resolve(result);
+        }
+    }
+
+    async function saveUserData(options) {
+        if (!currentUser) {
+            return { success: false, error: 'No user signed in' };
+        }
+
+        const immediate = !!(options && options.immediate === true);
+
+        if (!pendingSavePromise) {
+            pendingSavePromise = new Promise((resolve) => {
+                pendingSaveResolve = resolve;
+            });
+        }
+
+        if (immediate) {
+            if (saveDebounceTimer) {
+                clearTimeout(saveDebounceTimer);
+                saveDebounceTimer = null;
+            }
+            flushQueuedSave();
+        } else if (!saveDebounceTimer) {
+            saveDebounceTimer = setTimeout(flushQueuedSave, SAVE_DEBOUNCE_MS);
+        }
+
+        return pendingSavePromise;
     }
     
     /**
