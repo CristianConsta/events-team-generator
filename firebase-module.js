@@ -198,7 +198,10 @@ const FirebaseManager = (function() {
         if (!Array.isArray(defaults)) {
             return [];
         }
-        return JSON.parse(JSON.stringify(defaults));
+        return defaults.map((item) => ({
+            ...item,
+            showOnMap: item && item.showOnMap !== false,
+        }));
     }
 
     function normalizeBuildingConfigForDefaults(config) {
@@ -218,6 +221,7 @@ const FirebaseManager = (function() {
             if (typeof item.label === 'string' && item.label.trim()) {
                 next.label = item.label.trim();
             }
+            next.showOnMap = item.showOnMap !== false;
             const slots = Number(item.slots);
             if (Number.isFinite(slots)) {
                 next.slots = Math.round(slots);
@@ -426,6 +430,7 @@ const FirebaseManager = (function() {
             if (typeof item.label === 'string' && item.label.trim()) {
                 next.label = item.label.trim();
             }
+            next.showOnMap = item.showOnMap !== false;
             const slots = Number(item.slots);
             if (Number.isFinite(slots)) {
                 next.slots = Math.round(slots);
