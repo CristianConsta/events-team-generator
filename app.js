@@ -2966,6 +2966,8 @@ async function handleRejectInvitation(invitationId, statusElementId) {
 // PLAYER DATA MANAGEMENT
 // ============================================================
 
+let pendingUploadFile = null;
+
 async function uploadPlayerData() {
     if (typeof FirebaseService === 'undefined') {
         showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
@@ -2987,7 +2989,7 @@ async function uploadPlayerData() {
     }
 
     if (FirebaseService.getAllianceId()) {
-        window._pendingUploadFile = file;
+        pendingUploadFile = file;
         openUploadTargetModal();
     } else {
         await performUpload(file, 'personal');
@@ -2997,7 +2999,7 @@ async function uploadPlayerData() {
 }
 
 function closeUploadTargetModal() {
-    window._pendingUploadFile = null;
+    pendingUploadFile = null;
     document.getElementById('uploadTargetModal').classList.add('hidden');
 }
 
@@ -3017,19 +3019,19 @@ function openUploadTargetModal() {
 }
 
 async function uploadToPersonal() {
-    const file = window._pendingUploadFile;
+    const file = pendingUploadFile;
     closeUploadTargetModal();
     if (file) await performUpload(file, 'personal');
 }
 
 async function uploadToAlliance() {
-    const file = window._pendingUploadFile;
+    const file = pendingUploadFile;
     closeUploadTargetModal();
     if (file) await performUpload(file, 'alliance');
 }
 
 async function uploadToBoth() {
-    const file = window._pendingUploadFile;
+    const file = pendingUploadFile;
     closeUploadTargetModal();
     if (file) await performUpload(file, 'both');
 }
