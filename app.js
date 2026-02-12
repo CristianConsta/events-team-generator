@@ -1029,6 +1029,10 @@ let buildingPositionsMap = {};
 
 const MAP_PREVIEW = 'preview';
 const MAP_EXPORT = 'export';
+const MAP_CANVAS_WIDTH = 1080;
+const MAP_CANVAS_FALLBACK_HEIGHT = 720;
+const MAP_GRID_STEP = 90;
+const MAP_UPLOAD_MAX_SIDE = MAP_CANVAS_WIDTH;
 
 // Per-event map images, split by purpose so preview can stay lightweight.
 const mapImages = {
@@ -1352,6 +1356,11 @@ function loadMapImage(eventId, purpose) {
                 mapUnavailableFlags[mapPurpose][eid] = true;
                 mapLoadPromises[mapPurpose][eid] = null;
                 reject(new Error(`No map source available for ${eid}/${mapPurpose}`));
+                return;
+            }
+            // Data/blob URLs cannot be cache-busted via query params.
+            if (typeof src === 'string' && /^(data:|blob:)/i.test(src.trim())) {
+                imageEl.src = src;
                 return;
             }
             const bust = src.includes('?') ? '&' : '?';
@@ -2079,7 +2088,7 @@ async function handleEventMapChange(event) {
         eventDraftMapDataUrl = await createEventImageDataUrl(file, {
             maxBytes: 4 * 1024 * 1024,
             minDimension: 320,
-            maxSide: 1920,
+            maxSide: MAP_UPLOAD_MAX_SIDE,
             maxDataUrlLength: EVENT_MAP_DATA_URL_LIMIT,
             tooLargeMessage: t('events_manager_map_too_large'),
         });
@@ -3704,47 +3713,50 @@ function drawCoordCanvas() {
 
     const ctx = canvas.getContext('2d');
     const hasMapBackground = activeMapLoaded && activeMapImage.width > 0 && activeMapImage.height > 0;
-    const mapHeight = hasMapBackground ? Math.floor(activeMapImage.height * (1080 / activeMapImage.width)) : 720;
+    const mapWidth = MAP_CANVAS_WIDTH;
+    const mapHeight = hasMapBackground
+        ? Math.max(1, Math.floor(activeMapImage.height * (mapWidth / activeMapImage.width)))
+        : MAP_CANVAS_FALLBACK_HEIGHT;
 
-    canvas.width = 1080;
+    canvas.width = mapWidth;
     canvas.height = mapHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (hasMapBackground) {
-        ctx.drawImage(activeMapImage, 0, 0, 1080, mapHeight);
+        ctx.drawImage(activeMapImage, 0, 0, mapWidth, mapHeight);
         coordMapWarningShown[currentEvent] = false;
         if (statusEl) {
             statusEl.innerHTML = '';
         }
     } else {
-        const grad = ctx.createLinearGradient(0, 0, 1080, mapHeight);
+        const grad = ctx.createLinearGradient(0, 0, mapWidth, mapHeight);
         grad.addColorStop(0, '#1f2238');
         grad.addColorStop(1, '#2b2f4a');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1080, mapHeight);
+        ctx.fillRect(0, 0, mapWidth, mapHeight);
 
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.lineWidth = 1;
-        for (let x = 0; x <= 1080; x += 90) {
+        for (let x = 0; x <= mapWidth; x += MAP_GRID_STEP) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, mapHeight);
             ctx.stroke();
         }
-        for (let y = 0; y <= mapHeight; y += 90) {
+        for (let y = 0; y <= mapHeight; y += MAP_GRID_STEP) {
             ctx.beginPath();
             ctx.moveTo(0, y);
-            ctx.lineTo(1080, y);
+            ctx.lineTo(mapWidth, y);
             ctx.stroke();
         }
 
         ctx.fillStyle = 'rgba(253, 200, 48, 0.9)';
         ctx.font = 'bold 28px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('MAP PREVIEW UNAVAILABLE', 540, 52);
+        ctx.fillText('MAP PREVIEW UNAVAILABLE', mapWidth / 2, 52);
         ctx.font = '16px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(getEventMapFile(currentEvent, activeMapPurpose) || '', 540, 80);
+        ctx.fillText(getEventMapFile(currentEvent, activeMapPurpose) || '', mapWidth / 2, 80);
 
         if (!coordMapWarningShown[currentEvent]) {
             showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getEventMapFile(currentEvent, activeMapPurpose)})`, 'warning');
@@ -4422,25 +4434,25 @@ function generateMapWithoutBackground(team, assignments, statusId) {
         
         // Create simplified version without map
         const canvas = document.createElement('canvas');
-        canvas.width = 1080;
+        canvas.width = MAP_CANVAS_WIDTH;
         canvas.height = 800;
         const ctx = canvas.getContext('2d');
         
         // Background
         ctx.fillStyle = team === 'A' ? '#E8F4FF' : '#FFE8E8';
-        ctx.fillRect(0, 0, 1080, 800);
+        ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 800);
         
         // Title
-        const grad = ctx.createLinearGradient(0, 0, 1080, 100);
+        const grad = ctx.createLinearGradient(0, 0, MAP_CANVAS_WIDTH, 100);
         grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
         grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 1080, 100);
+        ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 100);
         
         ctx.font = 'bold 48px Arial';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
-        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, 540, 60);
+        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, MAP_CANVAS_WIDTH / 2, 60);
 
         // List assignments
         ctx.fillStyle = '#333';
@@ -4528,12 +4540,12 @@ function generateMap(team, assignments, statusId) {
         const titleHeight = 100;
         const unmappedHeight = 280;
         const activeMapImage = mapImages[MAP_EXPORT][currentEvent];
-        const mapHeight = Math.floor(activeMapImage.height * (1080 / activeMapImage.width));
+        const mapHeight = Math.max(1, Math.floor(activeMapImage.height * (MAP_CANVAS_WIDTH / activeMapImage.width)));
         const totalHeight = titleHeight + mapHeight + unmappedHeight;
 
         // Add substitutes panel width if there are substitutes
         const subsPanelWidth = substitutes.length > 0 ? 260 : 0;
-        const totalWidth = 1080 + subsPanelWidth;
+        const totalWidth = MAP_CANVAS_WIDTH + subsPanelWidth;
 
         const canvas = document.createElement('canvas');
         canvas.width = totalWidth;
@@ -4716,9 +4728,9 @@ function generateMap(team, assignments, statusId) {
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, 540, titleHeight / 2);
+        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, MAP_CANVAS_WIDTH / 2, titleHeight / 2);
 
-        ctx.drawImage(activeMapImage, 0, titleHeight, 1080, mapHeight);
+        ctx.drawImage(activeMapImage, 0, titleHeight, MAP_CANVAS_WIDTH, mapHeight);
 
         let drawnCount = 0;
         const priorityPalette = {
@@ -4968,7 +4980,7 @@ function generateMap(team, assignments, statusId) {
 
         // Substitutes Panel (right side)
         if (substitutes.length > 0) {
-            const panelX = 1080;
+            const panelX = MAP_CANVAS_WIDTH;
             const panelY = titleHeight;
             const panelHeight = mapHeight + unmappedHeight;
 

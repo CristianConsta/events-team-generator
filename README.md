@@ -83,8 +83,6 @@ js/core/assignment.js          Team assignment logic
 js/core/i18n.js                Translation engine
 vendor/                        Vendored Firebase + SheetJS libraries
 scripts/migrate_users_email_to_uid.js One-time Firestore migration utility
-scripts/migrate_legacy_building_fields_to_events.js One-time model migration utility
-scripts/sync_event_building_defaults.js One-time defaults + existing-user building config sync
 tests/                         Node test suite
 ```
 
@@ -181,70 +179,34 @@ node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACC
 node scripts/migrate_users_email_to_uid.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply --delete-old
 ```
 
-## Migration Script (Legacy Building Fields -> Event Model)
+## Migration Script (Promote Event Building Defaults)
 
-Removes deprecated top-level fields from `users/*`:
+Use this one-time script to copy building names / `#Players` / priorities from a source user event config and apply them to:
 
-- `buildingConfig`
-- `buildingConfigVersion`
-- `buildingPositions`
-- `buildingPositionsVersion`
+- shared defaults doc: `app_config/default_event_building_config`
+- all existing user docs: `users/*` for the selected event
 
-And migrates values to `events.{eventId}` (default event: `desert_storm`) before deleting old fields.
+Default source/event values:
+
+- source email: `constantinescu.cristian@gmail.com`
+- event id: `canyon_battlefield`
 
 1. Dry run:
 
 ```bash
-node scripts/migrate_legacy_building_fields_to_events.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID
+node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID
 ```
 
 2. Apply:
 
 ```bash
-node scripts/migrate_legacy_building_fields_to_events.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply
+node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply
 ```
 
-## Migration Script (Sync Building Defaults From Source User)
-
-Copies building names / `#Players` / priorities and building coordinates from a source user document (`--source-doc-id`) and applies them to:
-
-- shared default doc for new users: `app_config/default_event_building_config`
-- shared default doc for new users: `app_config/default_event_positions`
-- all existing users: `users/* -> events.{eventId}.buildingConfig`
-- all existing users: `users/* -> events.{eventId}.buildingPositions`
-
-Default behavior is authoritative overwrite for existing users (their current building config for synced events is replaced by the source values), while the source user itself is always skipped and never modified.
-
-If `--event-id` is not provided, it syncs all events that have valid `events.{eventId}.buildingConfig` in the source user document.
-
-1. Dry run (all source events):
+Optional overrides:
 
 ```bash
-node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --source-doc-id 2z2BdO8aVsUovqQWWL9WCRMdV933
-```
-
-2. Apply (all source events):
-
-```bash
-node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --source-doc-id 2z2BdO8aVsUovqQWWL9WCRMdV933 --apply
-```
-
-3. Optional single-event sync:
-
-```bash
-node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --source-doc-id 2z2BdO8aVsUovqQWWL9WCRMdV933 --event-id canyon_battlefield --apply
-```
-
-4. Optional custom source doc id:
-
-```bash
-node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --source-doc-id SOME_USER_DOC_ID --apply
-```
-
-5. Optional preserve mode (skip users who already have config):
-
-```bash
-node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --source-doc-id 2z2BdO8aVsUovqQWWL9WCRMdV933 --preserve-existing --apply
+node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply --source-email SOMEONE@EXAMPLE.COM --event-id canyon_battlefield
 ```
 
 ## Tests

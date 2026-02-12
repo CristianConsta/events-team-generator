@@ -91,8 +91,6 @@ const FirebaseManager = (function() {
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
     const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
-    const INVITE_COOLDOWN_FREE_INVITES = 3;
-    const INVITE_COOLDOWN_STEP_MS = 60 * 1000;
 
     // Private variables
     let auth = null;
@@ -106,13 +104,9 @@ const FirebaseManager = (function() {
     let allianceData = null;
     let playerSource = 'personal';
     let pendingInvitations = [];
-    let inviteThrottleState = { sentCount: 0, cooldownUntilMs: 0 };
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
-    let inviteUserLookupPermissionLogged = false;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
-    let eventMediaSubcollectionEnabled = true;
-    let eventMediaPermissionWarningShown = false;
     const SAVE_DEBOUNCE_MS = 250;
     let lastSavedUserState = null;
     let saveDebounceTimer = null;
@@ -203,10 +197,7 @@ const FirebaseManager = (function() {
         if (!Array.isArray(defaults)) {
             return [];
         }
-        return JSON.parse(JSON.stringify(defaults)).map((entry) => ({
-            ...entry,
-            showOnMap: entry && entry.showOnMap !== false,
-        }));
+        return JSON.parse(JSON.stringify(defaults));
     }
 
     function normalizeBuildingConfigForDefaults(config) {
@@ -234,7 +225,6 @@ const FirebaseManager = (function() {
             if (Number.isFinite(priority)) {
                 next.priority = Math.round(priority);
             }
-            next.showOnMap = item.showOnMap !== false;
             normalized.push(next);
         });
         return normalized.length > 0 ? normalized : null;
@@ -346,52 +336,6 @@ const FirebaseManager = (function() {
         return 0;
     }
 
-    function normalizeInviteThrottleState(payload) {
-        const source = payload && typeof payload === 'object' ? payload : {};
-        const sentRaw = Number(source.sentCount);
-        const sentCount = Number.isFinite(sentRaw) && sentRaw > 0 ? Math.floor(sentRaw) : 0;
-        const cooldownUntilMs = toMillis(source.cooldownUntil);
-        return {
-            sentCount,
-            cooldownUntilMs: Number.isFinite(cooldownUntilMs) && cooldownUntilMs > 0 ? cooldownUntilMs : 0
-        };
-    }
-
-    function buildInviteThrottlePayload(nextState) {
-        const cooldownUntilMs = Number(nextState && nextState.cooldownUntilMs);
-        return {
-            sentCount: Number(nextState && nextState.sentCount) > 0 ? Math.floor(Number(nextState.sentCount)) : 0,
-            cooldownUntil: Number.isFinite(cooldownUntilMs) && cooldownUntilMs > 0
-                ? firebase.firestore.Timestamp.fromMillis(cooldownUntilMs)
-                : null,
-            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-        };
-    }
-
-    function buildInviteCooldownError(remainingMs) {
-        const totalSeconds = Math.max(1, Math.ceil(Number(remainingMs || 0) / 1000));
-        const minutes = Math.max(1, Math.ceil(totalSeconds / 60));
-        return {
-            success: false,
-            errorKey: 'alliance_invite_cooldown',
-            errorParams: { minutes, seconds: totalSeconds },
-            error: `Invite cooldown active. Try again in ${minutes} minute(s).`
-        };
-    }
-
-    function computeNextInviteThrottleState(nowMs) {
-        const currentCount = Number.isFinite(Number(inviteThrottleState.sentCount))
-            ? Math.max(0, Math.floor(Number(inviteThrottleState.sentCount)))
-            : 0;
-        const sentCount = currentCount + 1;
-        const overtimeInvites = Math.max(0, sentCount - INVITE_COOLDOWN_FREE_INVITES);
-        const cooldownMs = overtimeInvites > 0 ? overtimeInvites * INVITE_COOLDOWN_STEP_MS : 0;
-        return {
-            sentCount,
-            cooldownUntilMs: cooldownMs > 0 ? nowMs + cooldownMs : 0
-        };
-    }
-
     function extractVersionFromUserData(data) {
         if (!data || typeof data !== 'object') {
             return 0;
@@ -423,6 +367,15 @@ const FirebaseManager = (function() {
                     eventVersion = configVersion;
                 }
             });
+        } else {
+            const legacyPositionsVersion = Number(data.buildingPositionsVersion);
+            if (Number.isFinite(legacyPositionsVersion) && legacyPositionsVersion > 0) {
+                eventVersion = legacyPositionsVersion;
+            }
+            const legacyConfigVersion = Number(data.buildingConfigVersion);
+            if (Number.isFinite(legacyConfigVersion) && legacyConfigVersion > eventVersion) {
+                eventVersion = legacyConfigVersion;
+            }
         }
         return Math.max(metaVersion, eventVersion);
     }
@@ -441,6 +394,10 @@ const FirebaseManager = (function() {
                 }
                 events[eid] = normalizePositionsMap(entry.buildingPositions);
             });
+            return events;
+        }
+        if (data && data.buildingPositions && typeof data.buildingPositions === 'object') {
+            events.desert_storm = normalizePositionsMap(data.buildingPositions);
         }
         return events;
     }
@@ -476,7 +433,6 @@ const FirebaseManager = (function() {
             if (Number.isFinite(priority)) {
                 next.priority = Math.round(priority);
             }
-            next.showOnMap = item.showOnMap !== false;
             normalized.push(next);
         });
         return normalized.length > 0 ? normalized : null;
@@ -616,10 +572,6 @@ const FirebaseManager = (function() {
             });
             return media;
         } catch (error) {
-            if (isPermissionDeniedError(error)) {
-                disableEventMediaSubcollection(error, 'load event media docs');
-                return {};
-            }
             console.warn('⚠️ Failed to load event media docs:', error.message || error);
             return {};
         }
@@ -635,45 +587,36 @@ const FirebaseManager = (function() {
         if (ids.size === 0) {
             return;
         }
-        try {
-            const batch = db.batch();
-            let changes = 0;
-            ids.forEach((rawId) => {
-                const eventId = normalizeEventId(rawId);
-                if (!eventId) {
-                    return;
-                }
-                const prevEntry = previous[eventId] || { logoDataUrl: '', mapDataUrl: '' };
-                const nextEntry = next[eventId] || { logoDataUrl: '', mapDataUrl: '' };
-                const prevLogo = sanitizeEventImageDataUrl(prevEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
-                const prevMap = sanitizeEventImageDataUrl(prevEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
-                const nextLogo = sanitizeEventImageDataUrl(nextEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
-                const nextMap = sanitizeEventImageDataUrl(nextEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
-                if (prevLogo === nextLogo && prevMap === nextMap) {
-                    return;
-                }
-                const ref = db.collection('users').doc(uid).collection(EVENT_MEDIA_SUBCOLLECTION).doc(eventId);
-                if (!nextLogo && !nextMap) {
-                    batch.delete(ref);
-                } else {
-                    batch.set(ref, {
-                        logoDataUrl: nextLogo,
-                        mapDataUrl: nextMap,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    }, { merge: true });
-                }
-                changes += 1;
-            });
-            if (changes > 0) {
-                await batch.commit();
+        const batch = db.batch();
+        let changes = 0;
+        ids.forEach((rawId) => {
+            const eventId = normalizeEventId(rawId);
+            if (!eventId) {
+                return;
             }
-            return true;
-        } catch (error) {
-            if (isPermissionDeniedError(error)) {
-                disableEventMediaSubcollection(error, 'save event media docs');
-                return false;
+            const prevEntry = previous[eventId] || { logoDataUrl: '', mapDataUrl: '' };
+            const nextEntry = next[eventId] || { logoDataUrl: '', mapDataUrl: '' };
+            const prevLogo = sanitizeEventImageDataUrl(prevEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+            const prevMap = sanitizeEventImageDataUrl(prevEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+            const nextLogo = sanitizeEventImageDataUrl(nextEntry.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+            const nextMap = sanitizeEventImageDataUrl(nextEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+            if (prevLogo === nextLogo && prevMap === nextMap) {
+                return;
             }
-            throw error;
+            const ref = db.collection('users').doc(uid).collection(EVENT_MEDIA_SUBCOLLECTION).doc(eventId);
+            if (!nextLogo && !nextMap) {
+                batch.delete(ref);
+            } else {
+                batch.set(ref, {
+                    logoDataUrl: nextLogo,
+                    mapDataUrl: nextMap,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+            }
+            changes += 1;
+        });
+        if (changes > 0) {
+            await batch.commit();
         }
     }
 
@@ -711,46 +654,12 @@ const FirebaseManager = (function() {
                 }
                 result[eid] = normalizeBuildingConfigArray(entry.buildingConfig);
             });
+            return result;
+        }
+        if (data && Array.isArray(data.buildingConfig)) {
+            result.desert_storm = normalizeBuildingConfigArray(data.buildingConfig);
         }
         return result;
-    }
-
-    function hasLegacyTopLevelBuildingFields(data) {
-        if (!data || typeof data !== 'object') {
-            return false;
-        }
-        return (
-            Object.prototype.hasOwnProperty.call(data, 'buildingConfig')
-            || Object.prototype.hasOwnProperty.call(data, 'buildingConfigVersion')
-            || Object.prototype.hasOwnProperty.call(data, 'buildingPositions')
-            || Object.prototype.hasOwnProperty.call(data, 'buildingPositionsVersion')
-        );
-    }
-
-    function mergeLegacyTopLevelBuildingFieldsIntoEvents(data, currentEvents) {
-        if (!data || typeof data !== 'object') {
-            return currentEvents;
-        }
-        const nextEvents = currentEvents && typeof currentEvents === 'object'
-            ? currentEvents
-            : ensureLegacyEventEntries(createEmptyEventData());
-
-        const hasLegacyConfig = Array.isArray(data.buildingConfig) || typeof data.buildingConfigVersion === 'number';
-        const hasLegacyPositions = data.buildingPositions && typeof data.buildingPositions === 'object'
-            || typeof data.buildingPositionsVersion === 'number';
-        if (!hasLegacyConfig && !hasLegacyPositions) {
-            return nextEvents;
-        }
-
-        const desertEvent = sanitizeEventEntry('desert_storm', {
-            name: getDefaultEventName('desert_storm'),
-            buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : (nextEvents.desert_storm && nextEvents.desert_storm.buildingConfig),
-            buildingConfigVersion: typeof data.buildingConfigVersion === 'number' ? data.buildingConfigVersion : (nextEvents.desert_storm && nextEvents.desert_storm.buildingConfigVersion),
-            buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : (nextEvents.desert_storm && nextEvents.desert_storm.buildingPositions),
-            buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : (nextEvents.desert_storm && nextEvents.desert_storm.buildingPositionsVersion),
-        }, nextEvents.desert_storm);
-        nextEvents.desert_storm = desertEvent;
-        return nextEvents;
     }
 
     function setGlobalDefaultBuildingConfig(payload, version) {
@@ -777,6 +686,39 @@ const FirebaseManager = (function() {
         return globalDefaultPositionsVersion;
     }
 
+    function applyGlobalDefaultBuildingConfigToEventData(options) {
+        const opts = options && typeof options === 'object' ? options : {};
+        const overwriteExisting = opts.overwriteExisting === true;
+        const targetEventIds = Array.isArray(opts.eventIds) && opts.eventIds.length > 0 ? opts.eventIds : Object.keys(globalDefaultEventBuildingConfig || {});
+        let changed = false;
+
+        targetEventIds.forEach((rawId) => {
+            const eventId = normalizeEventId(rawId);
+            if (!eventId) {
+                return;
+            }
+            const sharedConfig = normalizeBuildingConfigArray(globalDefaultEventBuildingConfig[eventId]);
+            if (!Array.isArray(sharedConfig) || sharedConfig.length === 0) {
+                return;
+            }
+
+            const eid = ensureEventEntry(eventId);
+            const existingConfig = normalizeBuildingConfigArray(eventData[eid].buildingConfig);
+            const hasExisting = Array.isArray(existingConfig) && existingConfig.length > 0;
+            if (hasExisting && !overwriteExisting) {
+                return;
+            }
+
+            eventData[eid].buildingConfig = sharedConfig;
+            if (globalDefaultBuildingConfigVersion > 0) {
+                eventData[eid].buildingConfigVersion = globalDefaultBuildingConfigVersion;
+            }
+            changed = true;
+        });
+
+        return changed;
+    }
+
     function isPermissionDeniedError(error) {
         if (!error) return false;
         const code = typeof error.code === 'string' ? error.code.toLowerCase() : '';
@@ -791,27 +733,6 @@ const FirebaseManager = (function() {
             return;
         }
         console.warn(message, details);
-    }
-
-    function isEventMediaSubcollectionEnabled() {
-        return eventMediaSubcollectionEnabled;
-    }
-
-    function disableEventMediaSubcollection(error, context) {
-        eventMediaSubcollectionEnabled = false;
-        if (eventMediaPermissionWarningShown) {
-            return;
-        }
-        const details = (error && (error.message || error.code)) ? (error.message || error.code) : String(error || 'unknown');
-        console.info(`Event media subcollection disabled (${context}); falling back to inline events media:`, details);
-        eventMediaPermissionWarningShown = true;
-    }
-
-    function buildEventsPayloadForUserDoc() {
-        if (isEventMediaSubcollectionEnabled()) {
-            return buildEventsWithoutMedia(eventData);
-        }
-        return normalizeEventsMap(eventData);
     }
 
     async function tryLoadGlobalDefaultsDoc() {
@@ -982,11 +903,10 @@ const FirebaseManager = (function() {
     }
 
     function getCurrentPersistedUserState() {
-        const useSubcollection = isEventMediaSubcollectionEnabled();
         return {
             playerDatabase: playerDatabase || {},
-            events: useSubcollection ? buildEventsWithoutMedia(eventData) : normalizeEventsMap(eventData),
-            eventMedia: useSubcollection ? getEventMediaMap(eventData) : {},
+            events: buildEventsWithoutMedia(eventData),
+            eventMedia: getEventMediaMap(eventData),
             userProfile: normalizeUserProfile(userProfile),
         };
     }
@@ -1010,8 +930,6 @@ const FirebaseManager = (function() {
 
     function resetSaveState() {
         lastSavedUserState = null;
-        eventMediaSubcollectionEnabled = true;
-        eventMediaPermissionWarningShown = false;
         clearSaveQueue();
     }
     
@@ -1071,7 +989,6 @@ const FirebaseManager = (function() {
             allianceData = null;
             playerSource = 'personal';
             pendingInvitations = [];
-            inviteThrottleState = normalizeInviteThrottleState(null);
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
@@ -1242,14 +1159,6 @@ const FirebaseManager = (function() {
                 .where('invitedBy', '==', uid)
                 .get();
             byInviter.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
-            try {
-                const byInviteeUid = await db.collection('invitations')
-                    .where('invitedUserId', '==', uid)
-                    .get();
-                byInviteeUid.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
-            } catch (error) {
-                console.warn('Unable to collect invitations by invitedUserId during account cleanup:', error.message || error);
-            }
         }
         if (emailLower) {
             const byInvitee = await db.collection('invitations')
@@ -1334,7 +1243,6 @@ const FirebaseManager = (function() {
         allianceData = null;
         playerSource = 'personal';
         pendingInvitations = [];
-        inviteThrottleState = normalizeInviteThrottleState(null);
         userProfile = normalizeUserProfile(null);
         setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
         setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
@@ -1397,101 +1305,96 @@ const FirebaseManager = (function() {
             if (doc.exists) {
                 const data = doc.data();
                 let shouldPersistLegacyDefaults = false;
-                const shouldRemoveLegacyTopLevelFields = hasLegacyTopLevelBuildingFields(data);
                 playerDatabase = data.playerDatabase || {};
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
-                inviteThrottleState = normalizeInviteThrottleState(data.inviteThrottle);
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
 
-                // Event-scoped model: read only from events map.
+                // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
                     eventData = normalizeEventsMap(data.events);
-                } else {
+                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(eventData);
+                    eventData = ensuredLegacy.events;
+                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
+                } else if (
+                    Array.isArray(data.buildingConfig)
+                    || (data.buildingPositions && typeof data.buildingPositions === 'object')
+                    || typeof data.buildingConfigVersion === 'number'
+                ) {
+                    // Migration: old top-level fields → move to events.desert_storm
+                    console.log('🔄 Migrating old building data to per-event schema...');
                     eventData = ensureLegacyEventEntries(createEmptyEventData());
-                }
-
-                if (shouldRemoveLegacyTopLevelFields) {
-                    console.log('🔄 Migrating legacy top-level building fields to events.* schema...');
-                    eventData = mergeLegacyTopLevelBuildingFieldsIntoEvents(data, eventData);
-                    shouldPersistLegacyDefaults = true;
-                }
-
-                const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(eventData);
-                eventData = ensuredLegacy.events;
-                shouldPersistLegacyDefaults = shouldPersistLegacyDefaults || ensuredLegacy.changed;
-
-                const inlineMedia = getEventMediaMap(eventData);
-                const storedMedia = await loadEventMediaForUser(user.uid);
-                const mergedMedia = Object.assign({}, inlineMedia, storedMedia);
-                if (isEventMediaSubcollectionEnabled()) {
-                    eventData = buildEventsWithoutMedia(eventData);
-                    applyEventMediaToEvents(mergedMedia);
-
-                    if (Object.keys(inlineMedia).length > 0) {
-                        try {
-                            const migrated = await saveEventMediaDiff(user.uid, storedMedia, mergedMedia);
-                            if (migrated) {
-                                shouldPersistLegacyDefaults = true;
-                                console.log('✅ Migrated inline event media to subcollection docs');
-                            }
-                        } catch (mediaErr) {
-                            console.warn('⚠️ Failed to migrate inline event media:', mediaErr);
-                        }
-                    }
-                } else {
-                    // Keep media inline when subcollection writes are blocked by rules.
-                    applyEventMediaToEvents(mergedMedia);
-                }
-
-                if (shouldPersistLegacyDefaults) {
+                    eventData.desert_storm = sanitizeEventEntry('desert_storm', {
+                        name: getDefaultEventName('desert_storm'),
+                        buildingConfig: Array.isArray(data.buildingConfig) ? data.buildingConfig : null,
+                        buildingConfigVersion: typeof data.buildingConfigVersion === 'number' ? data.buildingConfigVersion : 0,
+                        buildingPositions: data.buildingPositions && typeof data.buildingPositions === 'object' ? data.buildingPositions : null,
+                        buildingPositionsVersion: typeof data.buildingPositionsVersion === 'number' ? data.buildingPositionsVersion : 0
+                    }, eventData.desert_storm);
+                    // Save migrated data and remove old top-level fields
                     try {
-                        if (shouldRemoveLegacyTopLevelFields) {
-                            const batch = db.batch();
-                            const userRef = db.collection('users').doc(user.uid);
-                            batch.set(userRef, {
-                                events: buildEventsPayloadForUserDoc(),
-                            }, { merge: true });
-                            batch.update(userRef, {
-                                buildingConfig: firebase.firestore.FieldValue.delete(),
-                                buildingConfigVersion: firebase.firestore.FieldValue.delete(),
-                                buildingPositions: firebase.firestore.FieldValue.delete(),
-                                buildingPositionsVersion: firebase.firestore.FieldValue.delete()
-                            });
-                            await batch.commit();
-                            console.log('✅ Event model enforced and legacy top-level fields removed');
-                        } else {
-                            await db.collection('users').doc(user.uid).set({
-                                events: buildEventsPayloadForUserDoc(),
-                            }, { merge: true });
-                            console.log('✅ Legacy default events enforced for user');
-                        }
-                    } catch (defaultErr) {
-                        console.warn('⚠️ Failed to persist event-scoped defaults/cleanup:', defaultErr);
-                    }
-                } else if (shouldRemoveLegacyTopLevelFields) {
-                    try {
-                        await db.collection('users').doc(user.uid).update({
+                        const batch = db.batch();
+                        const userRef = db.collection('users').doc(user.uid);
+                        batch.set(userRef, {
+                            events: buildEventsWithoutMedia(eventData)
+                        }, { merge: true });
+                        batch.update(userRef, {
                             buildingConfig: firebase.firestore.FieldValue.delete(),
                             buildingConfigVersion: firebase.firestore.FieldValue.delete(),
                             buildingPositions: firebase.firestore.FieldValue.delete(),
                             buildingPositionsVersion: firebase.firestore.FieldValue.delete()
                         });
-                        console.log('✅ Removed legacy top-level building fields');
-                    } catch (cleanupErr) {
-                        console.warn('⚠️ Failed to remove legacy top-level building fields:', cleanupErr);
+                        await batch.commit();
+                        console.log('✅ Migration complete');
+                    } catch (migErr) {
+                        console.warn('⚠️ Migration save failed (will retry next load):', migErr);
+                    }
+                } else {
+                    // No building data at all — reset
+                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(createEmptyEventData());
+                    eventData = ensuredLegacy.events;
+                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
+                }
+
+                const inlineMedia = getEventMediaMap(eventData);
+                const storedMedia = await loadEventMediaForUser(user.uid);
+                const mergedMedia = Object.assign({}, inlineMedia, storedMedia);
+                eventData = buildEventsWithoutMedia(eventData);
+                applyEventMediaToEvents(mergedMedia);
+
+                if (Object.keys(inlineMedia).length > 0) {
+                    shouldPersistLegacyDefaults = true;
+                    try {
+                        await saveEventMediaDiff(user.uid, storedMedia, mergedMedia);
+                        console.log('✅ Migrated inline event media to subcollection docs');
+                    } catch (mediaErr) {
+                        console.warn('⚠️ Failed to migrate inline event media:', mediaErr);
+                    }
+                }
+
+                if (shouldPersistLegacyDefaults) {
+                    try {
+                        await db.collection('users').doc(user.uid).set({
+                            events: buildEventsWithoutMedia(eventData),
+                        }, { merge: true });
+                        console.log('✅ Legacy default events enforced for user');
+                    } catch (defaultErr) {
+                        console.warn('⚠️ Failed to persist legacy default events:', defaultErr);
                     }
                 }
 
                 await loadGlobalDefaultBuildingPositions();
                 await loadGlobalDefaultBuildingConfig();
-                const normalizedUserData = {
-                    metadata: data.metadata || {},
-                    events: buildEventsPayloadForUserDoc(),
-                };
-                await maybePublishGlobalDefaultsFromCurrentUser(normalizedUserData);
-                await maybePublishGlobalBuildingConfigFromCurrentUser(normalizedUserData);
+                await maybePublishGlobalDefaultsFromCurrentUser(data);
+                await maybePublishGlobalBuildingConfigFromCurrentUser(data);
+                const appliedSharedDefaults = applyGlobalDefaultBuildingConfigToEventData({
+                    eventIds: LEGACY_EVENT_IDS,
+                    overwriteExisting: false,
+                });
+                if (appliedSharedDefaults) {
+                    shouldPersistLegacyDefaults = true;
+                }
 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
 
@@ -1517,10 +1420,13 @@ const FirebaseManager = (function() {
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
-                inviteThrottleState = normalizeInviteThrottleState(null);
                 userProfile = normalizeUserProfile(null);
                 await loadGlobalDefaultBuildingPositions();
                 await loadGlobalDefaultBuildingConfig();
+                applyGlobalDefaultBuildingConfigToEventData({
+                    eventIds: LEGACY_EVENT_IDS,
+                    overwriteExisting: true,
+                });
                 await checkInvitations();
                 rememberLastSavedUserState();
                 return { success: true, data: {}, playerCount: 0 };
@@ -1582,19 +1488,11 @@ const FirebaseManager = (function() {
             if (hasDocPayload) {
                 await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
             }
-            if (mediaChanged && isEventMediaSubcollectionEnabled()) {
+            if (mediaChanged) {
                 const previousMedia = lastSavedUserState && lastSavedUserState.eventMedia ? lastSavedUserState.eventMedia : {};
-                const mediaSaved = await saveEventMediaDiff(currentUser.uid, previousMedia, currentState.eventMedia);
-                if (mediaSaved === false) {
-                    await db.collection('users').doc(currentUser.uid).set({
-                        events: normalizeEventsMap(eventData),
-                        metadata: {
-                            lastModified: firebase.firestore.FieldValue.serverTimestamp()
-                        }
-                    }, { merge: true });
-                }
+                await saveEventMediaDiff(currentUser.uid, previousMedia, currentState.eventMedia);
             }
-            rememberLastSavedUserState(getCurrentPersistedUserState());
+            rememberLastSavedUserState(currentState);
             return { success: true, changedFields };
         } catch (error) {
             console.error('❌ Failed to save data:', error);
@@ -1927,121 +1825,6 @@ const FirebaseManager = (function() {
         }
     }
 
-    function buildCurrentAllianceMemberPayload() {
-        return {
-            email: currentUser && currentUser.email ? currentUser.email : '',
-            joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            role: 'member'
-        };
-    }
-
-    async function trySyncCurrentUserAllianceMembership(targetAllianceId) {
-        if (!currentUser || !targetAllianceId) {
-            return { success: false, permissionDenied: false };
-        }
-
-        const memberPath = `members.${currentUser.uid}`;
-        try {
-            await db.collection('alliances').doc(targetAllianceId).update({
-                [memberPath]: buildCurrentAllianceMemberPayload()
-            });
-            return { success: true, permissionDenied: false };
-        } catch (error) {
-            if (isPermissionDeniedError(error)) {
-                return { success: false, permissionDenied: true };
-            }
-            throw error;
-        }
-    }
-
-    async function loadAcceptedInvitationsForAlliance(targetAllianceId) {
-        if (!currentUser || !targetAllianceId) {
-            return [];
-        }
-
-        const acceptedInvitations = [];
-        const seenIds = new Set();
-        const addInvitation = (doc) => {
-            if (!doc || !doc.exists || seenIds.has(doc.id)) {
-                return;
-            }
-            seenIds.add(doc.id);
-            const payload = doc.data() || {};
-            if (payload && payload.allianceId === targetAllianceId && payload.status === 'accepted') {
-                acceptedInvitations.push({ id: doc.id, ...payload });
-            }
-        };
-
-        try {
-            const snapshot = await db.collection('invitations')
-                .where('allianceId', '==', targetAllianceId)
-                .where('status', '==', 'accepted')
-                .get();
-            snapshot.docs.forEach(addInvitation);
-            return acceptedInvitations;
-        } catch (error) {
-            if (!isPermissionDeniedError(error)) {
-                console.warn('Failed to load accepted invitations by alliance id:', error.message || error);
-            }
-        }
-
-        try {
-            const fallbackSnapshot = await db.collection('invitations')
-                .where('invitedBy', '==', currentUser.uid)
-                .where('status', '==', 'accepted')
-                .get();
-            fallbackSnapshot.docs.forEach(addInvitation);
-        } catch (fallbackError) {
-            if (!isPermissionDeniedError(fallbackError)) {
-                console.warn('Failed to load accepted invitations by inviter fallback:', fallbackError.message || fallbackError);
-            }
-        }
-
-        return acceptedInvitations;
-    }
-
-    async function reconcileAllianceMembersFromAcceptedInvites(targetAllianceId, membersInput) {
-        const currentMembers = membersInput && typeof membersInput === 'object'
-            ? JSON.parse(JSON.stringify(membersInput))
-            : {};
-        const acceptedInvitations = await loadAcceptedInvitationsForAlliance(targetAllianceId);
-        if (!Array.isArray(acceptedInvitations) || acceptedInvitations.length === 0) {
-            return currentMembers;
-        }
-
-        const missingMemberUpdates = {};
-        acceptedInvitations.forEach((inv) => {
-            const invitedUserId = typeof inv.invitedUserId === 'string' ? inv.invitedUserId.trim() : '';
-            if (!invitedUserId || currentMembers[invitedUserId]) {
-                return;
-            }
-            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.trim() : '';
-            currentMembers[invitedUserId] = {
-                email: invitedEmail,
-                role: 'member'
-            };
-            missingMemberUpdates[`members.${invitedUserId}`] = {
-                email: invitedEmail,
-                role: 'member',
-                joinedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-        });
-
-        if (Object.keys(missingMemberUpdates).length === 0) {
-            return currentMembers;
-        }
-
-        try {
-            await db.collection('alliances').doc(targetAllianceId).update(missingMemberUpdates);
-        } catch (error) {
-            if (!isPermissionDeniedError(error)) {
-                console.warn('Failed to persist accepted-invite members back to alliance doc:', error.message || error);
-            }
-        }
-
-        return currentMembers;
-    }
-
     async function loadAllianceData() {
         if (!currentUser || !allianceId) {
             allianceData = null;
@@ -2050,37 +1833,8 @@ const FirebaseManager = (function() {
         try {
             const doc = await db.collection('alliances').doc(allianceId).get();
             if (doc.exists) {
-                allianceData = doc.data() || {};
-                allianceData.members = await reconcileAllianceMembersFromAcceptedInvites(
-                    allianceId,
-                    allianceData.members
-                );
+                allianceData = doc.data();
                 if (!allianceData.members || !allianceData.members[currentUser.uid]) {
-                    const syncResult = await trySyncCurrentUserAllianceMembership(allianceId);
-                    if (syncResult.success) {
-                        const refreshedDoc = await db.collection('alliances').doc(allianceId).get();
-                        if (refreshedDoc.exists) {
-                            allianceData = refreshedDoc.data();
-                        }
-                        return;
-                    }
-                    if (syncResult.permissionDenied) {
-                        if (!allianceName) {
-                            allianceName = (allianceData && typeof allianceData.name === 'string')
-                                ? allianceData.name
-                                : allianceId;
-                        }
-                        if (!allianceData.members || typeof allianceData.members !== 'object') {
-                            allianceData.members = {};
-                        }
-                        if (!allianceData.members[currentUser.uid]) {
-                            allianceData.members[currentUser.uid] = {
-                                email: currentUser.email || '',
-                                role: 'member'
-                            };
-                        }
-                        return;
-                    }
                     allianceId = null;
                     allianceName = null;
                     allianceData = null;
@@ -2127,86 +1881,13 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function resolveUserByEmailLower(emailLower) {
-        if (!emailLower) {
-            return null;
-        }
-        try {
-            const query = await db.collection('users')
-                .where('metadata.emailLower', '==', emailLower)
-                .limit(1)
-                .get();
-            if (query.empty) {
-                return null;
-            }
-            return {
-                uid: query.docs[0].id,
-                data: query.docs[0].data() || {}
-            };
-        } catch (error) {
-            if (isPermissionDeniedError(error)) {
-                if (!inviteUserLookupPermissionLogged) {
-                    console.info('Invited-user lookup by email is disabled by Firestore rules. Falling back to email-only invitations.');
-                    inviteUserLookupPermissionLogged = true;
-                }
-                return null;
-            }
-            console.warn('Unable to resolve invited user by email; using email-only invitation lookup:', error.message || error);
-            return null;
-        }
-    }
-
-    function invitationBelongsToCurrentUser(invitation) {
-        if (!invitation || !currentUser) {
-            return false;
-        }
-        const invitedUserId = typeof invitation.invitedUserId === 'string' ? invitation.invitedUserId : '';
-        const invitedEmail = typeof invitation.invitedEmail === 'string' ? invitation.invitedEmail.toLowerCase() : '';
-        const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
-        if (invitedUserId && invitedUserId === currentUser.uid) {
-            return true;
-        }
-        return !!(invitedEmail && userEmail && invitedEmail === userEmail);
-    }
-
     async function sendInvitation(email) {
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         const normalizedEmail = email.trim().toLowerCase();
         if (!normalizedEmail) return { success: false, error: 'Email is required' };
-        const currentEmailLower = currentUser.email ? currentUser.email.toLowerCase() : '';
-        if (currentEmailLower && normalizedEmail === currentEmailLower) {
-            return { success: false, errorKey: 'alliance_error_invite_self', error: 'You cannot invite your own account.' };
-        }
 
         try {
-            const userRef = db.collection('users').doc(currentUser.uid);
-            try {
-                const currentUserDoc = await userRef.get();
-                if (currentUserDoc.exists) {
-                    inviteThrottleState = normalizeInviteThrottleState((currentUserDoc.data() || {}).inviteThrottle);
-                }
-            } catch (throttleLoadError) {
-                if (!isPermissionDeniedError(throttleLoadError)) {
-                    console.warn('Unable to refresh invite cooldown state from user profile:', throttleLoadError.message || throttleLoadError);
-                }
-            }
-
-            const nowMs = Date.now();
-            const remainingMs = Math.max(0, Number(inviteThrottleState.cooldownUntilMs || 0) - nowMs);
-            if (remainingMs > 0) {
-                return buildInviteCooldownError(remainingMs);
-            }
-
-            let invitedUserId = '';
-            const invitedUser = await resolveUserByEmailLower(normalizedEmail);
-            if (invitedUser && invitedUser.uid) {
-                invitedUserId = invitedUser.uid;
-                if (invitedUser.data && invitedUser.data.allianceId && invitedUser.data.allianceId === allianceId) {
-                    return { success: false, errorKey: 'alliance_error_invitee_already_member', error: 'This user is already in your alliance.' };
-                }
-            }
-
             const existing = await db.collection('invitations')
                 .where('allianceId', '==', allianceId)
                 .where('invitedEmail', '==', normalizedEmail)
@@ -2217,96 +1898,39 @@ const FirebaseManager = (function() {
                 return { success: false, error: 'Invitation already pending for this email' };
             }
 
-            if (invitedUserId) {
-                try {
-                    const existingByUid = await db.collection('invitations')
-                        .where('allianceId', '==', allianceId)
-                        .where('invitedUserId', '==', invitedUserId)
-                        .where('status', '==', 'pending')
-                        .get();
-                    if (!existingByUid.empty) {
-                        return { success: false, error: 'Invitation already pending for this user' };
-                    }
-                } catch (queryError) {
-                    console.warn('Unable to check pending invitations by invited user id:', queryError.message || queryError);
-                }
-            }
-
-            const invitationRef = db.collection('invitations').doc();
-            const nextInviteThrottleState = computeNextInviteThrottleState(nowMs);
-            const batch = db.batch();
-            batch.set(invitationRef, {
+            await db.collection('invitations').add({
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
-                invitedUserId: invitedUserId || null,
                 invitedBy: currentUser.uid,
                 inviterEmail: currentUser.email,
-                inviterName: currentUser.displayName || '',
                 status: 'pending',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 respondedAt: null
             });
-            batch.set(userRef, {
-                inviteThrottle: buildInviteThrottlePayload(nextInviteThrottleState)
-            }, { merge: true });
-            await batch.commit();
-            inviteThrottleState = nextInviteThrottleState;
 
-            const nextCooldownMinutes = Math.max(0, Math.ceil((Number(nextInviteThrottleState.cooldownUntilMs || 0) - nowMs) / 60000));
-            return {
-                success: true,
-                cooldownMinutes: nextCooldownMinutes
-            };
+            return { success: true };
         } catch (error) {
-            if (isPermissionDeniedError(error)) {
-                return {
-                    success: false,
-                    error: 'Permission denied while sending invitation. Verify Firestore rules for invitations and users profile updates.'
-                };
-            }
             return { success: false, error: error.message };
         }
     }
 
     async function checkInvitations() {
-        if (!currentUser) {
+        if (!currentUser || !currentUser.email) {
             pendingInvitations = [];
             return [];
         }
 
         try {
-            const invitationMap = new Map();
+            const snapshot = await db.collection('invitations')
+                .where('invitedEmail', '==', currentUser.email.toLowerCase())
+                .where('status', '==', 'pending')
+                .get();
 
-            try {
-                const byIdSnapshot = await db.collection('invitations')
-                    .where('invitedUserId', '==', currentUser.uid)
-                    .where('status', '==', 'pending')
-                    .get();
-                byIdSnapshot.docs.forEach((doc) => invitationMap.set(doc.id, { id: doc.id, ...doc.data() }));
-            } catch (errorById) {
-                console.warn('Unable to check invitations by invitedUserId. Falling back to email lookup:', errorById.message || errorById);
-            }
-
-            const emailLower = currentUser.email ? currentUser.email.toLowerCase() : '';
-            if (emailLower) {
-                const byEmailSnapshot = await db.collection('invitations')
-                    .where('invitedEmail', '==', emailLower)
-                    .where('status', '==', 'pending')
-                    .get();
-                byEmailSnapshot.docs.forEach((doc) => invitationMap.set(doc.id, { id: doc.id, ...doc.data() }));
-            }
-
-            pendingInvitations = Array.from(invitationMap.values()).filter((invitation) => {
-                if (!invitation || typeof invitation !== 'object') {
-                    return false;
-                }
-                if (!allianceId) {
-                    return true;
-                }
-                const invitationAllianceId = typeof invitation.allianceId === 'string' ? invitation.allianceId : '';
-                return !invitationAllianceId || invitationAllianceId !== allianceId;
-            });
+            pendingInvitations = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
 
             return pendingInvitations;
         } catch (error) {
@@ -2320,86 +1944,45 @@ const FirebaseManager = (function() {
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
-            const invitationRef = db.collection('invitations').doc(invitationId);
-            const invDoc = await invitationRef.get();
+            const invDoc = await db.collection('invitations').doc(invitationId).get();
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
 
             const inv = invDoc.data();
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
-            if (!invitationBelongsToCurrentUser(inv)) {
+            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
+            const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
+            if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
                 return { success: false, error: 'Invitation does not belong to this user' };
             }
 
-            if (allianceId && allianceId !== inv.allianceId) {
-                return {
-                    success: false,
-                    errorKey: 'alliance_error_already_in_alliance',
-                    error: 'Leave your current alliance before accepting another invitation.'
-                };
+            if (allianceId) {
+                await leaveAlliance();
             }
 
-            const allianceRef = db.collection('alliances').doc(inv.allianceId);
-            const allianceSnap = await allianceRef.get();
-            if (!allianceSnap.exists) {
-                return { success: false, error: 'Alliance not found' };
-            }
-            const userRef = db.collection('users').doc(currentUser.uid);
-            let membershipSyncPermissionDenied = false;
-            try {
-                const membershipSync = await trySyncCurrentUserAllianceMembership(inv.allianceId);
-                membershipSyncPermissionDenied = !!membershipSync.permissionDenied;
-            } catch (membershipSyncError) {
-                return { success: false, error: membershipSyncError.message || String(membershipSyncError) };
-            }
+            const memberPath = `members.${currentUser.uid}`;
+            await db.collection('alliances').doc(inv.allianceId).update({
+                [memberPath]: {
+                    email: currentUser.email,
+                    joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    role: 'member'
+                }
+            });
 
-            const acceptBatch = db.batch();
-            acceptBatch.set(invitationRef, {
+            await db.collection('invitations').doc(invitationId).update({
                 status: 'accepted',
-                respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                invitedUserId: inv.invitedUserId || currentUser.uid
-            }, { merge: true });
-            acceptBatch.set(userRef, {
-                allianceId: inv.allianceId,
-                allianceName: inv.allianceName || '',
-                playerSource: 'personal'
-            }, { merge: true });
-            await acceptBatch.commit();
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
 
             allianceId = inv.allianceId;
             allianceName = inv.allianceName;
-            playerSource = 'personal';
-            if (membershipSyncPermissionDenied) {
-                const localAllianceData = allianceSnap.data() || {};
-                if (!localAllianceData.members || typeof localAllianceData.members !== 'object') {
-                    localAllianceData.members = {};
-                }
-                if (!localAllianceData.members[currentUser.uid]) {
-                    localAllianceData.members[currentUser.uid] = {
-                        email: currentUser.email || '',
-                        role: 'member'
-                    };
-                }
-                allianceData = localAllianceData;
-            }
-            pendingInvitations = pendingInvitations.filter((item) => {
-                if (!item || typeof item !== 'object') {
-                    return false;
-                }
-                if (item.id === invitationId) {
-                    return false;
-                }
-                const itemAllianceId = typeof item.allianceId === 'string' ? item.allianceId : '';
-                return !itemAllianceId || itemAllianceId !== inv.allianceId;
-            });
+            await db.collection('users').doc(currentUser.uid).set({
+                allianceId: inv.allianceId,
+                allianceName: inv.allianceName
+            }, { merge: true });
+
             await loadAllianceData();
             return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
         } catch (error) {
-            if (isPermissionDeniedError(error)) {
-                return {
-                    success: false,
-                    error: 'Permission denied while accepting invitation. Verify Firestore rules for alliance membership and invitation updates.'
-                };
-            }
             return { success: false, error: error.message };
         }
     }
@@ -2412,7 +1995,9 @@ const FirebaseManager = (function() {
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
             const inv = invDoc.data() || {};
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
-            if (!invitationBelongsToCurrentUser(inv)) {
+            const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
+            const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
+            if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
                 return { success: false, error: 'Invitation does not belong to this user' };
             }
 
