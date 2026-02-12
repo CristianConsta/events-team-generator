@@ -454,8 +454,8 @@ select {
     border: 1px solid rgba(var(--gold-rgb), 0.22);
 }
 .players-table-viewport {
-    overflow: auto;
-    max-height: clamp(320px, 58vh, 640px);
+    overflow-x: auto;
+    overflow-y: visible;
     border-radius: 12px;
 }
 .players-table th {
@@ -1556,7 +1556,10 @@ select {
     /* ── Team counters ── */
     .team-counters { gap: 10px; }
     .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
-    .players-table-viewport { max-height: clamp(280px, 52vh, 520px); }
+    .players-table-viewport {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
 
     /* ── Players table → card layout ── */
     #playersTable, #buildingsTable { display: block; }

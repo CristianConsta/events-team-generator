@@ -43,7 +43,13 @@
 
     function getViewportElement(config) {
         if (config.viewport && typeof config.viewport.addEventListener === 'function') {
-            return config.viewport;
+            const style = global.getComputedStyle ? global.getComputedStyle(config.viewport) : null;
+            const overflowY = style ? style.overflowY : '';
+            const hasScrollableY = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
+            if (hasScrollableY) {
+                return config.viewport;
+            }
+            return null;
         }
         if (config.tbody && config.tbody.parentElement && config.tbody.parentElement.parentElement) {
             return config.tbody.parentElement.parentElement;
