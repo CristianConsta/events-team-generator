@@ -116,6 +116,72 @@
                 </div>
             </div>
 
+            <template id="allianceJoinTemplate">
+                <div class="alliance-panel-block">
+                    <h3 class="alliance-panel-subtitle"></h3>
+                    <div class="alliance-form-row">
+                        <input type="text" id="newAllianceName" maxlength="40">
+                        <button id="allianceCreateActionBtn" type="button"></button>
+                    </div>
+                    <div id="allianceCreateStatus"></div>
+                </div>
+                <div id="allianceInvitesSection"></div>
+            </template>
+
+            <template id="allianceMemberTemplate">
+                <div class="alliance-panel-meta">
+                    <div class="alliance-panel-meta-row">
+                        <strong id="allianceMemberName" class="alliance-panel-gold-text"></strong>
+                        <span id="allianceMemberCount" class="alliance-panel-muted"></span>
+                    </div>
+                </div>
+                <div class="alliance-panel-block">
+                    <h3 id="allianceMembersTitle" class="alliance-panel-subtitle"></h3>
+                    <div id="allianceMembersList" class="alliance-members-list"></div>
+                </div>
+                <div class="alliance-panel-block">
+                    <h3 id="allianceInviteTitle" class="alliance-panel-subtitle"></h3>
+                    <div class="alliance-form-row">
+                        <input type="email" id="inviteEmail">
+                        <button id="allianceInviteActionBtn" type="button"></button>
+                    </div>
+                    <div id="allianceInviteHint" class="alliance-panel-hint"></div>
+                    <div id="inviteStatus"></div>
+                </div>
+                <div id="allianceInvitesSection"></div>
+                <button id="allianceLeaveBtn" class="clear-btn alliance-leave-btn" type="button"></button>
+                <div id="allianceActionStatus"></div>
+            </template>
+
+            <template id="allianceInvitesEmptyTemplate">
+                <div class="alliance-panel-block alliance-panel-block--invites">
+                    <h3 class="alliance-panel-subtitle"></h3>
+                    <p class="alliance-panel-muted"></p>
+                </div>
+            </template>
+
+            <template id="allianceInvitesSectionTemplate">
+                <div class="alliance-panel-block alliance-panel-block--invites">
+                    <h3 class="alliance-panel-subtitle"></h3>
+                    <p class="alliance-panel-help"></p>
+                    <div id="allianceInvitesLockedHint" class="alliance-panel-lock-hint hidden"></div>
+                    <div id="allianceInvitesCards" class="alliance-invite-cards"></div>
+                    <div id="allianceInvitesStatus"></div>
+                </div>
+            </template>
+
+            <template id="allianceInviteCardTemplate">
+                <div class="alliance-invite-card">
+                    <div class="alliance-invite-alliance"></div>
+                    <div class="alliance-invite-sender"></div>
+                    <div class="alliance-invite-created hidden"></div>
+                    <div class="alliance-invite-actions">
+                        <button type="button" data-invite-action="accept"></button>
+                        <button type="button" class="clear-btn" data-invite-action="reject"></button>
+                    </div>
+                </div>
+            </template>
+
             <div id="notificationsPanel" class="card hidden" style="position: fixed; top: 60px; right: 20px; z-index: 1500; max-width: 380px; width: calc(100vw - 40px); max-height: 400px; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4); border: 1px solid rgba(var(--gold-rgb), 0.3);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h3 style="margin: 0; color: var(--gold);" data-i18n="notifications_title">Notifications</h3>

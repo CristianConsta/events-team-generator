@@ -2569,6 +2569,28 @@ function translateAllianceError(result, fallbackText) {
 
 let pendingAllianceInviteFocusId = '';
 
+function getTemplateContent(templateId) {
+    const template = document.getElementById(templateId);
+    if (!(template instanceof HTMLTemplateElement)) {
+        return null;
+    }
+    return template.content.cloneNode(true);
+}
+
+function setElementText(container, selector, text) {
+    const element = container.querySelector(selector);
+    if (element) {
+        element.textContent = text;
+    }
+}
+
+function setElementPlaceholder(container, selector, text) {
+    const element = container.querySelector(selector);
+    if (element instanceof HTMLInputElement) {
+        element.placeholder = text;
+    }
+}
+
 function renderAllianceInvitesSection(container, hasAllianceMembership) {
     const section = container.querySelector('#allianceInvitesSection');
     if (!section) {
@@ -2576,49 +2598,95 @@ function renderAllianceInvitesSection(container, hasAllianceMembership) {
     }
 
     const invitations = getPendingInvitationsList();
-    const lockedHint = hasAllianceMembership
-        ? `<div style="margin: 8px 0 10px; font-size: 12px; color: rgba(255,193,107,0.95);">${escapeHtml(t('alliance_invites_leave_first'))}</div>`
-        : '';
 
     if (invitations.length === 0) {
-        section.innerHTML = `
-            <div style="margin-top: 16px;">
-                <h3 style="color: var(--gold); margin: 0 0 8px;">${t('alliance_received_invites_title')}</h3>
-                <p style="margin: 0; opacity: 0.75;">${t('alliance_received_invites_empty')}</p>
-            </div>
-        `;
+        const emptyTemplate = getTemplateContent('allianceInvitesEmptyTemplate');
+        if (!emptyTemplate) {
+            section.innerHTML = '';
+            return;
+        }
+        setElementText(emptyTemplate, '.alliance-panel-subtitle', t('alliance_received_invites_title'));
+        setElementText(emptyTemplate, '.alliance-panel-muted', t('alliance_received_invites_empty'));
+        section.replaceChildren(emptyTemplate);
         return;
     }
 
-    const cardsHtml = invitations.map((inv) => {
+    const invitesTemplate = getTemplateContent('allianceInvitesSectionTemplate');
+    if (!invitesTemplate) {
+        section.innerHTML = '';
+        return;
+    }
+
+    setElementText(invitesTemplate, '.alliance-panel-subtitle', t('alliance_received_invites_title'));
+    setElementText(invitesTemplate, '.alliance-panel-help', t('alliance_received_invites_help'));
+
+    const lockedHintEl = invitesTemplate.querySelector('#allianceInvitesLockedHint');
+    if (lockedHintEl) {
+        if (hasAllianceMembership) {
+            lockedHintEl.textContent = t('alliance_invites_leave_first');
+            lockedHintEl.classList.remove('hidden');
+        } else {
+            lockedHintEl.classList.add('hidden');
+        }
+    }
+
+    const cardsContainer = invitesTemplate.querySelector('#allianceInvitesCards');
+    if (!cardsContainer) {
+        section.replaceChildren(invitesTemplate);
+        return;
+    }
+
+    invitations.forEach((inv) => {
+        const cardTemplate = getTemplateContent('allianceInviteCardTemplate');
+        if (!cardTemplate) {
+            return;
+        }
         const inviteId = typeof inv.id === 'string' ? inv.id : '';
         const allianceLabel = (typeof inv.allianceName === 'string' && inv.allianceName.trim())
             ? inv.allianceName.trim()
             : String(inv.allianceId || '');
         const sender = getInvitationSenderDisplay(inv);
         const createdAt = formatInvitationCreatedAt(inv.createdAt);
-        return `
-            <div data-invite-id="${escapeAttribute(inviteId)}" style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); margin-bottom: 10px;">
-                <div style="font-weight: 700; color: var(--gold); margin-bottom: 6px;">${escapeHtml(t('notification_alliance_label', { alliance: allianceLabel || '-' }))}</div>
-                <div style="font-size: 13px; opacity: 0.82; margin-bottom: 4px;">${escapeHtml(t('notification_invited_by', { email: sender || '-' }))}</div>
-                ${createdAt ? `<div style="font-size: 12px; opacity: 0.62; margin-bottom: 10px;">${escapeHtml(createdAt)}</div>` : '<div style="margin-bottom: 10px;"></div>'}
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="button" data-invite-action="accept" data-invite-id="${escapeAttribute(inviteId)}" style="flex: 1; min-width: 110px;">${t('notification_accept')}</button>
-                    <button type="button" class="clear-btn" data-invite-action="reject" data-invite-id="${escapeAttribute(inviteId)}" style="flex: 1; min-width: 110px;">${t('notification_reject')}</button>
-                </div>
-            </div>
-        `;
-    }).join('');
 
-    section.innerHTML = `
-        <div style="margin-top: 16px;">
-            <h3 style="color: var(--gold); margin: 0 0 8px;">${t('alliance_received_invites_title')}</h3>
-            <p style="margin: 0 0 10px; opacity: 0.8;">${t('alliance_received_invites_help')}</p>
-            ${lockedHint}
-            <div>${cardsHtml}</div>
-            <div id="allianceInvitesStatus"></div>
-        </div>
-    `;
+        const cardEl = cardTemplate.querySelector('.alliance-invite-card');
+        if (!cardEl) {
+            return;
+        }
+        cardEl.setAttribute('data-invite-id', inviteId);
+
+        const allianceLabelEl = cardTemplate.querySelector('.alliance-invite-alliance');
+        if (allianceLabelEl) {
+            allianceLabelEl.textContent = t('notification_alliance_label', { alliance: allianceLabel || '-' });
+        }
+
+        const senderEl = cardTemplate.querySelector('.alliance-invite-sender');
+        if (senderEl) {
+            senderEl.textContent = t('notification_invited_by', { email: sender || '-' });
+        }
+
+        const createdAtEl = cardTemplate.querySelector('.alliance-invite-created');
+        if (createdAtEl) {
+            createdAtEl.textContent = createdAt || '';
+            createdAtEl.classList.toggle('hidden', !createdAt);
+        }
+
+        cardTemplate.querySelectorAll('[data-invite-action]').forEach((btn) => {
+            btn.setAttribute('data-invite-id', inviteId);
+        });
+
+        const acceptBtn = cardTemplate.querySelector('[data-invite-action="accept"]');
+        if (acceptBtn) {
+            acceptBtn.textContent = t('notification_accept');
+        }
+        const rejectBtn = cardTemplate.querySelector('[data-invite-action="reject"]');
+        if (rejectBtn) {
+            rejectBtn.textContent = t('notification_reject');
+        }
+
+        cardsContainer.appendChild(cardTemplate);
+    });
+
+    section.replaceChildren(invitesTemplate);
 
     section.querySelectorAll('[data-invite-action]').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -2642,27 +2710,27 @@ function renderAllianceInvitesSection(container, hasAllianceMembership) {
         pendingAllianceInviteFocusId = '';
         if (focusCard) {
             focusCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            focusCard.style.boxShadow = '0 0 0 2px rgba(var(--gold-rgb), 0.65)';
+            focusCard.classList.add('alliance-invite-card--focus');
             setTimeout(() => {
-                focusCard.style.boxShadow = '';
+                focusCard.classList.remove('alliance-invite-card--focus');
             }, 1600);
         }
     }
 }
 
 function renderAllianceJoinView(container) {
-    container.innerHTML = `
-        <div style="margin-top: 15px;">
-            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_create_title')}</h3>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
-                <input type="text" id="newAllianceName" placeholder="${t('alliance_name_placeholder')}"
-                       maxlength="40" style="flex: 1; min-width: 150px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
-                <button id="allianceCreateActionBtn">${t('alliance_create_button')}</button>
-            </div>
-            <div id="allianceCreateStatus"></div>
-        </div>
-        <div id="allianceInvitesSection"></div>
-    `;
+    const joinTemplate = getTemplateContent('allianceJoinTemplate');
+    if (!joinTemplate) {
+        container.innerHTML = '';
+        return;
+    }
+
+    setElementText(joinTemplate, '.alliance-panel-subtitle', t('alliance_create_title'));
+    setElementPlaceholder(joinTemplate, '#newAllianceName', t('alliance_name_placeholder'));
+    setElementText(joinTemplate, '#allianceCreateActionBtn', t('alliance_create_button'));
+
+    container.replaceChildren(joinTemplate);
+
     const createBtn = document.getElementById('allianceCreateActionBtn');
     if (createBtn) {
         createBtn.addEventListener('click', handleCreateAlliance);
@@ -2675,38 +2743,33 @@ function renderAllianceMemberView(container) {
     const memberCount = Object.keys(members).length;
     const aName = FirebaseService.getAllianceName();
 
-    let membersHtml = '';
-    Object.entries(members).forEach(([uid, member]) => {
-        membersHtml += `<div style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">${escapeHtml(member.email)}</div>`;
-    });
+    const memberTemplate = getTemplateContent('allianceMemberTemplate');
+    if (!memberTemplate) {
+        container.innerHTML = '';
+        return;
+    }
 
-    container.innerHTML = `
-        <div style="margin-top: 15px; margin-bottom: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <div>
-                    <strong style="color: var(--gold);">${escapeHtml(aName || '')}</strong>
-                </div>
-                <span style="opacity: 0.7;">${t('alliance_member_count', { count: memberCount })}</span>
-            </div>
-        </div>
-        <div style="margin-bottom: 20px;">
-            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_members_title')}</h3>
-            <div style="max-height: 150px; overflow-y: auto;">${membersHtml}</div>
-        </div>
-        <div style="margin-bottom: 20px;">
-            <h3 style="color: var(--gold); margin: 0 0 10px;">${t('alliance_invite_title')}</h3>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <input type="email" id="inviteEmail" placeholder="${t('alliance_invite_placeholder')}"
-                       style="flex: 1; min-width: 200px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: white; font-size: 14px;">
-                <button id="allianceInviteActionBtn">${t('alliance_invite_button')}</button>
-            </div>
-            <div style="font-size: 12px; opacity: 0.75; margin-top: 8px;">${t('alliance_invite_platform_hint')}</div>
-            <div id="inviteStatus"></div>
-        </div>
-        <div id="allianceInvitesSection"></div>
-        <button id="allianceLeaveBtn" class="clear-btn" style="color: #FF6B35; border-color: #FF6B35;">${t('alliance_leave_button')}</button>
-        <div id="allianceActionStatus"></div>
-    `;
+    setElementText(memberTemplate, '#allianceMemberName', aName || '');
+    setElementText(memberTemplate, '#allianceMemberCount', t('alliance_member_count', { count: memberCount }));
+    setElementText(memberTemplate, '#allianceMembersTitle', t('alliance_members_title'));
+    setElementText(memberTemplate, '#allianceInviteTitle', t('alliance_invite_title'));
+    setElementPlaceholder(memberTemplate, '#inviteEmail', t('alliance_invite_placeholder'));
+    setElementText(memberTemplate, '#allianceInviteActionBtn', t('alliance_invite_button'));
+    setElementText(memberTemplate, '#allianceInviteHint', t('alliance_invite_platform_hint'));
+    setElementText(memberTemplate, '#allianceLeaveBtn', t('alliance_leave_button'));
+
+    const membersList = memberTemplate.querySelector('#allianceMembersList');
+    if (membersList) {
+        Object.values(members).forEach((member) => {
+            const row = document.createElement('div');
+            row.className = 'alliance-member-row';
+            row.textContent = typeof member.email === 'string' ? member.email : '';
+            membersList.appendChild(row);
+        });
+    }
+
+    container.replaceChildren(memberTemplate);
+
     const inviteBtn = document.getElementById('allianceInviteActionBtn');
     if (inviteBtn) {
         inviteBtn.addEventListener('click', handleSendInvitation);
