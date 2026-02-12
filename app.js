@@ -1762,43 +1762,49 @@ function openCoordinatesPickerFromEditor() {
 }
 
 function createEditorBuildingRow(rowData) {
-    const source = rowData && typeof rowData === 'object' ? rowData : {};
-    const name = typeof source.name === 'string' ? source.name : '';
-    const slots = Number(source.slots);
-    const priority = Number(source.priority);
-    const showOnMap = source.showOnMap !== false;
-
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
-        <td><input type="number" data-field="slots" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${Number.isFinite(slots) ? Math.max(MIN_BUILDING_SLOTS, Math.min(MAX_BUILDING_SLOTS_TOTAL, Math.round(slots))) : 0}"></td>
-        <td><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
-        <td><input type="checkbox" data-field="showOnMap" ${showOnMap ? 'checked' : ''} aria-label="${escapeAttribute(t('buildings_table_on_map'))}"></td>
-        <td><button class="clear-btn" type="button" data-action="remove-row">${t('events_manager_remove')}</button></td>
-    `;
-    return row;
+    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.createEditorBuildingRow === 'function') {
+        return window.DSEventBuildingsEditorUI.createEditorBuildingRow({
+            rowData: rowData,
+            translate: t,
+            escapeAttribute: escapeAttribute,
+            clampSlots: clampSlots,
+            clampPriority: clampPriority,
+            minSlots: MIN_BUILDING_SLOTS,
+            maxSlots: MAX_BUILDING_SLOTS_TOTAL,
+        });
+    }
+    return document.createElement('tr');
 }
 
 function renderEventBuildingsEditor(buildings) {
     const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (!tbody) {
+    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.renderEventBuildingsEditor === 'function') {
+        window.DSEventBuildingsEditorUI.renderEventBuildingsEditor({
+            tbody: tbody,
+            buildings: buildings,
+            defaultRows: [{ name: '', slots: 0, priority: 1, showOnMap: true }],
+            createRow: createEditorBuildingRow,
+        });
         return;
     }
-    tbody.innerHTML = '';
-    const source = Array.isArray(buildings) && buildings.length > 0
-        ? buildings
-        : [{ name: '', slots: 0, priority: 1, showOnMap: true }];
-    source.forEach((building) => {
-        tbody.appendChild(createEditorBuildingRow(building));
-    });
+    if (tbody) {
+        tbody.innerHTML = '';
+        tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1, showOnMap: true }));
+    }
 }
 
 function addEventBuildingRow() {
-    if (!eventEditorIsEditMode) {
+    const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.addEventBuildingRow === 'function') {
+        window.DSEventBuildingsEditorUI.addEventBuildingRow({
+            tbody: tbody,
+            canEdit: eventEditorIsEditMode,
+            createRow: createEditorBuildingRow,
+            rowData: { name: '', slots: 0, priority: 1, showOnMap: true },
+        });
         return;
     }
-    const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (!tbody) {
+    if (!eventEditorIsEditMode || !tbody) {
         return;
     }
     tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1, showOnMap: true }));
@@ -1806,67 +1812,30 @@ function addEventBuildingRow() {
 
 function readEventBuildingsEditor() {
     const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.readEventBuildingsEditor === 'function') {
+        return window.DSEventBuildingsEditorUI.readEventBuildingsEditor({
+            tbody: tbody,
+            translate: t,
+            clampSlots: clampSlots,
+            clampPriority: clampPriority,
+        });
+    }
     if (!tbody) {
         return { buildings: [], error: t('events_manager_buildings_required') };
     }
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    const buildings = [];
-    const seenNames = new Set();
+    return { buildings: [], error: null };
+}
 
-    for (const row of rows) {
-        const nameInput = row.querySelector('input[data-field="name"]');
-        const slotsInput = row.querySelector('input[data-field="slots"]');
-        const priorityInput = row.querySelector('input[data-field="priority"]');
-        const showOnMapInput = row.querySelector('input[data-field="showOnMap"]');
-        const name = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
-        if (!name) {
-            continue;
-        }
-        if (seenNames.has(name.toLowerCase())) {
-            return { buildings: [], error: t('events_manager_duplicate_building', { name: name }) };
-        }
-        seenNames.add(name.toLowerCase());
-        const slots = clampSlots(Number(slotsInput ? slotsInput.value : 0), 0);
-        const priority = clampPriority(Number(priorityInput ? priorityInput.value : 1), 1);
-        const showOnMap = !showOnMapInput || showOnMapInput.checked;
-        buildings.push({
-            name: name,
-            label: name,
-            slots: slots,
-            priority: priority,
-            showOnMap: showOnMap,
+function bindEventEditorTableActions() {
+    const tbody = document.getElementById('eventBuildingsEditorBody');
+    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.bindEventEditorTableActions === 'function') {
+        window.DSEventBuildingsEditorUI.bindEventEditorTableActions({
+            tbody: tbody,
+            canEdit: () => eventEditorIsEditMode,
+            ensureAtLeastOneRow: () => addEventBuildingRow(),
         });
-    }
-    if (buildings.length === 0) {
-        return { buildings: [], error: t('events_manager_buildings_required') };
-    }
-    return { buildings: buildings, error: null };
-}
-
-function setEditorName(value) {
-    const input = document.getElementById('eventNameInput');
-    if (input) {
-        input.value = value || '';
-    }
-}
-
-function applySelectedEventToEditor() {
-    if (!eventEditorCurrentId) {
-        eventEditorCurrentId = currentEvent;
-    }
-    const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
-    if (!event) {
-        startNewEventDraft();
         return;
     }
-    setEditorName(event.name || eventEditorCurrentId);
-    eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
-    eventDraftMapDataUrl = event.mapDataUrl || '';
-    eventDraftMapRemoved = false;
-    updateEventLogoPreview();
-    updateEventMapPreview();
-    renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
-    updateEventEditorState();
 }
 
 function renderEventsList() {
@@ -2261,31 +2230,6 @@ async function deleteSelectedEvent() {
     loadBuildingPositions();
     renderBuildingsTable();
     showMessage('eventsStatus', t('events_manager_deleted'), 'success');
-}
-
-function bindEventEditorTableActions() {
-    const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (!tbody) {
-        return;
-    }
-    tbody.addEventListener('click', (event) => {
-        if (!eventEditorIsEditMode) {
-            return;
-        }
-        const btn = event.target.closest('button[data-action="remove-row"]');
-        if (!btn) {
-            return;
-        }
-        const row = btn.closest('tr');
-        if (!row) {
-            return;
-        }
-        row.remove();
-        const remainingRows = tbody.querySelectorAll('tr').length;
-        if (remainingRows === 0) {
-            addEventBuildingRow();
-        }
-    });
 }
 
 // ============================================================
