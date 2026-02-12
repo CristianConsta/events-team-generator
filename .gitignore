@@ -1,6 +1,7 @@
 # Firebase Configuration (contains API keys)
 firebase-config.js
 firebase-config-YOUR-CREDENTIALS.js
+scripts/PATH_TO_SERVICE_ACCOUNT.json
 
 # OS Files
 .DS_Store
