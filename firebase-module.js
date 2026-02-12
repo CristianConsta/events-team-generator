@@ -107,11 +107,12 @@ const FirebaseManager = (function() {
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let onAuthCallback = null;
     let onDataLoadCallback = null;
-    const SAVE_DEBOUNCE_MS = 250;
+    const SAVE_DEBOUNCE_MS = 1500;
     let lastSavedUserState = null;
     let saveDebounceTimer = null;
     let pendingSavePromise = null;
     let pendingSaveResolve = null;
+    let saveLifecycleHandlersBound = false;
 
     let globalDefaultEventPositions = {};
     let globalDefaultPositionsVersion = 0;
@@ -932,6 +933,31 @@ const FirebaseManager = (function() {
         lastSavedUserState = null;
         clearSaveQueue();
     }
+
+    function flushQueuedSaveOnLifecycle() {
+        if (!pendingSavePromise || !saveDebounceTimer) {
+            return;
+        }
+        clearTimeout(saveDebounceTimer);
+        saveDebounceTimer = null;
+        flushQueuedSave().catch((error) => {
+            console.warn('Unable to flush queued save during lifecycle change:', error);
+        });
+    }
+
+    function bindSaveLifecycleHandlers() {
+        if (saveLifecycleHandlersBound || typeof window === 'undefined' || typeof document === 'undefined') {
+            return;
+        }
+        saveLifecycleHandlersBound = true;
+        window.addEventListener('pagehide', flushQueuedSaveOnLifecycle);
+        window.addEventListener('beforeunload', flushQueuedSaveOnLifecycle);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                flushQueuedSaveOnLifecycle();
+            }
+        });
+    }
     
     /**
      * Initialize Firebase
@@ -945,6 +971,7 @@ const FirebaseManager = (function() {
             firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
             db = firebase.firestore();
+            bindSaveLifecycleHandlers();
             
             // Set up auth state observer
             auth.onAuthStateChanged(handleAuthStateChanged);
