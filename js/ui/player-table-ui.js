@@ -200,9 +200,18 @@
         });
         const playersByName = new Map(allPlayers.map((player) => [player.name, player]));
         syncPlayerRowCache(rowCache, playersByName);
+        const visibleNames = new Set(displayPlayers.map((player) => player.name));
 
-        const fragment = document.createDocumentFragment();
-        displayPlayers.forEach((player) => {
+        // Remove rows that are no longer part of the filtered result.
+        tbody.querySelectorAll('tr[data-player]').forEach((row) => {
+            const playerName = row.dataset.player;
+            if (!visibleNames.has(playerName)) {
+                row.remove();
+            }
+        });
+
+        // Keep DOM updates incremental by reordering/inserting rows in place.
+        displayPlayers.forEach((player, index) => {
             let row = rowCache.get(player.name);
             if (!row) {
                 row = createPlayerRow(player, getTroopLabel);
@@ -210,11 +219,14 @@
             } else {
                 updatePlayerRowStaticData(row, player, getTroopLabel);
             }
-            applyPlayerRowSelectionState(row, player, counts, selectionMaps, config.translate);
-            fragment.appendChild(row);
-        });
 
-        tbody.replaceChildren(fragment);
+            applyPlayerRowSelectionState(row, player, counts, selectionMaps, config.translate);
+
+            const rowAtIndex = tbody.children[index] || null;
+            if (rowAtIndex !== row) {
+                tbody.insertBefore(row, rowAtIndex);
+            }
+        });
     }
 
     global.DSPlayerTableUI = {
