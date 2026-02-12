@@ -3716,10 +3716,8 @@ function refreshVisiblePlayerRows() {
     }
 
     const tbody = document.getElementById('playersTableBody');
-    const viewport = document.getElementById('playersTableViewport');
     window.DSPlayerTableUI.refreshVisiblePlayerRows({
         tbody: tbody,
-        viewport: viewport,
         allPlayers: allPlayers,
         counts: getCurrentTeamCounts(),
         selectionMaps: buildTeamSelectionMaps(),
@@ -3733,11 +3731,9 @@ function renderPlayersTable() {
     }
 
     const tbody = document.getElementById('playersTableBody');
-    const viewport = document.getElementById('playersTableViewport');
     const searchTerm = (document.getElementById('searchFilter').value || '').toLowerCase();
     window.DSPlayerTableUI.renderPlayersTable({
         tbody: tbody,
-        viewport: viewport,
         allPlayers: allPlayers,
         rowCache: playerRowCache,
         getTroopLabel: getTroopLabel,

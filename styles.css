@@ -453,11 +453,6 @@ select {
     background: rgba(9, 14, 25, 0.58);
     border: 1px solid rgba(var(--gold-rgb), 0.22);
 }
-.players-table-viewport {
-    overflow: auto;
-    max-height: clamp(320px, 58vh, 640px);
-    border-radius: 12px;
-}
 .players-table th {
     background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.3), rgba(var(--gold-rgb), 0.18));
     padding: 12px 14px;
@@ -479,20 +474,6 @@ select {
 }
 .players-table tr.selected-b {
     background: rgba(var(--team-b-rgb), 0.2);
-}
-.virtual-spacer-row,
-.virtual-spacer-row:hover {
-    background: transparent !important;
-}
-.virtual-spacer-row td {
-    padding: 0 !important;
-    border: 0 !important;
-    height: 0;
-}
-.virtual-spacer {
-    height: 0;
-    width: 1px;
-    pointer-events: none;
 }
 #playersTable td:nth-child(3)::before {
     content: '·';
@@ -1556,7 +1537,6 @@ select {
     /* ── Team counters ── */
     .team-counters { gap: 10px; }
     .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
-    .players-table-viewport { max-height: clamp(280px, 52vh, 520px); }
 
     /* ── Players table → card layout ── */
     #playersTable, #buildingsTable { display: block; }
@@ -1583,14 +1563,6 @@ select {
     #playersTable tr:hover { background: rgba(255,255,255,0.07); }
     #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.2); border-color: rgba(var(--team-a-rgb),0.4); }
     #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.2); border-color: rgba(var(--team-b-rgb),0.4); }
-    #playersTable tr.virtual-spacer-row,
-    #playersTable tr.virtual-spacer-row:hover {
-        display: block;
-        padding: 0;
-        margin: 0;
-        border: 0;
-        background: transparent;
-    }
 
     #playersTable td, #buildingsTable td {
         border-bottom: none;

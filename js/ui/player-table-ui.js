@@ -1,54 +1,10 @@
 (function initPlayerTableUi(global) {
-    const MOBILE_QUERY = '(max-width: 768px)';
-    const DESKTOP_ROW_HEIGHT = 52;
-    const MOBILE_ROW_HEIGHT = 120;
-    const VIRTUAL_OVERSCAN = 6;
-    const virtualStates = new WeakMap();
-
     function defaultTranslate(key) {
         return key;
     }
 
     function getTranslator(translate) {
         return typeof translate === 'function' ? translate : defaultTranslate;
-    }
-
-    function getEstimatedRowHeight() {
-        return global.matchMedia && global.matchMedia(MOBILE_QUERY).matches
-            ? MOBILE_ROW_HEIGHT
-            : DESKTOP_ROW_HEIGHT;
-    }
-
-    function createVirtualSpacerRow(className, columnCount) {
-        const row = document.createElement('tr');
-        row.className = `virtual-spacer-row ${className}`;
-
-        const cell = document.createElement('td');
-        cell.colSpan = columnCount;
-
-        const spacer = document.createElement('div');
-        spacer.className = 'virtual-spacer';
-
-        cell.appendChild(spacer);
-        row.appendChild(cell);
-
-        return row;
-    }
-
-    function setSpacerHeight(row, height) {
-        const spacer = row.querySelector('.virtual-spacer');
-        if (!spacer) return;
-        spacer.style.height = `${Math.max(0, Math.round(height))}px`;
-    }
-
-    function getViewportElement(config) {
-        if (config.viewport && typeof config.viewport.addEventListener === 'function') {
-            return config.viewport;
-        }
-        if (config.tbody && config.tbody.parentElement && config.tbody.parentElement.parentElement) {
-            return config.tbody.parentElement.parentElement;
-        }
-        return null;
     }
 
     function getFilteredAndSortedPlayers(options) {
@@ -146,143 +102,6 @@
         }
     }
 
-    function scheduleVirtualRender(state, force) {
-        if (!state) return;
-        state.pendingForce = state.pendingForce || !!force;
-        if (state.pendingFrame) return;
-        state.pendingFrame = global.requestAnimationFrame(() => {
-            state.pendingFrame = null;
-            const shouldForce = state.pendingForce;
-            state.pendingForce = false;
-            renderVirtualWindow(state, !!shouldForce);
-        });
-    }
-
-    function measureRowHeight(state) {
-        const sampleRow = state.tbody.querySelector('tr[data-player]');
-        if (!sampleRow) return;
-        const measured = sampleRow.getBoundingClientRect().height;
-        if (Number.isFinite(measured) && measured > 0) {
-            state.rowHeight = measured;
-        }
-    }
-
-    function getVirtualState(config) {
-        const tbody = config.tbody;
-        if (!tbody) return null;
-
-        let state = virtualStates.get(tbody);
-        if (state) return state;
-
-        const viewport = getViewportElement(config);
-        if (!viewport) return null;
-
-        state = {
-            tbody: tbody,
-            viewport: viewport,
-            rowHeight: getEstimatedRowHeight(),
-            overscan: VIRTUAL_OVERSCAN,
-            topSpacer: createVirtualSpacerRow('top', config.columnCount || 4),
-            bottomSpacer: createVirtualSpacerRow('bottom', config.columnCount || 4),
-            filteredPlayers: [],
-            allPlayers: [],
-            rowCache: new Map(),
-            getTroopLabel: (value) => value,
-            counts: {},
-            selectionMaps: { teamA: new Map(), teamB: new Map() },
-            translate: defaultTranslate,
-            lastStartIndex: -1,
-            lastEndIndex: -1,
-            pendingFrame: null,
-            pendingForce: false,
-            onScroll: null,
-            onResize: null,
-        };
-
-        state.onScroll = () => scheduleVirtualRender(state, false);
-        state.onResize = () => {
-            state.rowHeight = getEstimatedRowHeight();
-            scheduleVirtualRender(state, true);
-        };
-
-        viewport.addEventListener('scroll', state.onScroll, { passive: true });
-        global.addEventListener('resize', state.onResize);
-        global.addEventListener('orientationchange', state.onResize);
-        virtualStates.set(tbody, state);
-
-        return state;
-    }
-
-    function renderVirtualWindow(state, force) {
-        if (!state || !state.tbody || !state.viewport) return;
-
-        const players = Array.isArray(state.filteredPlayers) ? state.filteredPlayers : [];
-        const total = players.length;
-        const viewportHeight = Math.max(1, state.viewport.clientHeight || 1);
-        const rowHeight = Math.max(1, state.rowHeight || getEstimatedRowHeight());
-        const visibleCount = Math.ceil(viewportHeight / rowHeight);
-        const maxStart = Math.max(0, total - visibleCount);
-        const rawStart = Math.floor((state.viewport.scrollTop || 0) / rowHeight) - state.overscan;
-        const startIndex = Math.max(0, Math.min(maxStart, rawStart));
-        const endIndex = Math.min(total, startIndex + visibleCount + state.overscan * 2);
-
-        const shouldRebuild = force
-            || startIndex !== state.lastStartIndex
-            || endIndex !== state.lastEndIndex;
-
-        if (!shouldRebuild) {
-            return;
-        }
-
-        state.lastStartIndex = startIndex;
-        state.lastEndIndex = endIndex;
-
-        setSpacerHeight(state.topSpacer, startIndex * rowHeight);
-        setSpacerHeight(state.bottomSpacer, (total - endIndex) * rowHeight);
-
-        const fragment = document.createDocumentFragment();
-        fragment.appendChild(state.topSpacer);
-
-        for (let index = startIndex; index < endIndex; index += 1) {
-            const player = players[index];
-            if (!player) continue;
-            let row = state.rowCache.get(player.name);
-            if (!row) {
-                row = createPlayerRow(player, state.getTroopLabel);
-                state.rowCache.set(player.name, row);
-            } else {
-                updatePlayerRowStaticData(row, player, state.getTroopLabel);
-            }
-            applyPlayerRowSelectionState(row, player, state.counts, state.selectionMaps, state.translate);
-            fragment.appendChild(row);
-        }
-
-        fragment.appendChild(state.bottomSpacer);
-        state.tbody.textContent = '';
-        state.tbody.appendChild(fragment);
-        measureRowHeight(state);
-    }
-
-    function updateVirtualStateFromConfig(state, config) {
-        const allPlayers = Array.isArray(config.allPlayers) ? config.allPlayers : [];
-        const rowCache = config.rowCache instanceof Map ? config.rowCache : state.rowCache;
-        const playersByName = new Map(allPlayers.map((player) => [player.name, player]));
-        syncPlayerRowCache(rowCache, playersByName);
-
-        state.allPlayers = allPlayers;
-        state.filteredPlayers = getFilteredAndSortedPlayers({
-            allPlayers: allPlayers,
-            searchTerm: config.searchTerm || '',
-            troopsFilter: config.troopsFilter || '',
-            sortFilter: config.sortFilter || 'power-desc',
-        });
-        state.rowCache = rowCache;
-        state.getTroopLabel = typeof config.getTroopLabel === 'function' ? config.getTroopLabel : (value) => value;
-        state.counts = config.counts || {};
-        state.selectionMaps = config.selectionMaps || { teamA: new Map(), teamB: new Map() };
-        state.translate = config.translate;
-    }
-
     function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps, translate) {
         const t = getTranslator(translate);
         const selectionA = selectionMaps.teamA.get(playerName);
@@ -352,15 +171,6 @@
         const config = options && typeof options === 'object' ? options : {};
         const tbody = config.tbody;
         if (!tbody) return;
-
-        const virtualState = virtualStates.get(tbody);
-        if (virtualState) {
-            virtualState.allPlayers = Array.isArray(config.allPlayers) ? config.allPlayers : [];
-            virtualState.counts = config.counts || {};
-            virtualState.selectionMaps = config.selectionMaps || { teamA: new Map(), teamB: new Map() };
-            virtualState.translate = config.translate;
-        }
-
         const allPlayers = Array.isArray(config.allPlayers) ? config.allPlayers : [];
         const counts = config.counts || {};
         const selectionMaps = config.selectionMaps || { teamA: new Map(), teamB: new Map() };
@@ -373,10 +183,10 @@
         });
     }
 
-    function renderPlayersTableFallback(config) {
+    function renderPlayersTable(options) {
+        const config = options && typeof options === 'object' ? options : {};
         const tbody = config.tbody;
         if (!tbody) return;
-
         const allPlayers = Array.isArray(config.allPlayers) ? config.allPlayers : [];
         const rowCache = config.rowCache instanceof Map ? config.rowCache : new Map();
         const getTroopLabel = typeof config.getTroopLabel === 'function' ? config.getTroopLabel : (value) => value;
@@ -392,6 +202,7 @@
         syncPlayerRowCache(rowCache, playersByName);
         const visibleNames = new Set(displayPlayers.map((player) => player.name));
 
+        // Remove rows that are no longer part of the filtered result.
         tbody.querySelectorAll('tr[data-player]').forEach((row) => {
             const playerName = row.dataset.player;
             if (!visibleNames.has(playerName)) {
@@ -399,6 +210,7 @@
             }
         });
 
+        // Keep DOM updates incremental by reordering/inserting rows in place.
         displayPlayers.forEach((player, index) => {
             let row = rowCache.get(player.name);
             if (!row) {
@@ -415,21 +227,6 @@
                 tbody.insertBefore(row, rowAtIndex);
             }
         });
-    }
-
-    function renderPlayersTable(options) {
-        const config = options && typeof options === 'object' ? options : {};
-        const tbody = config.tbody;
-        if (!tbody) return;
-
-        const virtualState = getVirtualState(config);
-        if (!virtualState) {
-            renderPlayersTableFallback(config);
-            return;
-        }
-
-        updateVirtualStateFromConfig(virtualState, config);
-        scheduleVirtualRender(virtualState, true);
     }
 
     global.DSPlayerTableUI = {
