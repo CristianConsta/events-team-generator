@@ -2503,16 +2503,36 @@ function closeAlliancePanel() {
 }
 
 function renderAlliancePanel() {
-    const aid = typeof FirebaseService !== 'undefined' ? FirebaseService.getAllianceId() : null;
     const content = document.getElementById('alliancePanelContent');
     if (!content) {
         return;
     }
-    if (aid) {
-        renderAllianceMemberView(content);
-    } else {
-        renderAllianceJoinView(content);
+    const hasAllianceMembership = !!(typeof FirebaseService !== 'undefined'
+        && FirebaseService.getAllianceId
+        && FirebaseService.getAllianceId());
+    if (window.DSAlliancePanelUI && typeof window.DSAlliancePanelUI.renderAlliancePanel === 'function') {
+        window.DSAlliancePanelUI.renderAlliancePanel({
+            contentElement: content,
+            hasAllianceMembership: hasAllianceMembership,
+            getAllianceMembers: () => FirebaseService.getAllianceMembers(),
+            getAllianceName: () => FirebaseService.getAllianceName(),
+            getPendingInvitations: getPendingInvitationsList,
+            getInvitationSenderDisplay: getInvitationSenderDisplay,
+            formatInvitationCreatedAt: formatInvitationCreatedAt,
+            getPendingInviteFocusId: () => pendingAllianceInviteFocusId,
+            setPendingInviteFocusId: (value) => {
+                pendingAllianceInviteFocusId = typeof value === 'string' ? value : '';
+            },
+            onCreateAlliance: handleCreateAlliance,
+            onSendInvitation: handleSendInvitation,
+            onLeaveAlliance: handleLeaveAlliance,
+            onAcceptInvitation: handleAcceptInvitation,
+            onRejectInvitation: handleRejectInvitation,
+            translate: t,
+        });
+        return;
     }
+    content.innerHTML = '';
 }
 
 function getPendingInvitationsList() {
@@ -2568,218 +2588,6 @@ function translateAllianceError(result, fallbackText) {
 }
 
 let pendingAllianceInviteFocusId = '';
-
-function getTemplateContent(templateId) {
-    const template = document.getElementById(templateId);
-    if (!(template instanceof HTMLTemplateElement)) {
-        return null;
-    }
-    return template.content.cloneNode(true);
-}
-
-function setElementText(container, selector, text) {
-    const element = container.querySelector(selector);
-    if (element) {
-        element.textContent = text;
-    }
-}
-
-function setElementPlaceholder(container, selector, text) {
-    const element = container.querySelector(selector);
-    if (element instanceof HTMLInputElement) {
-        element.placeholder = text;
-    }
-}
-
-function renderAllianceInvitesSection(container, hasAllianceMembership) {
-    const section = container.querySelector('#allianceInvitesSection');
-    if (!section) {
-        return;
-    }
-
-    const invitations = getPendingInvitationsList();
-
-    if (invitations.length === 0) {
-        const emptyTemplate = getTemplateContent('allianceInvitesEmptyTemplate');
-        if (!emptyTemplate) {
-            section.innerHTML = '';
-            return;
-        }
-        setElementText(emptyTemplate, '.alliance-panel-subtitle', t('alliance_received_invites_title'));
-        setElementText(emptyTemplate, '.alliance-panel-muted', t('alliance_received_invites_empty'));
-        section.replaceChildren(emptyTemplate);
-        return;
-    }
-
-    const invitesTemplate = getTemplateContent('allianceInvitesSectionTemplate');
-    if (!invitesTemplate) {
-        section.innerHTML = '';
-        return;
-    }
-
-    setElementText(invitesTemplate, '.alliance-panel-subtitle', t('alliance_received_invites_title'));
-    setElementText(invitesTemplate, '.alliance-panel-help', t('alliance_received_invites_help'));
-
-    const lockedHintEl = invitesTemplate.querySelector('#allianceInvitesLockedHint');
-    if (lockedHintEl) {
-        if (hasAllianceMembership) {
-            lockedHintEl.textContent = t('alliance_invites_leave_first');
-            lockedHintEl.classList.remove('hidden');
-        } else {
-            lockedHintEl.classList.add('hidden');
-        }
-    }
-
-    const cardsContainer = invitesTemplate.querySelector('#allianceInvitesCards');
-    if (!cardsContainer) {
-        section.replaceChildren(invitesTemplate);
-        return;
-    }
-
-    invitations.forEach((inv) => {
-        const cardTemplate = getTemplateContent('allianceInviteCardTemplate');
-        if (!cardTemplate) {
-            return;
-        }
-        const inviteId = typeof inv.id === 'string' ? inv.id : '';
-        const allianceLabel = (typeof inv.allianceName === 'string' && inv.allianceName.trim())
-            ? inv.allianceName.trim()
-            : String(inv.allianceId || '');
-        const sender = getInvitationSenderDisplay(inv);
-        const createdAt = formatInvitationCreatedAt(inv.createdAt);
-
-        const cardEl = cardTemplate.querySelector('.alliance-invite-card');
-        if (!cardEl) {
-            return;
-        }
-        cardEl.setAttribute('data-invite-id', inviteId);
-
-        const allianceLabelEl = cardTemplate.querySelector('.alliance-invite-alliance');
-        if (allianceLabelEl) {
-            allianceLabelEl.textContent = t('notification_alliance_label', { alliance: allianceLabel || '-' });
-        }
-
-        const senderEl = cardTemplate.querySelector('.alliance-invite-sender');
-        if (senderEl) {
-            senderEl.textContent = t('notification_invited_by', { email: sender || '-' });
-        }
-
-        const createdAtEl = cardTemplate.querySelector('.alliance-invite-created');
-        if (createdAtEl) {
-            createdAtEl.textContent = createdAt || '';
-            createdAtEl.classList.toggle('hidden', !createdAt);
-        }
-
-        cardTemplate.querySelectorAll('[data-invite-action]').forEach((btn) => {
-            btn.setAttribute('data-invite-id', inviteId);
-        });
-
-        const acceptBtn = cardTemplate.querySelector('[data-invite-action="accept"]');
-        if (acceptBtn) {
-            acceptBtn.textContent = t('notification_accept');
-        }
-        const rejectBtn = cardTemplate.querySelector('[data-invite-action="reject"]');
-        if (rejectBtn) {
-            rejectBtn.textContent = t('notification_reject');
-        }
-
-        cardsContainer.appendChild(cardTemplate);
-    });
-
-    section.replaceChildren(invitesTemplate);
-
-    section.querySelectorAll('[data-invite-action]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const action = button.getAttribute('data-invite-action');
-            const invitationId = button.getAttribute('data-invite-id');
-            if (!invitationId) {
-                return;
-            }
-            if (action === 'accept') {
-                await handleAcceptInvitation(invitationId, 'allianceInvitesStatus');
-                return;
-            }
-            if (action === 'reject') {
-                await handleRejectInvitation(invitationId, 'allianceInvitesStatus');
-            }
-        });
-    });
-
-    if (pendingAllianceInviteFocusId) {
-        const focusCard = section.querySelector(`[data-invite-id="${pendingAllianceInviteFocusId}"]`);
-        pendingAllianceInviteFocusId = '';
-        if (focusCard) {
-            focusCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            focusCard.classList.add('alliance-invite-card--focus');
-            setTimeout(() => {
-                focusCard.classList.remove('alliance-invite-card--focus');
-            }, 1600);
-        }
-    }
-}
-
-function renderAllianceJoinView(container) {
-    const joinTemplate = getTemplateContent('allianceJoinTemplate');
-    if (!joinTemplate) {
-        container.innerHTML = '';
-        return;
-    }
-
-    setElementText(joinTemplate, '.alliance-panel-subtitle', t('alliance_create_title'));
-    setElementPlaceholder(joinTemplate, '#newAllianceName', t('alliance_name_placeholder'));
-    setElementText(joinTemplate, '#allianceCreateActionBtn', t('alliance_create_button'));
-
-    container.replaceChildren(joinTemplate);
-
-    const createBtn = document.getElementById('allianceCreateActionBtn');
-    if (createBtn) {
-        createBtn.addEventListener('click', handleCreateAlliance);
-    }
-    renderAllianceInvitesSection(container, false);
-}
-
-function renderAllianceMemberView(container) {
-    const members = FirebaseService.getAllianceMembers();
-    const memberCount = Object.keys(members).length;
-    const aName = FirebaseService.getAllianceName();
-
-    const memberTemplate = getTemplateContent('allianceMemberTemplate');
-    if (!memberTemplate) {
-        container.innerHTML = '';
-        return;
-    }
-
-    setElementText(memberTemplate, '#allianceMemberName', aName || '');
-    setElementText(memberTemplate, '#allianceMemberCount', t('alliance_member_count', { count: memberCount }));
-    setElementText(memberTemplate, '#allianceMembersTitle', t('alliance_members_title'));
-    setElementText(memberTemplate, '#allianceInviteTitle', t('alliance_invite_title'));
-    setElementPlaceholder(memberTemplate, '#inviteEmail', t('alliance_invite_placeholder'));
-    setElementText(memberTemplate, '#allianceInviteActionBtn', t('alliance_invite_button'));
-    setElementText(memberTemplate, '#allianceInviteHint', t('alliance_invite_platform_hint'));
-    setElementText(memberTemplate, '#allianceLeaveBtn', t('alliance_leave_button'));
-
-    const membersList = memberTemplate.querySelector('#allianceMembersList');
-    if (membersList) {
-        Object.values(members).forEach((member) => {
-            const row = document.createElement('div');
-            row.className = 'alliance-member-row';
-            row.textContent = typeof member.email === 'string' ? member.email : '';
-            membersList.appendChild(row);
-        });
-    }
-
-    container.replaceChildren(memberTemplate);
-
-    const inviteBtn = document.getElementById('allianceInviteActionBtn');
-    if (inviteBtn) {
-        inviteBtn.addEventListener('click', handleSendInvitation);
-    }
-    const leaveBtn = document.getElementById('allianceLeaveBtn');
-    if (leaveBtn) {
-        leaveBtn.addEventListener('click', handleLeaveAlliance);
-    }
-    renderAllianceInvitesSection(container, true);
-}
 
 async function handleCreateAlliance() {
     const name = document.getElementById('newAllianceName').value.trim();
