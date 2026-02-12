@@ -3937,38 +3937,40 @@ function buildTeamSelectionMaps() {
 }
 
 function getFilteredAndSortedPlayers() {
-    let displayPlayers = [...allPlayers];
-
-    const searchTerm = document.getElementById('searchFilter').value.toLowerCase();
-    const troopsFilter = currentTroopsFilter;
-    const sortFilter = currentSortFilter;
-
-    if (searchTerm) {
-        displayPlayers = displayPlayers.filter((player) =>
-            player.name.toLowerCase().includes(searchTerm)
-        );
+    const searchTerm = (document.getElementById('searchFilter').value || '').toLowerCase();
+    if (window.DSCorePlayerTable && typeof window.DSCorePlayerTable.filterAndSortPlayers === 'function') {
+        return window.DSCorePlayerTable.filterAndSortPlayers(allPlayers, {
+            searchTerm: searchTerm,
+            troopsFilter: currentTroopsFilter,
+            sortFilter: currentSortFilter,
+        });
     }
 
-    if (troopsFilter) {
-        displayPlayers = displayPlayers.filter((player) => player.troops === troopsFilter);
+    let filteredPlayers = allPlayers.filter(player =>
+        player.name.toLowerCase().includes(searchTerm)
+    );
+
+    if (currentTroopsFilter) {
+        filteredPlayers = filteredPlayers.filter(player => player.troops === currentTroopsFilter);
     }
 
-    switch (sortFilter) {
-        case 'power-desc':
-            displayPlayers.sort((a, b) => b.power - a.power);
-            break;
+    switch (currentSortFilter) {
         case 'power-asc':
-            displayPlayers.sort((a, b) => a.power - b.power);
+            filteredPlayers.sort((a, b) => a.power - b.power);
             break;
         case 'name-asc':
-            displayPlayers.sort((a, b) => a.name.localeCompare(b.name));
+            filteredPlayers.sort((a, b) => a.name.localeCompare(b.name));
             break;
         case 'name-desc':
-            displayPlayers.sort((a, b) => b.name.localeCompare(a.name));
+            filteredPlayers.sort((a, b) => b.name.localeCompare(a.name));
+            break;
+        case 'power-desc':
+        default:
+            filteredPlayers.sort((a, b) => b.power - a.power);
             break;
     }
 
-    return displayPlayers;
+    return filteredPlayers;
 }
 
 function createPlayerRow(player) {
