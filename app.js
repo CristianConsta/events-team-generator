@@ -3938,197 +3938,52 @@ function buildTeamSelectionMaps() {
 
 function getFilteredAndSortedPlayers() {
     const searchTerm = (document.getElementById('searchFilter').value || '').toLowerCase();
-    if (window.DSCorePlayerTable && typeof window.DSCorePlayerTable.filterAndSortPlayers === 'function') {
-        return window.DSCorePlayerTable.filterAndSortPlayers(allPlayers, {
+    if (window.DSPlayerTableUI && typeof window.DSPlayerTableUI.getFilteredAndSortedPlayers === 'function') {
+        return window.DSPlayerTableUI.getFilteredAndSortedPlayers({
+            allPlayers: allPlayers,
             searchTerm: searchTerm,
             troopsFilter: currentTroopsFilter,
             sortFilter: currentSortFilter,
         });
     }
 
-    let filteredPlayers = allPlayers.filter(player =>
-        player.name.toLowerCase().includes(searchTerm)
-    );
-
-    if (currentTroopsFilter) {
-        filteredPlayers = filteredPlayers.filter(player => player.troops === currentTroopsFilter);
-    }
-
-    switch (currentSortFilter) {
-        case 'power-asc':
-            filteredPlayers.sort((a, b) => a.power - b.power);
-            break;
-        case 'name-asc':
-            filteredPlayers.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-        case 'name-desc':
-            filteredPlayers.sort((a, b) => b.name.localeCompare(a.name));
-            break;
-        case 'power-desc':
-        default:
-            filteredPlayers.sort((a, b) => b.power - a.power);
-            break;
-    }
-
-    return filteredPlayers;
-}
-
-function createPlayerRow(player) {
-    const row = document.createElement('tr');
-    row.dataset.player = player.name;
-
-    const nameCell = document.createElement('td');
-    const nameStrong = document.createElement('strong');
-    nameStrong.textContent = player.name;
-    nameCell.appendChild(nameStrong);
-
-    const powerCell = document.createElement('td');
-    powerCell.className = 'player-power';
-    powerCell.textContent = `${player.power}M`;
-
-    const troopsCell = document.createElement('td');
-    troopsCell.className = 'player-troops';
-    troopsCell.textContent = getTroopLabel(player.troops);
-
-    const actionsCell = document.createElement('td');
-    const teamButtons = document.createElement('div');
-    teamButtons.className = 'team-buttons';
-    actionsCell.appendChild(teamButtons);
-
-    row.appendChild(nameCell);
-    row.appendChild(powerCell);
-    row.appendChild(troopsCell);
-    row.appendChild(actionsCell);
-
-    return row;
-}
-
-function updatePlayerRowStaticData(row, player) {
-    const nameStrong = row.querySelector('td strong');
-    if (nameStrong) {
-        nameStrong.textContent = player.name;
-    }
-
-    const powerCell = row.querySelector('.player-power');
-    if (powerCell) {
-        powerCell.textContent = `${player.power}M`;
-    }
-
-    const troopsCell = row.querySelector('.player-troops');
-    if (troopsCell) {
-        troopsCell.textContent = getTroopLabel(player.troops);
-    }
-}
-
-function syncPlayerRowCache(playersByName) {
-    for (const cachedName of playerRowCache.keys()) {
-        if (!playersByName.has(cachedName)) {
-            playerRowCache.delete(cachedName);
-        }
-    }
-}
-
-function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps) {
-    const selectionA = selectionMaps.teamA.get(playerName);
-    const selectionB = selectionMaps.teamB.get(playerName);
-
-    if (selectionA) {
-        const role = selectionA.role;
-        const starterDisabled = role === 'substitute' && counts.teamAStarterCount >= 20;
-        const subDisabled = role === 'starter' && counts.teamASubCount >= 10;
-        return `
-            <div class="role-toggle team-a-selected">
-                <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
-                        ${starterDisabled ? 'disabled' : ''}
-                        data-role="starter">${t('role_starter')}</button>
-                <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
-                        ${subDisabled ? 'disabled' : ''}
-                        data-role="substitute">${t('role_substitute')}</button>
-            </div>
-            <button class="clear-btn">${t('clear_button')}</button>
-        `;
-    }
-
-    if (selectionB) {
-        const role = selectionB.role;
-        const starterDisabled = role === 'substitute' && counts.teamBStarterCount >= 20;
-        const subDisabled = role === 'starter' && counts.teamBSubCount >= 10;
-        return `
-            <div class="role-toggle team-b-selected">
-                <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
-                        ${starterDisabled ? 'disabled' : ''}
-                        data-role="starter">${t('role_starter')}</button>
-                <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
-                        ${subDisabled ? 'disabled' : ''}
-                        data-role="substitute">${t('role_substitute')}</button>
-            </div>
-            <button class="clear-btn">${t('clear_button')}</button>
-        `;
-    }
-
-    const teamAFullyDisabled = counts.teamAStarterCount >= 20 && counts.teamASubCount >= 10;
-    const teamBFullyDisabled = counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
-
-    return `
-        <button class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
-            <span class="team-label-full">${t('team_a_button')}</span>
-            <span class="team-label-short">${t('team_a_short')}</span>
-        </button>
-        <button class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
-            <span class="team-label-full">${t('team_b_button')}</span>
-            <span class="team-label-short">${t('team_b_short')}</span>
-        </button>
-    `;
-}
-
-function applyPlayerRowSelectionState(row, player, counts, selectionMaps) {
-    const selectionA = selectionMaps.teamA.get(player.name);
-    const selectionB = selectionMaps.teamB.get(player.name);
-    row.classList.toggle('selected-a', !!selectionA);
-    row.classList.toggle('selected-b', !!selectionB);
-    const teamButtons = row.querySelector('.team-buttons');
-    if (teamButtons) {
-        teamButtons.innerHTML = buildPlayerActionButtonsHtml(player.name, counts, selectionMaps);
-    }
+    return allPlayers;
 }
 
 function refreshVisiblePlayerRows() {
+    if (!(window.DSPlayerTableUI && typeof window.DSPlayerTableUI.refreshVisiblePlayerRows === 'function')) {
+        return;
+    }
+
     const tbody = document.getElementById('playersTableBody');
-    if (!tbody) return;
-    const counts = getCurrentTeamCounts();
-    const selectionMaps = buildTeamSelectionMaps();
-    const playersByName = new Map(allPlayers.map((player) => [player.name, player]));
-    tbody.querySelectorAll('tr[data-player]').forEach((row) => {
-        const playerName = row.dataset.player;
-        const player = playersByName.get(playerName);
-        if (!player) return;
-        applyPlayerRowSelectionState(row, player, counts, selectionMaps);
+    window.DSPlayerTableUI.refreshVisiblePlayerRows({
+        tbody: tbody,
+        allPlayers: allPlayers,
+        counts: getCurrentTeamCounts(),
+        selectionMaps: buildTeamSelectionMaps(),
+        translate: t,
     });
 }
 
 function renderPlayersTable() {
+    if (!(window.DSPlayerTableUI && typeof window.DSPlayerTableUI.renderPlayersTable === 'function')) {
+        return;
+    }
+
     const tbody = document.getElementById('playersTableBody');
-    const displayPlayers = getFilteredAndSortedPlayers();
-
-    const counts = getCurrentTeamCounts();
-    const selectionMaps = buildTeamSelectionMaps();
-    const playersByName = new Map(allPlayers.map((player) => [player.name, player]));
-    syncPlayerRowCache(playersByName);
-    const fragment = document.createDocumentFragment();
-
-    displayPlayers.forEach((player) => {
-        let row = playerRowCache.get(player.name);
-        if (!row) {
-            row = createPlayerRow(player);
-            playerRowCache.set(player.name, row);
-        } else {
-            updatePlayerRowStaticData(row, player);
-        }
-        applyPlayerRowSelectionState(row, player, counts, selectionMaps);
-        fragment.appendChild(row);
+    const searchTerm = (document.getElementById('searchFilter').value || '').toLowerCase();
+    window.DSPlayerTableUI.renderPlayersTable({
+        tbody: tbody,
+        allPlayers: allPlayers,
+        rowCache: playerRowCache,
+        getTroopLabel: getTroopLabel,
+        counts: getCurrentTeamCounts(),
+        selectionMaps: buildTeamSelectionMaps(),
+        searchTerm: searchTerm,
+        troopsFilter: currentTroopsFilter,
+        sortFilter: currentSortFilter,
+        translate: t,
     });
-
-    tbody.replaceChildren(fragment);
 }
 
 function toggleTeam(playerName, team) {
