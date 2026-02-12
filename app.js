@@ -467,6 +467,7 @@ const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
+let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
@@ -1539,7 +1540,7 @@ function updateEventMapPreview() {
     if (!image || !placeholder) {
         return;
     }
-    const fallbackMapSource = getEventMapPreviewSource(eventEditorCurrentId);
+    const fallbackMapSource = eventDraftMapRemoved ? '' : getEventMapPreviewSource(eventEditorCurrentId);
     const mapSource = eventDraftMapDataUrl || fallbackMapSource;
     if (mapSource) {
         image.src = mapSource;
@@ -1582,7 +1583,7 @@ function updateEventCoordinatesButton() {
         return;
     }
     const hasDraftMap = Boolean(eventDraftMapDataUrl);
-    const hasSavedMap = isEventMapAvailable(eventEditorCurrentId);
+    const hasSavedMap = !eventDraftMapRemoved && isEventMapAvailable(eventEditorCurrentId);
     const showButton = hasDraftMap || hasSavedMap;
     if (row) {
         row.classList.toggle('hidden', !showButton);
@@ -1595,7 +1596,7 @@ function updateEventMapActionButtons(readOnly) {
     const uploadBtn = document.getElementById('eventMapUploadBtn');
     const removeBtn = document.getElementById('eventMapRemoveBtn');
     const hasDraftMap = Boolean(eventDraftMapDataUrl);
-    const hasSavedMap = isEventMapAvailable(eventEditorCurrentId);
+    const hasSavedMap = !eventDraftMapRemoved && isEventMapAvailable(eventEditorCurrentId);
     const hasMap = hasDraftMap || hasSavedMap;
     const canEditMap = !readOnly;
 
@@ -1735,7 +1736,7 @@ function openCoordinatesPickerFromEditor() {
         showMessage('eventsStatus', t('events_manager_coordinates_save_first'), 'warning');
         return;
     }
-    if (!isEventMapAvailable(eventEditorCurrentId) && !eventDraftMapDataUrl) {
+    if ((!isEventMapAvailable(eventEditorCurrentId) || eventDraftMapRemoved) && !eventDraftMapDataUrl) {
         showMessage('eventsStatus', t('events_manager_coordinates_missing_map'), 'warning');
         return;
     }
@@ -1846,6 +1847,7 @@ function applySelectedEventToEditor() {
     setEditorName(event.name || eventEditorCurrentId);
     eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
     eventDraftMapDataUrl = event.mapDataUrl || '';
+    eventDraftMapRemoved = false;
     updateEventLogoPreview();
     updateEventMapPreview();
     renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
@@ -1927,6 +1929,7 @@ function startNewEventDraft() {
     setEditorName('');
     eventDraftLogoDataUrl = '';
     eventDraftMapDataUrl = '';
+    eventDraftMapRemoved = false;
     updateEventLogoPreview();
     updateEventMapPreview();
     renderEventBuildingsEditor([{ name: 'Bomb Squad', slots: 4, priority: 1, showOnMap: true }]);
@@ -1982,6 +1985,7 @@ function removeEventMap() {
         return;
     }
     eventDraftMapDataUrl = '';
+    eventDraftMapRemoved = true;
     const input = document.getElementById('eventMapInput');
     if (input) {
         input.value = '';
@@ -2079,6 +2083,7 @@ async function handleEventMapChange(event) {
             maxDataUrlLength: EVENT_MAP_DATA_URL_LIMIT,
             tooLargeMessage: t('events_manager_map_too_large'),
         });
+        eventDraftMapRemoved = false;
         updateEventMapPreview();
         updateEventEditorState();
         showMessage('eventsStatus', t('events_manager_map_saved'), 'success');
