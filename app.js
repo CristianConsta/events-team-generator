@@ -1838,6 +1838,32 @@ function bindEventEditorTableActions() {
     }
 }
 
+function setEditorName(value) {
+    const input = document.getElementById('eventNameInput');
+    if (input) {
+        input.value = value || '';
+    }
+}
+
+function applySelectedEventToEditor() {
+    if (!eventEditorCurrentId) {
+        eventEditorCurrentId = currentEvent;
+    }
+    const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
+    if (!event) {
+        startNewEventDraft();
+        return;
+    }
+    setEditorName(event.name || eventEditorCurrentId);
+    eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
+    eventDraftMapDataUrl = event.mapDataUrl || '';
+    eventDraftMapRemoved = false;
+    updateEventLogoPreview();
+    updateEventMapPreview();
+    renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
+    updateEventEditorState();
+}
+
 function renderEventsList() {
     if (window.DSEventListUI && typeof window.DSEventListUI.renderEventsList === 'function') {
         window.DSEventListUI.renderEventsList({
