@@ -323,6 +323,8 @@ function bindStaticUiActions() {
     on('downloadModalCloseBtn', 'click', closeDownloadModal);
     on('generateBtnA', 'click', () => generateTeamAssignments('A'));
     on('generateBtnB', 'click', () => generateTeamAssignments('B'));
+
+    updateClearAllButtonVisibility();
 }
 
 // ── Dismiss event wiring (runs once DOM is ready) ──
@@ -3657,6 +3659,27 @@ let currentTroopsFilter = '';
 let currentSortFilter = 'power-desc';
 const playerRowCache = new Map();
 
+function hasActivePlayerFilters() {
+    const searchTerm = (document.getElementById('searchFilter')?.value || '').trim();
+    return searchTerm.length > 0
+        || currentTroopsFilter !== ''
+        || currentSortFilter !== 'power-desc';
+}
+
+function hasAnySelectedPlayers() {
+    const teamASelected = Array.isArray(teamSelections?.teamA) ? teamSelections.teamA.length : 0;
+    const teamBSelected = Array.isArray(teamSelections?.teamB) ? teamSelections.teamB.length : 0;
+    return (teamASelected + teamBSelected) > 0;
+}
+
+function updateClearAllButtonVisibility() {
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    if (!clearAllBtn) {
+        return;
+    }
+    clearAllBtn.hidden = !(hasActivePlayerFilters() || hasAnySelectedPlayers());
+}
+
 function getCurrentTeamCounts() {
     return {
         teamAStarterCount: getStarterCount('teamA'),
@@ -3844,6 +3867,7 @@ function clearAllSelections() {
 
 function filterPlayers() {
     renderPlayersTable();
+    updateClearAllButtonVisibility();
 }
 
 // Filter dropdown toggle & selection
@@ -3943,6 +3967,7 @@ function updateTeamCounters() {
     }
 
     generateBtnB.disabled = teamBStarterCount === 0;
+    updateClearAllButtonVisibility();
 }
 
 // ============================================================

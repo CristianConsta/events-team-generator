@@ -1445,6 +1445,9 @@ select {
 .alliance-leave-btn {
     color: #FF6B35;
     border-color: #FF6B35;
+    display: block;
+    width: fit-content;
+    margin-left: auto;
 }
 
 /* =============================================

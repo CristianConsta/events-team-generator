@@ -6,6 +6,28 @@ const DEFAULT_BATCH_SIZE = 250;
 const APP_CONFIG_COLLECTION = 'app_config';
 const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
 const GLOBAL_BUILDING_POSITIONS_DOC_ID = 'default_event_positions';
+const EVENT_NAME_MAX_LEN = 30;
+const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
+const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
+const CURATED_EVENT_DETAIL_KEYS = new Set([
+    'id',
+    'name',
+    'titleKey',
+    'mapFile',
+    'previewMapFile',
+    'exportMapFile',
+    'mapTitle',
+    'excelPrefix',
+    'logoDataUrl',
+    'mapDataUrl',
+    'buildings',
+    'defaultPositions',
+    'buildingAnchors',
+    'buildingConfig',
+    'buildingConfigVersion',
+    'buildingPositions',
+    'buildingPositionsVersion',
+]);
 
 function usage() {
     console.log('Usage:');
@@ -129,6 +151,152 @@ function normalizeBuildingPositions(positions) {
     return result;
 }
 
+function normalizeEventName(value, fallback) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    const nextFallback = typeof fallback === 'string' ? fallback.trim() : '';
+    const resolved = raw || nextFallback;
+    return resolved.slice(0, EVENT_NAME_MAX_LEN);
+}
+
+function sanitizeEventImageDataUrl(value, maxLength) {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw || !raw.startsWith('data:image/')) {
+        return '';
+    }
+    if (raw.length > maxLength) {
+        return '';
+    }
+    return raw;
+}
+
+function readEventMapDataUrl(eventEntry) {
+    if (!eventEntry || typeof eventEntry !== 'object') {
+        return '';
+    }
+
+    const directMap = sanitizeEventImageDataUrl(eventEntry.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+    if (directMap) {
+        return directMap;
+    }
+
+    const fallbackFields = ['mapFile', 'previewMapFile', 'exportMapFile'];
+    for (let i = 0; i < fallbackFields.length; i += 1) {
+        const value = sanitizeEventImageDataUrl(eventEntry[fallbackFields[i]], MAX_EVENT_MAP_DATA_URL_LEN);
+        if (value) {
+            return value;
+        }
+    }
+
+    return '';
+}
+
+function normalizeStringField(value, fallback) {
+    if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+    }
+    if (typeof fallback === 'string' && fallback.trim()) {
+        return fallback.trim();
+    }
+    return '';
+}
+
+function normalizeBuildingAnchors(anchors) {
+    if (!anchors || typeof anchors !== 'object' || Array.isArray(anchors)) {
+        return {};
+    }
+
+    const result = {};
+    Object.keys(anchors).forEach((key) => {
+        const anchor = anchors[key];
+        if (typeof anchor !== 'string') {
+            return;
+        }
+        const normalizedAnchor = anchor.trim();
+        if (!normalizedAnchor) {
+            return;
+        }
+        result[key] = normalizedAnchor;
+    });
+    return result;
+}
+
+function isPlainObject(value) {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+}
+
+function sanitizeFirestoreValue(value) {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (value === null) {
+        return null;
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => {
+            const next = sanitizeFirestoreValue(item);
+            return next === undefined ? null : next;
+        });
+    }
+    if (isPlainObject(value)) {
+        const result = {};
+        Object.keys(value).forEach((key) => {
+            const next = sanitizeFirestoreValue(value[key]);
+            if (next !== undefined) {
+                result[key] = next;
+            }
+        });
+        return result;
+    }
+    return value;
+}
+
+function pickEventExtraFields(source) {
+    const result = {};
+    Object.keys(source).forEach((key) => {
+        if (CURATED_EVENT_DETAIL_KEYS.has(key)) {
+            return;
+        }
+        const value = sanitizeFirestoreValue(source[key]);
+        if (value !== undefined) {
+            result[key] = value;
+        }
+    });
+    return result;
+}
+
+function normalizeEventDetails(eventId, eventEntry) {
+    const source = eventEntry && typeof eventEntry === 'object' ? eventEntry : {};
+    const mapDataUrl = readEventMapDataUrl(source);
+    const logoDataUrl = sanitizeEventImageDataUrl(source.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+    const name = normalizeEventName(source.name, eventId || 'event');
+    const mapTitle = normalizeStringField(source.mapTitle, name).toUpperCase().slice(0, 50);
+    const excelPrefix = normalizeEventId(source.excelPrefix || eventId) || eventId || 'event';
+    const mapFile = normalizeStringField(source.mapFile, mapDataUrl || '');
+    const previewMapFile = normalizeStringField(source.previewMapFile, mapDataUrl || mapFile);
+    const exportMapFile = normalizeStringField(source.exportMapFile, mapDataUrl || mapFile);
+
+    return {
+        id: eventId,
+        name: name,
+        titleKey: normalizeStringField(source.titleKey, ''),
+        mapFile: mapDataUrl || mapFile || '',
+        previewMapFile: mapDataUrl || previewMapFile || mapFile || '',
+        exportMapFile: mapDataUrl || exportMapFile || mapFile || '',
+        mapTitle: mapTitle || name.toUpperCase(),
+        excelPrefix: excelPrefix,
+        logoDataUrl: logoDataUrl,
+        mapDataUrl: mapDataUrl,
+        buildings: normalizeBuildingConfig(source.buildings),
+        defaultPositions: normalizeBuildingPositions(source.defaultPositions),
+        buildingAnchors: normalizeBuildingAnchors(source.buildingAnchors),
+        extraFields: pickEventExtraFields(source),
+    };
+}
+
 function readSourceEvents(sourceData) {
     const events = sourceData && sourceData.events && typeof sourceData.events === 'object' ? sourceData.events : {};
     const result = {};
@@ -145,27 +313,36 @@ function readSourceEvents(sourceData) {
         }
 
         const buildingConfig = normalizeBuildingConfig(eventEntry.buildingConfig);
-        if (buildingConfig.length === 0) {
-            return;
-        }
-
         result[normalizedId] = {
+            details: normalizeEventDetails(normalizedId, eventEntry),
             buildingConfig: buildingConfig,
             buildingPositions: normalizeBuildingPositions(eventEntry.buildingPositions),
+            hasBuildingConfig: buildingConfig.length > 0,
         };
     });
 
     return result;
 }
 
-function printSourcePreview(eventIds, sourceConfigs, sourcePositions) {
+function printSourcePreview(eventIds, sourceEvents) {
     console.log('--- Source Values Preview ---');
     eventIds.forEach((eventId) => {
-        const config = sourceConfigs[eventId] || [];
-        const positions = sourcePositions[eventId] || {};
+        const eventEntry = sourceEvents[eventId] || {};
+        const details = eventEntry.details || {};
+        const config = eventEntry.buildingConfig || [];
+        const positions = eventEntry.buildingPositions || {};
         const positionKeys = Object.keys(positions);
 
         console.log(`Event: ${eventId}`);
+        console.log(`  Name: ${details.name || '(empty)'}`);
+        console.log(`  Excel prefix: ${details.excelPrefix || '(empty)'}`);
+        console.log(`  Map title: ${details.mapTitle || '(empty)'}`);
+        console.log(`  Logo data URL: ${details.logoDataUrl ? `present (${details.logoDataUrl.length} chars)` : 'none'}`);
+        console.log(`  Map data URL: ${details.mapDataUrl ? `present (${details.mapDataUrl.length} chars)` : 'none'}`);
+        console.log(`  Building template entries: ${Array.isArray(details.buildings) ? details.buildings.length : 0}`);
+        console.log(`  Default positions entries: ${Object.keys(details.defaultPositions || {}).length}`);
+        console.log(`  Building anchors entries: ${Object.keys(details.buildingAnchors || {}).length}`);
+        console.log(`  Extra top-level fields: ${Object.keys(details.extraFields || {}).length}`);
         console.log(`  Building config entries: ${config.length}`);
         config.forEach((item, index) => {
             console.log(`    ${index + 1}. ${item.name} | #Players=${item.slots} | Priority=${item.priority}`);
@@ -254,7 +431,7 @@ async function main() {
     let syncedEvents = sourceEvents;
     if (requestedEventId) {
         if (!sourceEvents[requestedEventId]) {
-            console.error(`Source user does not have valid events.${requestedEventId}.buildingConfig`);
+            console.error(`Source user does not have events.${requestedEventId}`);
             process.exit(1);
         }
         syncedEvents = {
@@ -264,17 +441,21 @@ async function main() {
 
     const eventIds = Object.keys(syncedEvents);
     if (eventIds.length === 0) {
-        console.error('Source user does not have any valid events.{eventId}.buildingConfig entries');
+        console.error('Source user does not have any valid events.{eventId} entries');
         process.exit(1);
     }
 
     const version = Date.now();
+    const sourceDetails = {};
     const sourceConfigs = {};
     const sourcePositions = {};
+    const eventsWithConfig = {};
     const eventsWithPositions = {};
     eventIds.forEach((eventId) => {
+        sourceDetails[eventId] = syncedEvents[eventId].details || normalizeEventDetails(eventId, {});
         sourceConfigs[eventId] = syncedEvents[eventId].buildingConfig;
         sourcePositions[eventId] = syncedEvents[eventId].buildingPositions;
+        eventsWithConfig[eventId] = !!syncedEvents[eventId].hasBuildingConfig;
         eventsWithPositions[eventId] = Object.keys(sourcePositions[eventId]).length > 0;
     });
 
@@ -289,19 +470,31 @@ async function main() {
     eventIds.forEach((eventId) => {
         const configEntries = sourceConfigs[eventId].length;
         const positionEntries = Object.keys(sourcePositions[eventId]).length;
-        console.log(`  - ${eventId}: configEntries=${configEntries}, positionEntries=${positionEntries}`);
+        const hasLogo = !!sourceDetails[eventId].logoDataUrl;
+        const hasMap = !!sourceDetails[eventId].mapDataUrl;
+        console.log(`  - ${eventId}: configEntries=${configEntries}, positionEntries=${positionEntries}, logo=${hasLogo ? 'yes' : 'no'}, map=${hasMap ? 'yes' : 'no'}`);
+        if (!eventsWithConfig[eventId]) {
+            console.log(`    ! No source buildingConfig for ${eventId}; event metadata/media will still be synced.`);
+        }
         if (!eventsWithPositions[eventId]) {
             console.log(`    ! No source positions for ${eventId}; existing user coordinates will be preserved.`);
         }
     });
-    printSourcePreview(eventIds, sourceConfigs, sourcePositions);
+    printSourcePreview(eventIds, syncedEvents);
+
+    const configEventsToWrite = {};
+    eventIds.forEach((eventId) => {
+        if (eventsWithConfig[eventId]) {
+            configEventsToWrite[eventId] = sourceConfigs[eventId];
+        }
+    });
 
     if (args.apply) {
         await db.collection(APP_CONFIG_COLLECTION).doc(GLOBAL_BUILDING_CONFIG_DOC_ID).set({
             sourceDocId: sourceDocId,
             sourceEmail: sourceEmail,
             version: version,
-            events: sourceConfigs,
+            events: configEventsToWrite,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
 
@@ -377,8 +570,35 @@ async function main() {
             };
 
             eventIds.forEach((eventId) => {
-                payload[`events.${eventId}.buildingConfig`] = sourceConfigs[eventId];
-                payload[`events.${eventId}.buildingConfigVersion`] = version;
+                const details = sourceDetails[eventId] || normalizeEventDetails(eventId, {});
+                payload[`events.${eventId}.id`] = details.id || eventId;
+                payload[`events.${eventId}.name`] = details.name || eventId;
+                payload[`events.${eventId}.titleKey`] = details.titleKey || '';
+                payload[`events.${eventId}.mapFile`] = details.mapFile || '';
+                payload[`events.${eventId}.previewMapFile`] = details.previewMapFile || details.mapFile || '';
+                payload[`events.${eventId}.exportMapFile`] = details.exportMapFile || details.mapFile || '';
+                payload[`events.${eventId}.mapTitle`] = details.mapTitle || (details.name || eventId).toUpperCase().slice(0, 50);
+                payload[`events.${eventId}.excelPrefix`] = details.excelPrefix || eventId;
+                payload[`events.${eventId}.logoDataUrl`] = details.logoDataUrl || '';
+                payload[`events.${eventId}.mapDataUrl`] = details.mapDataUrl || '';
+                payload[`events.${eventId}.buildings`] = Array.isArray(details.buildings) ? details.buildings : [];
+                payload[`events.${eventId}.defaultPositions`] = details.defaultPositions && typeof details.defaultPositions === 'object'
+                    ? details.defaultPositions
+                    : {};
+                payload[`events.${eventId}.buildingAnchors`] = details.buildingAnchors && typeof details.buildingAnchors === 'object'
+                    ? details.buildingAnchors
+                    : {};
+                const extraFields = details.extraFields && typeof details.extraFields === 'object'
+                    ? details.extraFields
+                    : {};
+                Object.keys(extraFields).forEach((fieldName) => {
+                    payload[`events.${eventId}.${fieldName}`] = extraFields[fieldName];
+                });
+
+                if (eventsWithConfig[eventId]) {
+                    payload[`events.${eventId}.buildingConfig`] = sourceConfigs[eventId];
+                    payload[`events.${eventId}.buildingConfigVersion`] = version;
+                }
                 if (eventsWithPositions[eventId]) {
                     payload[`events.${eventId}.buildingPositions`] = sourcePositions[eventId];
                     payload[`events.${eventId}.buildingPositionsVersion`] = version;
