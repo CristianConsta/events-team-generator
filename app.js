@@ -3918,6 +3918,7 @@ if (window.visualViewport) {
 
 let currentTroopsFilter = '';
 let currentSortFilter = 'power-desc';
+const playerRowCache = new Map();
 
 function getCurrentTeamCounts() {
     return {
@@ -3933,6 +3934,96 @@ function buildTeamSelectionMaps() {
         teamA: new Map(teamSelections.teamA.map((item) => [item.name, item])),
         teamB: new Map(teamSelections.teamB.map((item) => [item.name, item])),
     };
+}
+
+function getFilteredAndSortedPlayers() {
+    let displayPlayers = [...allPlayers];
+
+    const searchTerm = document.getElementById('searchFilter').value.toLowerCase();
+    const troopsFilter = currentTroopsFilter;
+    const sortFilter = currentSortFilter;
+
+    if (searchTerm) {
+        displayPlayers = displayPlayers.filter((player) =>
+            player.name.toLowerCase().includes(searchTerm)
+        );
+    }
+
+    if (troopsFilter) {
+        displayPlayers = displayPlayers.filter((player) => player.troops === troopsFilter);
+    }
+
+    switch (sortFilter) {
+        case 'power-desc':
+            displayPlayers.sort((a, b) => b.power - a.power);
+            break;
+        case 'power-asc':
+            displayPlayers.sort((a, b) => a.power - b.power);
+            break;
+        case 'name-asc':
+            displayPlayers.sort((a, b) => a.name.localeCompare(b.name));
+            break;
+        case 'name-desc':
+            displayPlayers.sort((a, b) => b.name.localeCompare(a.name));
+            break;
+    }
+
+    return displayPlayers;
+}
+
+function createPlayerRow(player) {
+    const row = document.createElement('tr');
+    row.dataset.player = player.name;
+
+    const nameCell = document.createElement('td');
+    const nameStrong = document.createElement('strong');
+    nameStrong.textContent = player.name;
+    nameCell.appendChild(nameStrong);
+
+    const powerCell = document.createElement('td');
+    powerCell.className = 'player-power';
+    powerCell.textContent = `${player.power}M`;
+
+    const troopsCell = document.createElement('td');
+    troopsCell.className = 'player-troops';
+    troopsCell.textContent = getTroopLabel(player.troops);
+
+    const actionsCell = document.createElement('td');
+    const teamButtons = document.createElement('div');
+    teamButtons.className = 'team-buttons';
+    actionsCell.appendChild(teamButtons);
+
+    row.appendChild(nameCell);
+    row.appendChild(powerCell);
+    row.appendChild(troopsCell);
+    row.appendChild(actionsCell);
+
+    return row;
+}
+
+function updatePlayerRowStaticData(row, player) {
+    const nameStrong = row.querySelector('td strong');
+    if (nameStrong) {
+        nameStrong.textContent = player.name;
+    }
+
+    const powerCell = row.querySelector('.player-power');
+    if (powerCell) {
+        powerCell.textContent = `${player.power}M`;
+    }
+
+    const troopsCell = row.querySelector('.player-troops');
+    if (troopsCell) {
+        troopsCell.textContent = getTroopLabel(player.troops);
+    }
+}
+
+function syncPlayerRowCache(playersByName) {
+    for (const cachedName of playerRowCache.keys()) {
+        if (!playersByName.has(cachedName)) {
+            playerRowCache.delete(cachedName);
+        }
+    }
 }
 
 function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps) {
@@ -4015,60 +4106,27 @@ function refreshVisiblePlayerRows() {
 
 function renderPlayersTable() {
     const tbody = document.getElementById('playersTableBody');
-    tbody.innerHTML = '';
-
-    let displayPlayers = [...allPlayers];
-
-    // Apply filters
-    const searchTerm = document.getElementById('searchFilter').value.toLowerCase();
-    const troopsFilter = currentTroopsFilter;
-    const sortFilter = currentSortFilter;
-
-    if (searchTerm) {
-        displayPlayers = displayPlayers.filter(p =>
-            p.name.toLowerCase().includes(searchTerm)
-        );
-    }
-
-    if (troopsFilter) {
-        displayPlayers = displayPlayers.filter(p => p.troops === troopsFilter);
-    }
-
-    switch(sortFilter) {
-        case 'power-desc':
-            displayPlayers.sort((a, b) => b.power - a.power);
-            break;
-        case 'power-asc':
-            displayPlayers.sort((a, b) => a.power - b.power);
-            break;
-        case 'name-asc':
-            displayPlayers.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-        case 'name-desc':
-            displayPlayers.sort((a, b) => b.name.localeCompare(a.name));
-            break;
-    }
+    const displayPlayers = getFilteredAndSortedPlayers();
 
     const counts = getCurrentTeamCounts();
     const selectionMaps = buildTeamSelectionMaps();
+    const playersByName = new Map(allPlayers.map((player) => [player.name, player]));
+    syncPlayerRowCache(playersByName);
     const fragment = document.createDocumentFragment();
 
-    displayPlayers.forEach(player => {
-        const row = document.createElement('tr');
-        row.dataset.player = player.name;
-        row.innerHTML = `
-            <td><strong>${escapeHtml(player.name)}</strong></td>
-            <td>${player.power}M</td>
-            <td>${escapeHtml(getTroopLabel(player.troops))}</td>
-            <td>
-                <div class="team-buttons"></div>
-            </td>
-        `;
+    displayPlayers.forEach((player) => {
+        let row = playerRowCache.get(player.name);
+        if (!row) {
+            row = createPlayerRow(player);
+            playerRowCache.set(player.name, row);
+        } else {
+            updatePlayerRowStaticData(row, player);
+        }
         applyPlayerRowSelectionState(row, player, counts, selectionMaps);
         fragment.appendChild(row);
     });
 
-    tbody.appendChild(fragment);
+    tbody.replaceChildren(fragment);
 }
 
 function toggleTeam(playerName, team) {
