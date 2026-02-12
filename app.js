@@ -1034,33 +1034,55 @@ const MAP_CANVAS_FALLBACK_HEIGHT = 720;
 const MAP_GRID_STEP = 90;
 const MAP_UPLOAD_MAX_SIDE = MAP_CANVAS_WIDTH;
 
-// Per-event map images, split by purpose so preview can stay lightweight.
-const mapImages = {
-    [MAP_PREVIEW]: {},
-    [MAP_EXPORT]: {},
-};
-let mapLoadedFlags = {
-    [MAP_PREVIEW]: {},
-    [MAP_EXPORT]: {},
-};
-let mapLoadRetries = {
-    [MAP_PREVIEW]: {},
-    [MAP_EXPORT]: {},
-};
-let mapUnavailableFlags = {
-    [MAP_PREVIEW]: {},
-    [MAP_EXPORT]: {},
-};
-let mapLoadPromises = {
-    [MAP_PREVIEW]: {},
-    [MAP_EXPORT]: {},
-};
+// Per-event map state (image + loading state), keyed by purpose/event.
+const mapRuntimeState = new Map();
 let coordMapWarningShown = {};
-const mapSourceCache = {
-    [MAP_PREVIEW]: {},
-    [MAP_EXPORT]: {},
-};
 const maxRetries = 3;
+
+function normalizeMapPurpose(purpose) {
+    return purpose === MAP_EXPORT ? MAP_EXPORT : MAP_PREVIEW;
+}
+
+function getMapRuntimeStateKey(eventId, purpose) {
+    return `${normalizeMapPurpose(purpose)}::${normalizeEventId(eventId)}`;
+}
+
+function createMapRuntimeState() {
+    return {
+        image: new Image(),
+        loaded: false,
+        retries: 0,
+        unavailable: false,
+        promise: null,
+        sourceSignature: '',
+    };
+}
+
+function ensureMapRuntimeState(eventId, purpose) {
+    const key = getMapRuntimeStateKey(eventId, purpose);
+    if (!mapRuntimeState.has(key)) {
+        mapRuntimeState.set(key, createMapRuntimeState());
+    }
+    return mapRuntimeState.get(key);
+}
+
+function getMapRuntimeState(eventId, purpose) {
+    const eid = normalizeEventId(eventId);
+    if (!eid) {
+        return null;
+    }
+    return ensureMapRuntimeState(eid, purpose);
+}
+
+function deleteMapRuntimeStateForEvent(eventId) {
+    const eid = normalizeEventId(eventId);
+    if (!eid) {
+        return;
+    }
+    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
+        mapRuntimeState.delete(getMapRuntimeStateKey(eid, purpose));
+    });
+}
 
 function normalizeEventId(value) {
     if (typeof value !== 'string') {
@@ -1089,24 +1111,7 @@ function ensureEventRuntimeState(eventId) {
         buildingPositionsMap[event] = {};
     }
     [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        if (!mapImages[purpose][event]) {
-            mapImages[purpose][event] = new Image();
-        }
-        if (!Object.prototype.hasOwnProperty.call(mapLoadedFlags[purpose], event)) {
-            mapLoadedFlags[purpose][event] = false;
-        }
-        if (!Object.prototype.hasOwnProperty.call(mapLoadRetries[purpose], event)) {
-            mapLoadRetries[purpose][event] = 0;
-        }
-        if (!Object.prototype.hasOwnProperty.call(mapUnavailableFlags[purpose], event)) {
-            mapUnavailableFlags[purpose][event] = false;
-        }
-        if (!Object.prototype.hasOwnProperty.call(mapLoadPromises[purpose], event)) {
-            mapLoadPromises[purpose][event] = null;
-        }
-        if (!Object.prototype.hasOwnProperty.call(mapSourceCache[purpose], event)) {
-            mapSourceCache[purpose][event] = '';
-        }
+        ensureMapRuntimeState(event, purpose);
     });
     if (!Object.prototype.hasOwnProperty.call(coordMapWarningShown, event)) {
         coordMapWarningShown[event] = false;
@@ -1120,13 +1125,14 @@ function resetMapStateForEvent(eventId) {
     }
     ensureEventRuntimeState(event);
     [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        mapLoadedFlags[purpose][event] = false;
-        mapLoadRetries[purpose][event] = 0;
-        mapUnavailableFlags[purpose][event] = false;
-        mapLoadPromises[purpose][event] = null;
-        mapSourceCache[purpose][event] = '';
-        if (mapImages[purpose][event]) {
-            mapImages[purpose][event].src = '';
+        const state = ensureMapRuntimeState(event, purpose);
+        state.loaded = false;
+        state.retries = 0;
+        state.unavailable = false;
+        state.promise = null;
+        state.sourceSignature = '';
+        if (state.image) {
+            state.image.src = '';
         }
     });
     coordMapWarningShown[event] = false;
@@ -1148,14 +1154,12 @@ function syncRuntimeStateWithRegistry() {
             delete buildingPositionsMap[eventId];
         }
     });
-    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        [mapImages, mapLoadedFlags, mapLoadRetries, mapUnavailableFlags, mapLoadPromises, mapSourceCache].forEach((bucket) => {
-            Object.keys(bucket[purpose]).forEach((eventId) => {
-                if (!eventIdSet.has(eventId)) {
-                    delete bucket[purpose][eventId];
-                }
-            });
-        });
+    Array.from(mapRuntimeState.keys()).forEach((key) => {
+        const parts = key.split('::');
+        const eventId = parts.length > 1 ? parts[1] : '';
+        if (!eventIdSet.has(eventId)) {
+            mapRuntimeState.delete(key);
+        }
     });
     Object.keys(coordMapWarningShown).forEach((eventId) => {
         if (!eventIdSet.has(eventId)) {
@@ -1324,13 +1328,14 @@ function getEventMapFallbackFile(eventId, purpose) {
 
 function loadMapImage(eventId, purpose) {
     const eid = eventId || currentEvent;
-    const mapPurpose = purpose === MAP_EXPORT ? MAP_EXPORT : MAP_PREVIEW;
+    const mapPurpose = normalizeMapPurpose(purpose);
     ensureEventRuntimeState(eid);
-    if (mapLoadedFlags[mapPurpose][eid]) {
+    const mapState = ensureMapRuntimeState(eid, mapPurpose);
+    if (mapState.loaded) {
         return Promise.resolve(true);
     }
-    if (mapLoadPromises[mapPurpose][eid]) {
-        return mapLoadPromises[mapPurpose][eid];
+    if (mapState.promise) {
+        return mapState.promise;
     }
 
     const primaryFile = getEventMapFile(eid, mapPurpose);
@@ -1338,23 +1343,23 @@ function loadMapImage(eventId, purpose) {
     const candidateFiles = [...new Set([primaryFile, fallbackFile].filter(Boolean))];
     const mapSourceSignature = candidateFiles.join('|');
 
-    if (mapSourceCache[mapPurpose][eid] !== mapSourceSignature) {
-        mapLoadedFlags[mapPurpose][eid] = false;
-        mapUnavailableFlags[mapPurpose][eid] = false;
-        mapLoadRetries[mapPurpose][eid] = 0;
-        mapLoadPromises[mapPurpose][eid] = null;
-        mapSourceCache[mapPurpose][eid] = mapSourceSignature;
+    if (mapState.sourceSignature !== mapSourceSignature) {
+        mapState.loaded = false;
+        mapState.unavailable = false;
+        mapState.retries = 0;
+        mapState.promise = null;
+        mapState.sourceSignature = mapSourceSignature;
     }
 
-    mapLoadPromises[mapPurpose][eid] = new Promise((resolve, reject) => {
-        const imageEl = mapImages[mapPurpose][eid];
+    mapState.promise = new Promise((resolve, reject) => {
+        const imageEl = mapState.image;
         let candidateIndex = 0;
 
         const tryLoadCandidate = () => {
             const src = candidateFiles[candidateIndex];
             if (!src) {
-                mapUnavailableFlags[mapPurpose][eid] = true;
-                mapLoadPromises[mapPurpose][eid] = null;
+                mapState.unavailable = true;
+                mapState.promise = null;
                 reject(new Error(`No map source available for ${eid}/${mapPurpose}`));
                 return;
             }
@@ -1368,10 +1373,10 @@ function loadMapImage(eventId, purpose) {
         };
 
         imageEl.onload = () => {
-            mapLoadedFlags[mapPurpose][eid] = true;
-            mapUnavailableFlags[mapPurpose][eid] = false;
-            mapLoadRetries[mapPurpose][eid] = 0;
-            mapLoadPromises[mapPurpose][eid] = null;
+            mapState.loaded = true;
+            mapState.unavailable = false;
+            mapState.retries = 0;
+            mapState.promise = null;
             console.log(`Map loaded for ${eid}/${mapPurpose}`);
             resolve(true);
         };
@@ -1383,18 +1388,18 @@ function loadMapImage(eventId, purpose) {
                 return;
             }
 
-            const retry = mapLoadRetries[mapPurpose][eid] + 1;
+            const retry = mapState.retries + 1;
             console.error(`Map failed to load for ${eid}/${mapPurpose}, attempt: ${retry}`);
-            if (mapLoadRetries[mapPurpose][eid] < maxRetries) {
-                mapLoadRetries[mapPurpose][eid] += 1;
+            if (mapState.retries < maxRetries) {
+                mapState.retries += 1;
                 setTimeout(() => {
                     candidateIndex = 0;
                     tryLoadCandidate();
-                }, 700 * mapLoadRetries[mapPurpose][eid]);
+                }, 700 * mapState.retries);
             } else {
                 console.error(`Map loading failed for ${eid}/${mapPurpose} after ${maxRetries} attempts`);
-                mapUnavailableFlags[mapPurpose][eid] = true;
-                mapLoadPromises[mapPurpose][eid] = null;
+                mapState.unavailable = true;
+                mapState.promise = null;
                 reject(new Error(`Map failed to load: ${eid}/${mapPurpose}`));
             }
         };
@@ -1402,7 +1407,7 @@ function loadMapImage(eventId, purpose) {
         tryLoadCandidate();
     });
 
-    return mapLoadPromises[mapPurpose][eid];
+    return mapState.promise;
 }
 
 const BUILDING_POSITIONS_VERSION = 2;
@@ -1464,7 +1469,8 @@ function switchEvent(eventId) {
 
     // If the coordinate picker is currently open, warm the export map so picker/export sizes match.
     const coordOverlayVisible = coordOverlay && !coordOverlay.classList.contains('hidden');
-    if (coordOverlayVisible && !mapLoadedFlags[MAP_EXPORT][targetEventId]) {
+    const exportMapState = getMapRuntimeState(targetEventId, MAP_EXPORT);
+    if (coordOverlayVisible && exportMapState && !exportMapState.loaded) {
         loadMapImage(targetEventId, MAP_EXPORT).catch(() => {
             console.warn(targetEventId + ' export map failed to load');
         });
@@ -2230,14 +2236,7 @@ async function deleteSelectedEvent() {
 
     delete buildingConfigs[eventId];
     delete buildingPositionsMap[eventId];
-    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        delete mapImages[purpose][eventId];
-        delete mapLoadedFlags[purpose][eventId];
-        delete mapLoadRetries[purpose][eventId];
-        delete mapUnavailableFlags[purpose][eventId];
-        delete mapLoadPromises[purpose][eventId];
-        delete mapSourceCache[purpose][eventId];
-    });
+    deleteMapRuntimeStateForEvent(eventId);
     delete coordMapWarningShown[eventId];
 
     if (typeof FirebaseService !== 'undefined' && FirebaseService.removeEvent) {
@@ -3699,9 +3698,10 @@ function drawCoordCanvas() {
 
     // Coordinate picker uses export map dimensions so picker/export coordinates stay identical.
     const activeMapPurpose = MAP_EXPORT;
-    const activeMapImage = mapImages[activeMapPurpose][currentEvent];
-    const activeMapLoaded = mapLoadedFlags[activeMapPurpose][currentEvent];
-    const activeMapUnavailable = mapUnavailableFlags[activeMapPurpose][currentEvent];
+    const activeMapState = getMapRuntimeState(currentEvent, activeMapPurpose);
+    const activeMapImage = activeMapState ? activeMapState.image : null;
+    const activeMapLoaded = activeMapState ? activeMapState.loaded : false;
+    const activeMapUnavailable = activeMapState ? activeMapState.unavailable : false;
     const statusEl = document.getElementById('coordStatus');
 
     if (!activeMapLoaded && !activeMapUnavailable) {
@@ -3714,7 +3714,7 @@ function drawCoordCanvas() {
     }
 
     const ctx = canvas.getContext('2d');
-    const hasMapBackground = activeMapLoaded && activeMapImage.width > 0 && activeMapImage.height > 0;
+    const hasMapBackground = !!(activeMapLoaded && activeMapImage && activeMapImage.width > 0 && activeMapImage.height > 0);
     const mapWidth = MAP_CANVAS_WIDTH;
     const mapHeight = hasMapBackground
         ? Math.max(1, Math.floor(activeMapImage.height * (mapWidth / activeMapImage.width)))
@@ -4370,7 +4370,8 @@ async function downloadTeamMap(team) {
     
     const statusId = 'downloadStatus';
     
-    if (!mapLoadedFlags[MAP_EXPORT][currentEvent]) {
+    const exportMapState = getMapRuntimeState(currentEvent, MAP_EXPORT);
+    if (!exportMapState || !exportMapState.loaded) {
         showMessage(statusId, t('message_map_wait'), 'processing');
         try {
             await Promise.race([
@@ -4541,7 +4542,11 @@ function generateMap(team, assignments, statusId) {
 
         const titleHeight = 100;
         const unmappedHeight = 280;
-        const activeMapImage = mapImages[MAP_EXPORT][currentEvent];
+        const exportMapState = getMapRuntimeState(currentEvent, MAP_EXPORT);
+        const activeMapImage = exportMapState ? exportMapState.image : null;
+        if (!activeMapImage || activeMapImage.width <= 0) {
+            throw new Error('Map image not loaded for export');
+        }
         const mapHeight = Math.max(1, Math.floor(activeMapImage.height * (MAP_CANVAS_WIDTH / activeMapImage.width)));
         const totalHeight = titleHeight + mapHeight + unmappedHeight;
 
