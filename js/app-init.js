@@ -61,6 +61,14 @@
             updateAllianceHeaderDisplay();
             checkAndDisplayNotifications();
         });
+
+        if (typeof FirebaseService.setAllianceDataCallback === 'function') {
+            FirebaseService.setAllianceDataCallback(() => {
+                if (typeof handleAllianceDataRealtimeUpdate === 'function') {
+                    handleAllianceDataRealtimeUpdate();
+                }
+            });
+        }
     }
 
     initLanguage();

@@ -28,6 +28,9 @@
         setDataLoadCallback: function setDataLoadCallback(callback) {
             return withManager((svc) => svc.setDataLoadCallback(callback), null);
         },
+        setAllianceDataCallback: function setAllianceDataCallback(callback) {
+            return withManager((svc) => svc.setAllianceDataCallback(callback), null);
+        },
         signInWithGoogle: async function signInWithGoogle() {
             return withManager((svc) => svc.signInWithGoogle(), notLoadedResult());
         },
@@ -57,6 +60,12 @@
         },
         getPlayerDatabase: function getPlayerDatabase() {
             return withManager((svc) => svc.getPlayerDatabase(), {});
+        },
+        upsertPlayerEntry: async function upsertPlayerEntry(source, originalName, nextPlayer) {
+            return withManager((svc) => svc.upsertPlayerEntry(source, originalName, nextPlayer), notLoadedResult());
+        },
+        removePlayerEntry: async function removePlayerEntry(source, playerName) {
+            return withManager((svc) => svc.removePlayerEntry(source, playerName), notLoadedResult());
         },
         getAllEventData: function getAllEventData() {
             return withManager((svc) => svc.getAllEventData(), {});
