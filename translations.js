@@ -116,7 +116,7 @@ const translations = {
         confirm_sign_out: 'Sign out?',
         confirm_clear_all: 'Clear all team selections?',
         message_template_downloaded: 'âœ… Template downloaded! Headers start at row 10.',
-        message_upload_processing: 'â³ Processing file...',
+        message_upload_processing: 'Processing file...',
         message_upload_failed: 'âŒ Upload failed: {error}',
         buildings_slots_exceeded_saved: 'âŒ Total slots exceeded {max} in saved config. Reset to defaults.',
         buildings_slots_exceeded: 'âŒ Total slots cannot exceed {max}. Currently: {total}.',

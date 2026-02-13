@@ -3744,6 +3744,7 @@ function renderPlayersTable() {
         sortFilter: currentSortFilter,
         translate: t,
     });
+    updateClearAllButtonVisibility();
 }
 
 function toggleTeam(playerName, team) {
