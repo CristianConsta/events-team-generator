@@ -476,47 +476,82 @@ select {
     background: rgba(var(--team-b-rgb), 0.2);
 }
 #playersListSection .players-table {
-    margin-top: 12px;
+    margin-top: 0;
 }
-.players-mgmt-add-form {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
+.players-mgmt-layout {
+    display: grid;
+    gap: 12px;
 }
-.players-mgmt-add-form input,
-.players-mgmt-add-form select {
-    min-height: 40px;
-    padding: 8px 10px;
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(var(--gold-rgb), 0.32);
-    background: rgba(8, 13, 24, 0.72);
-    color: var(--text-primary);
-    font-size: 14px;
-    box-sizing: border-box;
-}
-.players-mgmt-add-form input[id="playersMgmtNewName"] {
-    flex: 1 1 220px;
-    min-width: 180px;
-}
-.players-mgmt-add-form input[id="playersMgmtNewPower"] {
-    width: 130px;
-}
-.players-mgmt-add-form button {
-    min-height: 40px;
-}
-.players-mgmt-filters {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
+#playersMgmtSourceControls {
     margin-bottom: 12px;
 }
+.players-mgmt-surface {
+    border-radius: 12px;
+    border: 1px solid rgba(var(--gold-rgb), 0.2);
+    background: rgba(8, 13, 24, 0.52);
+    padding: 12px;
+}
+.players-mgmt-inline-header {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    cursor: pointer;
+    gap: 10px;
+}
+.players-mgmt-inline-header:hover {
+    opacity: 0.9;
+}
+.players-mgmt-inline-title-group {
+    min-width: 0;
+}
+.players-mgmt-inline-title {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.2;
+    color: var(--text-primary);
+}
+.players-mgmt-inline-help {
+    margin: 5px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.players-mgmt-inline-content {
+    margin-top: 12px;
+    max-height: 999px;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+.players-mgmt-inline-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+}
+.players-mgmt-inline-headline {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.players-mgmt-filter-summary {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.72);
+}
+.players-mgmt-add-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+.players-mgmt-add-form input,
+.players-mgmt-add-form select,
 .players-mgmt-filters input,
 .players-mgmt-filters select {
-    min-height: 40px;
-    padding: 8px 10px;
+    min-height: 42px;
+    width: 100%;
+    padding: 9px 10px;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--gold-rgb), 0.32);
     background: rgba(8, 13, 24, 0.72);
@@ -524,13 +559,45 @@ select {
     font-size: 14px;
     box-sizing: border-box;
 }
-.players-mgmt-filters input {
-    min-width: 220px;
-    flex: 1 1 260px;
+.players-mgmt-add-form button {
+    min-height: 42px;
+    width: 100%;
+    margin: 0;
+}
+.players-mgmt-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
 }
 .players-mgmt-filters button {
-    margin-left: auto;
-    min-height: 40px;
+    min-height: 42px;
+    width: 100%;
+    margin: 0;
+}
+.players-mgmt-table-wrap {
+    overflow-x: auto;
+}
+#playersMgmtStatus {
+    margin-top: 12px;
+}
+@media (min-width: 760px) {
+    .players-mgmt-add-form {
+        grid-template-columns: minmax(200px, 1.6fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr) auto;
+        align-items: center;
+    }
+    .players-mgmt-add-form button {
+        width: auto;
+        min-width: 130px;
+    }
+    .players-mgmt-filters {
+        grid-template-columns: minmax(240px, 1fr) minmax(165px, auto) minmax(190px, auto) auto;
+        align-items: center;
+    }
+    .players-mgmt-filters button {
+        width: auto;
+        justify-self: end;
+    }
 }
 .players-table .players-mgmt-actions {
     display: flex;
@@ -1609,29 +1676,18 @@ select {
         min-width: 0;
         font-size: 15px;
     }
-    .players-mgmt-add-form input[id="playersMgmtNewName"] {
-        flex: 1 1 100%;
-        min-width: 0;
+    .players-mgmt-surface {
+        padding: 10px;
     }
-    .players-mgmt-add-form input[id="playersMgmtNewPower"],
-    .players-mgmt-add-form select,
-    .players-mgmt-add-form button {
-        flex: 1 1 calc(50% - 6px);
-        width: 100%;
-        min-width: 0;
+    .players-mgmt-inline-title {
+        font-size: 15px;
     }
-    .players-mgmt-filters input {
-        flex: 1 1 100%;
-        width: 100%;
-        min-width: 0;
+    .players-mgmt-inline-help {
+        font-size: 11px;
     }
-    .players-mgmt-filters select {
-        flex: 1 1 calc(50% - 6px);
-        min-width: 0;
-    }
-    .players-mgmt-filters button {
-        width: 100%;
-        margin-left: 0;
+    .players-mgmt-inline-headline {
+        align-items: flex-start;
+        flex-direction: column;
     }
     .filter-dropdown { flex: 0 0 auto; }
     .filter-dropdown-panel { min-width: 160px; }

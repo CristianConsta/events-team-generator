@@ -301,6 +301,7 @@ function bindStaticUiActions() {
     on('clearAllBtn', 'click', clearAllSelections);
     on('uploadPanelHeader', 'click', toggleUploadPanel);
     on('playersListPanelHeader', 'click', togglePlayersListPanel);
+    on('playersMgmtAddPanelHeader', 'click', () => togglePlayersManagementAddPanel());
     on('playersMgmtSourcePersonalBtn', 'click', () => switchPlayersManagementSource('personal'));
     on('playersMgmtSourceAllianceBtn', 'click', () => switchPlayersManagementSource('alliance'));
     const playersMgmtAddForm = document.getElementById('playersMgmtAddForm');
@@ -496,6 +497,8 @@ function getSubstituteCount(teamKey) {
 }
 let uploadPanelExpanded = true;
 let playersListPanelExpanded = true;
+let playersManagementAddPanelExpanded = false;
+let playersManagementAddPanelInit = false;
 let playersManagementEditingName = '';
 let playersManagementSearchTerm = '';
 let playersManagementTroopsFilter = '';
@@ -2410,6 +2413,37 @@ function togglePlayersListPanel() {
     }
 }
 
+function togglePlayersManagementAddPanel(forceExpanded) {
+    if (typeof forceExpanded === 'boolean') {
+        playersManagementAddPanelExpanded = forceExpanded;
+    } else {
+        playersManagementAddPanelExpanded = !playersManagementAddPanelExpanded;
+    }
+
+    const content = document.getElementById('playersMgmtAddPanelContent');
+    const icon = document.getElementById('playersMgmtAddExpandIcon');
+    if (!content || !icon) {
+        return;
+    }
+
+    content.classList.toggle('collapsed', !playersManagementAddPanelExpanded);
+    icon.classList.toggle('rotated', playersManagementAddPanelExpanded);
+}
+
+function renderPlayersManagementAddPanel() {
+    const content = document.getElementById('playersMgmtAddPanelContent');
+    const icon = document.getElementById('playersMgmtAddExpandIcon');
+    if (!content || !icon) {
+        return;
+    }
+
+    if (!playersManagementAddPanelInit) {
+        playersManagementAddPanelExpanded = window.innerWidth >= 900;
+        playersManagementAddPanelInit = true;
+    }
+    togglePlayersManagementAddPanel(playersManagementAddPanelExpanded);
+}
+
 function translatePlayersManagementError(result) {
     if (result && result.errorKey) {
         return t(result.errorKey, result.errorParams || {});
@@ -2593,7 +2627,15 @@ function renderPlayersManagementTable() {
     updatePlayersManagementClearFiltersButton();
 
     const source = getPlayersManagementActiveSource();
-    const rows = applyPlayersManagementFilters(buildPlayersManagementRows(source));
+    const allRows = buildPlayersManagementRows(source);
+    const rows = applyPlayersManagementFilters(allRows);
+    const summaryEl = document.getElementById('playersMgmtFilterSummary');
+    if (summaryEl) {
+        summaryEl.textContent = t('players_list_showing_count', {
+            shown: rows.length,
+            total: allRows.length,
+        });
+    }
     tbody.innerHTML = '';
 
     if (rows.length === 0) {
@@ -2661,6 +2703,7 @@ function renderPlayersManagementPanel() {
     }
 
     renderPlayersManagementSourceControls();
+    renderPlayersManagementAddPanel();
     renderPlayersManagementFilters();
     renderPlayersManagementTable();
 
@@ -2722,6 +2765,9 @@ async function handlePlayersManagementAddPlayer() {
         playersManagementEditingName = '';
         showMessage('playersMgmtStatus', t('players_list_added'), 'success');
         resetPlayersManagementAddForm();
+        if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
+            togglePlayersManagementAddPanel(false);
+        }
         const returnToPlayersPage = currentPageView === 'players';
         loadPlayerData();
         if (returnToPlayersPage) {
@@ -4704,7 +4750,7 @@ async function downloadTeamMap(team) {
             ]);
         } catch (error) {
             if (confirm(t('confirm_map_without_background'))) {
-                generateMapWithoutBackground(team, assignments, statusId);
+                await generateMapWithoutBackground(team, assignments, statusId);
             } else {
                 showMessage(statusId, t('message_map_cancelled'), 'warning');
             }
@@ -4712,13 +4758,135 @@ async function downloadTeamMap(team) {
         }
     }
     
-    generateMap(team, assignments, statusId);
+    await generateMap(team, assignments, statusId);
 }
 
-function generateMapWithoutBackground(team, assignments, statusId) {
+function getMapHeaderTitle(team) {
+    const normalizedTeam = team === 'B' ? 'B' : 'A';
+    const eventName = getEventDisplayName(currentEvent);
+    return `TEAM ${normalizedTeam} ASSIGNMENTS - ${eventName}`;
+}
+
+function getActiveEventAvatarDataUrl() {
+    const activeEvent = getActiveEvent();
+    if (!activeEvent || typeof activeEvent.logoDataUrl !== 'string') {
+        return '';
+    }
+    const logoDataUrl = activeEvent.logoDataUrl.trim();
+    if (!logoDataUrl) {
+        return '';
+    }
+    return isImageDataUrl(logoDataUrl, EVENT_LOGO_DATA_URL_LIMIT) ? logoDataUrl : '';
+}
+
+async function loadActiveEventAvatarForHeader() {
+    const avatarDataUrl = getActiveEventAvatarDataUrl();
+    if (!avatarDataUrl) {
+        return null;
+    }
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = avatarDataUrl;
+    });
+}
+
+function fitCanvasHeaderText(ctx, text, maxWidth, font) {
+    const value = String(text || '');
+    const width = Number(maxWidth);
+    if (!Number.isFinite(width) || width <= 0) {
+        return value;
+    }
+
+    ctx.save();
+    ctx.font = font;
+    if (ctx.measureText(value).width <= width) {
+        ctx.restore();
+        return value;
+    }
+
+    let output = value;
+    while (output.length > 1 && ctx.measureText(output + '...').width > width) {
+        output = output.slice(0, -1);
+    }
+    ctx.restore();
+    return output + '...';
+}
+
+function drawGeneratedMapHeader(ctx, options) {
+    const cfg = options && typeof options === 'object' ? options : {};
+    const totalWidth = Number(cfg.totalWidth) || MAP_CANVAS_WIDTH;
+    const titleHeight = Number(cfg.titleHeight) || 100;
+    const teamPrimary = cfg.teamPrimary || '#4169E1';
+    const teamSecondary = cfg.teamSecondary || '#1E90FF';
+    const titleText = String(cfg.titleText || '');
+    const avatarImage = cfg.avatarImage || null;
+
+    const grad = ctx.createLinearGradient(0, 0, totalWidth, titleHeight);
+    grad.addColorStop(0, teamPrimary);
+    grad.addColorStop(1, teamSecondary);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, totalWidth, titleHeight);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, titleHeight - 1);
+    ctx.lineTo(totalWidth, titleHeight - 1);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    const paddingX = 24;
+    let textStartX = paddingX;
+
+    if (avatarImage && avatarImage.width > 0 && avatarImage.height > 0) {
+        const avatarSize = Math.max(36, Math.min(64, titleHeight - 24));
+        const avatarX = paddingX;
+        const avatarY = Math.floor((titleHeight - avatarSize) / 2);
+        const avatarCenterX = avatarX + (avatarSize / 2);
+        const avatarCenterY = avatarY + (avatarSize / 2);
+        const avatarRadius = avatarSize / 2;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(avatarImage, avatarX, avatarY, avatarSize, avatarSize);
+        ctx.restore();
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(avatarCenterX, avatarCenterY, avatarRadius + 1, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.restore();
+
+        textStartX = avatarX + avatarSize + 16;
+    }
+
+    const textMaxWidth = Math.max(120, totalWidth - textStartX - paddingX);
+    const fittedTitle = fitCanvasHeaderText(ctx, titleText, textMaxWidth, 'bold 40px Arial');
+
+    ctx.save();
+    ctx.font = 'bold 40px Arial';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fittedTitle, textStartX, titleHeight / 2);
+    ctx.restore();
+}
+
+async function generateMapWithoutBackground(team, assignments, statusId) {
     showMessage(statusId, t('message_generating_map_no_bg', { team: team }), 'processing');
     
     try {
+        const headerAvatar = await loadActiveEventAvatarForHeader();
+        const headerTitle = getMapHeaderTitle(team);
         const mappedAssignments = {};
         const unmappedAssignments = {};
         const effectivePositions = getEffectiveBuildingPositions();
@@ -4770,16 +4938,14 @@ function generateMapWithoutBackground(team, assignments, statusId) {
         ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 800);
         
         // Title
-        const grad = ctx.createLinearGradient(0, 0, MAP_CANVAS_WIDTH, 100);
-        grad.addColorStop(0, team === 'A' ? '#4169E1' : '#DC143C');
-        grad.addColorStop(1, team === 'A' ? '#1E90FF' : '#FF6347');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 100);
-        
-        ctx.font = 'bold 48px Arial';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, MAP_CANVAS_WIDTH / 2, 60);
+        drawGeneratedMapHeader(ctx, {
+            totalWidth: MAP_CANVAS_WIDTH,
+            titleHeight: 100,
+            teamPrimary: team === 'A' ? '#4169E1' : '#DC143C',
+            teamSecondary: team === 'A' ? '#1E90FF' : '#FF6347',
+            titleText: headerTitle,
+            avatarImage: headerAvatar,
+        });
 
         // List assignments
         ctx.fillStyle = '#333';
@@ -4810,10 +4976,12 @@ function generateMapWithoutBackground(team, assignments, statusId) {
     }
 }
 
-function generateMap(team, assignments, statusId) {
+async function generateMap(team, assignments, statusId) {
     showMessage(statusId, t('message_generating_map', { team: team }), 'processing');
 
     try {
+        const headerAvatar = await loadActiveEventAvatarForHeader();
+        const headerTitle = getMapHeaderTitle(team);
         const teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
         const teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
         const teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
@@ -5049,17 +5217,14 @@ function generateMap(team, assignments, statusId) {
         ctx.fillRect(0, 0, totalWidth, totalHeight);
 
         // Title bar (spans full width)
-        const grad = ctx.createLinearGradient(0, 0, totalWidth, titleHeight);
-        grad.addColorStop(0, teamPrimary);
-        grad.addColorStop(1, teamSecondary);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, totalWidth, titleHeight);
-
-        ctx.font = 'bold 48px Arial';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`TEAM ${team} - ${getActiveEvent().mapTitle}`, MAP_CANVAS_WIDTH / 2, titleHeight / 2);
+        drawGeneratedMapHeader(ctx, {
+            totalWidth: totalWidth,
+            titleHeight: titleHeight,
+            teamPrimary: teamPrimary,
+            teamSecondary: teamSecondary,
+            titleText: headerTitle,
+            avatarImage: headerAvatar,
+        });
 
         ctx.drawImage(activeMapImage, 0, titleHeight, MAP_CANVAS_WIDTH, mapHeight);
 
