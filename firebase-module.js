@@ -54,6 +54,9 @@ const FirebaseManager = (function() {
     const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
     const MAX_PROFILE_TEXT_LEN = 60;
     const MAX_AVATAR_DATA_URL_LEN = 400000;
+    const INVITE_MAX_RESENDS = 3;
+    const INVITE_REMINDER_DAY1_MS = 24 * 60 * 60 * 1000;
+    const INVITE_REMINDER_DAY3_MS = 3 * INVITE_REMINDER_DAY1_MS;
     const LEGACY_EVENT_IDS = ['desert_storm', 'canyon_battlefield'];
     const LEGACY_EVENT_BUILDING_DEFAULTS = {
         desert_storm: [
@@ -104,6 +107,8 @@ const FirebaseManager = (function() {
     let allianceData = null;
     let playerSource = 'personal';
     let pendingInvitations = [];
+    let sentInvitations = [];
+    let invitationNotifications = [];
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let onAuthCallback = null;
     let onDataLoadCallback = null;
@@ -1021,6 +1026,8 @@ const FirebaseManager = (function() {
             allianceData = null;
             playerSource = 'personal';
             pendingInvitations = [];
+            sentInvitations = [];
+            invitationNotifications = [];
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
@@ -1275,6 +1282,8 @@ const FirebaseManager = (function() {
         allianceData = null;
         playerSource = 'personal';
         pendingInvitations = [];
+        sentInvitations = [];
+        invitationNotifications = [];
         userProfile = normalizeUserProfile(null);
         setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
         setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
@@ -1913,11 +1922,223 @@ const FirebaseManager = (function() {
         }
     }
 
+    function timestampToMillis(value) {
+        if (!value) {
+            return 0;
+        }
+        if (typeof value.toMillis === 'function') {
+            return value.toMillis();
+        }
+        if (typeof value.toDate === 'function') {
+            return value.toDate().getTime();
+        }
+        if (value instanceof Date) {
+            return value.getTime();
+        }
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+        const parsed = new Date(value).getTime();
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function invitationSortKey(invitation) {
+        if (!invitation || typeof invitation !== 'object') {
+            return 0;
+        }
+        return timestampToMillis(invitation.lastSentAt) || timestampToMillis(invitation.createdAt);
+    }
+
+    function sortInvitationsNewestFirst(a, b) {
+        return invitationSortKey(b) - invitationSortKey(a);
+    }
+
+    function getInviterDisplayName() {
+        const displayName = userProfile && typeof userProfile.displayName === 'string' ? userProfile.displayName.trim() : '';
+        if (displayName) {
+            return displayName;
+        }
+        const nickname = userProfile && typeof userProfile.nickname === 'string' ? userProfile.nickname.trim() : '';
+        if (nickname) {
+            return nickname;
+        }
+        const providerName = currentUser && typeof currentUser.displayName === 'string' ? currentUser.displayName.trim() : '';
+        return providerName || '';
+    }
+
+    function isAllianceMemberEmail(email) {
+        const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+        if (!normalizedEmail || !allianceData || !allianceData.members || typeof allianceData.members !== 'object') {
+            return false;
+        }
+        return Object.values(allianceData.members).some((member) => {
+            const memberEmail = member && typeof member.email === 'string' ? member.email.toLowerCase() : '';
+            return memberEmail === normalizedEmail;
+        });
+    }
+
+    function normalizeInvitationRecord(doc) {
+        const data = doc && typeof doc.data === 'function'
+            ? (doc.data() || {})
+            : (doc && doc.data && typeof doc.data === 'object' ? doc.data : {});
+        const resendCountRaw = Number(data.resendCount);
+        const maxResendRaw = Number(data.maxResendCount);
+        const resendCount = Number.isFinite(resendCountRaw) && resendCountRaw > 0 ? Math.floor(resendCountRaw) : 0;
+        const maxResendCount = Number.isFinite(maxResendRaw) && maxResendRaw > 0 ? Math.floor(maxResendRaw) : INVITE_MAX_RESENDS;
+
+        return {
+            id: doc && typeof doc.id === 'string' ? doc.id : '',
+            allianceId: typeof data.allianceId === 'string' ? data.allianceId : '',
+            allianceName: typeof data.allianceName === 'string' ? data.allianceName : '',
+            invitedEmail: typeof data.invitedEmail === 'string' ? data.invitedEmail : '',
+            invitedBy: typeof data.invitedBy === 'string' ? data.invitedBy : '',
+            inviterEmail: typeof data.inviterEmail === 'string' ? data.inviterEmail : '',
+            inviterName: typeof data.inviterName === 'string' ? data.inviterName : '',
+            status: typeof data.status === 'string' ? data.status : 'pending',
+            resendCount: resendCount,
+            maxResendCount: maxResendCount,
+            createdAt: data.createdAt || null,
+            lastSentAt: data.lastSentAt || data.createdAt || null,
+            reminderDay1SentAt: data.reminderDay1SentAt || null,
+            reminderDay3SentAt: data.reminderDay3SentAt || null,
+            respondedAt: data.respondedAt || null,
+            revokedAt: data.revokedAt || null,
+            updatedAt: data.updatedAt || null,
+            _ref: doc && doc.ref ? doc.ref : null,
+        };
+    }
+
+    function stripInvitationPrivateFields(invitation) {
+        if (!invitation || typeof invitation !== 'object') {
+            return invitation;
+        }
+        const clone = { ...invitation };
+        delete clone._ref;
+        return clone;
+    }
+
+    function buildInvitationNotifications(invitations) {
+        const notifications = [];
+        invitations.forEach((invitation) => {
+            if (!invitation || typeof invitation !== 'object') {
+                return;
+            }
+            const invitationId = typeof invitation.id === 'string' ? invitation.id : '';
+            if (!invitationId) {
+                return;
+            }
+
+            const basePayload = {
+                invitationId: invitationId,
+                allianceId: invitation.allianceId || '',
+                allianceName: invitation.allianceName || '',
+                invitedEmail: invitation.invitedEmail || '',
+                invitedBy: invitation.invitedBy || '',
+                inviterEmail: invitation.inviterEmail || '',
+                inviterName: invitation.inviterName || '',
+            };
+
+            notifications.push({
+                ...basePayload,
+                id: `invite:${invitationId}`,
+                notificationType: 'invitation_pending',
+                createdAt: invitation.lastSentAt || invitation.createdAt || null,
+            });
+
+            if (timestampToMillis(invitation.reminderDay1SentAt)) {
+                notifications.push({
+                    ...basePayload,
+                    id: `invite:${invitationId}:day1`,
+                    notificationType: 'invite_reminder_day1',
+                    createdAt: invitation.reminderDay1SentAt,
+                });
+            }
+
+            if (timestampToMillis(invitation.reminderDay3SentAt)) {
+                notifications.push({
+                    ...basePayload,
+                    id: `invite:${invitationId}:day3`,
+                    notificationType: 'invite_reminder_day3',
+                    createdAt: invitation.reminderDay3SentAt,
+                });
+            }
+        });
+
+        notifications.sort((a, b) => timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt));
+        return notifications;
+    }
+
+    async function markPendingInvitationReminders(invitations) {
+        if (!Array.isArray(invitations) || invitations.length === 0) {
+            return;
+        }
+
+        const now = Date.now();
+        const writes = [];
+
+        invitations.forEach((invitation) => {
+            if (!invitation || invitation.status !== 'pending' || !invitation._ref) {
+                return;
+            }
+
+            const lastSentMillis = timestampToMillis(invitation.lastSentAt) || timestampToMillis(invitation.createdAt);
+            if (!lastSentMillis) {
+                return;
+            }
+
+            const ageMs = now - lastSentMillis;
+            const hasDay1Reminder = timestampToMillis(invitation.reminderDay1SentAt) > 0;
+            const hasDay3Reminder = timestampToMillis(invitation.reminderDay3SentAt) > 0;
+            const shouldSetDay1 = ageMs >= INVITE_REMINDER_DAY1_MS && !hasDay1Reminder;
+            const shouldSetDay3 = ageMs >= INVITE_REMINDER_DAY3_MS && !hasDay3Reminder;
+
+            if (!shouldSetDay1 && !shouldSetDay3) {
+                return;
+            }
+
+            const payload = {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            };
+
+            if (shouldSetDay1 || (shouldSetDay3 && !hasDay1Reminder)) {
+                payload.reminderDay1SentAt = firebase.firestore.FieldValue.serverTimestamp();
+                invitation.reminderDay1SentAt = new Date(now);
+            }
+
+            if (shouldSetDay3) {
+                payload.reminderDay3SentAt = firebase.firestore.FieldValue.serverTimestamp();
+                invitation.reminderDay3SentAt = new Date(now);
+            }
+
+            writes.push(invitation._ref.update(payload));
+        });
+
+        if (writes.length === 0) {
+            return;
+        }
+
+        try {
+            await Promise.all(writes);
+        } catch (error) {
+            console.warn('Failed to persist invitation reminder timestamps:', error);
+        }
+    }
+
     async function sendInvitation(email) {
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         const normalizedEmail = email.trim().toLowerCase();
         if (!normalizedEmail) return { success: false, error: 'Email is required' };
+
+        const currentUserEmail = currentUser && typeof currentUser.email === 'string'
+            ? currentUser.email.toLowerCase()
+            : '';
+        if (currentUserEmail && normalizedEmail === currentUserEmail) {
+            return { success: false, errorKey: 'alliance_error_invite_self' };
+        }
+        if (isAllianceMemberEmail(normalizedEmail)) {
+            return { success: false, errorKey: 'alliance_error_invitee_already_member' };
+        }
 
         try {
             const existing = await db.collection('invitations')
@@ -1927,21 +2148,30 @@ const FirebaseManager = (function() {
                 .get();
 
             if (!existing.empty) {
-                return { success: false, error: 'Invitation already pending for this email' };
+                return { success: false, errorKey: 'alliance_invite_pending_exists' };
             }
 
-            await db.collection('invitations').add({
+            const inviteRef = await db.collection('invitations').add({
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
                 invitedBy: currentUser.uid,
                 inviterEmail: currentUser.email,
+                inviterName: getInviterDisplayName(),
                 status: 'pending',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                respondedAt: null
+                lastSentAt: firebase.firestore.FieldValue.serverTimestamp(),
+                resendCount: 0,
+                maxResendCount: INVITE_MAX_RESENDS,
+                reminderDay1SentAt: null,
+                reminderDay3SentAt: null,
+                respondedAt: null,
+                revokedAt: null,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            return { success: true };
+            await checkInvitations();
+            return { success: true, invitationId: inviteRef.id };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -1950,24 +2180,42 @@ const FirebaseManager = (function() {
     async function checkInvitations() {
         if (!currentUser || !currentUser.email) {
             pendingInvitations = [];
-            return [];
+            sentInvitations = [];
+            invitationNotifications = [];
+            return invitationNotifications;
         }
 
         try {
-            const snapshot = await db.collection('invitations')
-                .where('invitedEmail', '==', currentUser.email.toLowerCase())
+            const normalizedEmail = currentUser.email.toLowerCase();
+            const pendingReceivedPromise = db.collection('invitations')
+                .where('invitedEmail', '==', normalizedEmail)
                 .where('status', '==', 'pending')
                 .get();
+            const pendingSentPromise = db.collection('invitations')
+                .where('invitedBy', '==', currentUser.uid)
+                .get();
 
-            pendingInvitations = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+            const [receivedSnapshot, sentSnapshot] = await Promise.all([pendingReceivedPromise, pendingSentPromise]);
 
-            return pendingInvitations;
+            pendingInvitations = receivedSnapshot.docs
+                .map((doc) => normalizeInvitationRecord(doc))
+                .filter((invite) => invite.status === 'pending')
+                .sort(sortInvitationsNewestFirst);
+            await markPendingInvitationReminders(pendingInvitations);
+
+            sentInvitations = sentSnapshot.docs
+                .map((doc) => normalizeInvitationRecord(doc))
+                .filter((invite) => invite.status === 'pending')
+                .filter((invite) => !allianceId || invite.allianceId === allianceId)
+                .sort(sortInvitationsNewestFirst);
+
+            invitationNotifications = buildInvitationNotifications(pendingInvitations);
+            return getInvitationNotifications();
         } catch (error) {
             console.error('Failed to check invitations:', error);
             pendingInvitations = [];
+            sentInvitations = [];
+            invitationNotifications = [];
             return [];
         }
     }
@@ -2002,7 +2250,8 @@ const FirebaseManager = (function() {
 
             await db.collection('invitations').doc(invitationId).update({
                 status: 'accepted',
-                respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
             allianceId = inv.allianceId;
@@ -2013,6 +2262,7 @@ const FirebaseManager = (function() {
             }, { merge: true });
 
             await loadAllianceData();
+            await checkInvitations();
             return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
         } catch (error) {
             return { success: false, error: error.message };
@@ -2035,11 +2285,102 @@ const FirebaseManager = (function() {
 
             await db.collection('invitations').doc(invitationId).update({
                 status: 'rejected',
-                respondedAt: firebase.firestore.FieldValue.serverTimestamp()
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            pendingInvitations = pendingInvitations.filter(inv => inv.id !== invitationId);
+            await checkInvitations();
             return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function revokeInvitation(invitationId) {
+        if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
+
+        try {
+            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invitationDoc = await invitationRef.get();
+            if (!invitationDoc.exists) {
+                return { success: false, errorKey: 'alliance_invite_not_found' };
+            }
+
+            const invitation = invitationDoc.data() || {};
+            if (invitation.status !== 'pending') {
+                return { success: false, errorKey: 'alliance_invite_not_pending' };
+            }
+            if (invitation.invitedBy !== currentUser.uid) {
+                return { success: false, errorKey: 'alliance_invite_not_owner' };
+            }
+            if (invitation.allianceId !== allianceId) {
+                return { success: false, errorKey: 'alliance_invite_not_owner' };
+            }
+
+            await invitationRef.update({
+                status: 'revoked',
+                revokedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+
+            await checkInvitations();
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    async function resendInvitation(invitationId) {
+        if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
+
+        try {
+            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invitationDoc = await invitationRef.get();
+            if (!invitationDoc.exists) {
+                return { success: false, errorKey: 'alliance_invite_not_found' };
+            }
+
+            const invitation = invitationDoc.data() || {};
+            if (invitation.status !== 'pending') {
+                return { success: false, errorKey: 'alliance_invite_not_pending' };
+            }
+            if (invitation.invitedBy !== currentUser.uid) {
+                return { success: false, errorKey: 'alliance_invite_not_owner' };
+            }
+            if (invitation.allianceId !== allianceId) {
+                return { success: false, errorKey: 'alliance_invite_not_owner' };
+            }
+
+            const resendCountRaw = Number(invitation.resendCount);
+            const resendCount = Number.isFinite(resendCountRaw) && resendCountRaw > 0 ? Math.floor(resendCountRaw) : 0;
+            if (resendCount >= INVITE_MAX_RESENDS) {
+                return {
+                    success: false,
+                    errorKey: 'alliance_invite_resend_limit',
+                    errorParams: { max: INVITE_MAX_RESENDS },
+                };
+            }
+
+            const nextResendCount = resendCount + 1;
+            await invitationRef.update({
+                resendCount: nextResendCount,
+                maxResendCount: INVITE_MAX_RESENDS,
+                inviterEmail: currentUser.email || invitation.inviterEmail || '',
+                inviterName: getInviterDisplayName(),
+                lastSentAt: firebase.firestore.FieldValue.serverTimestamp(),
+                reminderDay1SentAt: null,
+                reminderDay3SentAt: null,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+
+            await checkInvitations();
+            return {
+                success: true,
+                resendCount: nextResendCount,
+                maxResendCount: INVITE_MAX_RESENDS,
+                remainingResends: Math.max(0, INVITE_MAX_RESENDS - nextResendCount),
+            };
         } catch (error) {
             return { success: false, error: error.message };
         }
@@ -2147,7 +2488,9 @@ const FirebaseManager = (function() {
     function getAllianceName() { return allianceName; }
     function getAllianceData() { return allianceData; }
     function getPlayerSource() { return playerSource; }
-    function getPendingInvitations() { return pendingInvitations; }
+    function getPendingInvitations() { return pendingInvitations.map(stripInvitationPrivateFields); }
+    function getSentInvitations() { return sentInvitations.map(stripInvitationPrivateFields); }
+    function getInvitationNotifications() { return invitationNotifications.map(stripInvitationPrivateFields); }
     function getAllianceMembers() {
         return allianceData && allianceData.members ? allianceData.members : {};
     }
@@ -2400,6 +2743,8 @@ const FirebaseManager = (function() {
         checkInvitations: checkInvitations,
         acceptInvitation: acceptInvitation,
         rejectInvitation: rejectInvitation,
+        revokeInvitation: revokeInvitation,
+        resendInvitation: resendInvitation,
         uploadAlliancePlayerDatabase: uploadAlliancePlayerDatabase,
         getAlliancePlayerDatabase: getAlliancePlayerDatabase,
         getActivePlayerDatabase: getActivePlayerDatabase,
@@ -2411,6 +2756,8 @@ const FirebaseManager = (function() {
         getAllianceData: getAllianceData,
         getPlayerSource: getPlayerSource,
         getPendingInvitations: getPendingInvitations,
+        getSentInvitations: getSentInvitations,
+        getInvitationNotifications: getInvitationNotifications,
         getAllianceMembers: getAllianceMembers
     };
     

@@ -145,6 +145,12 @@
         rejectInvitation: async function rejectInvitation(invitationId) {
             return withManager((svc) => svc.rejectInvitation(invitationId), notLoadedResult());
         },
+        revokeInvitation: async function revokeInvitation(invitationId) {
+            return withManager((svc) => svc.revokeInvitation(invitationId), notLoadedResult());
+        },
+        resendInvitation: async function resendInvitation(invitationId) {
+            return withManager((svc) => svc.resendInvitation(invitationId), notLoadedResult());
+        },
         uploadAlliancePlayerDatabase: async function uploadAlliancePlayerDatabase(file) {
             return withManager((svc) => svc.uploadAlliancePlayerDatabase(file), Promise.reject(notLoadedResult()));
         },
@@ -162,6 +168,12 @@
         },
         getPendingInvitations: function getPendingInvitations() {
             return withManager((svc) => svc.getPendingInvitations(), []);
+        },
+        getSentInvitations: function getSentInvitations() {
+            return withManager((svc) => svc.getSentInvitations(), []);
+        },
+        getInvitationNotifications: function getInvitationNotifications() {
+            return withManager((svc) => svc.getInvitationNotifications(), []);
         },
         getAllianceMembers: function getAllianceMembers() {
             return withManager((svc) => svc.getAllianceMembers(), {});

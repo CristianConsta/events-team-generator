@@ -2448,6 +2448,7 @@ function renderAlliancePanel() {
             getAllianceMembers: () => FirebaseService.getAllianceMembers(),
             getAllianceName: () => FirebaseService.getAllianceName(),
             getPendingInvitations: getPendingInvitationsList,
+            getSentInvitations: getSentInvitationsList,
             getInvitationSenderDisplay: getInvitationSenderDisplay,
             formatInvitationCreatedAt: formatInvitationCreatedAt,
             getPendingInviteFocusId: () => pendingAllianceInviteFocusId,
@@ -2459,6 +2460,8 @@ function renderAlliancePanel() {
             onLeaveAlliance: handleLeaveAlliance,
             onAcceptInvitation: handleAcceptInvitation,
             onRejectInvitation: handleRejectInvitation,
+            onResendInvitation: handleResendInvitation,
+            onRevokeInvitation: handleRevokeInvitation,
             translate: t,
         });
         return;
@@ -2471,6 +2474,14 @@ function getPendingInvitationsList() {
         return [];
     }
     const invitations = FirebaseService.getPendingInvitations();
+    return Array.isArray(invitations) ? invitations : [];
+}
+
+function getSentInvitationsList() {
+    if (typeof FirebaseService === 'undefined' || !FirebaseService.getSentInvitations) {
+        return [];
+    }
+    const invitations = FirebaseService.getSentInvitations();
     return Array.isArray(invitations) ? invitations : [];
 }
 
@@ -2551,6 +2562,9 @@ async function handleSendInvitation() {
     if (result.success) {
         showMessage('inviteStatus', t('alliance_invite_sent_in_app'), 'success');
         document.getElementById('inviteEmail').value = '';
+        await checkAndDisplayNotifications();
+        renderNotifications();
+        renderAlliancePanel();
     } else {
         showMessage('inviteStatus', translateAllianceError(result), 'error');
     }
@@ -2613,15 +2627,16 @@ let notificationPollInterval = null;
 async function checkAndDisplayNotifications() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.isSignedIn()) return;
 
-    const invitations = await FirebaseService.checkInvitations();
+    const notifications = await FirebaseService.checkInvitations();
+    const totalNotifications = Array.isArray(notifications) ? notifications.length : 0;
     const badge = document.getElementById('notificationBadge');
     const notificationBtn = document.getElementById('notificationBtn');
     if (badge) {
-        badge.textContent = invitations.length;
-        badge.style.display = invitations.length > 0 ? 'flex' : 'none';
+        badge.textContent = totalNotifications;
+        badge.style.display = totalNotifications > 0 ? 'flex' : 'none';
     }
     if (notificationBtn) {
-        notificationBtn.classList.toggle('has-notifications', invitations.length > 0);
+        notificationBtn.classList.toggle('has-notifications', totalNotifications > 0);
     }
 }
 
@@ -2653,11 +2668,36 @@ async function toggleNotificationsPanel() {
     }
 }
 
+function getNotificationItems() {
+    if (typeof FirebaseService === 'undefined') {
+        return [];
+    }
+    if (FirebaseService.getInvitationNotifications) {
+        const items = FirebaseService.getInvitationNotifications();
+        return Array.isArray(items) ? items : [];
+    }
+
+    const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations() : [];
+    if (!Array.isArray(invitations)) {
+        return [];
+    }
+    return invitations.map((inv) => ({
+        id: inv && inv.id ? `invite:${inv.id}` : '',
+        invitationId: inv && inv.id ? inv.id : '',
+        notificationType: 'invitation_pending',
+        allianceId: inv && inv.allianceId ? inv.allianceId : '',
+        allianceName: inv && inv.allianceName ? inv.allianceName : '',
+        inviterEmail: inv && inv.inviterEmail ? inv.inviterEmail : '',
+        inviterName: inv && inv.inviterName ? inv.inviterName : '',
+        createdAt: inv && inv.createdAt ? inv.createdAt : null,
+    }));
+}
+
 function renderNotifications() {
     const container = document.getElementById('notificationsList');
-    const invitations = typeof FirebaseService !== 'undefined' ? FirebaseService.getPendingInvitations() : [];
+    const notifications = getNotificationItems();
 
-    if (invitations.length === 0) {
+    if (notifications.length === 0) {
         const emptyState = document.createElement('p');
         emptyState.style.opacity = '0.6';
         emptyState.style.textAlign = 'center';
@@ -2667,7 +2707,7 @@ function renderNotifications() {
     }
 
     container.replaceChildren();
-    invitations.forEach((inv) => {
+    notifications.forEach((item) => {
         const card = document.createElement('div');
         card.style.padding = '12px';
         card.style.background = 'rgba(255,255,255,0.05)';
@@ -2680,9 +2720,9 @@ function renderNotifications() {
 
         const heading = document.createElement('div');
         heading.style.marginBottom = '8px';
-        const allianceLabel = (typeof inv.allianceName === 'string' && inv.allianceName.trim())
-            ? inv.allianceName.trim()
-            : String(inv.allianceId || '');
+        const allianceLabel = (typeof item.allianceName === 'string' && item.allianceName.trim())
+            ? item.allianceName.trim()
+            : String(item.allianceId || '');
         const title = document.createElement('strong');
         title.textContent = t('notification_alliance_label', { alliance: allianceLabel || '-' });
         heading.appendChild(title);
@@ -2691,7 +2731,16 @@ function renderNotifications() {
         detail.style.opacity = '0.7';
         detail.style.fontSize = '13px';
         detail.style.marginBottom = '10px';
-        detail.textContent = t('notification_invited_by', { email: getInvitationSenderDisplay(inv) || '-' });
+        const notificationType = item && typeof item.notificationType === 'string'
+            ? item.notificationType
+            : 'invitation_pending';
+        if (notificationType === 'invite_reminder_day1') {
+            detail.textContent = t('notification_invite_reminder_day1');
+        } else if (notificationType === 'invite_reminder_day3') {
+            detail.textContent = t('notification_invite_reminder_day3');
+        } else {
+            detail.textContent = t('notification_invited_by', { email: getInvitationSenderDisplay(item) || '-' });
+        }
 
         const cta = document.createElement('div');
         cta.style.fontSize = '12px';
@@ -2702,11 +2751,11 @@ function renderNotifications() {
         card.appendChild(heading);
         card.appendChild(detail);
         card.appendChild(cta);
-        card.addEventListener('click', () => openAllianceInvitesFromNotification(inv.id));
+        card.addEventListener('click', () => openAllianceInvitesFromNotification(item.invitationId || item.id));
         card.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                openAllianceInvitesFromNotification(inv.id);
+                openAllianceInvitesFromNotification(item.invitationId || item.id);
             }
         });
         container.appendChild(card);
@@ -2760,6 +2809,30 @@ async function handleRejectInvitation(invitationId, statusElementId) {
         showMessage(statusElementId || 'allianceInvitesStatus', t('success_generic'), 'success');
     } else {
         showMessage(statusElementId || 'allianceInvitesStatus', translateAllianceError(result), 'error');
+    }
+}
+
+async function handleRevokeInvitation(invitationId, statusElementId) {
+    const result = await FirebaseService.revokeInvitation(invitationId);
+    if (result.success) {
+        await checkAndDisplayNotifications();
+        renderNotifications();
+        renderAlliancePanel();
+        showMessage(statusElementId || 'allianceSentInvitesStatus', t('alliance_invite_revoke_success'), 'success');
+    } else {
+        showMessage(statusElementId || 'allianceSentInvitesStatus', translateAllianceError(result), 'error');
+    }
+}
+
+async function handleResendInvitation(invitationId, statusElementId) {
+    const result = await FirebaseService.resendInvitation(invitationId);
+    if (result.success) {
+        await checkAndDisplayNotifications();
+        renderNotifications();
+        renderAlliancePanel();
+        showMessage(statusElementId || 'allianceSentInvitesStatus', t('alliance_invite_resend_success'), 'success');
+    } else {
+        showMessage(statusElementId || 'allianceSentInvitesStatus', translateAllianceError(result), 'error');
     }
 }
 
