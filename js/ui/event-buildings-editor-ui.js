@@ -19,8 +19,8 @@
         const row = document.createElement('tr');
         row.innerHTML = `
         <td><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
-        <td><input type="number" data-field="slots" min="${minSlots}" max="${maxSlots}" value="${Number.isFinite(slots) ? Math.max(minSlots, Math.min(maxSlots, Math.round(slots))) : 0}"></td>
-        <td><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
+        <td data-label="${escapeAttribute(translate('buildings_table_slots'))}"><input type="number" data-field="slots" min="${minSlots}" max="${maxSlots}" value="${Number.isFinite(slots) ? Math.max(minSlots, Math.min(maxSlots, Math.round(slots))) : 0}"></td>
+        <td data-label="${escapeAttribute(translate('buildings_table_priority'))}"><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
         <td><input type="checkbox" data-field="showOnMap" ${showOnMap ? 'checked' : ''} aria-label="${escapeAttribute(translate('buildings_table_on_map'))}"></td>
         <td><button class="clear-btn" type="button" data-action="remove-row">${translate('events_manager_remove')}</button></td>
     `;

@@ -1629,6 +1629,17 @@ select {
     .event-media-grid {
         grid-template-columns: 1fr;
     }
+    .events-list-card,
+    .events-editor-card {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .events-editor-header h3 {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 
 /* =============================================
@@ -1637,7 +1648,7 @@ select {
 @media (max-width: 480px) {
     body { padding: 10px; }
     h1 { font-size: 1.5rem; margin-bottom: 16px; }
-    .card { padding: 16px; margin: 12px 0; }
+    .card { padding: 16px; margin: 12px 0; overflow: hidden; }
     .card h2 { font-size: 1.2rem; }
 
     /* Global button tweaks */
@@ -1658,14 +1669,27 @@ select {
         grid-template-columns: 1fr;
         gap: 12px;
     }
+    .events-list-card,
+    .events-editor-card {
+        padding: 10px;
+    }
     .events-list {
         max-height: 220px;
     }
     .event-media-grid {
         grid-template-columns: 1fr;
     }
+    .event-media-block {
+        padding: 10px;
+    }
     .event-map-preview {
         height: 130px;
+    }
+    .event-editor-actions {
+        flex-direction: column;
+    }
+    .event-editor-actions button {
+        width: 100%;
     }
 
     /* ── Filters — full-width stack ── */
@@ -1710,11 +1734,11 @@ select {
     .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
 
     /* ── Players table → card layout ── */
-    #playersTable, #buildingsTable, #playersMgmtTable { display: block; }
-    #playersTable thead, #buildingsTable thead, #playersMgmtTable thead { display: none; }
-    #playersTable tbody, #buildingsTable tbody, #playersMgmtTable tbody { display: block; }
+    #playersTable, #buildingsTable, #playersMgmtTable, #eventBuildingsEditorTable { display: block; }
+    #playersTable thead, #buildingsTable thead, #playersMgmtTable thead, #eventBuildingsEditorTable thead { display: none; }
+    #playersTable tbody, #buildingsTable tbody, #playersMgmtTable tbody, #eventBuildingsEditorTable tbody { display: block; }
 
-    #playersTable tr, #buildingsTable tr, #playersMgmtTable tr {
+    #playersTable tr, #buildingsTable tr, #playersMgmtTable tr, #eventBuildingsEditorTable tr {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -1735,13 +1759,68 @@ select {
     #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.2); border-color: rgba(var(--team-a-rgb),0.4); }
     #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.2); border-color: rgba(var(--team-b-rgb),0.4); }
 
-    #playersTable td, #buildingsTable td {
+    #playersTable td, #buildingsTable td, #playersMgmtTable td, #eventBuildingsEditorTable td {
         border-bottom: none;
         padding: 5px 0;
     }
     #buildingsTable td {
         display: block;
         min-width: 0;
+    }
+
+    /* ── Event buildings editor → card layout ── */
+    #eventBuildingsEditorTable tr {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 8px;
+        row-gap: 6px;
+        align-items: center;
+    }
+    #eventBuildingsEditorTable td {
+        display: block;
+        min-width: 0;
+    }
+    /* Building name spans full width */
+    #eventBuildingsEditorTable td:first-child {
+        grid-column: 1 / -1;
+    }
+    #eventBuildingsEditorTable td:first-child input[type="text"] {
+        width: 100%;
+        min-width: 0;
+        font-size: 15px;
+        box-sizing: border-box;
+    }
+    /* #Players and Priority side by side */
+    #eventBuildingsEditorTable td:nth-child(2) input,
+    #eventBuildingsEditorTable td:nth-child(3) input {
+        width: 100%;
+        min-width: 0;
+        font-size: 15px;
+        box-sizing: border-box;
+    }
+    /* On Map checkbox and Remove button share last row */
+    #eventBuildingsEditorTable td:nth-child(4) {
+        width: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    #eventBuildingsEditorTable td:nth-child(5) {
+        display: flex;
+        justify-content: flex-end;
+    }
+    #eventBuildingsEditorTable td:nth-child(5) .clear-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    /* Show inline labels for event building editor fields */
+    #eventBuildingsEditorTable td:nth-child(2)::before,
+    #eventBuildingsEditorTable td:nth-child(3)::before {
+        display: block;
+        font-size: 11px;
+        opacity: 0.6;
+        margin-bottom: 2px;
+        content: attr(data-label);
     }
 
     /* Players: name + power + troops on one line, buttons below */
