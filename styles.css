@@ -1689,6 +1689,19 @@ select {
         align-items: flex-start;
         flex-direction: column;
     }
+    #playersListSection button {
+        min-height: 40px;
+        padding: 10px 12px;
+        font-size: 14px;
+    }
+    #playersMgmtSourceControls .selection-source-actions {
+        width: 100%;
+        gap: 8px;
+    }
+    #playersMgmtSourceControls .selection-source-actions button {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+    }
     .filter-dropdown { flex: 0 0 auto; }
     .filter-dropdown-panel { min-width: 160px; }
 
@@ -1697,11 +1710,11 @@ select {
     .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
 
     /* ── Players table → card layout ── */
-    #playersTable, #buildingsTable { display: block; }
-    #playersTable thead, #buildingsTable thead { display: none; }
-    #playersTable tbody, #buildingsTable tbody { display: block; }
+    #playersTable, #buildingsTable, #playersMgmtTable { display: block; }
+    #playersTable thead, #buildingsTable thead, #playersMgmtTable thead { display: none; }
+    #playersTable tbody, #buildingsTable tbody, #playersMgmtTable tbody { display: block; }
 
-    #playersTable tr, #buildingsTable tr {
+    #playersTable tr, #buildingsTable tr, #playersMgmtTable tr {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -1749,6 +1762,41 @@ select {
         padding-top: 8px;
         border-top: 1px solid rgba(255,255,255,0.08);
         margin-top: 2px;
+    }
+    #playersMgmtTable tr {
+        display: block;
+        padding: 10px 12px;
+    }
+    #playersMgmtTable td {
+        border-bottom: none;
+        padding: 6px 0;
+        display: block;
+    }
+    #playersMgmtTable td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.68);
+        margin-bottom: 4px;
+    }
+    #playersMgmtTable .players-mgmt-empty-row td::before {
+        content: '';
+        display: none;
+    }
+    #playersMgmtTable .players-mgmt-actions {
+        justify-content: flex-start;
+        gap: 6px;
+    }
+    #playersMgmtTable .players-mgmt-actions button {
+        min-height: 34px;
+        padding: 7px 10px;
+        font-size: 13px;
+        margin: 0;
+    }
+    #playersMgmtTable .players-mgmt-edit-row input,
+    #playersMgmtTable .players-mgmt-edit-row select {
+        min-height: 38px;
     }
 
     /* Team buttons — touch-friendly */
@@ -1898,6 +1946,7 @@ select {
     }
 
 }
+
 
 
 

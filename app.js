@@ -2640,11 +2640,16 @@ function renderPlayersManagementTable() {
 
     if (rows.length === 0) {
         const emptyRow = document.createElement('tr');
+        emptyRow.classList.add('players-mgmt-empty-row');
         emptyRow.innerHTML = `<td colspan="4" style="opacity: 0.7;">${escapeHtml(t('players_list_empty'))}</td>`;
         tbody.appendChild(emptyRow);
         return;
     }
 
+    const playerNameHeader = escapeAttribute(t('table_header_player_name'));
+    const powerHeader = escapeAttribute(t('table_header_power'));
+    const troopHeader = escapeAttribute(t('table_header_troop'));
+    const actionsHeader = escapeAttribute(t('players_list_actions_header'));
     const fragment = document.createDocumentFragment();
     rows.forEach((player) => {
         const row = document.createElement('tr');
@@ -2653,9 +2658,9 @@ function renderPlayersManagementTable() {
             row.classList.add('players-mgmt-edit-row');
             const troopsValue = player.troops;
             row.innerHTML = `
-                <td><input type="text" data-field="name" value="${escapeAttribute(player.name)}"></td>
-                <td><input type="number" data-field="power" min="0" step="0.1" value="${escapeAttribute(String(player.power))}"></td>
-                <td>
+                <td data-label="${playerNameHeader}"><input type="text" data-field="name" value="${escapeAttribute(player.name)}"></td>
+                <td data-label="${powerHeader}"><input type="number" data-field="power" min="0" step="0.1" value="${escapeAttribute(String(player.power))}"></td>
+                <td data-label="${troopHeader}">
                     <select data-field="troops">
                         <option value="Tank" ${troopsValue === 'Tank' ? 'selected' : ''}>${escapeHtml(t('troops_filter_tank'))}</option>
                         <option value="Aero" ${troopsValue === 'Aero' ? 'selected' : ''}>${escapeHtml(t('troops_filter_aero'))}</option>
@@ -2663,7 +2668,7 @@ function renderPlayersManagementTable() {
                         <option value="Unknown" ${troopsValue !== 'Tank' && troopsValue !== 'Aero' && troopsValue !== 'Missile' ? 'selected' : ''}>Unknown</option>
                     </select>
                 </td>
-                <td>
+                <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions">
                         <button type="button" data-pm-action="save" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_save_button'))}</button>
                         <button type="button" class="secondary" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_cancel_button'))}</button>
@@ -2672,10 +2677,10 @@ function renderPlayersManagementTable() {
             `;
         } else {
             row.innerHTML = `
-                <td><strong>${escapeHtml(player.name)}</strong></td>
-                <td>${escapeHtml(String(player.power))}M</td>
-                <td>${escapeHtml(getTroopLabel(player.troops))}</td>
-                <td>
+                <td data-label="${playerNameHeader}"><strong>${escapeHtml(player.name)}</strong></td>
+                <td data-label="${powerHeader}">${escapeHtml(String(player.power))}M</td>
+                <td data-label="${troopHeader}">${escapeHtml(getTroopLabel(player.troops))}</td>
+                <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions">
                         <button type="button" class="secondary" data-pm-action="edit" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_edit_button'))}</button>
                         <button type="button" class="clear-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_delete_button'))}</button>
