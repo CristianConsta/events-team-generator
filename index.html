@@ -409,6 +409,17 @@
                             </div>
                             <div id="playersMgmtSourceStatus"></div>
                         </div>
+                        <form id="playersMgmtAddForm" class="players-mgmt-add-form">
+                            <input type="text" id="playersMgmtNewName" data-i18n-placeholder="players_list_add_name_placeholder" placeholder="Player Name" maxlength="80">
+                            <input type="number" id="playersMgmtNewPower" data-i18n-placeholder="players_list_add_power_placeholder" placeholder="Power (M)" min="0" step="0.1">
+                            <select id="playersMgmtNewTroops">
+                                <option value="Tank" data-i18n="troops_filter_tank">Tank</option>
+                                <option value="Aero" data-i18n="troops_filter_aero">Aero</option>
+                                <option value="Missile" data-i18n="troops_filter_missile">Missile</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                            <button id="playersMgmtAddBtn" type="submit"><span data-i18n="players_list_add_button">Add Player</span></button>
+                        </form>
                         <div class="players-mgmt-filters">
                             <input type="text" id="playersMgmtSearchFilter" data-i18n-placeholder="search_placeholder" placeholder="Search player name...">
                             <select id="playersMgmtTroopsFilter">

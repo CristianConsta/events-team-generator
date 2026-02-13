@@ -303,6 +303,13 @@ function bindStaticUiActions() {
     on('playersListPanelHeader', 'click', togglePlayersListPanel);
     on('playersMgmtSourcePersonalBtn', 'click', () => switchPlayersManagementSource('personal'));
     on('playersMgmtSourceAllianceBtn', 'click', () => switchPlayersManagementSource('alliance'));
+    const playersMgmtAddForm = document.getElementById('playersMgmtAddForm');
+    if (playersMgmtAddForm) {
+        playersMgmtAddForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            handlePlayersManagementAddPlayer();
+        });
+    }
     on('playersMgmtSearchFilter', 'input', handlePlayersManagementFilterChange);
     on('playersMgmtTroopsFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtSortFilter', 'change', handlePlayersManagementFilterChange);
@@ -2677,6 +2684,57 @@ async function switchPlayersManagementSource(source) {
         showPlayersManagementPage();
     }
     renderPlayersManagementPanel();
+}
+
+function resetPlayersManagementAddForm() {
+    const nameInput = document.getElementById('playersMgmtNewName');
+    const powerInput = document.getElementById('playersMgmtNewPower');
+    const troopsSelect = document.getElementById('playersMgmtNewTroops');
+    if (nameInput) {
+        nameInput.value = '';
+    }
+    if (powerInput) {
+        powerInput.value = '';
+    }
+    if (troopsSelect) {
+        troopsSelect.value = 'Tank';
+    }
+}
+
+async function handlePlayersManagementAddPlayer() {
+    if (typeof FirebaseService === 'undefined') {
+        showMessage('playersMgmtStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+
+    const nameInput = document.getElementById('playersMgmtNewName');
+    const powerInput = document.getElementById('playersMgmtNewPower');
+    const troopsSelect = document.getElementById('playersMgmtNewTroops');
+    const source = getPlayersManagementActiveSource();
+    const payload = {
+        name: nameInput ? nameInput.value : '',
+        power: powerInput ? powerInput.value : 0,
+        troops: troopsSelect ? troopsSelect.value : 'Unknown',
+    };
+
+    const result = await FirebaseService.upsertPlayerEntry(source, '', payload);
+    if (result && result.success) {
+        playersManagementEditingName = '';
+        showMessage('playersMgmtStatus', t('players_list_added'), 'success');
+        resetPlayersManagementAddForm();
+        const returnToPlayersPage = currentPageView === 'players';
+        loadPlayerData();
+        if (returnToPlayersPage) {
+            showPlayersManagementPage();
+        }
+        renderPlayersManagementPanel();
+        if (nameInput) {
+            nameInput.focus();
+        }
+        return;
+    }
+
+    showMessage('playersMgmtStatus', translatePlayersManagementError(result), 'error');
 }
 
 async function handlePlayersManagementTableAction(event) {

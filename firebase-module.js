@@ -52,6 +52,7 @@ const FirebaseManager = (function() {
     }
 
     const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    const MAX_PLAYER_DATABASE_SIZE = 100;
     const MAX_PROFILE_TEXT_LEN = 60;
     const MAX_AVATAR_DATA_URL_LEN = 400000;
     const INVITE_MAX_RESENDS = 3;
@@ -1678,33 +1679,43 @@ const FirebaseManager = (function() {
                     // Headers at row 10, so start reading from row 10 (0-indexed = 9)
                     const players = XLSX.utils.sheet_to_json(sheet, {range: 9});
                     
-                    // Clear existing database
-                    playerDatabase = {};
-                    
-                    // Add players to database
-                    let addedCount = 0;
+                    const nextDatabase = {};
                     let skippedCount = 0;
                     const skippedPlayers = [];
+                    const nowIso = new Date().toISOString();
                     
                     players.forEach(row => {
-                        const name = row['Player Name'];
+                        const name = normalizeEditablePlayerName(row['Player Name']);
                         const power = row['E1 Total Power(M)'];
                         const troops = row['E1 Troops'];
                         
                         // Only require name (power and troops are optional)
                         if (name) {
-                            playerDatabase[name] = {
-                                power: power ? parseFloat(power) : 0, // Default to 0 if power missing
-                                troops: troops || 'Unknown', // Default to 'Unknown' if troops missing
-                                lastUpdated: new Date().toISOString()
+                            nextDatabase[name] = {
+                                power: normalizeEditablePlayerPower(power), // Default to 0 if power missing
+                                troops: normalizeEditablePlayerTroops(troops), // Default to 'Unknown' if troops missing
+                                lastUpdated: nowIso,
                             };
-                            addedCount++;
                         } else {
                             // Track skipped players (only if name is missing)
                             skippedCount++;
                             skippedPlayers.push(`Row with no name (power: ${power || 'none'}, troops: ${troops || 'none'})`);
                         }
                     });
+
+                    const addedCount = Object.keys(nextDatabase).length;
+                    if (addedCount > MAX_PLAYER_DATABASE_SIZE) {
+                        reject({
+                            success: false,
+                            errorKey: 'players_list_error_max_players',
+                            errorParams: { max: MAX_PLAYER_DATABASE_SIZE },
+                            error: `Maximum ${MAX_PLAYER_DATABASE_SIZE} players allowed.`,
+                        });
+                        return;
+                    }
+
+                    // Replace existing database with parsed data.
+                    playerDatabase = nextDatabase;
                     
                     // Save to Firestore
                     const saveResult = await saveUserData();
@@ -1998,6 +2009,15 @@ const FirebaseManager = (function() {
 
         if (previousName !== nextName && Object.prototype.hasOwnProperty.call(nextDatabase, nextName)) {
             return { success: false, errorKey: 'players_list_error_duplicate_name' };
+        }
+
+        const isAddingNewPlayer = !previousName && !Object.prototype.hasOwnProperty.call(nextDatabase, nextName);
+        if (isAddingNewPlayer && Object.keys(nextDatabase).length >= MAX_PLAYER_DATABASE_SIZE) {
+            return {
+                success: false,
+                errorKey: 'players_list_error_max_players',
+                errorParams: { max: MAX_PLAYER_DATABASE_SIZE },
+            };
         }
 
         if (previousName && previousName !== nextName) {
@@ -2657,20 +2677,30 @@ const FirebaseManager = (function() {
                     const players = XLSX.utils.sheet_to_json(sheet, { range: 9 });
 
                     const alliancePlayerDB = {};
-                    let addedCount = 0;
+                    const nowIso = new Date().toISOString();
 
                     players.forEach(row => {
-                        const name = row['Player Name'];
+                        const name = normalizeEditablePlayerName(row['Player Name']);
                         if (name) {
                             alliancePlayerDB[name] = {
-                                power: row['E1 Total Power(M)'] ? parseFloat(row['E1 Total Power(M)']) : 0,
-                                troops: row['E1 Troops'] || 'Unknown',
-                                lastUpdated: new Date().toISOString(),
+                                power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
+                                troops: normalizeEditablePlayerTroops(row['E1 Troops']),
+                                lastUpdated: nowIso,
                                 updatedBy: currentUser.uid
                             };
-                            addedCount++;
                         }
                     });
+
+                    const addedCount = Object.keys(alliancePlayerDB).length;
+                    if (addedCount > MAX_PLAYER_DATABASE_SIZE) {
+                        reject({
+                            success: false,
+                            errorKey: 'players_list_error_max_players',
+                            errorParams: { max: MAX_PLAYER_DATABASE_SIZE },
+                            error: `Maximum ${MAX_PLAYER_DATABASE_SIZE} players allowed.`,
+                        });
+                        return;
+                    }
 
                     await db.collection('alliances').doc(allianceId).set({
                         playerDatabase: alliancePlayerDB,
@@ -2802,26 +2832,38 @@ const FirebaseManager = (function() {
                     const players = XLSX.utils.sheet_to_json(sheet);
                     
                     const restored = {};
+                    const nowIso = new Date().toISOString();
                     players.forEach(row => {
-                        const name = row['Player Name'];
+                        const name = normalizeEditablePlayerName(row['Player Name']);
                         if (name) {
                             restored[name] = {
-                                power: row['E1 Total Power(M)'],
-                                troops: row['E1 Troops'],
-                                lastUpdated: row['Last Updated'] || new Date().toISOString()
+                                power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
+                                troops: normalizeEditablePlayerTroops(row['E1 Troops']),
+                                lastUpdated: row['Last Updated'] || nowIso,
                             };
                         }
                     });
+
+                    const restoredCount = Object.keys(restored).length;
+                    if (restoredCount > MAX_PLAYER_DATABASE_SIZE) {
+                        reject({
+                            success: false,
+                            errorKey: 'players_list_error_max_players',
+                            errorParams: { max: MAX_PLAYER_DATABASE_SIZE },
+                            error: `Maximum ${MAX_PLAYER_DATABASE_SIZE} players allowed.`,
+                        });
+                        return;
+                    }
                     
                     playerDatabase = restored;
                     const saveResult = await saveUserData();
                     
                     if (saveResult.success) {
-                        console.log(`✅ Restored ${Object.keys(restored).length} players`);
+                        console.log(`✅ Restored ${restoredCount} players`);
                         resolve({ 
                             success: true, 
-                            playerCount: Object.keys(restored).length,
-                            message: `✅ Database restored: ${Object.keys(restored).length} players`
+                            playerCount: restoredCount,
+                            message: `✅ Database restored: ${restoredCount} players`
                         });
                     } else {
                         reject(saveResult);
