@@ -1648,6 +1648,12 @@ select {
         min-width: 0;
         overflow: hidden;
     }
+    .selection-source-controls {
+        min-width: 0;
+    }
+    .event-selector-inline {
+        max-width: 100%;
+    }
 }
 
 /* =============================================
@@ -1893,9 +1899,11 @@ select {
         box-sizing: border-box;
     }
 
-    /* Team buttons — touch-friendly */
+    /* Team buttons — touch-friendly + short labels */
     .team-buttons { gap: 8px; }
     .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; min-height: 44px; }
+    .team-label-full { display: none; }
+    .team-label-short { display: inline; }
     .clear-btn {
         padding: 10px 12px;
         font-size: 13px;
@@ -1908,6 +1916,25 @@ select {
     /* Role toggle — touch-friendly */
     .role-toggle { flex: 1; }
     .role-btn { padding: 10px 10px; font-size: 13px; flex: 1; min-height: 44px; }
+
+    /* ── Selection source controls — stack on phone ── */
+    #selectionSourceControls .selection-source-actions {
+        width: 100%;
+        gap: 8px;
+    }
+    #selectionSourceControls .selection-source-actions button {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+    }
+
+    /* ── Team counters — stack vertically on narrow screens ── */
+    .team-counters {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .counter {
+        text-align: center;
+    }
 
     /* ── Buildings table → card layout ── */
     #buildingsTable td:first-child {
