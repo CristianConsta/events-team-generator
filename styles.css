@@ -1640,6 +1640,14 @@ select {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    .players-mgmt-surface {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .collapsible-header > div:first-child {
+        min-width: 0;
+        overflow: hidden;
+    }
 }
 
 /* =============================================
@@ -1873,9 +1881,16 @@ select {
         font-size: 13px;
         margin: 0;
     }
+    #playersMgmtTable td {
+        min-width: 0;
+        overflow: hidden;
+    }
     #playersMgmtTable .players-mgmt-edit-row input,
     #playersMgmtTable .players-mgmt-edit-row select {
         min-height: 38px;
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
     }
 
     /* Team buttons — touch-friendly */
@@ -1959,8 +1974,21 @@ select {
 
     /* ── Upload section ── */
     #uploadHint                { margin-left: 8px !important; font-size: 12px !important; }
+    #playersListHint           { margin-left: 8px !important; font-size: 12px !important; }
     #uploadContent > p         { margin-bottom: 12px !important; }
-    #uploadContent > div       { gap: 10px !important; }
+    #uploadContent > div       { gap: 10px !important; flex-direction: column !important; }
+    #uploadContent > div button { width: 100%; }
+
+    /* ── Collapsible header — wrap title + hint ── */
+    .collapsible-header > div:first-child h2 {
+        display: block !important;
+        font-size: 1.1rem;
+    }
+    .collapsible-header > div:first-child span {
+        margin-left: 0 !important;
+        display: block;
+        margin-top: 4px;
+    }
 
     /* ── Selection section ── */
     #selectionSection > p      { margin-bottom: 12px !important; }
