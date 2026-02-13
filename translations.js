@@ -153,7 +153,7 @@ const translations = {
         alert_subs_full: 'Maximum 10 substitutes reached.',
         alert_select_at_least_one_starter: 'Select at least 1 starter for Team {team}!',
         alert_max_starters: 'Maximum 20 starters per team! Currently: {count}',
-        map_substitutes_title: 'SUBSTITUTES',
+        map_substitutes_title: 'BACKUP FORCE',
         map_substitutes_subtitle: '(Bench)',
         map_unmapped_title: 'UNMAPPED BUILDINGS',
         map_unmapped_count_suffix: 'PLAYERS',
