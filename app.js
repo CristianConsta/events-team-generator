@@ -303,6 +303,10 @@ function bindStaticUiActions() {
     on('playersListPanelHeader', 'click', togglePlayersListPanel);
     on('playersMgmtSourcePersonalBtn', 'click', () => switchPlayersManagementSource('personal'));
     on('playersMgmtSourceAllianceBtn', 'click', () => switchPlayersManagementSource('alliance'));
+    on('playersMgmtSearchFilter', 'input', handlePlayersManagementFilterChange);
+    on('playersMgmtTroopsFilter', 'change', handlePlayersManagementFilterChange);
+    on('playersMgmtSortFilter', 'change', handlePlayersManagementFilterChange);
+    on('playersMgmtClearFiltersBtn', 'click', clearPlayersManagementFilters);
     on('downloadTemplateBtn', 'click', downloadPlayerTemplate);
     on('uploadPlayerBtn', 'click', () => {
         const input = document.getElementById('playerFileInput');
@@ -486,6 +490,9 @@ function getSubstituteCount(teamKey) {
 let uploadPanelExpanded = true;
 let playersListPanelExpanded = true;
 let playersManagementEditingName = '';
+let playersManagementSearchTerm = '';
+let playersManagementTroopsFilter = '';
+let playersManagementSortFilter = 'power-desc';
 let eventsPanelExpanded = true;
 let activeDownloadTeam = null;
 let currentPageView = 'generator';
@@ -2441,12 +2448,108 @@ function buildPlayersManagementRows(source) {
             power: Number.isFinite(power) ? power : 0,
             troops: typeof entry.troops === 'string' && entry.troops.trim() ? entry.troops.trim() : 'Unknown',
         };
-    }).sort((a, b) => {
+    });
+}
+
+function hasActivePlayersManagementFilters() {
+    return playersManagementSearchTerm.length > 0
+        || playersManagementTroopsFilter !== ''
+        || playersManagementSortFilter !== 'power-desc';
+}
+
+function syncPlayersManagementFilterStateFromUi() {
+    const searchInput = document.getElementById('playersMgmtSearchFilter');
+    const troopsSelect = document.getElementById('playersMgmtTroopsFilter');
+    const sortSelect = document.getElementById('playersMgmtSortFilter');
+
+    playersManagementSearchTerm = searchInput ? String(searchInput.value || '').trim() : '';
+    playersManagementTroopsFilter = troopsSelect ? String(troopsSelect.value || '').trim() : '';
+    const nextSort = sortSelect ? String(sortSelect.value || '').trim() : '';
+    playersManagementSortFilter = nextSort || 'power-desc';
+}
+
+function updatePlayersManagementClearFiltersButton() {
+    const clearButton = document.getElementById('playersMgmtClearFiltersBtn');
+    if (!clearButton) {
+        return;
+    }
+    clearButton.hidden = !hasActivePlayersManagementFilters();
+}
+
+function applyPlayersManagementFilters(rows) {
+    const filtered = Array.isArray(rows) ? rows.slice() : [];
+    const term = playersManagementSearchTerm;
+    const termLower = term.toLowerCase();
+    const troops = playersManagementTroopsFilter;
+    const sort = playersManagementSortFilter;
+
+    const termFiltered = term
+        ? filtered.filter((player) => String(player.name || '').toLowerCase().includes(termLower))
+        : filtered;
+    const troopsFiltered = troops
+        ? termFiltered.filter((player) => String(player.troops || '').trim() === troops)
+        : termFiltered;
+
+    troopsFiltered.sort((a, b) => {
+        if (sort === 'power-asc') {
+            if (a.power !== b.power) {
+                return a.power - b.power;
+            }
+            return a.name.localeCompare(b.name);
+        }
+        if (sort === 'name-asc') {
+            return a.name.localeCompare(b.name);
+        }
+        if (sort === 'name-desc') {
+            return b.name.localeCompare(a.name);
+        }
         if (b.power !== a.power) {
             return b.power - a.power;
         }
         return a.name.localeCompare(b.name);
     });
+
+    return troopsFiltered;
+}
+
+function renderPlayersManagementFilters() {
+    const searchInput = document.getElementById('playersMgmtSearchFilter');
+    const troopsSelect = document.getElementById('playersMgmtTroopsFilter');
+    const sortSelect = document.getElementById('playersMgmtSortFilter');
+    if (searchInput) {
+        searchInput.value = playersManagementSearchTerm;
+    }
+    if (troopsSelect) {
+        troopsSelect.value = playersManagementTroopsFilter;
+    }
+    if (sortSelect) {
+        sortSelect.value = playersManagementSortFilter;
+    }
+    updatePlayersManagementClearFiltersButton();
+}
+
+function handlePlayersManagementFilterChange() {
+    syncPlayersManagementFilterStateFromUi();
+    renderPlayersManagementTable();
+}
+
+function clearPlayersManagementFilters() {
+    const searchInput = document.getElementById('playersMgmtSearchFilter');
+    const troopsSelect = document.getElementById('playersMgmtTroopsFilter');
+    const sortSelect = document.getElementById('playersMgmtSortFilter');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    if (troopsSelect) {
+        troopsSelect.value = '';
+    }
+    if (sortSelect) {
+        sortSelect.value = 'power-desc';
+    }
+    playersManagementSearchTerm = '';
+    playersManagementTroopsFilter = '';
+    playersManagementSortFilter = 'power-desc';
+    renderPlayersManagementTable();
 }
 
 function renderPlayersManagementSourceControls() {
@@ -2479,8 +2582,11 @@ function renderPlayersManagementTable() {
         return;
     }
 
+    syncPlayersManagementFilterStateFromUi();
+    updatePlayersManagementClearFiltersButton();
+
     const source = getPlayersManagementActiveSource();
-    const rows = buildPlayersManagementRows(source);
+    const rows = applyPlayersManagementFilters(buildPlayersManagementRows(source));
     tbody.innerHTML = '';
 
     if (rows.length === 0) {
@@ -2548,6 +2654,7 @@ function renderPlayersManagementPanel() {
     }
 
     renderPlayersManagementSourceControls();
+    renderPlayersManagementFilters();
     renderPlayersManagementTable();
 
     const source = getPlayersManagementActiveSource();

@@ -61,6 +61,9 @@
         getPlayerDatabase: function getPlayerDatabase() {
             return withManager((svc) => svc.getPlayerDatabase(), {});
         },
+        getAlliancePlayerDatabase: function getAlliancePlayerDatabase() {
+            return withManager((svc) => svc.getAlliancePlayerDatabase(), {});
+        },
         upsertPlayerEntry: async function upsertPlayerEntry(source, originalName, nextPlayer) {
             return withManager((svc) => svc.upsertPlayerEntry(source, originalName, nextPlayer), notLoadedResult());
         },

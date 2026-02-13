@@ -478,6 +478,32 @@ select {
 #playersListSection .players-table {
     margin-top: 12px;
 }
+.players-mgmt-filters {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+.players-mgmt-filters input,
+.players-mgmt-filters select {
+    min-height: 40px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--gold-rgb), 0.32);
+    background: rgba(8, 13, 24, 0.72);
+    color: var(--text-primary);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+.players-mgmt-filters input {
+    min-width: 220px;
+    flex: 1 1 260px;
+}
+.players-mgmt-filters button {
+    margin-left: auto;
+    min-height: 40px;
+}
 .players-table .players-mgmt-actions {
     display: flex;
     gap: 8px;
@@ -1554,6 +1580,19 @@ select {
         width: 100%;
         min-width: 0;
         font-size: 15px;
+    }
+    .players-mgmt-filters input {
+        flex: 1 1 100%;
+        width: 100%;
+        min-width: 0;
+    }
+    .players-mgmt-filters select {
+        flex: 1 1 calc(50% - 6px);
+        min-width: 0;
+    }
+    .players-mgmt-filters button {
+        width: 100%;
+        margin-left: 0;
     }
     .filter-dropdown { flex: 0 0 auto; }
     .filter-dropdown-panel { min-width: 160px; }

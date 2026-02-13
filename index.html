@@ -409,6 +409,23 @@
                             </div>
                             <div id="playersMgmtSourceStatus"></div>
                         </div>
+                        <div class="players-mgmt-filters">
+                            <input type="text" id="playersMgmtSearchFilter" data-i18n-placeholder="search_placeholder" placeholder="Search player name...">
+                            <select id="playersMgmtTroopsFilter">
+                                <option value="" data-i18n="troops_filter_all">All Troop Types</option>
+                                <option value="Tank" data-i18n="troops_filter_tank">Tank</option>
+                                <option value="Aero" data-i18n="troops_filter_aero">Aero</option>
+                                <option value="Missile" data-i18n="troops_filter_missile">Missile</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                            <select id="playersMgmtSortFilter">
+                                <option value="power-desc" data-i18n="sort_power_desc">Sort by Power (High to Low)</option>
+                                <option value="power-asc" data-i18n="sort_power_asc">Sort by Power (Low to High)</option>
+                                <option value="name-asc" data-i18n="sort_name_asc">Sort by Name (A-Z)</option>
+                                <option value="name-desc" data-i18n="sort_name_desc">Sort by Name (Z-A)</option>
+                            </select>
+                            <button id="playersMgmtClearFiltersBtn" class="secondary" type="button" data-i18n="clear_all_selections">Clear All Selections</button>
+                        </div>
                         <div style="overflow-x: auto;">
                             <table class="players-table" id="playersMgmtTable">
                                 <thead>
