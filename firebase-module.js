@@ -55,6 +55,7 @@ const FirebaseManager = (function() {
     const MAX_PLAYER_DATABASE_SIZE = 100;
     const MAX_PROFILE_TEXT_LEN = 60;
     const MAX_AVATAR_DATA_URL_LEN = 400000;
+    const USER_PROFILE_THEMES = new Set(['standard', 'last-war']);
     const INVITE_MAX_RESENDS = 3;
     const INVITE_REMINDER_DAY1_MS = 24 * 60 * 60 * 1000;
     const INVITE_REMINDER_DAY3_MS = 3 * INVITE_REMINDER_DAY1_MS;
@@ -110,7 +111,7 @@ const FirebaseManager = (function() {
     let pendingInvitations = [];
     let sentInvitations = [];
     let invitationNotifications = [];
-    let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
+    let userProfile = { displayName: '', nickname: '', avatarDataUrl: '', theme: 'standard' };
     let onAuthCallback = null;
     let onDataLoadCallback = null;
     let onAllianceDataCallback = null;
@@ -902,10 +903,12 @@ const FirebaseManager = (function() {
         const displayName = typeof next.displayName === 'string' ? next.displayName.trim().slice(0, MAX_PROFILE_TEXT_LEN) : '';
         const nickname = typeof next.nickname === 'string' ? next.nickname.trim().slice(0, MAX_PROFILE_TEXT_LEN) : '';
         let avatarDataUrl = typeof next.avatarDataUrl === 'string' ? next.avatarDataUrl.trim() : '';
+        const themeRaw = typeof next.theme === 'string' ? next.theme.trim().toLowerCase() : '';
+        const theme = USER_PROFILE_THEMES.has(themeRaw) ? themeRaw : 'standard';
         if (!avatarDataUrl.startsWith('data:image/') || avatarDataUrl.length > MAX_AVATAR_DATA_URL_LEN) {
             avatarDataUrl = '';
         }
-        return { displayName, nickname, avatarDataUrl };
+        return { displayName, nickname, avatarDataUrl, theme };
     }
 
     function cloneJson(value) {

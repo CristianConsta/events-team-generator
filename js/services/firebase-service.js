@@ -92,10 +92,10 @@
             return withManager((svc) => svc.getActivePlayerDatabase(), {});
         },
         getUserProfile: function getUserProfile() {
-            return withManager((svc) => svc.getUserProfile(), { displayName: '', nickname: '', avatarDataUrl: '' });
+            return withManager((svc) => svc.getUserProfile(), { displayName: '', nickname: '', avatarDataUrl: '', theme: 'standard' });
         },
         setUserProfile: function setUserProfile(profile) {
-            return withManager((svc) => svc.setUserProfile(profile), { displayName: '', nickname: '', avatarDataUrl: '' });
+            return withManager((svc) => svc.setUserProfile(profile), { displayName: '', nickname: '', avatarDataUrl: '', theme: 'standard' });
         },
         getPlayerSource: function getPlayerSource() {
             return withManager((svc) => svc.getPlayerSource(), 'personal');

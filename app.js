@@ -471,6 +471,7 @@ let substitutesA = [];
 let substitutesB = [];
 let currentAuthUser = null;
 let settingsDraftAvatarDataUrl = '';
+let settingsDraftTheme = 'standard';
 
 const PROFILE_TEXT_LIMIT = 60;
 const PROFILE_AVATAR_DATA_URL_LIMIT = 400000;
@@ -482,6 +483,10 @@ const EVENT_NAME_LIMIT = 30;
 const EVENT_LOGO_DATA_URL_LIMIT = 220000;
 const EVENT_MAP_DATA_URL_LIMIT = 950000;
 const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
+const THEME_STORAGE_KEY = 'ds_theme';
+const THEME_STANDARD = 'standard';
+const THEME_LAST_WAR = 'last-war';
+const SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR]);
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
@@ -506,6 +511,55 @@ let playersManagementSortFilter = 'power-desc';
 let eventsPanelExpanded = true;
 let activeDownloadTeam = null;
 let currentPageView = 'generator';
+
+function normalizeThemePreference(theme) {
+    if (typeof theme !== 'string') {
+        return THEME_STANDARD;
+    }
+    const normalized = theme.trim().toLowerCase();
+    return SUPPORTED_THEMES.has(normalized) ? normalized : THEME_STANDARD;
+}
+
+function getStoredThemePreference() {
+    try {
+        return normalizeThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
+    } catch (error) {
+        return THEME_STANDARD;
+    }
+}
+
+function persistThemePreference(theme) {
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, normalizeThemePreference(theme));
+    } catch (error) {
+        // Ignore local storage write failures.
+    }
+}
+
+function applyPlatformTheme(theme, options) {
+    const nextTheme = normalizeThemePreference(theme);
+    const root = document.documentElement;
+    if (root) {
+        root.setAttribute('data-theme', nextTheme);
+    }
+    if (document.body) {
+        document.body.setAttribute('data-theme', nextTheme);
+    }
+    if (!options || options.skipPersist !== true) {
+        persistThemePreference(nextTheme);
+    }
+    return nextTheme;
+}
+
+function getCurrentAppliedTheme() {
+    const root = document.documentElement;
+    if (!root) {
+        return THEME_STANDARD;
+    }
+    return normalizeThemePreference(root.getAttribute('data-theme'));
+}
+
+applyPlatformTheme(getStoredThemePreference(), { skipPersist: true });
 
 function isConfigurationPageVisible() {
     return currentPageView === 'configuration';
@@ -682,16 +736,17 @@ function getSignInDisplayName(user) {
 
 function getProfileFromService() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getUserProfile) {
-        return { displayName: '', nickname: '', avatarDataUrl: '' };
+        return { displayName: '', nickname: '', avatarDataUrl: '', theme: getStoredThemePreference() };
     }
     const profile = FirebaseService.getUserProfile();
     if (!profile || typeof profile !== 'object') {
-        return { displayName: '', nickname: '', avatarDataUrl: '' };
+        return { displayName: '', nickname: '', avatarDataUrl: '', theme: getStoredThemePreference() };
     }
     return {
         displayName: typeof profile.displayName === 'string' ? profile.displayName.trim().slice(0, PROFILE_TEXT_LIMIT) : '',
         nickname: typeof profile.nickname === 'string' ? profile.nickname.trim().replace(/^@+/, '').slice(0, PROFILE_TEXT_LIMIT) : '',
         avatarDataUrl: typeof profile.avatarDataUrl === 'string' ? profile.avatarDataUrl.trim().slice(0, PROFILE_AVATAR_DATA_URL_LIMIT) : '',
+        theme: normalizeThemePreference(profile.theme || getStoredThemePreference()),
     };
 }
 
@@ -730,6 +785,8 @@ function updateUserHeaderIdentity(user) {
         currentAuthUser = user;
     }
     const profile = getProfileFromService();
+    const resolvedTheme = currentAuthUser ? profile.theme : getStoredThemePreference();
+    applyPlatformTheme(resolvedTheme);
     const nickname = profile.nickname || '';
     const displayName = profile.displayName || '';
     const visibleLabel = nickname || displayName;
@@ -759,6 +816,7 @@ function openSettingsModal() {
     const displayInput = document.getElementById('settingsDisplayNameInput');
     const nicknameInput = document.getElementById('settingsNicknameInput');
     const languageSelect = document.getElementById('languageSelect');
+    const themeSelect = document.getElementById('settingsThemeSelect');
     const signInName = getSignInDisplayName(currentAuthUser);
     if (displayInput) {
         displayInput.value = profile.displayName || signInName || '';
@@ -768,6 +826,10 @@ function openSettingsModal() {
     }
     if (languageSelect && window.DSI18N && window.DSI18N.getLanguage) {
         languageSelect.value = window.DSI18N.getLanguage();
+    }
+    settingsDraftTheme = normalizeThemePreference(profile.theme || getCurrentAppliedTheme());
+    if (themeSelect) {
+        themeSelect.value = settingsDraftTheme;
     }
     settingsDraftAvatarDataUrl = profile.avatarDataUrl || '';
     const statusEl = document.getElementById('settingsStatus');
@@ -950,17 +1012,24 @@ async function saveSettings() {
     const nickname = nicknameInput && typeof nicknameInput.value === 'string'
         ? nicknameInput.value.trim().replace(/^@+/, '').slice(0, PROFILE_TEXT_LIMIT)
         : '';
+    const themeSelect = document.getElementById('settingsThemeSelect');
+    const selectedTheme = normalizeThemePreference(
+        themeSelect && typeof themeSelect.value === 'string' ? themeSelect.value : settingsDraftTheme
+    );
 
     if (FirebaseService.setUserProfile) {
         FirebaseService.setUserProfile({
             displayName: displayName,
             nickname: nickname,
             avatarDataUrl: settingsDraftAvatarDataUrl || '',
+            theme: selectedTheme,
         });
     }
 
     const result = await FirebaseService.saveUserData();
     if (result && result.success) {
+        settingsDraftTheme = selectedTheme;
+        applyPlatformTheme(selectedTheme);
         updateUserHeaderIdentity(currentAuthUser);
         showMessage('settingsStatus', t('settings_saved'), 'success');
         setTimeout(() => {
