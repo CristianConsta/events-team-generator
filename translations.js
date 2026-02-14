@@ -4,8 +4,8 @@
 
 const translations = {
     en: {
-        app_title: 'LW-  Events Players Selection',
-        login_title: 'LW-  Events Players Selection',
+        app_title: 'Video Games Events Players Selection',
+        login_title: 'Video Games Events Players Selection',
         login_subtitle: 'Sign in to continue',
         login_google: 'Sign in with Google',
         login_or: 'or',
@@ -14,7 +14,7 @@ const translations = {
         login_sign_in: 'Sign In',
         login_create_account: 'Create New Account',
         login_forgot_password: 'Forgot Password?',
-        main_title: 'LW-  Events Players Selection',
+        main_title: 'Video Games Events Players Selection',
         event_desert_storm: 'Desert Storm',
         event_canyon_battlefield: 'Canyon Storm',
         navigation_menu: 'Menu',
@@ -369,8 +369,8 @@ const translations = {
         language_name_ro: 'Romanian'
     },
     fr: {
-        app_title: 'LW-  Events Players Selection',
-        login_title: 'LW-  Events Players Selection',
+        app_title: 'Video Games Events Players Selection',
+        login_title: 'Video Games Events Players Selection',
         login_subtitle: 'Connectez-vous pour continuer',
         login_google: 'Se connecter avec Google',
         login_or: 'ou',
@@ -379,7 +379,7 @@ const translations = {
         login_sign_in: 'Se connecter',
         login_create_account: 'Créer un compte',
         login_forgot_password: 'Mot de passe oublié ?',
-        main_title: 'LW-  Events Players Selection',
+        main_title: 'Video Games Events Players Selection',
         event_desert_storm: 'Desert Storm',
         event_canyon_battlefield: 'Canyon Storm',
         navigation_menu: 'Menu',
@@ -714,8 +714,8 @@ const translations = {
         language_name_ro: 'Roumain'
     },
     de: {
-        app_title: 'LW-  Events Players Selection',
-        login_title: 'LW-  Events Players Selection',
+        app_title: 'Video Games Events Players Selection',
+        login_title: 'Video Games Events Players Selection',
         login_subtitle: 'Bitte anmelden, um fortzufahren',
         login_google: 'Mit Google anmelden',
         login_or: 'oder',
@@ -724,7 +724,7 @@ const translations = {
         login_sign_in: 'Anmelden',
         login_create_account: 'Neues Konto erstellen',
         login_forgot_password: 'Passwort vergessen?',
-        main_title: 'LW-  Events Players Selection',
+        main_title: 'Video Games Events Players Selection',
         event_desert_storm: 'Desert Storm',
         event_canyon_battlefield: 'Canyon Storm',
         navigation_menu: 'Men\u00FC',
@@ -1059,8 +1059,8 @@ const translations = {
         language_name_ro: 'Rumaenisch'
     },
     it: {
-        app_title: 'LW-  Events Players Selection',
-        login_title: 'LW-  Events Players Selection',
+        app_title: 'Video Games Events Players Selection',
+        login_title: 'Video Games Events Players Selection',
         login_subtitle: 'Accedi per continuare',
         login_google: 'Accedi con Google',
         login_or: 'oppure',
@@ -1069,7 +1069,7 @@ const translations = {
         login_sign_in: 'Accedi',
         login_create_account: 'Crea nuovo account',
         login_forgot_password: 'Password dimenticata?',
-        main_title: 'LW-  Events Players Selection',
+        main_title: 'Video Games Events Players Selection',
         event_desert_storm: 'Desert Storm',
         event_canyon_battlefield: 'Canyon Storm',
         navigation_menu: 'Menu',
@@ -1404,8 +1404,8 @@ const translations = {
         language_name_ro: 'Rumeno'
     },
     ko: {
-        app_title: 'LW-  Events Players Selection',
-        login_title: 'LW-  Events Players Selection',
+        app_title: 'Video Games Events Players Selection',
+        login_title: 'Video Games Events Players Selection',
         login_subtitle: '계속하려면 로그인하세요',
         login_google: 'Google로 로그인',
         login_or: '또는',
@@ -1414,7 +1414,7 @@ const translations = {
         login_sign_in: '로그인',
         login_create_account: '새 계정 만들기',
         login_forgot_password: '비밀번호를 잊으셨나요?',
-        main_title: 'LW-  Events Players Selection',
+        main_title: 'Video Games Events Players Selection',
         event_desert_storm: 'Desert Storm',
         event_canyon_battlefield: 'Canyon Storm',
         navigation_menu: '\uBA54\uB274',
@@ -1749,8 +1749,8 @@ const translations = {
         language_name_ro: '\uB8E8\uB9C8\uB2C8\uC544\uC5B4'
     },
     ro: {
-        app_title: 'LW-  Events Players Selection',
-        login_title: 'LW-  Events Players Selection',
+        app_title: 'Video Games Events Players Selection',
+        login_title: 'Video Games Events Players Selection',
         login_subtitle: 'Autentifică-te pentru a continua',
         login_google: 'Conectare cu Google',
         login_or: 'sau',
@@ -1759,7 +1759,7 @@ const translations = {
         login_sign_in: 'Autentificare',
         login_create_account: 'Creează cont nou',
         login_forgot_password: 'Ai uitat parola?',
-        main_title: 'LW-  Events Players Selection',
+        main_title: 'Video Games Events Players Selection',
         event_desert_storm: 'Desert Storm',
         event_canyon_battlefield: 'Canyon Storm',
         navigation_menu: 'Meniu',
