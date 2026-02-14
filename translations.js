@@ -20,6 +20,7 @@ const translations = {
         navigation_menu: 'Menu',
         generator_button: 'Generator',
         players_management_button: 'Players Management',
+        support_button: 'Support',
         sign_out_button: 'Sign Out',
         configuration_page_title: 'Configuration',
         players_management_page_title: 'Players Management',

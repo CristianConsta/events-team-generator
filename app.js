@@ -266,6 +266,7 @@ function bindStaticUiActions() {
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
     on('navSettingsBtn', 'click', openSettingsModal);
+    on('navSupportBtn', 'click', showSupportPage);
     on('navSignOutBtn', 'click', () => {
         closeNavigationMenu();
         handleSignOut();
@@ -339,6 +340,10 @@ function bindStaticUiActions() {
     on('downloadModalCloseBtn', 'click', closeDownloadModal);
     on('generateBtnA', 'click', () => generateTeamAssignments('A'));
     on('generateBtnB', 'click', () => generateTeamAssignments('B'));
+    on('supportCopyDiscordBtn', 'click', copySupportDiscordHandle);
+    on('supportOpenDiscordBtn', 'click', openSupportDiscordProfile);
+    on('supportReportBugBtn', 'click', () => openSupportIssueComposer('bug'));
+    on('supportRequestFeatureBtn', 'click', () => openSupportIssueComposer('feature'));
 
     updateClearAllButtonVisibility();
 }
@@ -487,6 +492,9 @@ const THEME_STORAGE_KEY = 'ds_theme';
 const THEME_STANDARD = 'standard';
 const THEME_LAST_WAR = 'last-war';
 const SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR]);
+const SUPPORT_DISCORD_HANDLE = 'flashguru2000';
+const SUPPORT_DISCORD_URL = 'https://discord.com/channels/@me';
+const SUPPORT_REPO_ISSUES_NEW_URL = 'https://github.com/CristianConsta/events-team-generator/issues/new';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
@@ -607,6 +615,7 @@ function syncNavigationMenuState() {
     const configBtn = document.getElementById('navConfigBtn');
     const playersBtn = document.getElementById('navPlayersBtn');
     const allianceBtn = document.getElementById('navAllianceBtn');
+    const supportBtn = document.getElementById('navSupportBtn');
     if (generatorBtn) {
         const isActive = currentPageView === 'generator';
         generatorBtn.classList.toggle('active', isActive);
@@ -626,6 +635,11 @@ function syncNavigationMenuState() {
         const isActive = currentPageView === 'alliance';
         allianceBtn.classList.toggle('active', isActive);
         allianceBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (supportBtn) {
+        const isActive = currentPageView === 'support';
+        supportBtn.classList.toggle('active', isActive);
+        supportBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
 }
 
@@ -655,7 +669,8 @@ function setPageView(view) {
     const configurationPage = document.getElementById('configurationPage');
     const playersManagementPage = document.getElementById('playersManagementPage');
     const alliancePage = document.getElementById('alliancePage');
-    if (!generatorPage || !configurationPage || !playersManagementPage || !alliancePage) {
+    const supportPage = document.getElementById('supportPage');
+    if (!generatorPage || !configurationPage || !playersManagementPage || !alliancePage || !supportPage) {
         return;
     }
 
@@ -665,6 +680,8 @@ function setPageView(view) {
         currentPageView = 'players';
     } else if (view === 'alliance') {
         currentPageView = 'alliance';
+    } else if (view === 'support') {
+        currentPageView = 'support';
     } else {
         currentPageView = 'generator';
     }
@@ -672,6 +689,7 @@ function setPageView(view) {
     configurationPage.classList.toggle('hidden', currentPageView !== 'configuration');
     playersManagementPage.classList.toggle('hidden', currentPageView !== 'players');
     alliancePage.classList.toggle('hidden', currentPageView !== 'alliance');
+    supportPage.classList.toggle('hidden', currentPageView !== 'support');
     syncNavigationMenuState();
     closeNavigationMenu();
 
@@ -725,6 +743,68 @@ function showAlliancePage() {
         .catch(() => {
             // Ignore transient refresh failures when opening alliance page.
         });
+}
+
+function showSupportPage() {
+    setPageView('support');
+}
+
+function copySupportDiscordHandle() {
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+        showMessage('supportStatus', `Discord contact: @${SUPPORT_DISCORD_HANDLE}`, 'warning');
+        return;
+    }
+    navigator.clipboard.writeText(SUPPORT_DISCORD_HANDLE)
+        .then(() => {
+            showMessage('supportStatus', `Discord handle copied: @${SUPPORT_DISCORD_HANDLE}`, 'success');
+        })
+        .catch(() => {
+            showMessage('supportStatus', `Discord contact: @${SUPPORT_DISCORD_HANDLE}`, 'warning');
+        });
+}
+
+function openSupportDiscordProfile() {
+    const newWindow = window.open(SUPPORT_DISCORD_URL, '_blank', 'noopener,noreferrer');
+    if (!newWindow) {
+        showMessage('supportStatus', 'Popup blocked. Open discord.com and add @flashguru2000.', 'warning');
+        return;
+    }
+    showMessage('supportStatus', 'Discord opened in a new tab. Add @flashguru2000.', 'success');
+}
+
+function openSupportIssueComposer(issueType) {
+    const titleInput = document.getElementById('supportIssueTitle');
+    const detailsInput = document.getElementById('supportIssueDetails');
+    const customTitle = titleInput ? titleInput.value.trim() : '';
+    const customDetails = detailsInput ? detailsInput.value.trim() : '';
+    const normalizedType = issueType === 'bug' ? 'bug' : 'feature';
+    const isBug = normalizedType === 'bug';
+    const defaultTitle = isBug ? '[Bug] Short summary' : '[Feature] Short summary';
+    const issueTitle = (customTitle || defaultTitle).slice(0, 120);
+    const details = customDetails || (isBug
+        ? 'Describe what happened, expected behavior, and steps to reproduce.'
+        : 'Describe the feature, why it helps, and expected behavior.');
+    const body = [
+        isBug ? '### Bug report' : '### Feature request',
+        '',
+        details,
+        '',
+        '### Context',
+        '- Submitted from Support page',
+        `- Date: ${new Date().toISOString()}`,
+        '',
+    ].join('\n');
+    const params = new URLSearchParams();
+    params.set('title', issueTitle);
+    params.set('body', body);
+    params.set('labels', isBug ? 'bug' : 'enhancement');
+    const issueUrl = `${SUPPORT_REPO_ISSUES_NEW_URL}?${params.toString()}`;
+    const newWindow = window.open(issueUrl, '_blank', 'noopener,noreferrer');
+    if (!newWindow) {
+        showMessage('supportStatus', 'Popup blocked. Please open repository issues manually.', 'warning');
+        return;
+    }
+    showMessage('supportStatus', 'Issue draft opened in GitHub. Submit to save it in repository issues.', 'success');
 }
 
 function getSignInDisplayName(user) {

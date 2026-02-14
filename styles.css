@@ -1118,6 +1118,18 @@ select {
     color: var(--text-primary);
     box-shadow: none;
     font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.header-menu-item-icon {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+    opacity: 0.9;
 }
 .header-menu-item:hover {
     transform: none;
@@ -1680,6 +1692,120 @@ select {
     margin-left: auto;
 }
 
+.support-hero p {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+}
+
+.support-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.support-box {
+    border: 1px solid rgba(var(--gold-rgb), 0.24);
+    border-radius: 14px;
+    background: rgba(8, 13, 24, 0.46);
+    padding: 14px;
+}
+
+.support-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--gold);
+}
+
+.support-section-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.support-box p {
+    color: var(--text-muted);
+    margin: 0 0 12px;
+}
+
+.support-action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.support-action-row button {
+    margin: 0;
+}
+
+.support-btn-icon {
+    margin-right: 6px;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+}
+
+.support-form-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.support-form-grid label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.support-form-grid input,
+.support-form-grid textarea {
+    width: 100%;
+    border: 1px solid rgba(var(--gold-rgb), 0.3);
+    border-radius: 10px;
+    background: rgba(8, 13, 24, 0.76);
+    color: var(--text-primary);
+    padding: 10px 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.support-form-grid textarea {
+    resize: vertical;
+    min-height: 120px;
+}
+
+.support-form-grid input:focus,
+.support-form-grid textarea:focus {
+    outline: none;
+    border-color: rgba(var(--gold-rgb), 0.64);
+    box-shadow: 0 0 0 2px rgba(var(--gold-rgb), 0.2);
+}
+
+.support-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.support-guide-card {
+    border: 1px solid rgba(var(--gold-rgb), 0.2);
+    border-radius: 12px;
+    background: rgba(8, 13, 24, 0.4);
+    padding: 12px;
+}
+
+.support-guide-card h4 {
+    margin: 0 0 7px;
+    color: var(--gold);
+}
+
+.support-guide-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
 /* =============================================
    TABLET  (≤ 768px)
    ============================================= */
@@ -1739,6 +1865,10 @@ select {
     .event-selector-inline {
         max-width: 100%;
     }
+    .support-grid,
+    .support-guide-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* =============================================
@@ -1763,6 +1893,15 @@ select {
         width: min(240px, calc(100vw - 30px));
         left: 0;
         right: auto;
+    }
+    .header-menu-item {
+        font-size: 13px;
+        gap: 7px;
+    }
+    .header-menu-item-icon {
+        width: 16px;
+        height: 16px;
+        flex-basis: 16px;
     }
     .events-manager-grid {
         grid-template-columns: 1fr;
@@ -2164,6 +2303,15 @@ select {
     .onboarding-tooltip { max-width: 250px; padding: 14px 16px 10px; font-size: 12px; }
     .onboarding-tooltip .onboarding-title { font-size: 14px; }
     .onboarding-tooltip .onboarding-desc { font-size: 12px; }
+    .support-box {
+        padding: 12px;
+    }
+    .support-action-row button {
+        width: 100%;
+    }
+    .support-guide-card p {
+        font-size: 13px;
+    }
 
     /* ── Notifications panel — full width on phone ── */
     #notificationsPanel {
