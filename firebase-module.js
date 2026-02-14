@@ -53,6 +53,8 @@ const FirebaseManager = (function() {
 
     const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
     const MAX_PLAYER_DATABASE_SIZE = 100;
+    const PLAYER_POWER_HEADER = '1st Team Power (M)';
+    const LEGACY_PLAYER_POWER_HEADERS = ['E1 Total Power(M)', 'E1 Power (M)'];
     const MAX_PROFILE_TEXT_LEN = 60;
     const MAX_AVATAR_DATA_URL_LEN = 400000;
     const USER_PROFILE_THEMES = new Set(['standard', 'last-war']);
@@ -2000,7 +2002,7 @@ const FirebaseManager = (function() {
                     
                     players.forEach(row => {
                         const name = normalizeEditablePlayerName(row['Player Name']);
-                        const power = row['E1 Total Power(M)'];
+                        const power = getPlayerRowPowerValue(row);
                         const troops = row['E1 Troops'];
                         const thp = row['Total Hero Power'] ?? row['THP'];
                         
@@ -2245,6 +2247,22 @@ const FirebaseManager = (function() {
             return 0;
         }
         return parsed;
+    }
+
+    function getPlayerRowPowerValue(row) {
+        if (!row || typeof row !== 'object') {
+            return 0;
+        }
+        if (Object.prototype.hasOwnProperty.call(row, PLAYER_POWER_HEADER)) {
+            return row[PLAYER_POWER_HEADER];
+        }
+        for (let index = 0; index < LEGACY_PLAYER_POWER_HEADERS.length; index += 1) {
+            const legacyHeader = LEGACY_PLAYER_POWER_HEADERS[index];
+            if (Object.prototype.hasOwnProperty.call(row, legacyHeader)) {
+                return row[legacyHeader];
+            }
+        }
+        return 0;
     }
 
     function normalizePlayerDatabaseMap(database) {
@@ -3040,7 +3058,7 @@ const FirebaseManager = (function() {
                         const name = normalizeEditablePlayerName(row['Player Name']);
                         if (name) {
                             alliancePlayerDB[name] = {
-                                power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
+                                power: normalizeEditablePlayerPower(getPlayerRowPowerValue(row)),
                                 troops: normalizeEditablePlayerTroops(row['E1 Troops']),
                                 thp: normalizeEditablePlayerThp(row['Total Hero Power'] ?? row['THP']),
                                 lastUpdated: nowIso,
@@ -3138,7 +3156,7 @@ const FirebaseManager = (function() {
     function exportBackup() {
         const players = Object.keys(playerDatabase).map(name => ({
             'Player Name': name,
-            'E1 Total Power(M)': playerDatabase[name].power,
+            [PLAYER_POWER_HEADER]: playerDatabase[name].power,
             'E1 Troops': playerDatabase[name].troops,
             'THP': normalizeEditablePlayerThp(playerDatabase[name].thp),
             'Last Updated': playerDatabase[name].lastUpdated
@@ -3196,7 +3214,7 @@ const FirebaseManager = (function() {
                         const name = normalizeEditablePlayerName(row['Player Name']);
                         if (name) {
                             restored[name] = {
-                                power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
+                                power: normalizeEditablePlayerPower(getPlayerRowPowerValue(row)),
                                 troops: normalizeEditablePlayerTroops(row['E1 Troops']),
                                 thp: normalizeEditablePlayerThp(row['Total Hero Power'] ?? row['THP']),
                                 lastUpdated: row['Last Updated'] || nowIso,
@@ -3260,14 +3278,14 @@ const FirebaseManager = (function() {
             [''],
             ['Instructions:'],
             ['1. Fill Player Name column (exact names from game)'],
-            ['2. Fill E1 Total Power(M) column (numeric value, e.g., 65.0)'],
+            [`2. Fill ${PLAYER_POWER_HEADER} column (numeric value, e.g., 65.0)`],
             ['3. Fill E1 Troops column (Tank, Aero, or Missile)'],
             ['4. Fill THP column (Total Hero Power, numeric value, e.g., 120.5). Leave empty for 0.'],
             ['5. Upload to generator - data saved to cloud forever!'],
             ['']
         ];
         
-        const headers = [['Player Name', 'E1 Total Power(M)', 'E1 Troops', 'THP']];
+        const headers = [['Player Name', PLAYER_POWER_HEADER, 'E1 Troops', 'THP']];
         const example = [
             ['Example Player', 65.0, 'Tank', 120.5],
             ['', '', '', ''],
