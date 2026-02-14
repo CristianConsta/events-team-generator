@@ -6,6 +6,7 @@ const DEFAULT_BATCH_SIZE = 250;
 const APP_CONFIG_COLLECTION = 'app_config';
 const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
 const GLOBAL_BUILDING_POSITIONS_DOC_ID = 'default_event_positions';
+const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
 const EVENT_NAME_MAX_LEN = 30;
 const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
 const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
@@ -38,8 +39,8 @@ function usage() {
     console.log('  --project-id, -p        Firebase project ID (optional if present in service account)');
     console.log('  --source-doc-id         Source user document id (required)');
     console.log('  --event-id              Sync one event id only (optional; default is all source events)');
-    console.log('  --preserve-existing     Skip users who already have building config for any synced event (default)');
-    console.log('  --overwrite-existing    Force overwrite users even when synced event config already exists');
+    console.log('  --overwrite-existing    Force overwrite users even when synced event config already exists (default)');
+    console.log('  --preserve-existing     Skip users who already have building config for any synced event');
     console.log(`  --batch-size            Firestore page size (default: ${DEFAULT_BATCH_SIZE})`);
     console.log('  --limit                 Stop after N scanned users (for testing)');
     console.log('  --apply                 Perform writes (default is dry-run)');
@@ -53,7 +54,7 @@ function parseArgs(argv) {
         batchSize: DEFAULT_BATCH_SIZE,
         limit: null,
         apply: false,
-        preserveExisting: true,
+        preserveExisting: false,
     };
 
     for (let i = 0; i < argv.length; i += 1) {
@@ -300,8 +301,25 @@ function normalizeEventDetails(eventId, eventEntry) {
     };
 }
 
-function readSourceEvents(sourceData) {
+function mergeSourceMediaIntoDetails(details, mediaEntry) {
+    const media = mediaEntry && typeof mediaEntry === 'object' ? mediaEntry : {};
+    const logoDataUrl = sanitizeEventImageDataUrl(media.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+    const mapDataUrl = sanitizeEventImageDataUrl(media.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+    if (logoDataUrl) {
+        details.logoDataUrl = logoDataUrl;
+    }
+    if (mapDataUrl) {
+        details.mapDataUrl = mapDataUrl;
+        details.mapFile = mapDataUrl;
+        details.previewMapFile = mapDataUrl;
+        details.exportMapFile = mapDataUrl;
+    }
+    return details;
+}
+
+function readSourceEvents(sourceData, sourceMediaByEvent) {
     const events = sourceData && sourceData.events && typeof sourceData.events === 'object' ? sourceData.events : {};
+    const sourceMedia = sourceMediaByEvent && typeof sourceMediaByEvent === 'object' ? sourceMediaByEvent : {};
     const result = {};
 
     Object.keys(events).forEach((rawEventId) => {
@@ -316,8 +334,12 @@ function readSourceEvents(sourceData) {
         }
 
         const buildingConfig = normalizeBuildingConfig(eventEntry.buildingConfig);
+        const details = mergeSourceMediaIntoDetails(
+            normalizeEventDetails(normalizedId, eventEntry),
+            sourceMedia[normalizedId]
+        );
         result[normalizedId] = {
-            details: normalizeEventDetails(normalizedId, eventEntry),
+            details: details,
             buildingConfig: buildingConfig,
             buildingPositions: normalizeBuildingPositions(eventEntry.buildingPositions),
             hasBuildingConfig: buildingConfig.length > 0,
@@ -378,6 +400,23 @@ async function loadServiceAccount(servicePath) {
     return JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
 }
 
+async function loadSourceEventMedia(db, sourceDocId) {
+    const media = {};
+    const snapshot = await db.collection('users').doc(sourceDocId).collection(EVENT_MEDIA_SUBCOLLECTION).get();
+    snapshot.forEach((doc) => {
+        const eventId = normalizeEventId(doc.id);
+        if (!eventId) {
+            return;
+        }
+        const data = doc.data() || {};
+        media[eventId] = {
+            logoDataUrl: sanitizeEventImageDataUrl(data.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN),
+            mapDataUrl: sanitizeEventImageDataUrl(data.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN),
+        };
+    });
+    return media;
+}
+
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const servicePath = args.serviceAccount || process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -429,7 +468,8 @@ async function main() {
     const sourceEmail = sourceData && sourceData.metadata && typeof sourceData.metadata === 'object'
         ? (sourceData.metadata.emailLower || sourceData.metadata.email || null)
         : null;
-    const sourceEvents = readSourceEvents(sourceData);
+    const sourceEventMedia = await loadSourceEventMedia(db, sourceDocId);
+    const sourceEvents = readSourceEvents(sourceData, sourceEventMedia);
 
     let syncedEvents = sourceEvents;
     if (requestedEventId) {
@@ -463,6 +503,9 @@ async function main() {
         eventsWithMaps[eventId] = !!sourceDetails[eventId].mapDataUrl;
         eventsWithPositions[eventId] = Object.keys(sourcePositions[eventId]).length > 0;
     });
+    const writesPerUser = 1 + eventIds.length;
+    const maxUsersPerBatch = Math.max(1, Math.floor(450 / writesPerUser));
+    const effectiveBatchSize = Math.min(args.batchSize, maxUsersPerBatch);
 
     console.log(args.apply ? 'Running sync in APPLY mode' : 'Running sync in DRY-RUN mode');
     console.log(args.preserveExisting
@@ -471,6 +514,8 @@ async function main() {
     console.log(`Project: ${projectId}`);
     console.log(`Source user doc: ${sourceDocId}`);
     console.log('Safety guard: source user is always excluded from updates.');
+    console.log(`Firestore writes/user when applying: ${writesPerUser} (user doc + ${eventIds.length} media docs)`);
+    console.log(`Effective query batch size: ${effectiveBatchSize}`);
     console.log(`Events to sync (${eventIds.length}):`);
     eventIds.forEach((eventId) => {
         const configEntries = sourceConfigs[eventId].length;
@@ -536,7 +581,7 @@ async function main() {
     while (true) {
         let query = db.collection('users')
             .orderBy(admin.firestore.FieldPath.documentId())
-            .limit(args.batchSize);
+            .limit(effectiveBatchSize);
 
         if (lastDoc) {
             query = query.startAfter(lastDoc);
@@ -582,15 +627,13 @@ async function main() {
                 payload[`events.${eventId}.id`] = details.id || eventId;
                 payload[`events.${eventId}.name`] = details.name || eventId;
                 payload[`events.${eventId}.titleKey`] = details.titleKey || '';
-                payload[`events.${eventId}.mapFile`] = details.mapFile || '';
-                payload[`events.${eventId}.previewMapFile`] = details.previewMapFile || details.mapFile || '';
-                payload[`events.${eventId}.exportMapFile`] = details.exportMapFile || details.mapFile || '';
+                payload[`events.${eventId}.mapFile`] = details.mapDataUrl || '';
+                payload[`events.${eventId}.previewMapFile`] = details.mapDataUrl || '';
+                payload[`events.${eventId}.exportMapFile`] = details.mapDataUrl || '';
                 payload[`events.${eventId}.mapTitle`] = details.mapTitle || (details.name || eventId).toUpperCase().slice(0, 50);
                 payload[`events.${eventId}.excelPrefix`] = details.excelPrefix || eventId;
-                payload[`events.${eventId}.logoDataUrl`] = details.logoDataUrl || '';
-                if (eventsWithMaps[eventId]) {
-                    payload[`events.${eventId}.mapDataUrl`] = details.mapDataUrl || '';
-                }
+                payload[`events.${eventId}.logoDataUrl`] = admin.firestore.FieldValue.delete();
+                payload[`events.${eventId}.mapDataUrl`] = admin.firestore.FieldValue.delete();
                 payload[`events.${eventId}.buildings`] = Array.isArray(details.buildings) ? details.buildings : [];
                 payload[`events.${eventId}.defaultPositions`] = details.defaultPositions && typeof details.defaultPositions === 'object'
                     ? details.defaultPositions
@@ -621,6 +664,22 @@ async function main() {
                 }
                 batch.update(userDoc.ref, payload);
                 batchOps += 1;
+                eventIds.forEach((eventId) => {
+                    const details = sourceDetails[eventId] || normalizeEventDetails(eventId, {});
+                    const logoDataUrl = sanitizeEventImageDataUrl(details.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN);
+                    const mapDataUrl = sanitizeEventImageDataUrl(details.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN);
+                    const mediaRef = userDoc.ref.collection(EVENT_MEDIA_SUBCOLLECTION).doc(eventId);
+                    if (!logoDataUrl && !mapDataUrl) {
+                        batch.delete(mediaRef);
+                    } else {
+                        batch.set(mediaRef, {
+                            logoDataUrl: logoDataUrl,
+                            mapDataUrl: mapDataUrl,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        }, { merge: true });
+                    }
+                    batchOps += 1;
+                });
             }
             updated += 1;
         }
