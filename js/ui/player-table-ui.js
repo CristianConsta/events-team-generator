@@ -60,6 +60,10 @@
         powerCell.className = 'player-power';
         powerCell.textContent = `${player.power}M`;
 
+        const thpCell = document.createElement('td');
+        thpCell.className = 'player-thp';
+        thpCell.textContent = String(player.thp);
+
         const troopsCell = document.createElement('td');
         troopsCell.className = 'player-troops';
         troopsCell.textContent = getTroopLabel(player.troops);
@@ -71,6 +75,7 @@
 
         row.appendChild(nameCell);
         row.appendChild(powerCell);
+        row.appendChild(thpCell);
         row.appendChild(troopsCell);
         row.appendChild(actionsCell);
 
@@ -86,6 +91,11 @@
         const powerCell = row.querySelector('.player-power');
         if (powerCell) {
             powerCell.textContent = `${player.power}M`;
+        }
+
+        const thpCell = row.querySelector('.player-thp');
+        if (thpCell) {
+            thpCell.textContent = String(player.thp);
         }
 
         const troopsCell = row.querySelector('.player-troops');

@@ -3262,22 +3262,23 @@ const FirebaseManager = (function() {
             ['1. Fill Player Name column (exact names from game)'],
             ['2. Fill E1 Total Power(M) column (numeric value, e.g., 65.0)'],
             ['3. Fill E1 Troops column (Tank, Aero, or Missile)'],
-            ['4. Upload to generator - data saved to cloud forever!'],
+            ['4. Fill THP column (Total Hero Power, numeric value, e.g., 120.5). Leave empty for 0.'],
+            ['5. Upload to generator - data saved to cloud forever!'],
             ['']
         ];
         
-        const headers = [['Player Name', 'E1 Total Power(M)', 'E1 Troops']];
+        const headers = [['Player Name', 'E1 Total Power(M)', 'E1 Troops', 'THP']];
         const example = [
-            ['Example Player', 65.0, 'Tank'],
-            ['', '', ''],
-            ['', '', '']
+            ['Example Player', 65.0, 'Tank', 120.5],
+            ['', '', '', ''],
+            ['', '', '', '']
         ];
         
         const data = [...instructions, ...headers, ...example];
         const ws = XLSX.utils.aoa_to_sheet(data);
         
         // Set column widths
-        ws['!cols'] = [{wch: 20}, {wch: 20}, {wch: 15}];
+        ws['!cols'] = [{wch: 20}, {wch: 20}, {wch: 15}, {wch: 22}];
         
         XLSX.utils.book_append_sheet(wb, ws, 'Players');
         XLSX.writeFile(wb, 'player_database_template.xlsx');

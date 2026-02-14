@@ -2768,13 +2768,14 @@ function renderPlayersManagementTable() {
     if (rows.length === 0) {
         const emptyRow = document.createElement('tr');
         emptyRow.classList.add('players-mgmt-empty-row');
-        emptyRow.innerHTML = `<td colspan="4" style="opacity: 0.7;">${escapeHtml(t('players_list_empty'))}</td>`;
+        emptyRow.innerHTML = `<td colspan="5" style="opacity: 0.7;">${escapeHtml(t('players_list_empty'))}</td>`;
         tbody.appendChild(emptyRow);
         return;
     }
 
     const playerNameHeader = escapeAttribute(t('table_header_player_name'));
     const powerHeader = escapeAttribute(t('table_header_power'));
+    const thpHeader = escapeAttribute(t('table_header_thp'));
     const troopHeader = escapeAttribute(t('table_header_troop'));
     const actionsHeader = escapeAttribute(t('players_list_actions_header'));
     const fragment = document.createDocumentFragment();
@@ -2787,6 +2788,7 @@ function renderPlayersManagementTable() {
             row.innerHTML = `
                 <td data-label="${playerNameHeader}"><input type="text" data-field="name" value="${escapeAttribute(player.name)}"></td>
                 <td data-label="${powerHeader}"><input type="number" data-field="power" min="0" step="0.1" value="${escapeAttribute(String(player.power))}"></td>
+                <td data-label="${thpHeader}"><input type="number" data-field="thp" min="0" step="0.1" value="${escapeAttribute(String(player.thp))}"></td>
                 <td data-label="${troopHeader}">
                     <select data-field="troops">
                         <option value="Tank" ${troopsValue === 'Tank' ? 'selected' : ''}>${escapeHtml(t('troops_filter_tank'))}</option>
@@ -2806,6 +2808,7 @@ function renderPlayersManagementTable() {
             row.innerHTML = `
                 <td data-label="${playerNameHeader}"><strong>${escapeHtml(player.name)}</strong></td>
                 <td data-label="${powerHeader}">${escapeHtml(String(player.power))}M</td>
+                <td data-label="${thpHeader}">${escapeHtml(String(player.thp))}</td>
                 <td data-label="${troopHeader}">${escapeHtml(getTroopLabel(player.troops))}</td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions">
@@ -2864,12 +2867,16 @@ async function switchPlayersManagementSource(source) {
 function resetPlayersManagementAddForm() {
     const nameInput = document.getElementById('playersMgmtNewName');
     const powerInput = document.getElementById('playersMgmtNewPower');
+    const thpInput = document.getElementById('playersMgmtNewThp');
     const troopsSelect = document.getElementById('playersMgmtNewTroops');
     if (nameInput) {
         nameInput.value = '';
     }
     if (powerInput) {
         powerInput.value = '';
+    }
+    if (thpInput) {
+        thpInput.value = '';
     }
     if (troopsSelect) {
         troopsSelect.value = 'Tank';
@@ -2884,11 +2891,13 @@ async function handlePlayersManagementAddPlayer() {
 
     const nameInput = document.getElementById('playersMgmtNewName');
     const powerInput = document.getElementById('playersMgmtNewPower');
+    const thpInput = document.getElementById('playersMgmtNewThp');
     const troopsSelect = document.getElementById('playersMgmtNewTroops');
     const source = getPlayersManagementActiveSource();
     const payload = {
         name: nameInput ? nameInput.value : '',
         power: powerInput ? powerInput.value : 0,
+        thp: thpInput ? thpInput.value : 0,
         troops: troopsSelect ? troopsSelect.value : 'Unknown',
     };
 
@@ -2952,10 +2961,12 @@ async function handlePlayersManagementTableAction(event) {
         }
         const nameInput = row.querySelector('input[data-field="name"]');
         const powerInput = row.querySelector('input[data-field="power"]');
+        const thpInput = row.querySelector('input[data-field="thp"]');
         const troopsSelect = row.querySelector('select[data-field="troops"]');
         const payload = {
             name: nameInput ? nameInput.value : '',
             power: powerInput ? powerInput.value : 0,
+            thp: thpInput ? thpInput.value : 0,
             troops: troopsSelect ? troopsSelect.value : 'Unknown',
         };
         const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload);
@@ -3016,23 +3027,24 @@ async function downloadPlayerTemplate() {
         [t('template_step1')],
         [t('template_step2')],
         [t('template_step3')],
+        ['THP (Total Hero Power): numeric value (e.g., 120.5). Leave empty to default to 0.'],
         [t('template_step4')],
         [t('template_step5')],
         [''],
-        [t('template_header_player_name'), t('template_header_power'), t('template_header_troops')]
+        [t('template_header_player_name'), t('template_header_power'), t('template_header_troops'), 'THP']
     ];
     
     const examples = [
-        ['Player1', 65.0, 'Tank'],
-        ['Player2', 68.0, 'Aero'],
-        ['Player3', 64.0, 'Missile'],
-        ['', '', ''],
-        ['', '', '']
+        ['Player1', 65.0, 'Tank', 120.5],
+        ['Player2', 68.0, 'Aero', 98.2],
+        ['Player3', 64.0, 'Missile', 0],
+        ['', '', '', ''],
+        ['', '', '', '']
     ];
     
     const data = [...instructions, ...examples];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}];
+    ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}, {wch: 22}];
     
     XLSX.utils.book_append_sheet(wb, ws, t('template_sheet_name'));
     XLSX.writeFile(wb, 'player_database_template.xlsx');

@@ -646,7 +646,7 @@ select {
 }
 @media (min-width: 760px) {
     .players-mgmt-add-form {
-        grid-template-columns: minmax(200px, 1.6fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr) auto;
+        grid-template-columns: minmax(180px, 1.4fr) minmax(110px, 0.65fr) minmax(110px, 0.65fr) minmax(120px, 0.7fr) auto;
         align-items: center;
     }
     .players-mgmt-add-form button {
@@ -683,7 +683,7 @@ select {
     color: #fff;
     box-sizing: border-box;
 }
-#playersTable td:nth-child(3)::before {
+#playersTable td:nth-child(4)::before {
     content: '·';
     margin: 0 6px;
     opacity: 0.5;
@@ -2061,7 +2061,7 @@ select {
         content: attr(data-label);
     }
 
-    /* Players: name + power + troops on one line, buttons below */
+    /* Players: name + power + THP + troops on one line, buttons below */
     #playersTable td:first-child {
         flex: 1;
         min-width: 0;
@@ -2072,9 +2072,10 @@ select {
     #playersTable td:first-child strong { font-size: 14px; }
 
     #playersTable td:nth-child(2) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
-    #playersTable td:nth-child(3) { flex: 0 0 auto; white-space: nowrap; font-size: 13px; }
+    #playersTable td:nth-child(3) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
+    #playersTable td:nth-child(4) { flex: 0 0 auto; white-space: nowrap; font-size: 13px; }
 
-    #playersTable td:nth-child(4) {
+    #playersTable td:nth-child(5) {
         width: 100%;
         padding-top: 8px;
         border-top: 1px solid rgba(255,255,255,0.08);
