@@ -3,7 +3,8 @@
   "private": true,
   "description": "One-time tooling for Firebase data migration",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=js/app-init.js --test-coverage-include=js/core/*.js --test-coverage-include=js/services/firebase-service.js --test-coverage-lines=90 tests/*.test.js"
   },
   "dependencies": {
     "@google-cloud/firestore": "^8.2.0",

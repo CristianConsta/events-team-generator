@@ -74,3 +74,79 @@ test('slugifyEventId avoids collisions', () => {
   const id = global.DSCoreEvents.slugifyEventId('Desert Storm');
   assert.equal(id, 'desert_storm_2');
 });
+
+test('events core handles invalid ids and remove operations safely', () => {
+  loadModule();
+  assert.equal(global.DSCoreEvents.getEvent('missing_event'), null);
+  assert.equal(global.DSCoreEvents.upsertEvent('   ', { name: 'Invalid' }), null);
+  assert.equal(global.DSCoreEvents.removeEvent('   '), false);
+  assert.equal(global.DSCoreEvents.removeEvent('missing_event'), false);
+});
+
+test('upsertEvent sanitizes metadata fallbacks and showOnMap flags', () => {
+  loadModule();
+  const created = global.DSCoreEvents.upsertEvent('sanitized_event', {
+    name: 'Sanitized Event',
+    mapFile: 'map.png',
+    previewMapFile: 'map-preview.png',
+    exportMapFile: 'map-export.png',
+    buildings: [{ name: 'HQ', label: '', slots: 1.8, priority: 2.2, showOnMap: false }],
+  });
+  assert.equal(created.id, 'sanitized_event');
+  assert.deepEqual(created.buildings, [
+    { name: 'HQ', label: 'HQ', slots: 2, priority: 2, showOnMap: false },
+  ]);
+
+  const updated = global.DSCoreEvents.upsertEvent('sanitized_event', {
+    name: '',
+    mapDataUrl: '  data:image/png;base64,AAA  ',
+    logoDataUrl: '  data:image/png;base64,BBB  ',
+    mapTitle: 'alpha zone',
+    excelPrefix: '',
+    buildings: [{ name: 'HQ', slots: 'x', priority: 'y' }],
+  });
+  assert.equal(updated.name, 'Sanitized Event');
+  assert.equal(updated.mapDataUrl, 'data:image/png;base64,AAA');
+  assert.equal(updated.logoDataUrl, 'data:image/png;base64,BBB');
+  assert.equal(updated.mapFile, 'data:image/png;base64,AAA');
+  assert.equal(updated.previewMapFile, 'data:image/png;base64,AAA');
+  assert.equal(updated.exportMapFile, 'data:image/png;base64,AAA');
+  assert.equal(updated.mapTitle, 'ALPHA ZONE');
+  assert.equal(updated.excelPrefix, 'sanitized_event');
+  assert.deepEqual(updated.buildings, [
+    { name: 'HQ', label: 'HQ', slots: 0, priority: 1, showOnMap: true },
+  ]);
+});
+
+test('setEventRegistry sanitizes entries and clone helpers return deep copies', () => {
+  loadModule();
+  global.DSCoreEvents.setEventRegistry({
+    '__invalid__': { id: '', name: 'Ignored' },
+    '  New Event  ': {
+      id: '  New Event  ',
+      name: '  New Event Name  ',
+      buildings: [{ name: 'Outpost', slots: 3, priority: 2, showOnMap: false }],
+      defaultPositions: { Outpost: [100, 200] },
+    },
+  });
+
+  const ids = global.DSCoreEvents.getEventIds();
+  assert.deepEqual(ids, ['invalid', 'new_event']);
+  assert.deepEqual(global.DSCoreEvents.cloneEventBuildings('missing'), []);
+  assert.deepEqual(global.DSCoreEvents.cloneDefaultPositions('missing'), {});
+  assert.deepEqual(global.DSCoreEvents.cloneEventBuildings('new_event'), [
+    { name: 'Outpost', label: 'Outpost', slots: 3, priority: 2, showOnMap: false },
+  ]);
+
+  const legacy = global.DSCoreEvents.cloneLegacyEventRegistry();
+  legacy.desert_storm.name = 'Mutated Name';
+  const fresh = global.DSCoreEvents.cloneLegacyEventRegistry();
+  assert.notEqual(fresh.desert_storm.name, 'Mutated Name');
+});
+
+test('slugifyEventId falls back to event prefix and truncates collisions', () => {
+  loadModule();
+  const existing = ['event', 'event_2', 'event_3', 'x'.repeat(30), `${'x'.repeat(28)}_2`];
+  assert.equal(global.DSCoreEvents.slugifyEventId('   ', existing), 'event_4');
+  assert.equal(global.DSCoreEvents.slugifyEventId('x'.repeat(40), existing), `${'x'.repeat(28)}_3`);
+});

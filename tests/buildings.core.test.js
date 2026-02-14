@@ -116,3 +116,52 @@ test('getBuildingSlotsTotal sums finite slot values only', () => {
   ]);
   assert.equal(total, 5);
 });
+
+test('clamp helpers handle invalid input and bounds', () => {
+  loadModule();
+  assert.equal(global.DSCoreBuildings.clampPriority('x', 4), 4);
+  assert.equal(global.DSCoreBuildings.clampPriority(9.9, 1), 6);
+  assert.equal(global.DSCoreBuildings.clampPriority(0.2, 1), 1);
+
+  assert.equal(global.DSCoreBuildings.clampSlots('x', 3, 0, 20), 3);
+  assert.equal(global.DSCoreBuildings.clampSlots(33.7, 0, 0, 20), 20);
+  assert.equal(global.DSCoreBuildings.clampSlots(-5, 0, 0, 20), 0);
+});
+
+test('normalizeBuildingConfig handles invalid defaults/config and fallback-to-default behavior', () => {
+  loadModule();
+  assert.deepEqual(global.DSCoreBuildings.normalizeBuildingConfig([], null, 0, 20), []);
+  assert.equal(global.DSCoreBuildings.getBuildingSlotsTotal(null), 0);
+
+  const defaults = [
+    null,
+    { name: '', priority: 2, slots: 2 },
+    { name: 'A', label: 'Alpha', priority: 2, slots: 2, showOnMap: false },
+  ];
+  const fromNonArrayConfig = global.DSCoreBuildings.normalizeBuildingConfig(null, defaults, 0, 20);
+  assert.deepEqual(fromNonArrayConfig, [
+    { name: 'A', label: 'Alpha', priority: 2, slots: 2, showOnMap: false },
+  ]);
+
+  const fallbackToDefaults = global.DSCoreBuildings.normalizeBuildingConfig(
+    [{ name: '   ' }],
+    [{ name: 'HQ', priority: 1, slots: 4 }],
+    0,
+    20
+  );
+  assert.deepEqual(fallbackToDefaults, [
+    { name: 'HQ', label: 'HQ', priority: 1, slots: 4, showOnMap: true },
+  ]);
+});
+
+test('normalizeBuildingPositions supports missing validNames set and invalid payloads', () => {
+  loadModule();
+  assert.deepEqual(global.DSCoreBuildings.normalizeBuildingPositions(null), {});
+  assert.deepEqual(global.DSCoreBuildings.normalizeBuildingPositions('x'), {});
+
+  const normalized = global.DSCoreBuildings.normalizeBuildingPositions({
+    HQ: [10.4, 20.6],
+    Bad: [5],
+  });
+  assert.deepEqual(normalized, { HQ: [10, 21] });
+});

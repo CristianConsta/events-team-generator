@@ -6,7 +6,7 @@
     function withManager(fn, fallback) {
         const svc = manager();
         if (!svc) {
-            return fallback;
+            return typeof fallback === 'function' ? fallback() : fallback;
         }
         return fn(svc);
     }
@@ -56,7 +56,7 @@
             return withManager((svc) => svc.saveUserData(options), notLoadedResult());
         },
         uploadPlayerDatabase: async function uploadPlayerDatabase(file) {
-            return withManager((svc) => svc.uploadPlayerDatabase(file), Promise.reject(notLoadedResult()));
+            return withManager((svc) => svc.uploadPlayerDatabase(file), () => Promise.reject(notLoadedResult()));
         },
         getPlayerDatabase: function getPlayerDatabase() {
             return withManager((svc) => svc.getPlayerDatabase(), {});
@@ -164,7 +164,7 @@
             return withManager((svc) => svc.resendInvitation(invitationId), notLoadedResult());
         },
         uploadAlliancePlayerDatabase: async function uploadAlliancePlayerDatabase(file) {
-            return withManager((svc) => svc.uploadAlliancePlayerDatabase(file), Promise.reject(notLoadedResult()));
+            return withManager((svc) => svc.uploadAlliancePlayerDatabase(file), () => Promise.reject(notLoadedResult()));
         },
         setPlayerSource: async function setPlayerSource(source) {
             return withManager((svc) => svc.setPlayerSource(source), notLoadedResult());

@@ -100,3 +100,65 @@ test('setLanguage persists choice and re-renders content', () => {
   assert.equal(env.store.ds_language, 'fr');
   assert.equal(global.DSI18N.t('greet', { name: 'Ana' }), 'Salut Ana');
 });
+
+test('setLanguage ignores unsupported values and keeps previous language', () => {
+  global.translations = {
+    en: { app_title: 'App EN', hello: 'Hello', email_placeholder: 'Email' },
+    fr: { app_title: 'App FR', hello: 'Bonjour', email_placeholder: 'Courriel' },
+  };
+  const env = setupDom('en');
+  loadModule();
+  global.DSI18N.init({});
+
+  global.DSI18N.setLanguage('es');
+
+  assert.equal(global.DSI18N.getLanguage(), 'en');
+  assert.equal(global.document.title, 'App EN');
+  assert.equal(env.store.ds_language, 'en');
+});
+
+test('i18n handles storage failures and translation fallbacks', () => {
+  global.translations = {
+    en: { app_title: 'App EN', hello: 'Hello', email_placeholder: 'Email' },
+  };
+  const env = setupDom(null);
+  loadModule();
+  global.DSI18N.init({});
+
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  global.localStorage.setItem = () => { throw new Error('storage blocked'); };
+  try {
+    global.DSI18N.setLanguage('fr');
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.ok(warnings.some((line) => line.includes('Unable to persist language preference')));
+  assert.equal(global.DSI18N.t('missing_key'), 'missing_key');
+  assert.equal(global.DSI18N.t('hello'), 'Hello');
+  assert.equal(env.languageSelect.value, 'fr');
+  assert.equal(env.loginLanguageSelect.value, 'fr');
+});
+
+test('i18n init falls back to en when localStorage read throws', () => {
+  global.translations = {
+    en: { app_title: 'App EN', hello: 'Hello', email_placeholder: 'Email' },
+    fr: { app_title: 'App FR', hello: 'Bonjour', email_placeholder: 'Courriel' },
+  };
+  const env = setupDom(null);
+  env.store.ds_language = 'fr';
+  global.localStorage = {
+    getItem() {
+      throw new Error('blocked');
+    },
+    setItem() {},
+  };
+  loadModule();
+  global.DSI18N.init({});
+
+  assert.equal(global.DSI18N.getLanguage(), 'en');
+  assert.equal(global.document.documentElement.lang, 'en');
+  assert.equal(global.document.title, 'App EN');
+});
