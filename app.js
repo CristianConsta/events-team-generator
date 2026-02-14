@@ -90,13 +90,13 @@ const ONBOARDING_STEPS = [
     { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#navPlayersBtn',        position: 'bottom' },
     { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
     { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
-    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#playersMgmtAddPanelHeader', position: 'bottom' },
     { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
     { titleKey: 'onboarding_step7_title', descKey: 'onboarding_step7_desc', targetSelector: '#eventsList',           position: 'top'    },
     { titleKey: 'onboarding_step8_title', descKey: 'onboarding_step8_desc', targetSelector: '#mapCoordinatesBtn',    position: 'top'    },
-    { titleKey: 'onboarding_step9_title', descKey: 'onboarding_step9_desc', targetSelector: '#navAllianceBtn',       position: 'bottom' },
-    { titleKey: 'onboarding_step10_title', descKey: 'onboarding_step10_desc', targetSelector: '#alliancePage',       position: 'top'    },
-    { titleKey: 'onboarding_step11_title', descKey: 'onboarding_step11_desc', targetSelector: '#navGeneratorBtn',    position: 'bottom' }
+    { titleKey: 'onboarding_step9_title', descKey: 'onboarding_step9_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
+    { titleKey: 'onboarding_step10_title', descKey: 'onboarding_step10_desc', targetSelector: '#navAllianceBtn',     position: 'bottom' },
+    { titleKey: 'onboarding_step11_title', descKey: 'onboarding_step11_desc', targetSelector: '#alliancePage',       position: 'top'    }
 ];
 
 let onboardingActive      = false;
