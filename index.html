@@ -17,35 +17,37 @@
 </head>
 <body>
     <!-- Login Screen -->
-    <div id="loginScreen" style="display: none;">
-        <div style="max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h1 style="text-align: center; color: #333;" data-i18n="login_title">Video Games Events Players Selection</h1>
-            <h3 style="text-align: center; color: #666; margin-bottom: 30px;" data-i18n="login_subtitle">Sign in to continue</h3>
+    <section id="loginScreen" aria-labelledby="loginTitle">
+        <div class="login-card">
+            <h1 id="loginTitle" class="login-title" data-i18n="login_title">Video Games Events Players Selection</h1>
+            <h3 class="login-subtitle" data-i18n="login_subtitle">Sign in to continue</h3>
             
-            <button id="googleSignInBtn" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: white; border: 1px solid #ddd; border-radius: 8px; color: #333;">
+            <button id="googleSignInBtn" class="login-btn login-btn-provider">
                 🔵 <span data-i18n="login_google">Sign in with Google</span>
             </button>
             
-            <div style="text-align: center; margin: 20px 0; color: #999;" data-i18n="login_or">or</div>
+            <div class="login-divider" data-i18n="login_or">or</div>
             
-            <form id="loginForm" style="margin: 0;">
-                <input type="email" id="emailInput" placeholder="Email" data-i18n-placeholder="login_email_placeholder" autocomplete="username" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
-                <input type="password" id="passwordInput" placeholder="Password" data-i18n-placeholder="login_password_placeholder" autocomplete="current-password" style="width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+            <form id="loginForm" class="login-form">
+                <label for="emailInput" class="login-label" data-i18n="login_email_placeholder">Email</label>
+                <input type="email" id="emailInput" class="login-input" placeholder="Email" data-i18n-placeholder="login_email_placeholder" autocomplete="username">
+                <label for="passwordInput" class="login-label" data-i18n="login_password_placeholder">Password</label>
+                <input type="password" id="passwordInput" class="login-input" placeholder="Password" data-i18n-placeholder="login_password_placeholder" autocomplete="current-password">
                 
-                <button type="submit" style="width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px;">
+                <button type="submit" class="login-btn login-btn-primary">
                     <span data-i18n="login_sign_in">Sign In</span>
                 </button>
             </form>
             
-            <button id="showSignUpBtn" type="button" style="width: 100%; padding: 12px; margin: 5px 0; font-size: 14px; cursor: pointer; background: #2196F3; color: white; border: none; border-radius: 8px;">
+            <button id="showSignUpBtn" type="button" class="login-btn login-btn-secondary">
                 <span data-i18n="login_create_account">Create New Account</span>
             </button>
             
-            <button id="passwordResetBtn" type="button" style="width: 100%; padding: 8px; margin: 10px 0; font-size: 12px; cursor: pointer; background: transparent; color: #666; border: none;">
+            <button id="passwordResetBtn" type="button" class="login-btn login-btn-link">
                 <span data-i18n="login_forgot_password">Forgot Password?</span>
             </button>
             
-            <select id="loginLanguageSelect" style="display: block; margin: 18px auto 0; padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; background: #fff; color: #333; font-size: 13px; cursor: pointer;">
+            <select id="loginLanguageSelect" class="login-language-select">
                 <option value="en">EN</option>
                 <option value="fr">FR</option>
                 <option value="de">DE</option>
@@ -54,17 +56,17 @@
                 <option value="ro">RO</option>
             </select>
 
-            <div id="statusMessage" style="margin-top: 20px; padding: 10px; border-radius: 8px; text-align: center; display: none;"></div>
+            <div id="statusMessage" class="login-status"></div>
         </div>
-    </div>
+    </section>
 
     <!-- Main App -->
-    <div id="mainApp" style="display: none;">
+    <main id="mainApp">
         <!-- User Header -->
-        <div id="userHeader" style="background: rgba(255,255,255,0.1); padding: 15px; margin-bottom: 20px; border-radius: 8px; max-width: 1200px; margin: 0 auto 20px auto;">
+        <header id="userHeader">
             <div id="userHeaderTop">
                 <div id="headerLeft">
-                    <div id="navMenu" class="header-menu">
+                    <nav id="navMenu" class="header-menu" aria-label="Primary">
                         <button id="navMenuBtn" class="secondary header-icon-btn" title="Menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="navMenuPanel">
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
                             <span class="btn-label" data-i18n="navigation_menu">Menu</span>
@@ -114,7 +116,7 @@
                                 <span data-i18n="sign_out_button">Sign Out</span>
                             </button>
                         </div>
-                    </div>
+                    </nav>
                 </div>
 
                 <div id="headerActions">
@@ -139,7 +141,7 @@
                     </button>
                 </div>
             </div>
-        </div>
+        </header>
 
         <div class="container">
 
@@ -780,7 +782,7 @@
             <div class="onboarding-desc"       id="onboardingDesc"></div>
             <div class="onboarding-skip"       id="onboardingSkip"></div>
         </div>
-    </div>
+    </main>
 
     <script defer src="translations.js"></script>
     <script defer src="js/core/events.js"></script>
@@ -797,5 +799,3 @@
     <script defer src="js/app-init.js"></script>
 </body>
 </html>
-
-
