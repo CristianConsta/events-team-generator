@@ -274,10 +274,20 @@ const FirebaseManager = (function() {
     }
 
     function ensureLegacyEventEntries(map) {
-        return ensureLegacyEventEntriesWithDefaults(map).events;
+        const target = map && typeof map === 'object' ? map : {};
+        LEGACY_EVENT_IDS.forEach((eventId) => {
+            if (!target[eventId]) {
+                target[eventId] = createEmptyEventEntry({ name: getDefaultEventName(eventId) });
+            }
+            const entry = target[eventId];
+            if (!entry.name) {
+                entry.name = getDefaultEventName(eventId);
+            }
+        });
+        return target;
     }
 
-    eventData = ensureLegacyEventEntries(eventData);
+    eventData = ensureLegacyEventEntriesWithDefaults(eventData).events;
     globalDefaultEventPositions = emptyGlobalEventPositions();
     globalDefaultEventBuildingConfig = emptyGlobalBuildingConfig();
 
@@ -1029,7 +1039,7 @@ const FirebaseManager = (function() {
         } else {
             console.log('ℹ️ User signed out');
             playerDatabase = {};
-            eventData = ensureLegacyEventEntries(createEmptyEventData());
+            eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
             allianceId = null;
             allianceName = null;
             allianceData = null;
@@ -1349,7 +1359,7 @@ const FirebaseManager = (function() {
         }
 
         playerDatabase = {};
-        eventData = ensureLegacyEventEntries(createEmptyEventData());
+        eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
         stopAllianceDocListener();
         allianceId = null;
         allianceName = null;
@@ -1428,10 +1438,7 @@ const FirebaseManager = (function() {
 
                 // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
-                    eventData = normalizeEventsMap(data.events);
-                    const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(eventData);
-                    eventData = ensuredLegacy.events;
-                    shouldPersistLegacyDefaults = ensuredLegacy.changed;
+                    eventData = ensureLegacyEventEntries(normalizeEventsMap(data.events));
                 } else if (
                     Array.isArray(data.buildingConfig)
                     || (data.buildingPositions && typeof data.buildingPositions === 'object')
@@ -1466,7 +1473,7 @@ const FirebaseManager = (function() {
                         console.warn('⚠️ Migration save failed (will retry next load):', migErr);
                     }
                 } else {
-                    // No building data at all — reset
+                    // Existing doc with no event config: bootstrap legacy defaults once.
                     const ensuredLegacy = ensureLegacyEventEntriesWithDefaults(createEmptyEventData());
                     eventData = ensuredLegacy.events;
                     shouldPersistLegacyDefaults = ensuredLegacy.changed;
@@ -1493,22 +1500,10 @@ const FirebaseManager = (function() {
                         await db.collection('users').doc(user.uid).set({
                             events: buildEventsWithoutMedia(eventData),
                         }, { merge: true });
-                        console.log('✅ Legacy default events enforced for user');
+                        console.log('✅ Bootstrap default events saved for user');
                     } catch (defaultErr) {
                         console.warn('⚠️ Failed to persist legacy default events:', defaultErr);
                     }
-                }
-
-                await loadGlobalDefaultBuildingPositions();
-                await loadGlobalDefaultBuildingConfig();
-                await maybePublishGlobalDefaultsFromCurrentUser(data);
-                await maybePublishGlobalBuildingConfigFromCurrentUser(data);
-                const appliedSharedDefaults = applyGlobalDefaultBuildingConfigToEventData({
-                    eventIds: LEGACY_EVENT_IDS,
-                    overwriteExisting: false,
-                });
-                if (appliedSharedDefaults) {
-                    shouldPersistLegacyDefaults = true;
                 }
 
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
@@ -1531,17 +1526,11 @@ const FirebaseManager = (function() {
             } else {
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
-                eventData = ensureLegacyEventEntries(createEmptyEventData());
+                eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
                 allianceId = null;
                 allianceName = null;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
-                await loadGlobalDefaultBuildingPositions();
-                await loadGlobalDefaultBuildingConfig();
-                applyGlobalDefaultBuildingConfigToEventData({
-                    eventIds: LEGACY_EVENT_IDS,
-                    overwriteExisting: true,
-                });
                 await checkInvitations();
                 rememberLastSavedUserState();
                 return { success: true, data: {}, playerCount: 0 };

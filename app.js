@@ -3952,15 +3952,13 @@ function loadBuildingPositions() {
         setBuildingPositionsLocal({});
         return false;
     }
-    const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent);
     const stored = FirebaseService.getBuildingPositions(currentEvent);
     const targetDefaults = getResolvedDefaultBuildingPositions();
-    const targetVersion = getTargetBuildingPositionsVersion();
     setBuildingPositionsLocal(normalizeBuildingPositions(stored));
-    if (Object.keys(getBuildingPositions()).length === 0 || storedVersion < targetVersion) {
+    if (Object.keys(getBuildingPositions()).length === 0) {
         setBuildingPositionsLocal(targetDefaults);
         FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-        FirebaseService.setBuildingPositionsVersion(currentEvent, targetVersion);
+        FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion());
         return true;
     }
     return false;

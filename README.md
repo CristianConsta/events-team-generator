@@ -203,6 +203,8 @@ node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_A
 node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_ACCOUNT.json --project-id YOUR_PROJECT_ID --apply
 ```
 
+By default, the script preserves existing user event configs. Use `--overwrite-existing` only when you explicitly want to replace existing user values.
+
 Optional overrides:
 
 ```bash

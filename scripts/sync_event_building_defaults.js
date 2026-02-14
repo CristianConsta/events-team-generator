@@ -38,7 +38,8 @@ function usage() {
     console.log('  --project-id, -p        Firebase project ID (optional if present in service account)');
     console.log('  --source-doc-id         Source user document id (required)');
     console.log('  --event-id              Sync one event id only (optional; default is all source events)');
-    console.log('  --preserve-existing     Skip users who already have building config for any synced event');
+    console.log('  --preserve-existing     Skip users who already have building config for any synced event (default)');
+    console.log('  --overwrite-existing    Force overwrite users even when synced event config already exists');
     console.log(`  --batch-size            Firestore page size (default: ${DEFAULT_BATCH_SIZE})`);
     console.log('  --limit                 Stop after N scanned users (for testing)');
     console.log('  --apply                 Perform writes (default is dry-run)');
@@ -52,7 +53,7 @@ function parseArgs(argv) {
         batchSize: DEFAULT_BATCH_SIZE,
         limit: null,
         apply: false,
-        preserveExisting: false,
+        preserveExisting: true,
     };
 
     for (let i = 0; i < argv.length; i += 1) {
@@ -79,6 +80,8 @@ function parseArgs(argv) {
             args.apply = true;
         } else if (arg === '--preserve-existing') {
             args.preserveExisting = true;
+        } else if (arg === '--overwrite-existing') {
+            args.preserveExisting = false;
         } else if (arg === '--help' || arg === '-h') {
             usage();
             process.exit(0);
@@ -450,12 +453,14 @@ async function main() {
     const sourceConfigs = {};
     const sourcePositions = {};
     const eventsWithConfig = {};
+    const eventsWithMaps = {};
     const eventsWithPositions = {};
     eventIds.forEach((eventId) => {
         sourceDetails[eventId] = syncedEvents[eventId].details || normalizeEventDetails(eventId, {});
         sourceConfigs[eventId] = syncedEvents[eventId].buildingConfig;
         sourcePositions[eventId] = syncedEvents[eventId].buildingPositions;
         eventsWithConfig[eventId] = !!syncedEvents[eventId].hasBuildingConfig;
+        eventsWithMaps[eventId] = !!sourceDetails[eventId].mapDataUrl;
         eventsWithPositions[eventId] = Object.keys(sourcePositions[eventId]).length > 0;
     });
 
@@ -478,6 +483,9 @@ async function main() {
         }
         if (!eventsWithPositions[eventId]) {
             console.log(`    ! No source positions for ${eventId}; existing user coordinates will be preserved.`);
+        }
+        if (!eventsWithMaps[eventId]) {
+            console.log(`    ! No source map image for ${eventId}; existing user map images will be preserved.`);
         }
     });
     printSourcePreview(eventIds, syncedEvents);
@@ -580,7 +588,9 @@ async function main() {
                 payload[`events.${eventId}.mapTitle`] = details.mapTitle || (details.name || eventId).toUpperCase().slice(0, 50);
                 payload[`events.${eventId}.excelPrefix`] = details.excelPrefix || eventId;
                 payload[`events.${eventId}.logoDataUrl`] = details.logoDataUrl || '';
-                payload[`events.${eventId}.mapDataUrl`] = details.mapDataUrl || '';
+                if (eventsWithMaps[eventId]) {
+                    payload[`events.${eventId}.mapDataUrl`] = details.mapDataUrl || '';
+                }
                 payload[`events.${eventId}.buildings`] = Array.isArray(details.buildings) ? details.buildings : [];
                 payload[`events.${eventId}.defaultPositions`] = details.defaultPositions && typeof details.defaultPositions === 'object'
                     ? details.defaultPositions
