@@ -1426,7 +1426,14 @@ const FirebaseManager = (function() {
                 return;
             }
 
-            allianceData = data;
+            allianceData = {
+                ...data,
+                playerDatabase: normalizePlayerDatabaseMap(
+                    data.playerDatabase && typeof data.playerDatabase === 'object'
+                        ? data.playerDatabase
+                        : {}
+                ),
+            };
             if (typeof data.name === 'string' && data.name.trim()) {
                 allianceName = data.name.trim();
             }
@@ -1730,7 +1737,12 @@ const FirebaseManager = (function() {
             if (doc.exists) {
                 const data = doc.data();
                 let shouldPersistLegacyDefaults = false;
-                playerDatabase = data.playerDatabase || {};
+                const rawPlayerDatabase = data.playerDatabase && typeof data.playerDatabase === 'object'
+                    ? data.playerDatabase
+                    : {};
+                const normalizedPlayerDatabase = normalizePlayerDatabaseMap(rawPlayerDatabase);
+                playerDatabase = normalizedPlayerDatabase;
+                let shouldPersistNormalizedPlayerDatabase = !areJsonEqual(rawPlayerDatabase, normalizedPlayerDatabase);
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
@@ -1803,6 +1815,16 @@ const FirebaseManager = (function() {
                         console.log('✅ Bootstrap default events saved for user');
                     } catch (defaultErr) {
                         console.warn('⚠️ Failed to persist legacy default events:', defaultErr);
+                    }
+                }
+                if (shouldPersistNormalizedPlayerDatabase) {
+                    try {
+                        await db.collection('users').doc(user.uid).set({
+                            playerDatabase: playerDatabase,
+                        }, { merge: true });
+                        console.log('✅ Player database normalized and saved for user');
+                    } catch (normalizeErr) {
+                        console.warn('⚠️ Failed to persist normalized player database:', normalizeErr);
                     }
                 }
 
@@ -1980,12 +2002,14 @@ const FirebaseManager = (function() {
                         const name = normalizeEditablePlayerName(row['Player Name']);
                         const power = row['E1 Total Power(M)'];
                         const troops = row['E1 Troops'];
+                        const thp = row['Total Hero Power'] ?? row['THP'];
                         
                         // Only require name (power and troops are optional)
                         if (name) {
                             nextDatabase[name] = {
                                 power: normalizeEditablePlayerPower(power), // Default to 0 if power missing
                                 troops: normalizeEditablePlayerTroops(troops), // Default to 'Unknown' if troops missing
+                                thp: normalizeEditablePlayerThp(thp), // Default to 0 if THP missing
                                 lastUpdated: nowIso,
                             };
                         } else {
@@ -2051,7 +2075,7 @@ const FirebaseManager = (function() {
      * Get player database
      */
     function getPlayerDatabase() {
-        return playerDatabase;
+        return normalizePlayerDatabaseMap(playerDatabase);
     }
 
     function resolveEventId(eventId) {
@@ -2215,15 +2239,46 @@ const FirebaseManager = (function() {
         return 'Unknown';
     }
 
+    function normalizeEditablePlayerThp(thp) {
+        const parsed = Number(thp);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+        }
+        return parsed;
+    }
+
+    function normalizePlayerDatabaseMap(database) {
+        if (!database || typeof database !== 'object') {
+            return {};
+        }
+        const normalized = {};
+        Object.keys(database).forEach((rawName) => {
+            const name = normalizeEditablePlayerName(rawName);
+            if (!name) {
+                return;
+            }
+            const entry = database[rawName] && typeof database[rawName] === 'object' ? database[rawName] : {};
+            normalized[name] = {
+                ...entry,
+                power: normalizeEditablePlayerPower(entry.power),
+                troops: normalizeEditablePlayerTroops(entry.troops),
+                thp: normalizeEditablePlayerThp(
+                    entry.thp ?? entry.totalHeroPower ?? entry['Total Hero Power'] ?? entry.THP
+                ),
+            };
+        });
+        return normalized;
+    }
+
     function getMutablePlayerDatabaseForSource(source) {
         if (source === 'personal') {
-            return { ...playerDatabase };
+            return normalizePlayerDatabaseMap(playerDatabase);
         }
         if (source === 'alliance') {
             if (!allianceData || typeof allianceData !== 'object' || !allianceData.playerDatabase || typeof allianceData.playerDatabase !== 'object') {
                 return {};
             }
-            return { ...allianceData.playerDatabase };
+            return normalizePlayerDatabaseMap(allianceData.playerDatabase);
         }
         return null;
     }
@@ -2288,6 +2343,7 @@ const FirebaseManager = (function() {
 
         const power = normalizeEditablePlayerPower(nextPlayer && nextPlayer.power);
         const troops = normalizeEditablePlayerTroops(nextPlayer && nextPlayer.troops);
+        const thp = normalizeEditablePlayerThp(nextPlayer && nextPlayer.thp);
         const nowIso = new Date().toISOString();
 
         const nextDatabase = getMutablePlayerDatabaseForSource(normalizedSource);
@@ -2319,6 +2375,7 @@ const FirebaseManager = (function() {
         nextDatabase[nextName] = {
             power: power,
             troops: troops,
+            thp: thp,
             lastUpdated: nowIso,
         };
 
@@ -2419,7 +2476,15 @@ const FirebaseManager = (function() {
         try {
             const doc = await db.collection('alliances').doc(allianceId).get();
             if (doc.exists) {
-                allianceData = doc.data();
+                const loadedAllianceData = doc.data() || {};
+                allianceData = {
+                    ...loadedAllianceData,
+                    playerDatabase: normalizePlayerDatabaseMap(
+                        loadedAllianceData.playerDatabase && typeof loadedAllianceData.playerDatabase === 'object'
+                            ? loadedAllianceData.playerDatabase
+                            : {}
+                    ),
+                };
                 if (!allianceData.members || !allianceData.members[currentUser.uid]) {
                     stopAllianceDocListener();
                     allianceId = null;
@@ -2977,6 +3042,7 @@ const FirebaseManager = (function() {
                             alliancePlayerDB[name] = {
                                 power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
                                 troops: normalizeEditablePlayerTroops(row['E1 Troops']),
+                                thp: normalizeEditablePlayerThp(row['Total Hero Power'] ?? row['THP']),
                                 lastUpdated: nowIso,
                                 updatedBy: currentUser.uid
                             };
@@ -3022,14 +3088,14 @@ const FirebaseManager = (function() {
     }
 
     function getAlliancePlayerDatabase() {
-        return allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {};
+        return normalizePlayerDatabaseMap(allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {});
     }
 
     function getActivePlayerDatabase() {
         if (playerSource === 'alliance' && allianceData && allianceData.playerDatabase) {
-            return allianceData.playerDatabase;
+            return normalizePlayerDatabaseMap(allianceData.playerDatabase);
         }
-        return playerDatabase;
+        return normalizePlayerDatabaseMap(playerDatabase);
     }
 
     function getUserProfile() {
@@ -3074,6 +3140,7 @@ const FirebaseManager = (function() {
             'Player Name': name,
             'E1 Total Power(M)': playerDatabase[name].power,
             'E1 Troops': playerDatabase[name].troops,
+            'THP': normalizeEditablePlayerThp(playerDatabase[name].thp),
             'Last Updated': playerDatabase[name].lastUpdated
         }));
         
@@ -3131,6 +3198,7 @@ const FirebaseManager = (function() {
                             restored[name] = {
                                 power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
                                 troops: normalizeEditablePlayerTroops(row['E1 Troops']),
+                                thp: normalizeEditablePlayerThp(row['Total Hero Power'] ?? row['THP']),
                                 lastUpdated: row['Last Updated'] || nowIso,
                             };
                         }

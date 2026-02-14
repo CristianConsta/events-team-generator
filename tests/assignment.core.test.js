@@ -84,7 +84,7 @@ test('assignTeamToBuildings emits display label and keeps internal buildingKey',
 test('assignTeamToBuildings preserves troop metadata for rendering icons', () => {
   loadModule();
   const players = [
-    { name: 'P1', power: 100, troops: 'Tank' },
+    { name: 'P1', power: 100, troops: 'Tank', thp: 55 },
     { name: 'P2', power: 99, troops: 'Aero' },
   ];
   const config = [
@@ -98,4 +98,6 @@ test('assignTeamToBuildings preserves troop metadata for rendering icons', () =>
   assert.equal(byName.get('P2').troops, 'Aero');
   assert.equal(byName.get('P1').power, 100);
   assert.equal(byName.get('P2').power, 99);
+  assert.equal(byName.get('P1').thp, 55);
+  assert.equal(byName.get('P2').thp, 0);
 });

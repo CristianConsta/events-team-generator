@@ -7,6 +7,7 @@
             player: player.name,
             troops: player.troops,
             power: player.power,
+            thp: Number.isFinite(Number(player.thp)) ? Number(player.thp) : 0,
         };
     }
 

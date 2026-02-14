@@ -2602,17 +2602,21 @@ function getPlayersDatabaseBySource(source) {
     return {};
 }
 
+function normalizePlayerRecordForUi(name, entry) {
+    const raw = entry && typeof entry === 'object' ? entry : {};
+    const power = Number(raw.power);
+    const thp = Number(raw.thp);
+    return {
+        name: String(name || ''),
+        power: Number.isFinite(power) ? power : 0,
+        troops: typeof raw.troops === 'string' && raw.troops.trim() ? raw.troops.trim() : 'Unknown',
+        thp: Number.isFinite(thp) ? thp : 0,
+    };
+}
+
 function buildPlayersManagementRows(source) {
     const db = getPlayersDatabaseBySource(source);
-    return Object.keys(db).map((name) => {
-        const entry = db[name] || {};
-        const power = Number(entry.power);
-        return {
-            name: name,
-            power: Number.isFinite(power) ? power : 0,
-            troops: typeof entry.troops === 'string' && entry.troops.trim() ? entry.troops.trim() : 'Unknown',
-        };
-    });
+    return Object.keys(db).map((name) => normalizePlayerRecordForUi(name, db[name]));
 }
 
 function hasActivePlayersManagementFilters() {
@@ -3609,9 +3613,7 @@ function syncPlayersFromActiveDatabase(options) {
     const count = playerDB && typeof playerDB === 'object' ? Object.keys(playerDB).length : 0;
 
     allPlayers = Object.keys(playerDB || {}).map((name) => ({
-        name: name,
-        power: playerDB[name].power,
-        troops: playerDB[name].troops,
+        ...normalizePlayerRecordForUi(name, playerDB[name]),
     }));
 
     const playerCountEl = document.getElementById('playerCount');
@@ -3678,11 +3680,7 @@ function loadPlayerData() {
     document.getElementById('playerCount').textContent = t('player_count_with_source', { count: count, source: sourceLabel });
     
     if (count > 0) {
-        allPlayers = Object.keys(playerDB).map(name => ({
-            name: name,
-            power: playerDB[name].power,
-            troops: playerDB[name].troops
-        }));
+        allPlayers = Object.keys(playerDB).map((name) => normalizePlayerRecordForUi(name, playerDB[name]));
         
         // Collapse upload panel and show selection
         uploadPanelExpanded = false;
