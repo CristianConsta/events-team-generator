@@ -4157,6 +4157,7 @@ function syncBuildingConfigFromTable() {
 
 let coordBuildingIndex = 0;
 let coordBuildings = [];
+let coordCanvasMapHeight = 0;
 
 function getCoordinatePickerBuildingNames() {
     const event = getActiveEvent();
@@ -4190,6 +4191,68 @@ function getCoordinatePickerBuildingNames() {
     return getBuildingConfig()
         .filter((building) => building && building.showOnMap !== false && typeof building.name === 'string' && building.name.trim())
         .map((building) => building.name.trim());
+}
+
+function getCoordinatePickerTeamBuildings() {
+    const event = getActiveEvent();
+    const teamBuildings = [];
+    const seen = new Set();
+
+    const collect = (sourceBuildings) => {
+        if (!Array.isArray(sourceBuildings)) {
+            return;
+        }
+        sourceBuildings.forEach((building) => {
+            if (!building || typeof building.name !== 'string') {
+                return;
+            }
+            const name = building.name.trim();
+            if (!name || seen.has(name)) {
+                return;
+            }
+            if (building.showOnMap !== false) {
+                return;
+            }
+            const label = typeof building.label === 'string' && building.label.trim()
+                ? building.label.trim()
+                : name;
+            seen.add(name);
+            teamBuildings.push({ name, label });
+        });
+    };
+
+    collect(event && Array.isArray(event.buildings) ? event.buildings : []);
+    if (teamBuildings.length > 0) {
+        return teamBuildings;
+    }
+
+    collect(getBuildingConfig());
+    return teamBuildings;
+}
+
+function fitCoordText(ctx, text, maxWidth, font) {
+    const value = String(text || '');
+    if (!value) {
+        return value;
+    }
+    if (!ctx || !Number.isFinite(maxWidth) || maxWidth <= 0) {
+        return value;
+    }
+    ctx.save();
+    if (font) {
+        ctx.font = font;
+    }
+    if (ctx.measureText(value).width <= maxWidth) {
+        ctx.restore();
+        return value;
+    }
+    const suffix = '...';
+    let trimmed = value;
+    while (trimmed.length > 1 && ctx.measureText(trimmed + suffix).width > maxWidth) {
+        trimmed = trimmed.slice(0, -1);
+    }
+    ctx.restore();
+    return trimmed + suffix;
 }
 
 function refreshCoordinatesPickerForCurrentEvent() {
@@ -4279,9 +4342,21 @@ function drawCoordCanvas() {
     const mapHeight = hasMapBackground
         ? Math.max(1, Math.floor(activeMapImage.height * (mapWidth / activeMapImage.width)))
         : MAP_CANVAS_FALLBACK_HEIGHT;
+    const coordTeamBuildings = getCoordinatePickerTeamBuildings();
+    const hasTeamReservedArea = coordTeamBuildings.length > 0;
+    const teamAreaTopGap = hasTeamReservedArea ? 12 : 0;
+    const teamAreaHeaderHeight = hasTeamReservedArea ? 24 : 0;
+    const teamTagHeight = hasTeamReservedArea ? 28 : 0;
+    const teamTagGap = hasTeamReservedArea ? 8 : 0;
+    const teamTagColumns = hasTeamReservedArea ? Math.min(3, coordTeamBuildings.length) : 0;
+    const teamTagRows = hasTeamReservedArea ? Math.ceil(coordTeamBuildings.length / teamTagColumns) : 0;
+    const teamAreaHeight = hasTeamReservedArea
+        ? 12 + teamAreaHeaderHeight + (teamTagRows * teamTagHeight) + (Math.max(0, teamTagRows - 1) * teamTagGap) + 12
+        : 0;
 
+    coordCanvasMapHeight = mapHeight;
     canvas.width = mapWidth;
-    canvas.height = mapHeight;
+    canvas.height = mapHeight + teamAreaTopGap + teamAreaHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (hasMapBackground) {
@@ -4339,6 +4414,69 @@ function drawCoordCanvas() {
         ctx.lineWidth = 2;
         ctx.stroke();
     });
+
+    if (hasTeamReservedArea) {
+        const panelX = 12;
+        const panelY = mapHeight + teamAreaTopGap;
+        const panelWidth = mapWidth - 24;
+        const panelHeight = teamAreaHeight;
+
+        const panelGrad = ctx.createLinearGradient(0, panelY, 0, panelY + panelHeight);
+        panelGrad.addColorStop(0, 'rgba(22, 27, 40, 0.93)');
+        panelGrad.addColorStop(1, 'rgba(18, 22, 34, 0.98)');
+        ctx.fillStyle = panelGrad;
+        ctx.beginPath();
+        ctx.roundRect(panelX, panelY, panelWidth, panelHeight, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(253, 200, 48, 0.72)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        ctx.font = 'bold 13px Arial';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const teamHeader = `${t('building_type_team')} ${t('coord_label_building')}`;
+        ctx.fillText(teamHeader, panelX + 12, panelY + 18);
+
+        ctx.font = '11px Arial';
+        ctx.fillStyle = 'rgba(255,255,255,0.72)';
+        ctx.textAlign = 'right';
+        ctx.fillText(String(coordTeamBuildings.length), panelX + panelWidth - 12, panelY + 18);
+
+        const cardsTop = panelY + 12 + teamAreaHeaderHeight;
+        const cardGap = 8;
+        const cardWidth = Math.floor((panelWidth - 24 - ((teamTagColumns - 1) * cardGap)) / teamTagColumns);
+
+        coordTeamBuildings.forEach((building, index) => {
+            const row = Math.floor(index / teamTagColumns);
+            const col = index % teamTagColumns;
+            const cardX = panelX + 12 + (col * (cardWidth + cardGap));
+            const cardY = cardsTop + (row * (teamTagHeight + teamTagGap));
+
+            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardWidth, cardY);
+            cardGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
+            cardGrad.addColorStop(1, 'rgba(255,255,255,0.03)');
+            ctx.fillStyle = cardGrad;
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardWidth, teamTagHeight, 8);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            const tagText = `${t('building_type_team')}: ${building.label}`;
+            ctx.font = 'bold 12px Arial';
+            ctx.fillStyle = 'rgba(253, 200, 48, 0.95)';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(
+                fitCoordText(ctx, tagText, cardWidth - 16, 'bold 12px Arial'),
+                cardX + 8,
+                cardY + (teamTagHeight / 2) + 0.5
+            );
+        });
+    }
 }
 
 function coordCanvasClick(event) {
@@ -4353,6 +4491,7 @@ function coordCanvasClick(event) {
     const scaleY = canvas.height / rect.height;
     const x = Math.round((event.clientX - rect.left) * scaleX);
     const y = Math.round((event.clientY - rect.top) * scaleY);
+    if (y > coordCanvasMapHeight) return;
     const name = coordBuildings[coordBuildingIndex];
     if (!name) return;
     getBuildingPositions()[name] = [x, y];
