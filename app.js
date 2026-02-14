@@ -1371,9 +1371,9 @@ function buildRegistryFromStorage() {
             id: eventId,
             name: nextName,
             titleKey: preserveTitleKey ? (base.titleKey || '') : '',
-            mapFile: mapDataUrl || base.mapFile || '',
-            previewMapFile: mapDataUrl || base.previewMapFile || base.mapFile || '',
-            exportMapFile: mapDataUrl || base.exportMapFile || base.mapFile || '',
+            mapFile: mapDataUrl || '',
+            previewMapFile: mapDataUrl || '',
+            exportMapFile: mapDataUrl || '',
             mapTitle: nextName.toUpperCase().slice(0, 50),
             excelPrefix: normalizeEventId(base.excelPrefix || eventId) || eventId,
             logoDataUrl: stored.logoDataUrl || '',
@@ -1393,33 +1393,8 @@ function getEventMapFile(eventId, purpose) {
     ensureEventRuntimeState(eventId);
     const evt = window.DSCoreEvents.getEvent(eventId);
     if (!evt) return null;
-
-    // Uploaded map at event level is authoritative for both picker and export flows.
-    if (evt.mapDataUrl) {
-        return evt.mapDataUrl;
-    }
-
-    if (purpose === MAP_EXPORT) {
-        return evt.exportMapFile || evt.mapFile || evt.previewMapFile || null;
-    }
-    return evt.previewMapFile || evt.mapFile || evt.exportMapFile || null;
-}
-
-function getEventMapFallbackFile(eventId, purpose) {
-    const evt = window.DSCoreEvents.getEvent(eventId);
-    if (!evt) return null;
-
-    if (evt.mapDataUrl) {
-        return null;
-    }
-
-    if (purpose === MAP_EXPORT) {
-        if (evt.mapFile && evt.mapFile !== evt.exportMapFile) {
-            return evt.mapFile;
-        }
-        return null;
-    }
-    return evt.mapFile || evt.exportMapFile || null;
+    const mapDataUrl = typeof evt.mapDataUrl === 'string' ? evt.mapDataUrl.trim() : '';
+    return mapDataUrl || null;
 }
 
 function loadMapImage(eventId, purpose) {
@@ -1435,8 +1410,7 @@ function loadMapImage(eventId, purpose) {
     }
 
     const primaryFile = getEventMapFile(eid, mapPurpose);
-    const fallbackFile = getEventMapFallbackFile(eid, mapPurpose);
-    const candidateFiles = [...new Set([primaryFile, fallbackFile].filter(Boolean))];
+    const candidateFiles = primaryFile ? [primaryFile] : [];
     const mapSourceSignature = candidateFiles.join('|');
 
     if (mapState.sourceSignature !== mapSourceSignature) {
@@ -1642,7 +1616,7 @@ function getEventMapPreviewSource(eventId) {
     if (!event) {
         return '';
     }
-    return event.mapDataUrl || event.previewMapFile || event.mapFile || event.exportMapFile || '';
+    return event.mapDataUrl || '';
 }
 
 function updateEventMapPreview() {
@@ -2172,9 +2146,9 @@ function buildEventDefinition(eventId, name, buildings) {
         id: eventId,
         name: name,
         titleKey: existing.titleKey || '',
-        mapFile: mapDataUrl || existing.mapFile || '',
-        previewMapFile: mapDataUrl || existing.previewMapFile || existing.mapFile || '',
-        exportMapFile: mapDataUrl || existing.exportMapFile || existing.mapFile || '',
+        mapFile: mapDataUrl || '',
+        previewMapFile: mapDataUrl || '',
+        exportMapFile: mapDataUrl || '',
         mapTitle: name.toUpperCase().slice(0, 50),
         excelPrefix: normalizeEventId(existing.excelPrefix || eventId) || eventId,
         logoDataUrl: logoDataUrl,
@@ -4254,10 +4228,10 @@ function drawCoordCanvas() {
         ctx.fillText('MAP PREVIEW UNAVAILABLE', mapWidth / 2, 52);
         ctx.font = '16px Arial';
         ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(getEventMapFile(currentEvent, activeMapPurpose) || '', mapWidth / 2, 80);
+        ctx.fillText(t('events_manager_map_placeholder'), mapWidth / 2, 80);
 
         if (!coordMapWarningShown[currentEvent]) {
-            showMessage('coordStatus', `${t('coord_map_not_loaded')} (${getEventMapFile(currentEvent, activeMapPurpose)})`, 'warning');
+            showMessage('coordStatus', t('coord_map_not_loaded'), 'warning');
             coordMapWarningShown[currentEvent] = true;
         }
     }
@@ -4811,6 +4785,11 @@ async function downloadTeamMap(team) {
     }
     
     const statusId = 'downloadStatus';
+    const uploadedMapSource = getEventMapFile(currentEvent, MAP_EXPORT);
+    if (!uploadedMapSource) {
+        await generateMapWithoutBackground(team, assignments, statusId);
+        return;
+    }
     
     const exportMapState = getMapRuntimeState(currentEvent, MAP_EXPORT);
     if (!exportMapState || !exportMapState.loaded) {
@@ -4821,11 +4800,7 @@ async function downloadTeamMap(team) {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
             ]);
         } catch (error) {
-            if (confirm(t('confirm_map_without_background'))) {
-                await generateMapWithoutBackground(team, assignments, statusId);
-            } else {
-                showMessage(statusId, t('message_map_cancelled'), 'warning');
-            }
+            await generateMapWithoutBackground(team, assignments, statusId);
             return;
         }
     }
