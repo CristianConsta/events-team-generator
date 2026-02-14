@@ -1,4 +1,35 @@
 (function initAssignmentCore(global) {
+    const POWER_SIMILARITY_THRESHOLD = 1000000;
+
+    function toNumeric(value) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : 0;
+    }
+
+    function comparePlayersForAssignment(a, b) {
+        const powerA = toNumeric(a && a.power);
+        const powerB = toNumeric(b && b.power);
+        const powerDiff = powerB - powerA;
+
+        if (Math.abs(powerDiff) > POWER_SIMILARITY_THRESHOLD) {
+            return powerDiff;
+        }
+
+        const thpA = toNumeric(a && a.thp);
+        const thpB = toNumeric(b && b.thp);
+        if (thpB !== thpA) {
+            return thpB - thpA;
+        }
+
+        if (powerDiff !== 0) {
+            return powerDiff;
+        }
+
+        const nameA = (a && a.name ? String(a.name) : '').toLowerCase();
+        const nameB = (b && b.name ? String(b.name) : '').toLowerCase();
+        return nameA.localeCompare(nameB);
+    }
+
     function buildAssignment(building, player) {
         return {
             building: building.label || building.name,
@@ -22,7 +53,7 @@
 
     function assignTeamToBuildings(players, buildingConfig) {
         const assignments = [];
-        let available = Array.isArray(players) ? [...players] : [];
+        let available = Array.isArray(players) ? [...players].sort(comparePlayersForAssignment) : [];
 
         const sortedBuildings = (Array.isArray(buildingConfig) ? [...buildingConfig] : []).sort((a, b) => {
             if (a.priority !== b.priority) {
@@ -88,5 +119,6 @@
     global.DSCoreAssignment = {
         assignTeamToBuildings: assignTeamToBuildings,
         findMixPartner: findMixPartner,
+        comparePlayersForAssignment: comparePlayersForAssignment,
     };
 })(window);

@@ -4740,6 +4740,40 @@ function updateTeamCounters() {
 // ASSIGNMENT GENERATION
 // ============================================================
 
+const ASSIGNMENT_POWER_SIMILARITY_THRESHOLD = 1000000;
+
+function toNumericAssignmentValue(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function comparePlayersForAssignments(a, b) {
+    if (window.DSCoreAssignment && typeof window.DSCoreAssignment.comparePlayersForAssignment === 'function') {
+        return window.DSCoreAssignment.comparePlayersForAssignment(a, b);
+    }
+
+    const powerA = toNumericAssignmentValue(a && a.power);
+    const powerB = toNumericAssignmentValue(b && b.power);
+    const powerDiff = powerB - powerA;
+    if (Math.abs(powerDiff) > ASSIGNMENT_POWER_SIMILARITY_THRESHOLD) {
+        return powerDiff;
+    }
+
+    const thpA = toNumericAssignmentValue(a && a.thp);
+    const thpB = toNumericAssignmentValue(b && b.thp);
+    if (thpB !== thpA) {
+        return thpB - thpA;
+    }
+
+    if (powerDiff !== 0) {
+        return powerDiff;
+    }
+
+    const nameA = (a && a.name ? String(a.name) : '').toLowerCase();
+    const nameB = (b && b.name ? String(b.name) : '').toLowerCase();
+    return nameA.localeCompare(nameB);
+}
+
 function generateTeamAssignments(team) {
     if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
@@ -4771,14 +4805,16 @@ function generateTeamAssignments(team) {
     const starterPlayers = starters.map(s => ({
         name: s.name,
         power: playerDB[s.name].power,
-        troops: playerDB[s.name].troops
-    })).sort((a, b) => b.power - a.power);
+        troops: playerDB[s.name].troops,
+        thp: playerDB[s.name].thp
+    })).sort(comparePlayersForAssignments);
 
     const substitutePlayers = substitutes.map(s => ({
         name: s.name,
         power: playerDB[s.name].power,
-        troops: playerDB[s.name].troops
-    })).sort((a, b) => b.power - a.power);
+        troops: playerDB[s.name].troops,
+        thp: playerDB[s.name].thp
+    })).sort(comparePlayersForAssignments);
 
     const assignments = assignTeamToBuildings(starterPlayers);
 

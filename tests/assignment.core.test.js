@@ -101,3 +101,18 @@ test('assignTeamToBuildings preserves troop metadata for rendering icons', () =>
   assert.equal(byName.get('P1').thp, 55);
   assert.equal(byName.get('P2').thp, 0);
 });
+
+test('assignTeamToBuildings uses THP as tie-break for similar power players (+/-1M)', () => {
+  loadModule();
+  const players = [
+    { name: 'PowerLead', power: 20900000, troops: 'Tank', thp: 120 },
+    { name: 'THPLead', power: 20150000, troops: 'Aero', thp: 650 },
+  ];
+  const config = [
+    { name: 'Frontline', priority: 1, slots: 1 },
+  ];
+
+  const result = global.DSCoreAssignment.assignTeamToBuildings(players, config);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].player, 'THPLead');
+});
