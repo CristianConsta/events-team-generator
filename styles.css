@@ -1965,17 +1965,15 @@ select {
     opacity: 0.6;
     cursor: not-allowed;
 }
-#settingsModalCard,
-#uploadTargetModal > div,
-#coordPickerOverlay > div,
-#downloadModalOverlay > div {
+.modal-shell {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%),
         var(--panel-bg-strong);
     border: 1px solid var(--panel-border-strong);
     box-shadow: var(--shadow-elev);
+    border-radius: 16px;
 }
-#settingsModalCard {
+.modal-shell--settings {
     width: min(520px, 94vw);
     padding: 24px;
 }
@@ -2009,7 +2007,7 @@ select {
     margin-top: 14px;
     flex-wrap: wrap;
 }
-.upload-target-card {
+.modal-shell--upload-target {
     width: min(400px, 90vw);
     padding: 30px;
 }
@@ -2032,7 +2030,7 @@ select {
     display: block;
     margin: 15px auto 0;
 }
-.coord-picker-card {
+.modal-shell--coord-picker {
     width: min(1000px, 95vw);
     max-height: 90vh;
     overflow: hidden;
@@ -2124,7 +2122,7 @@ select {
     border-color: rgba(var(--gold-rgb), 0.82);
     box-shadow: 0 0 0 1px rgba(var(--gold-rgb), 0.45);
 }
-.download-modal-card {
+.modal-shell--download {
     width: min(480px, 90vw);
     padding: 30px;
 }
