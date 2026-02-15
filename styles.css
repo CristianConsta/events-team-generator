@@ -927,13 +927,14 @@ select {
     gap: 10px;
 }
 .team-actions-stack {
-    display: flex;
+    display: inline-flex;
     gap: 8px;
-    width: 100%;
-    align-items: stretch;
+    width: auto;
+    max-width: 340px;
+    align-items: center;
 }
 .team-actions-stack .role-toggle {
-    flex: 1;
+    flex: 0 1 auto;
 }
 .team-clear-btn {
     min-width: 90px;
@@ -987,7 +988,7 @@ select {
 
 /* Role toggle (Starter / Sub) */
 .role-toggle {
-    display: flex;
+    display: inline-flex;
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid;
@@ -1006,6 +1007,7 @@ select {
     margin: 0;
     transition: background 0.2s, color 0.2s;
     min-height: 44px;
+    min-width: 86px;
 }
 .role-btn:hover:not(:disabled) {
     transform: none;
@@ -2520,7 +2522,10 @@ select {
 
     /* Team buttons — touch-friendly + short labels */
     .team-buttons { gap: 8px; }
-    .team-actions-stack { flex-wrap: wrap; }
+    .team-actions-stack {
+        width: 100%;
+        flex-wrap: wrap;
+    }
     .team-actions-stack .team-clear-btn {
         width: 100%;
     }
