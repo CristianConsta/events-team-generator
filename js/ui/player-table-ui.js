@@ -47,7 +47,8 @@
         return filteredPlayers;
     }
 
-    function createPlayerRow(player, getTroopLabel) {
+    function createPlayerRow(player, getTroopLabel, translate) {
+        const t = getTranslator(translate);
         const row = document.createElement('tr');
         row.className = 'players-table-row';
         row.dataset.player = player.name;
@@ -65,6 +66,7 @@
         const thpCell = document.createElement('td');
         thpCell.className = 'player-thp';
         thpCell.textContent = String(player.thp);
+        thpCell.setAttribute('data-inline-label', t('table_header_thp'));
 
         const troopsCell = document.createElement('td');
         troopsCell.className = 'player-troops';
@@ -85,7 +87,8 @@
         return row;
     }
 
-    function updatePlayerRowStaticData(row, player, getTroopLabel) {
+    function updatePlayerRowStaticData(row, player, getTroopLabel, translate) {
+        const t = getTranslator(translate);
         const nameStrong = row.querySelector('td strong');
         if (nameStrong) {
             nameStrong.textContent = player.name;
@@ -99,6 +102,7 @@
         const thpCell = row.querySelector('.player-thp');
         if (thpCell) {
             thpCell.textContent = String(player.thp);
+            thpCell.setAttribute('data-inline-label', t('table_header_thp'));
         }
 
         const troopsCell = row.querySelector('.player-troops');
@@ -233,10 +237,10 @@
         displayPlayers.forEach((player, index) => {
             let row = rowCache.get(player.name);
             if (!row) {
-                row = createPlayerRow(player, getTroopLabel);
+                row = createPlayerRow(player, getTroopLabel, config.translate);
                 rowCache.set(player.name, row);
             } else {
-                updatePlayerRowStaticData(row, player, getTroopLabel);
+                updatePlayerRowStaticData(row, player, getTroopLabel, config.translate);
             }
 
             applyPlayerRowSelectionState(row, player, counts, selectionMaps, config.translate);

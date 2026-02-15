@@ -2469,6 +2469,11 @@ select {
 
     #playersTable td:nth-child(2) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
     #playersTable td:nth-child(3) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
+    #playersTable td:nth-child(3)::before {
+        content: ' | ' attr(data-inline-label) ': ';
+        opacity: 0.8;
+        margin-right: 2px;
+    }
     #playersTable td:nth-child(4) { flex: 0 0 auto; white-space: nowrap; font-size: 13px; }
 
     #playersTable td:nth-child(5) {
