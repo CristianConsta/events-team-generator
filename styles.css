@@ -36,6 +36,9 @@
     --event-active-start: rgba(var(--gold-rgb), 0.95);
     --event-active-end: rgba(255, 148, 40, 0.95);
     --event-active-text: #1a1f32;
+    --motion-fast: 140ms;
+    --motion-medium: 170ms;
+    --motion-slow: 240ms;
 }
 :root[data-theme='last-war'] {
     --font-family-base: 'Rajdhani', 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
@@ -345,14 +348,14 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
 .card {
     position: relative;
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.01) 100%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.015) 100%),
         var(--panel-bg);
     border-radius: var(--radius-lg);
-    padding: 30px;
-    margin: 20px 0;
+    padding: 28px;
+    margin: 18px 0;
     backdrop-filter: blur(12px);
     border: 1px solid var(--panel-border);
-    box-shadow: var(--shadow-elev), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-elev), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .card::before {
     content: '';
@@ -1340,6 +1343,15 @@ select {
     gap: 6px;
     z-index: 2100;
     box-shadow: 0 12px 28px rgba(2, 7, 17, 0.56);
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    pointer-events: none;
+    transition: opacity var(--panel-motion-ms, var(--motion-medium)) ease, transform var(--panel-motion-ms, var(--motion-medium)) ease;
+}
+.header-menu-panel.ui-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
 }
 #headerLeft .header-menu-panel {
     left: 0;
@@ -1779,6 +1791,15 @@ select {
         var(--panel-bg-strong) !important;
     border: 1px solid rgba(var(--gold-rgb), 0.34) !important;
     border-radius: 14px;
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+    pointer-events: none;
+    transition: opacity var(--panel-motion-ms, var(--motion-medium)) ease, transform var(--panel-motion-ms, var(--motion-medium)) ease;
+}
+#notificationsPanel.ui-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
 }
 #notificationBtn.has-notifications {
     border-color: rgba(var(--gold-rgb), 0.82) !important;
@@ -2201,6 +2222,10 @@ select {
         margin: 0 !important;
         border-radius: 14px !important;
         overflow-y: auto !important;
+        transform: translateY(14px) scale(1) !important;
+    }
+    #notificationsPanel.ui-open {
+        transform: translateY(0) scale(1) !important;
     }
     body.notifications-sheet-open #notificationsPanel {
         box-shadow: 0 -10px 26px rgba(2, 6, 14, 0.5) !important;
@@ -2667,6 +2692,15 @@ select {
         max-width: none !important;
     }
 
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 

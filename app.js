@@ -82,6 +82,47 @@ function initLanguage() {
     });
 }
 
+const UI_MOTION_MS = Object.freeze({
+    panel: 170,
+});
+
+function clearPanelMotionTimer(element) {
+    if (!element || !element.dataset) {
+        return;
+    }
+    const timerId = Number(element.dataset.motionTimerId || 0);
+    if (timerId) {
+        clearTimeout(timerId);
+    }
+    delete element.dataset.motionTimerId;
+}
+
+function setPanelVisibility(element, shouldOpen) {
+    if (!element) {
+        return;
+    }
+
+    clearPanelMotionTimer(element);
+    element.style.setProperty('--panel-motion-ms', `${UI_MOTION_MS.panel}ms`);
+
+    if (shouldOpen) {
+        element.classList.remove('hidden');
+        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+        schedule(() => {
+            element.classList.add('ui-open');
+        });
+        return;
+    }
+
+    element.classList.remove('ui-open');
+    const timerId = setTimeout(() => {
+        element.classList.add('hidden');
+    }, UI_MOTION_MS.panel);
+    if (element.dataset) {
+        element.dataset.motionTimerId = String(timerId);
+    }
+}
+
 // ============================================================
 // ONBOARDING TOUR
 // ============================================================
@@ -581,7 +622,7 @@ function closeNavigationMenu() {
     const panel = document.getElementById('navMenuPanel');
     const menuBtn = document.getElementById('navMenuBtn');
     if (panel) {
-        panel.classList.add('hidden');
+        setPanelVisibility(panel, false);
     }
     if (menuBtn) {
         menuBtn.setAttribute('aria-expanded', 'false');
@@ -592,7 +633,7 @@ function openNavigationMenu() {
     const panel = document.getElementById('navMenuPanel');
     const menuBtn = document.getElementById('navMenuBtn');
     if (panel) {
-        panel.classList.remove('hidden');
+        setPanelVisibility(panel, true);
     }
     if (menuBtn) {
         menuBtn.setAttribute('aria-expanded', 'true');
@@ -607,10 +648,10 @@ function toggleNavigationMenu(event) {
     if (!panel) {
         return;
     }
-    if (panel.classList.contains('hidden')) {
-        openNavigationMenu();
-    } else {
+    if (panel.classList.contains('ui-open')) {
         closeNavigationMenu();
+    } else {
+        openNavigationMenu();
     }
 }
 
@@ -3328,8 +3369,8 @@ async function toggleNotificationsPanel() {
     if (!panel) {
         return;
     }
-    panel.classList.toggle('hidden');
-    const isOpen = !panel.classList.contains('hidden');
+    const isOpen = panel.classList.contains('hidden') || !panel.classList.contains('ui-open');
+    setPanelVisibility(panel, isOpen);
     if (triggerBtn) {
         triggerBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     }
@@ -3343,10 +3384,10 @@ async function toggleNotificationsPanel() {
 function closeNotificationsPanel() {
     const panel = document.getElementById('notificationsPanel');
     const triggerBtn = document.getElementById('notificationBtn');
-    if (!panel || panel.classList.contains('hidden')) {
+    if (!panel || (panel.classList.contains('hidden') && !panel.classList.contains('ui-open'))) {
         return;
     }
-    panel.classList.add('hidden');
+    setPanelVisibility(panel, false);
     if (triggerBtn) {
         triggerBtn.setAttribute('aria-expanded', 'false');
     }
@@ -3449,10 +3490,7 @@ function renderNotifications() {
 
 function openAllianceInvitesFromNotification(invitationId) {
     pendingAllianceInviteFocusId = invitationId || '';
-    const notificationPanel = document.getElementById('notificationsPanel');
-    if (notificationPanel) {
-        notificationPanel.classList.add('hidden');
-    }
+    closeNotificationsPanel();
     closeNavigationMenu();
     openAlliancePanel();
 }
