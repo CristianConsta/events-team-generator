@@ -860,11 +860,6 @@ select {
     color: #fff;
     box-sizing: border-box;
 }
-#playersTable td:nth-child(4)::before {
-    content: '·';
-    margin: 0 6px;
-    opacity: 0.5;
-}
 #buildingsTable input[type="number"] {
     width: 70px;
     min-height: 40px;
@@ -2496,6 +2491,11 @@ select {
         margin-right: 2px;
     }
     #playersTable td:nth-child(4) { flex: 0 0 auto; white-space: nowrap; font-size: 13px; }
+    #playersTable td:nth-child(4)::before {
+        content: ' | ';
+        opacity: 0.78;
+        margin-right: 2px;
+    }
 
     #playersTable td:nth-child(5) {
         width: 100%;
