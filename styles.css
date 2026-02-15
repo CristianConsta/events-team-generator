@@ -323,6 +323,47 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
 .event-selector-inline {
     align-self: flex-start;
 }
+.section-title {
+    margin: 0;
+}
+.section-help {
+    opacity: 0.9;
+    margin-bottom: 20px;
+}
+.section-help-tight {
+    margin: 10px 0 0;
+}
+.inline-title {
+    display: inline;
+    margin: 0;
+}
+.responsive-table-wrap {
+    overflow-x: auto;
+}
+.upload-actions-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+#uploadHint,
+#playersListHint {
+    margin-left: 15px;
+    opacity: 0.7;
+    font-size: 14px;
+}
+#playerCount,
+#playersListCount {
+    color: rgba(255,255,255,0.72);
+    font-size: 13px;
+    margin-top: 6px;
+    text-align: left;
+}
+#clearAllBtn {
+    margin-left: auto;
+}
+#selectionEventSelector {
+    margin: 0 0 12px;
+}
 .event-selector-inline .event-btn {
     padding: 9px 14px;
     min-height: 42px;
@@ -1139,6 +1180,26 @@ select {
     border-top: 1px solid rgba(var(--gold-rgb), 0.22);
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.38);
 }
+#floatingButtons {
+    display: none;
+}
+#generateBtnA {
+    background: linear-gradient(135deg, var(--team-a), #1E90FF);
+}
+#generateBtnB {
+    background: linear-gradient(135deg, var(--team-b), #FF6347);
+}
+.generate-event-label {
+    display: block;
+    font-size: 11px;
+    opacity: 0.7;
+    letter-spacing: 0.5px;
+}
+.generate-team-summary {
+    display: block;
+    font-size: 14px;
+    opacity: 0.9;
+}
 .mobile-bottom-nav {
     display: none;
     position: fixed;
@@ -1222,7 +1283,7 @@ select {
     margin: 15px 0;
     text-align: center;
     font-weight: 700;
-    border-width: 1px !important;
+    border-width: 1px;
     box-shadow: var(--shadow-soft);
 }
 .success { background: rgba(144, 238, 144, 0.2); border: 2px solid #90EE90; color: #90EE90; }
@@ -1272,10 +1333,10 @@ select {
     padding: 15px;
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%),
-        rgba(10, 15, 28, 0.96) !important;
-    border: 1px solid var(--panel-border-strong) !important;
-    border-radius: 16px !important;
-    box-shadow: var(--shadow-elev) !important;
+        rgba(10, 15, 28, 0.96);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 16px;
+    box-shadow: var(--shadow-elev);
     backdrop-filter: blur(10px);
 }
 #userHeaderTop {
@@ -1376,12 +1437,15 @@ select {
     gap: 8px;
 }
 #allianceDisplay {
+    display: none;
     max-width: 180px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: rgba(var(--gold-rgb), 0.86) !important;
-    opacity: 1 !important;
+    color: rgba(var(--gold-rgb), 0.86);
+    font-weight: 700;
+    opacity: 0.7;
+    cursor: pointer;
 }
 #playerCount {
     display: block;
@@ -1482,15 +1546,45 @@ select {
     box-shadow: var(--shadow-soft);
 }
 #notificationBtn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    padding: 8px 10px;
     min-width: 44px;
     min-height: 44px;
     border-radius: 12px;
-    border-color: rgba(var(--gold-rgb), 0.34) !important;
-    background: rgba(8, 13, 24, 0.72) !important;
+    border-color: rgba(var(--gold-rgb), 0.34);
+    background: rgba(8, 13, 24, 0.72);
 }
 #notificationBtn svg {
     width: 18px;
     height: 18px;
+}
+#notificationBadge {
+    display: none;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #DC143C;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+}
+.notifications-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.notifications-panel-title {
+    margin: 0;
+    color: var(--gold);
 }
 #navMenuBtn:hover {
     background: rgba(255,255,255,0.14);
@@ -1588,6 +1682,37 @@ select {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+}
+.events-panel-help {
+    opacity: 0.9;
+    margin: 8px 0 0;
+}
+.events-manager-grid-spaced {
+    margin-top: 14px;
+}
+.events-list-title-head {
+    margin-top: 0;
+}
+.events-editor-title {
+    margin: 0;
+}
+.event-media-label {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-bottom: 8px;
+}
+.event-buildings-block {
+    margin-top: 16px;
+}
+.event-buildings-title {
+    margin: 0 0 8px;
+}
+.event-buildings-help {
+    opacity: 0.84;
+    margin: 0 0 10px;
+}
+.event-buildings-actions {
+    margin-top: 10px;
 }
 .event-edit-btn {
     margin: 0;
@@ -1846,15 +1971,144 @@ select {
 #downloadModalOverlay > div {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%),
-        var(--panel-bg-strong) !important;
-    border: 1px solid var(--panel-border-strong) !important;
-    box-shadow: var(--shadow-elev) !important;
+        var(--panel-bg-strong);
+    border: 1px solid var(--panel-border-strong);
+    box-shadow: var(--shadow-elev);
+}
+#settingsModalCard {
+    width: min(520px, 94vw);
+    padding: 24px;
+}
+.settings-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+.modal-title {
+    margin: 0;
+}
+.modal-description {
+    opacity: 0.85;
+    margin: 0 0 16px;
+}
+.settings-avatar-label {
+    font-size: 13px;
+    opacity: 0.8;
+}
+.settings-avatar-action-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.settings-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+.upload-target-card {
+    width: min(400px, 90vw);
+    padding: 30px;
+}
+.upload-target-title {
+    margin: 0 0 10px;
+}
+.upload-target-desc {
+    opacity: 0.9;
+    margin-bottom: 20px;
+}
+.upload-target-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+}
+.upload-target-btn {
+    padding: 16px;
+}
+.upload-target-close-btn {
+    display: block;
+    margin: 15px auto 0;
+}
+.coord-picker-card {
+    width: min(1000px, 95vw);
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+#coordHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.coord-picker-help {
+    opacity: 0.9;
+    margin: 10px 0 15px;
+}
+#coordEventName {
+    opacity: 0.85;
+    margin: 0 0 12px;
+    font-weight: 700;
+}
+#coordBuildingRow {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 6px;
+}
+#coordBuildingIndex {
+    opacity: 0.7;
+}
+#coordPrompt {
+    opacity: 0.85;
+    margin-bottom: 10px;
+}
+#coordBuildingValue {
+    opacity: 0.7;
+    margin-bottom: 10px;
+}
+#coordCanvas {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: min(58vh, 620px);
+    margin: 0 auto;
+    box-sizing: border-box;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0,0,0,0.2);
+}
+#coordActions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+#coordStatus {
+    margin-top: 10px;
 }
 #notificationsPanel {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    z-index: 1500;
+    max-width: 380px;
+    width: calc(100vw - 40px);
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.01) 100%),
-        var(--panel-bg-strong) !important;
-    border: 1px solid rgba(var(--gold-rgb), 0.34) !important;
+        var(--panel-bg-strong);
+    border: 1px solid rgba(var(--gold-rgb), 0.34);
     border-radius: 14px;
     opacity: 0;
     transform: translateY(8px) scale(0.99);
@@ -1867,8 +2121,37 @@ select {
     pointer-events: auto;
 }
 #notificationBtn.has-notifications {
-    border-color: rgba(var(--gold-rgb), 0.82) !important;
+    border-color: rgba(var(--gold-rgb), 0.82);
     box-shadow: 0 0 0 1px rgba(var(--gold-rgb), 0.45);
+}
+.download-modal-card {
+    width: min(480px, 90vw);
+    padding: 30px;
+}
+.download-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+#downloadModalSubtitle {
+    opacity: 0.9;
+    margin: 0 0 25px;
+}
+#downloadBtnGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+#downloadMapBtn {
+    font-size: 17px;
+    padding: 16px 25px;
+}
+#downloadExcelBtn {
+    padding: 16px 25px;
+}
+#downloadStatus {
+    margin-top: 15px;
 }
 #selectionSection,
 #uploadSection,
@@ -2277,23 +2560,23 @@ select {
         grid-template-columns: 1fr;
     }
     #notificationsPanel {
-        top: auto !important;
-        right: 10px !important;
-        left: 10px !important;
-        bottom: calc(10px + var(--mobile-nav-runtime-height)) !important;
-        width: auto !important;
-        max-width: none !important;
-        max-height: min(62vh, 480px) !important;
-        margin: 0 !important;
-        border-radius: 14px !important;
-        overflow-y: auto !important;
-        transform: translateY(14px) scale(1) !important;
+        top: auto;
+        right: 10px;
+        left: 10px;
+        bottom: calc(10px + var(--mobile-nav-runtime-height));
+        width: auto;
+        max-width: none;
+        max-height: min(62vh, 480px);
+        margin: 0;
+        border-radius: 14px;
+        overflow-y: auto;
+        transform: translateY(14px) scale(1);
     }
     #notificationsPanel.ui-open {
-        transform: translateY(0) scale(1) !important;
+        transform: translateY(0) scale(1);
     }
     body.notifications-sheet-open #notificationsPanel {
-        box-shadow: 0 -10px 26px rgba(2, 6, 14, 0.5) !important;
+        box-shadow: 0 -10px 26px rgba(2, 6, 14, 0.5);
     }
 }
 
@@ -2314,7 +2597,7 @@ select {
     .event-btn { padding: 10px 12px; font-size: 13px; min-height: 44px; }
     .event-selector-inline .event-btn { padding: 10px 12px; font-size: 13px; min-height: 44px; }
     .header-icon-btn .btn-label { display: none; }
-    .header-icon-btn { padding: 10px !important; min-width: 44px; min-height: 44px; }
+    .header-icon-btn { padding: 10px; min-width: 44px; min-height: 44px; }
     #headerLeft .header-menu-panel {
         width: min(240px, calc(100vw - 30px));
         left: 0;
@@ -2650,7 +2933,7 @@ select {
         white-space: nowrap;
     }
     #buildingsTable input[type="number"] {
-        width: 50px !important;
+        width: 50px;
         font-size: 16px;
     }
     #buildingsTable input[type="text"] {
@@ -2683,7 +2966,7 @@ select {
         padding: 14px 16px;
         font-size: 16px;
     }
-    .floating-buttons button span { font-size: 12px !important; }
+    .floating-buttons button span { font-size: 12px; }
 
     /* ── Collapsible panels ── */
     .collapsible-header        { padding: 10px 0; }
@@ -2692,71 +2975,71 @@ select {
     .collapsible-header:active { opacity: 0.7; }
 
     /* ── Upload section ── */
-    #uploadHint                { margin-left: 8px !important; font-size: 12px !important; }
-    #playersListHint           { margin-left: 8px !important; font-size: 12px !important; }
-    #uploadContent > p         { margin-bottom: 12px !important; }
-    #uploadContent > div       { gap: 10px !important; flex-direction: column !important; }
+    #uploadHint                { margin-left: 8px; font-size: 12px; }
+    #playersListHint           { margin-left: 8px; font-size: 12px; }
+    #uploadContent > p         { margin-bottom: 12px; }
+    #uploadContent > div       { gap: 10px; flex-direction: column; }
     #uploadContent > div button { width: 100%; }
 
     /* ── Collapsible header — wrap title + hint ── */
     .collapsible-header > div:first-child h2 {
-        display: block !important;
+        display: block;
         font-size: 1.1rem;
     }
     .collapsible-header > div:first-child span {
-        margin-left: 0 !important;
+        margin-left: 0;
         display: block;
         margin-top: 4px;
     }
 
     /* ── Selection section ── */
-    #selectionSection > p      { margin-bottom: 12px !important; }
+    #selectionSection > p      { margin-bottom: 12px; }
 
     /* ── Buildings panel ── */
-    #buildingsPanel > p                    { margin: 10px 0 !important; }
-    #buildingsPanel > div:first-child      { gap: 8px !important; }
-    #buildingsPanel > div:first-child > div { gap: 6px !important; }
-    #buildingsActions                      { gap: 8px !important; margin-top: 10px !important; }
+    #buildingsPanel > p                    { margin: 10px 0; }
+    #buildingsPanel > div:first-child      { gap: 8px; }
+    #buildingsPanel > div:first-child > div { gap: 6px; }
+    #buildingsActions                      { gap: 8px; margin-top: 10px; }
 
     /* ── Overlays — tighter padding on small screens ── */
-    .coord-overlay > div { padding: 16px !important; }
+    .coord-overlay > div { padding: 16px; }
 
     /* ── Coordinate picker ── */
-    #coordHeader                           { gap: 8px !important; }
-    #coordPickerOverlay > div > p          { margin: 8px 0 10px !important; }
-    #coordBuildingRow                      { gap: 10px !important; margin-bottom: 4px !important; }
-    #coordPrompt                           { margin-bottom: 8px !important; }
-    #coordBuildingValue                    { margin-bottom: 8px !important; }
-    #coordActions                          { gap: 8px !important; margin-top: 10px !important; }
-    #coordStatus                           { margin-top: 8px !important; }
+    #coordHeader                           { gap: 8px; }
+    .coord-picker-help                     { margin: 8px 0 10px; }
+    #coordBuildingRow                      { gap: 10px; margin-bottom: 4px; }
+    #coordPrompt                           { margin-bottom: 8px; }
+    #coordBuildingValue                    { margin-bottom: 8px; }
+    #coordActions                          { gap: 8px; margin-top: 10px; }
+    #coordStatus                           { margin-top: 8px; }
 
     /* ── Download modal ── */
-    #downloadModalOverlay > div > div:first-child { margin-bottom: 6px !important; }
-    #downloadModalSubtitle                 { margin-bottom: 14px !important; }
-    #downloadBtnGrid                       { gap: 10px !important; }
-    #downloadMapBtn, #downloadExcelBtn     { padding: 16px !important; font-size: 15px !important; }
-    #downloadStatus                        { margin-top: 10px !important; }
+    .download-modal-header                 { margin-bottom: 6px; }
+    #downloadModalSubtitle                 { margin-bottom: 14px; }
+    #downloadBtnGrid                       { gap: 10px; }
+    #downloadMapBtn, #downloadExcelBtn     { padding: 16px; font-size: 15px; }
+    #downloadStatus                        { margin-top: 10px; }
 
     /* ── Login screen ── */
-    #loginScreen > div         { padding: 24px !important; margin: 30px auto !important; }
-    #loginScreen h3            { margin-bottom: 18px !important; }
-    #loginLanguageSelect       { margin-top: 14px !important; }
+    #loginScreen > div         { padding: 24px; margin: 30px auto; }
+    #loginScreen h3            { margin-bottom: 18px; }
+    #loginLanguageSelect       { margin-top: 14px; }
 
     /* ── User header ── */
-    #userHeader               { padding: 10px !important; }
-    #userHeaderTop            { gap: 8px !important; align-items: center !important; }
-    #headerLeft               { gap: 8px !important; flex: 0 0 auto !important; }
-    #headerActions            { gap: 8px !important; flex: 1 1 auto !important; justify-content: flex-end !important; min-width: 0 !important; }
-    #headerProfileCluster     { gap: 6px !important; min-width: 0; }
-    #headerUserInfo           { justify-content: flex-end !important; gap: 8px !important; }
-    #headerProfileBtn         { padding: 4px 6px !important; gap: 6px !important; max-width: 150px !important; min-height: 38px !important; }
-    .header-avatar            { width: 34px !important; height: 34px !important; min-width: 34px !important; font-size: 12px !important; }
-    #userIdentityLabel        { font-size: 12px !important; max-width: 94px !important; }
-    #allianceDisplay          { max-width: 74px !important; font-size: 11px !important; }
-    #playerCount              { font-size: 12px !important; }
-    #notificationBtn          { padding: 9px !important; min-width: 44px; min-height: 44px; margin: 0 !important; }
-    .settings-avatar-wrap     { gap: 10px !important; }
-    .settings-avatar-preview  { width: 62px !important; height: 62px !important; font-size: 18px !important; }
+    #userHeader               { padding: 10px; }
+    #userHeaderTop            { gap: 8px; align-items: center; }
+    #headerLeft               { gap: 8px; flex: 0 0 auto; }
+    #headerActions            { gap: 8px; flex: 1 1 auto; justify-content: flex-end; min-width: 0; }
+    #headerProfileCluster     { gap: 6px; min-width: 0; }
+    #headerUserInfo           { justify-content: flex-end; gap: 8px; }
+    #headerProfileBtn         { padding: 4px 6px; gap: 6px; max-width: 150px; min-height: 38px; }
+    .header-avatar            { width: 34px; height: 34px; min-width: 34px; font-size: 12px; }
+    #userIdentityLabel        { font-size: 12px; max-width: 94px; }
+    #allianceDisplay          { max-width: 74px; font-size: 11px; }
+    #playerCount              { font-size: 12px; }
+    #notificationBtn          { padding: 9px; min-width: 44px; min-height: 44px; margin: 0; }
+    .settings-avatar-wrap     { gap: 10px; }
+    .settings-avatar-preview  { width: 62px; height: 62px; font-size: 18px; }
 
     /* ── Onboarding tooltip ── */
     .onboarding-tooltip { max-width: 250px; padding: 14px 16px 10px; font-size: 12px; }
@@ -2774,10 +3057,10 @@ select {
 
     /* ── Notifications panel — full width on phone ── */
     #notificationsPanel {
-        right: 10px !important;
-        left: 10px !important;
-        width: auto !important;
-        max-width: none !important;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-width: none;
     }
 
 }
