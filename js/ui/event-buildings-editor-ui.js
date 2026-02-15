@@ -17,17 +17,36 @@
         const showOnMap = source.showOnMap !== false;
 
         const row = document.createElement('tr');
+        row.className = 'event-buildings-editor-row';
         row.innerHTML = `
-        <td><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
-        <td data-label="${escapeAttribute(translate('buildings_table_slots'))}"><input type="number" data-field="slots" min="${minSlots}" max="${maxSlots}" value="${Number.isFinite(slots) ? Math.max(minSlots, Math.min(maxSlots, Math.round(slots))) : 0}"></td>
-        <td data-label="${escapeAttribute(translate('buildings_table_priority'))}"><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
-        <td data-label="${escapeAttribute(translate('buildings_table_display'))}">
-            <div class="display-toggle" data-field="showOnMap">
-                <button type="button" class="display-toggle-btn ${showOnMap ? 'active' : ''}" data-display="building">${translate('building_type_building')}</button>
-                <button type="button" class="display-toggle-btn ${!showOnMap ? 'active' : ''}" data-display="team">${translate('building_type_team')}</button>
+        <td class="event-editor-cell event-editor-cell--name"><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
+        <td class="event-editor-cell event-editor-cell--slots" data-label="${escapeAttribute(translate('buildings_table_slots'))}"><input type="number" data-field="slots" min="${minSlots}" max="${maxSlots}" value="${Number.isFinite(slots) ? Math.max(minSlots, Math.min(maxSlots, Math.round(slots))) : 0}"></td>
+        <td class="event-editor-cell event-editor-cell--priority" data-label="${escapeAttribute(translate('buildings_table_priority'))}"><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
+        <td class="event-editor-cell event-editor-cell--display" data-label="${escapeAttribute(translate('buildings_table_display'))}">
+            <div class="display-toggle" data-field="showOnMap" role="radiogroup" aria-label="${escapeAttribute(translate('buildings_table_display'))}">
+                <button
+                    type="button"
+                    class="display-toggle-btn ${showOnMap ? 'active' : ''}"
+                    data-display="building"
+                    role="radio"
+                    aria-checked="${showOnMap ? 'true' : 'false'}"
+                >
+                    <span class="display-toggle-prefix" aria-hidden="true">MAP</span>
+                    <span>${translate('building_type_building')}</span>
+                </button>
+                <button
+                    type="button"
+                    class="display-toggle-btn ${!showOnMap ? 'active' : ''}"
+                    data-display="team"
+                    role="radio"
+                    aria-checked="${!showOnMap ? 'true' : 'false'}"
+                >
+                    <span class="display-toggle-prefix" aria-hidden="true">TEAM</span>
+                    <span>${translate('building_type_team')}</span>
+                </button>
             </div>
         </td>
-        <td><button class="clear-btn" type="button" data-action="remove-row">${translate('events_manager_remove')}</button></td>
+        <td class="event-editor-cell event-editor-cell--actions"><button class="clear-btn event-editor-remove-btn" type="button" data-action="remove-row">${translate('events_manager_remove')}</button></td>
     `;
         return row;
     }
@@ -140,8 +159,10 @@
                 if (toggle) {
                     toggle.querySelectorAll('.display-toggle-btn').forEach(function (button) {
                         button.classList.remove('active');
+                        button.setAttribute('aria-checked', 'false');
                     });
                     displayBtn.classList.add('active');
+                    displayBtn.setAttribute('aria-checked', 'true');
                 }
                 return;
             }

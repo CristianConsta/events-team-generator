@@ -49,9 +49,11 @@
 
     function createPlayerRow(player, getTroopLabel) {
         const row = document.createElement('tr');
+        row.className = 'players-table-row';
         row.dataset.player = player.name;
 
         const nameCell = document.createElement('td');
+        nameCell.className = 'players-table-name-cell';
         const nameStrong = document.createElement('strong');
         nameStrong.textContent = player.name;
         nameCell.appendChild(nameStrong);
@@ -69,8 +71,9 @@
         troopsCell.textContent = getTroopLabel(player.troops);
 
         const actionsCell = document.createElement('td');
+        actionsCell.className = 'players-table-actions-cell';
         const teamButtons = document.createElement('div');
-        teamButtons.className = 'team-buttons';
+        teamButtons.className = 'team-buttons team-buttons-group';
         actionsCell.appendChild(teamButtons);
 
         row.appendChild(nameCell);
@@ -122,15 +125,17 @@
             const starterDisabled = role === 'substitute' && counts.teamAStarterCount >= 20;
             const subDisabled = role === 'starter' && counts.teamASubCount >= 10;
             return `
-            <div class="role-toggle team-a-selected">
-                <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
+            <div class="team-actions-stack">
+                <div class="role-toggle team-a-selected">
+                    <button type="button" class="role-btn starter ${role === 'starter' ? 'active' : ''}"
                         ${starterDisabled ? 'disabled' : ''}
                         data-role="starter">${t('role_starter')}</button>
-                <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
+                    <button type="button" class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
                         ${subDisabled ? 'disabled' : ''}
                         data-role="substitute">${t('role_substitute')}</button>
+                </div>
+                <button type="button" class="clear-btn team-clear-btn">${t('clear_button')}</button>
             </div>
-            <button class="clear-btn">${t('clear_button')}</button>
         `;
         }
 
@@ -139,15 +144,17 @@
             const starterDisabled = role === 'substitute' && counts.teamBStarterCount >= 20;
             const subDisabled = role === 'starter' && counts.teamBSubCount >= 10;
             return `
-            <div class="role-toggle team-b-selected">
-                <button class="role-btn starter ${role === 'starter' ? 'active' : ''}"
+            <div class="team-actions-stack">
+                <div class="role-toggle team-b-selected">
+                    <button type="button" class="role-btn starter ${role === 'starter' ? 'active' : ''}"
                         ${starterDisabled ? 'disabled' : ''}
                         data-role="starter">${t('role_starter')}</button>
-                <button class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
+                    <button type="button" class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
                         ${subDisabled ? 'disabled' : ''}
                         data-role="substitute">${t('role_substitute')}</button>
+                </div>
+                <button type="button" class="clear-btn team-clear-btn">${t('clear_button')}</button>
             </div>
-            <button class="clear-btn">${t('clear_button')}</button>
         `;
         }
 
@@ -155,14 +162,16 @@
         const teamBFullyDisabled = counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
 
         return `
-        <button class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
-            <span class="team-label-full">${t('team_a_button')}</span>
-            <span class="team-label-short">${t('team_a_short')}</span>
-        </button>
-        <button class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
-            <span class="team-label-full">${t('team_b_button')}</span>
-            <span class="team-label-short">${t('team_b_short')}</span>
-        </button>
+        <div class="team-select-group">
+            <button type="button" class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
+                <span class="team-label-full">${t('team_a_button')}</span>
+                <span class="team-label-short">${t('team_a_short')}</span>
+            </button>
+            <button type="button" class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
+                <span class="team-label-full">${t('team_b_button')}</span>
+                <span class="team-label-short">${t('team_b_short')}</span>
+            </button>
+        </div>
     `;
     }
 

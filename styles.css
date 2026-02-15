@@ -237,6 +237,33 @@ h1 { text-align: center; color: var(--gold); font-size: 2.5rem; margin-bottom: 3
     width: 100%;
     animation: app-fade-in 0.26s ease;
 }
+.screen-shell {
+    display: grid;
+    gap: 14px;
+}
+.screen-panel {
+    position: relative;
+}
+.screen-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.screen-body {
+    display: grid;
+    gap: 12px;
+}
+.screen-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.collapsible-header.screen-header {
+    margin-bottom: 0;
+}
 @keyframes app-fade-in {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
@@ -783,11 +810,25 @@ select {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+    align-items: center;
 }
 .players-table .players-mgmt-actions button {
     margin: 0;
     min-height: 34px;
     padding: 6px 10px;
+}
+.players-mgmt-actions .players-mgmt-save-btn,
+.players-mgmt-actions .players-mgmt-edit-btn {
+    border-color: rgba(var(--gold-rgb), 0.55);
+}
+.players-mgmt-actions .players-mgmt-danger-btn {
+    border-color: rgba(255, 107, 53, 0.72);
+    color: rgba(255, 142, 112, 0.95);
+}
+.players-mgmt-actions .players-mgmt-danger-btn:hover {
+    background: rgba(255, 107, 53, 0.16);
+    border-color: rgba(255, 107, 53, 0.84);
+    color: #ffb398;
 }
 .players-table .players-mgmt-edit-row input,
 .players-table .players-mgmt-edit-row select {
@@ -873,6 +914,26 @@ select {
 .team-buttons {
     display: flex;
     gap: 10px;
+}
+.team-buttons-group,
+.team-select-group {
+    width: 100%;
+}
+.team-select-group {
+    display: flex;
+    gap: 10px;
+}
+.team-actions-stack {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    align-items: stretch;
+}
+.team-actions-stack .role-toggle {
+    flex: 1;
+}
+.team-clear-btn {
+    min-width: 90px;
 }
 .team-btn {
     padding: 10px 14px;
@@ -972,13 +1033,39 @@ select {
     transition: background 0.2s, color 0.2s;
     min-height: 32px;
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     text-align: center;
     color: rgba(255,255,255,0.6);
+}
+.display-toggle-prefix {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    line-height: 1.2;
 }
 .display-toggle-btn:hover { background: rgba(255,255,255,0.1); }
 .display-toggle-btn.active {
     background: rgba(var(--gold-rgb), 0.88);
     color: #070c19;
+}
+.display-toggle-btn.active .display-toggle-prefix {
+    background: rgba(7, 12, 25, 0.12);
+    border-color: rgba(7, 12, 25, 0.24);
+}
+.event-editor-cell--display .display-toggle {
+    width: 100%;
+}
+.event-editor-remove-btn {
+    min-width: 90px;
 }
 
 .generate-section {
@@ -1835,6 +1922,63 @@ select {
     gap: 10px;
     flex-wrap: wrap;
 }
+.alliance-invite-actions--explicit {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 10px;
+}
+.alliance-invite-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0 10px;
+}
+.alliance-status-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.alliance-status-chip--usage {
+    border-color: rgba(var(--gold-rgb), 0.52);
+    background: rgba(var(--gold-rgb), 0.18);
+    color: rgba(255, 241, 206, 0.96);
+}
+.alliance-status-chip--time {
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.78);
+}
+.alliance-status-chip--locked {
+    border-color: rgba(255, 107, 53, 0.48);
+    background: rgba(255, 107, 53, 0.14);
+    color: rgba(255, 174, 145, 0.94);
+}
+.alliance-action-btn {
+    min-height: 38px;
+}
+.alliance-action-btn--neutral {
+    border-color: rgba(var(--gold-rgb), 0.44);
+}
+.alliance-action-btn--primary {
+    border-color: rgba(var(--gold-rgb), 0.52);
+}
+.alliance-action-btn--danger {
+    border-color: rgba(255, 107, 53, 0.72);
+    color: rgba(255, 142, 112, 0.95);
+}
+.alliance-action-btn--danger:hover {
+    background: rgba(255, 107, 53, 0.16);
+    border-color: rgba(255, 107, 53, 0.84);
+    color: #ffb398;
+}
 
 .alliance-invite-actions button {
     flex: 1;
@@ -2164,10 +2308,14 @@ select {
     .counter { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; }
 
     /* ── Players table → card layout ── */
+    .responsive-table-card,
     #playersTable, #buildingsTable, #playersMgmtTable, #eventBuildingsEditorTable { display: block; }
+    .responsive-table-card thead,
     #playersTable thead, #buildingsTable thead, #playersMgmtTable thead, #eventBuildingsEditorTable thead { display: none; }
+    .responsive-table-card tbody,
     #playersTable tbody, #buildingsTable tbody, #playersMgmtTable tbody, #eventBuildingsEditorTable tbody { display: block; }
 
+    .responsive-table-card tr,
     #playersTable tr, #buildingsTable tr, #playersMgmtTable tr, #eventBuildingsEditorTable tr {
         display: flex;
         flex-wrap: wrap;
@@ -2189,6 +2337,7 @@ select {
     #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.2); border-color: rgba(var(--team-a-rgb),0.4); }
     #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.2); border-color: rgba(var(--team-b-rgb),0.4); }
 
+    .responsive-table-card td,
     #playersTable td, #buildingsTable td, #playersMgmtTable td, #eventBuildingsEditorTable td {
         border-bottom: none;
         padding: 5px 0;
@@ -2318,6 +2467,10 @@ select {
 
     /* Team buttons — touch-friendly + short labels */
     .team-buttons { gap: 8px; }
+    .team-actions-stack { flex-wrap: wrap; }
+    .team-actions-stack .team-clear-btn {
+        width: 100%;
+    }
     .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; min-height: 44px; }
     .team-label-full { display: none; }
     .team-label-short { display: inline; }

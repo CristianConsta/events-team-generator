@@ -29,6 +29,20 @@
         }
     }
 
+    function createStatusChip(text, variant) {
+        const safeText = typeof text === 'string' ? text.trim() : '';
+        if (!safeText) {
+            return null;
+        }
+        const chip = document.createElement('span');
+        chip.className = 'alliance-status-chip';
+        if (typeof variant === 'string' && variant) {
+            chip.classList.add('alliance-status-chip--' + variant);
+        }
+        chip.textContent = safeText;
+        return chip;
+    }
+
     function getPendingInvitations(config) {
         if (!config || typeof config.getPendingInvitations !== 'function') {
             return [];
@@ -125,23 +139,28 @@
                 inviteeEl.textContent = t('alliance_invite_to_label', { email: inviteeEmail });
                 card.appendChild(inviteeEl);
 
-                const resendInfoEl = document.createElement('div');
-                resendInfoEl.className = 'alliance-invite-sender';
-                resendInfoEl.textContent = t('alliance_invite_resend_usage', { used: resendCount, max: maxResendCount });
-                card.appendChild(resendInfoEl);
-
+                const metaRow = document.createElement('div');
+                metaRow.className = 'alliance-invite-meta';
+                const resendChip = createStatusChip(t('alliance_invite_resend_usage', { used: resendCount, max: maxResendCount }), 'usage');
+                if (resendChip) {
+                    metaRow.appendChild(resendChip);
+                }
                 if (sentAt) {
-                    const sentAtEl = document.createElement('div');
-                    sentAtEl.className = 'alliance-invite-created';
-                    sentAtEl.textContent = t('alliance_invite_last_sent_at', { datetime: sentAt });
-                    card.appendChild(sentAtEl);
+                    const sentChip = createStatusChip(t('alliance_invite_last_sent_at', { datetime: sentAt }), 'time');
+                    if (sentChip) {
+                        metaRow.appendChild(sentChip);
+                    }
+                }
+                if (metaRow.childElementCount > 0) {
+                    card.appendChild(metaRow);
                 }
 
                 const actions = document.createElement('div');
-                actions.className = 'alliance-invite-actions';
+                actions.className = 'alliance-invite-actions alliance-invite-actions--explicit';
 
                 const resendBtn = document.createElement('button');
                 resendBtn.type = 'button';
+                resendBtn.className = 'secondary alliance-action-btn alliance-action-btn--neutral';
                 resendBtn.setAttribute('data-sent-invite-action', 'resend');
                 resendBtn.setAttribute('data-sent-invite-id', invitationId);
                 resendBtn.textContent = t('alliance_invite_resend_button');
@@ -152,7 +171,7 @@
 
                 const revokeBtn = document.createElement('button');
                 revokeBtn.type = 'button';
-                revokeBtn.className = 'clear-btn';
+                revokeBtn.className = 'clear-btn alliance-action-btn alliance-action-btn--danger';
                 revokeBtn.setAttribute('data-sent-invite-action', 'revoke');
                 revokeBtn.setAttribute('data-sent-invite-id', invitationId);
                 revokeBtn.textContent = t('alliance_invite_revoke_button');
@@ -274,21 +293,50 @@
 
             const createdAtEl = cardTemplate.querySelector('.alliance-invite-created');
             if (createdAtEl) {
-                createdAtEl.textContent = createdAt || '';
-                createdAtEl.classList.toggle('hidden', !createdAt);
+                createdAtEl.textContent = '';
+                createdAtEl.classList.add('hidden');
+            }
+
+            if (cardEl) {
+                const metaRow = document.createElement('div');
+                metaRow.className = 'alliance-invite-meta';
+                if (createdAt) {
+                    const createdChip = createStatusChip(createdAt, 'time');
+                    if (createdChip) {
+                        metaRow.appendChild(createdChip);
+                    }
+                }
+                if (hasAllianceMembership) {
+                    const lockedChip = createStatusChip(t('alliance_invites_leave_first'), 'locked');
+                    if (lockedChip) {
+                        metaRow.appendChild(lockedChip);
+                    }
+                }
+                if (metaRow.childElementCount > 0) {
+                    cardEl.appendChild(metaRow);
+                }
             }
 
             cardTemplate.querySelectorAll('[data-invite-action]').forEach((btn) => {
                 btn.setAttribute('data-invite-id', inviteId);
+                btn.classList.add('alliance-action-btn');
+                if (hasAllianceMembership) {
+                    btn.disabled = true;
+                    btn.setAttribute('aria-disabled', 'true');
+                } else {
+                    btn.removeAttribute('aria-disabled');
+                }
             });
 
             const acceptBtn = cardTemplate.querySelector('[data-invite-action="accept"]');
             if (acceptBtn) {
                 acceptBtn.textContent = t('notification_accept');
+                acceptBtn.classList.add('alliance-action-btn--primary');
             }
             const rejectBtn = cardTemplate.querySelector('[data-invite-action="reject"]');
             if (rejectBtn) {
                 rejectBtn.textContent = t('notification_reject');
+                rejectBtn.classList.add('alliance-action-btn--danger');
             }
 
             cardsContainer.appendChild(cardTemplate);

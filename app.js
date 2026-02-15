@@ -1829,7 +1829,9 @@ function updateEventEditorState() {
         }
     });
 
-    const rows = document.querySelectorAll('#eventBuildingsEditorBody input, #eventBuildingsEditorBody button[data-action="remove-row"]');
+    const rows = document.querySelectorAll(
+        '#eventBuildingsEditorBody input, #eventBuildingsEditorBody button[data-action="remove-row"], #eventBuildingsEditorBody .display-toggle-btn'
+    );
     rows.forEach((element) => {
         element.disabled = readOnly;
     });
@@ -2827,9 +2829,9 @@ function renderPlayersManagementTable() {
                     </select>
                 </td>
                 <td data-label="${actionsHeader}">
-                    <div class="players-mgmt-actions">
-                        <button type="button" data-pm-action="save" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_save_button'))}</button>
-                        <button type="button" class="secondary" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_cancel_button'))}</button>
+                    <div class="players-mgmt-actions players-mgmt-actions--edit">
+                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_save_button'))}</button>
+                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_cancel_button'))}</button>
                     </div>
                 </td>
             `;
@@ -2840,9 +2842,9 @@ function renderPlayersManagementTable() {
                 <td data-label="${thpHeader}">${escapeHtml(String(player.thp))}</td>
                 <td data-label="${troopHeader}">${escapeHtml(getTroopLabel(player.troops))}</td>
                 <td data-label="${actionsHeader}">
-                    <div class="players-mgmt-actions">
-                        <button type="button" class="secondary" data-pm-action="edit" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_edit_button'))}</button>
-                        <button type="button" class="clear-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_delete_button'))}</button>
+                    <div class="players-mgmt-actions players-mgmt-actions--default">
+                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_edit_button'))}</button>
+                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_delete_button'))}</button>
                     </div>
                 </td>
             `;

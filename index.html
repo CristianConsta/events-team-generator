@@ -135,7 +135,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
                         </button>
                     </div>
-                    <button id="notificationBtn" title="Notifications" style="position: relative; padding: 8px 10px; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; margin: 0;">
+                    <button id="notificationBtn" title="Notifications" aria-expanded="false" style="position: relative; padding: 8px 10px; background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; cursor: pointer; display: flex; align-items: center; margin: 0;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                         <span id="notificationBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #DC143C; color: white; font-size: 10px; font-weight: bold; width: 18px; height: 18px; border-radius: 50%; align-items: center; justify-content: center;">0</span>
                     </button>
@@ -145,8 +145,8 @@
 
         <div class="container">
 
-            <div id="alliancePage" class="app-view hidden">
-                <div class="card">
+            <div id="alliancePage" class="app-view screen-shell hidden">
+                <div class="card screen-panel">
                     <div class="page-header">
                         <h2 class="config-title" data-i18n="alliance_panel_title">Alliance</h2>
                     </div>
@@ -426,11 +426,11 @@
                 </div>
             </div>
 
-            <div id="generatorPage" class="app-view">
+            <div id="generatorPage" class="app-view screen-shell">
                 <!-- Player Selection Section -->
-                <div id="selectionSection" class="card hidden">
+                <div id="selectionSection" class="card screen-panel hidden">
                     <div class="event-selector event-selector-inline" id="selectionEventSelector" style="margin: 0 0 12px;"></div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div class="screen-header" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;" data-i18n="select_players_for_event_title">Select players for the event</h2>
                     </div>
                     <div id="selectionSourceControls" class="selection-source-controls hidden">
@@ -488,8 +488,8 @@
                     </div>
                     
                     <!-- Players Table -->
-                    <div style="overflow-x: auto;">
-                        <table class="players-table" id="playersTable">
+                    <div class="responsive-table-wrap" style="overflow-x: auto;">
+                        <table class="players-table responsive-table-card" id="playersTable">
                             <thead>
                                 <tr>
                                     <th data-i18n="table_header_player_name">Player Name</th>
@@ -507,13 +507,13 @@
                 </div>
             </div>
 
-            <div id="playersManagementPage" class="app-view hidden">
-                <div class="page-header">
+            <div id="playersManagementPage" class="app-view screen-shell hidden">
+                <div class="page-header screen-header">
                     <h2 class="config-title" data-i18n="players_management_page_title">Players Management</h2>
                 </div>
 
                 <!-- Upload Section (Collapsible when players exist) -->
-                <div id="uploadSection" class="card">
+                <div id="uploadSection" class="card screen-panel">
                     <div id="uploadPanelHeader" class="collapsible-header">
                         <div>
                             <h2 style="display: inline; margin: 0;" data-i18n="player_db_title">📊 Player Database</h2>
@@ -523,7 +523,7 @@
                         <span class="expand-icon rotated" id="uploadExpandIcon">▼</span>
                     </div>
                     
-                    <div class="collapsible-content" id="uploadContent">
+                    <div class="collapsible-content screen-body" id="uploadContent">
                         <p style="opacity: 0.9; margin-bottom: 20px;" data-i18n="upload_help">Upload your player data. Template headers start at row 10: Player Name, 1st Team Power (M), E1 Troops, THP.</p>
                         
                         <div style="display: flex; gap: 15px; flex-wrap: wrap;">
@@ -536,7 +536,7 @@
                     </div>
                 </div>
 
-                <div id="playersListSection" class="card">
+                <div id="playersListSection" class="card screen-panel">
                     <div id="playersListPanelHeader" class="collapsible-header">
                         <div>
                             <h2 style="display: inline; margin: 0;" data-i18n="players_list_title">Players List</h2>
@@ -545,7 +545,7 @@
                         </div>
                         <span class="expand-icon rotated" id="playersListExpandIcon">▼</span>
                     </div>
-                    <div class="collapsible-content" id="playersListContent">
+                    <div class="collapsible-content screen-body" id="playersListContent">
                         <div id="playersMgmtSourceControls" class="selection-source-controls hidden">
                             <span class="selection-source-title" data-i18n="alliance_player_source_title">Player Source</span>
                             <div class="selection-source-actions">
@@ -602,7 +602,7 @@
                                     <button id="playersMgmtClearFiltersBtn" class="secondary" type="button" data-i18n="clear_all_selections">Clear All Selections</button>
                                 </div>
                                 <div class="players-mgmt-table-wrap">
-                                    <table class="players-table" id="playersMgmtTable">
+                                    <table class="players-table responsive-table-card" id="playersMgmtTable">
                                         <thead>
                                             <tr>
                                                 <th data-i18n="table_header_player_name">Player Name</th>
@@ -622,20 +622,20 @@
                 </div>
             </div>
 
-            <div id="configurationPage" class="app-view hidden">
-                <div class="page-header">
+            <div id="configurationPage" class="app-view screen-shell hidden">
+                <div class="page-header screen-header">
                     <h2 class="config-title" data-i18n="events_manager_title">Events Manager</h2>
                 </div>
 
-                <div id="eventsPanel" class="card">
-                    <div id="eventsPanelHeader" class="collapsible-header">
+                <div id="eventsPanel" class="card screen-panel">
+                    <div id="eventsPanelHeader" class="collapsible-header screen-header">
                         <div>
                             <h2 style="margin: 0;" data-i18n="events_manager_title">Events Manager</h2>
                             <p style="opacity: 0.9; margin: 8px 0 0;" data-i18n="events_manager_help">Create custom events with name, logo, map, and building setup.</p>
                         </div>
                         <span class="expand-icon rotated" id="eventsExpandIcon">▼</span>
                     </div>
-                    <div class="collapsible-content" id="eventsContent">
+                    <div class="collapsible-content screen-body" id="eventsContent">
                     <div class="events-manager-grid" style="margin-top: 14px;">
                         <div class="events-list-card">
                             <h3 style="margin-top: 0;" data-i18n="events_manager_existing_title">Existing Events</h3>
@@ -692,8 +692,8 @@
                             <div style="margin-top: 16px;">
                                 <h4 style="margin: 0 0 8px;" data-i18n="events_manager_buildings_title">Buildings</h4>
                                 <p style="opacity: 0.84; margin: 0 0 10px;" data-i18n="events_manager_buildings_help">Define building name, #Players, and priority for this event.</p>
-                                <div style="overflow-x: auto;">
-                                    <table class="players-table" id="eventBuildingsEditorTable">
+                                <div class="responsive-table-wrap" style="overflow-x: auto;">
+                                    <table class="players-table responsive-table-card" id="eventBuildingsEditorTable">
                                         <thead>
                                             <tr>
                                                 <th data-i18n="buildings_table_building">Building</th>
@@ -706,7 +706,7 @@
                                         <tbody id="eventBuildingsEditorBody"></tbody>
                                     </table>
                                 </div>
-                                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                                <div class="screen-actions" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
                                     <button id="eventAddBuildingBtn" class="secondary event-add-building-btn" type="button">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                             <path d="M3 21h18"/>
@@ -728,8 +728,8 @@
                     </div>
                     </div>
                 </div>
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <div class="card screen-panel">
+                    <div class="screen-header" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
                         <h2 style="margin: 0;" data-i18n="map_coordinates_tool_title">Player Name Label Coordinates</h2>
                         <button id="mapCoordinatesBtn" class="secondary"><span data-i18n="map_coordinates">Map Coordinates</span></button>
                     </div>
