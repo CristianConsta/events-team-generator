@@ -23,6 +23,7 @@
     --radius-md: 12px;
     --radius-lg: 16px;
     --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --mobile-nav-runtime-height: 0px;
     --backdrop-glow-a: rgba(253, 200, 48, 0.18);
     --backdrop-glow-b: rgba(70, 118, 255, 0.2);
     --grid-line-color: rgba(255, 255, 255, 0.03);
@@ -999,7 +1000,7 @@ select {
 /* Floating Generate Buttons */
 .floating-buttons {
     position: fixed;
-    bottom: 0;
+    bottom: var(--mobile-nav-runtime-height);
     left: 0;
     right: 0;
     background: linear-gradient(180deg, rgba(9, 14, 26, 0) 0%, rgba(9, 14, 26, 0.94) 25%, rgba(9, 14, 26, 1) 100%);
@@ -1010,6 +1011,43 @@ select {
     z-index: 1000;
     border-top: 1px solid rgba(var(--gold-rgb), 0.22);
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.38);
+}
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
+    background:
+        linear-gradient(180deg, rgba(9, 14, 26, 0.82) 0%, rgba(9, 14, 26, 0.96) 100%);
+    border-top: 1px solid rgba(var(--gold-rgb), 0.28);
+    padding: 8px 10px calc(8px + var(--safe-area-inset-bottom));
+    gap: 8px;
+}
+.mobile-bottom-nav-btn {
+    margin: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(var(--gold-rgb), 0.22);
+    color: var(--text-primary);
+    box-shadow: none;
+}
+.mobile-bottom-nav-btn:hover {
+    transform: none;
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.09);
+}
+.mobile-bottom-nav-btn.active {
+    background: linear-gradient(135deg, var(--event-active-start), var(--event-active-end));
+    color: var(--event-active-text);
+    border-color: rgba(255, 255, 255, 0.4);
 }
 .floating-buttons button {
     min-width: 280px;
@@ -1932,6 +1970,26 @@ select {
     body { padding: 15px; }
     h1 { font-size: 2rem; margin-bottom: 20px; }
     .card { padding: 22px; }
+    .page-header {
+        gap: 12px;
+        margin-bottom: 12px;
+        padding: 0 0 8px;
+    }
+    .selection-source-controls {
+        padding: 8px 10px;
+        margin-bottom: 10px;
+    }
+    .selection-source-title {
+        font-size: 12px;
+    }
+    .selection-source-actions button {
+        min-height: 34px;
+        font-size: 12px;
+    }
+    .mobile-bottom-nav {
+        display: flex;
+        align-items: stretch;
+    }
 
     .filters input {
         flex: 1 1 45%;
@@ -1987,6 +2045,21 @@ select {
     .support-grid,
     .support-guide-grid {
         grid-template-columns: 1fr;
+    }
+    #notificationsPanel {
+        top: auto !important;
+        right: 10px !important;
+        left: 10px !important;
+        bottom: calc(10px + var(--mobile-nav-runtime-height)) !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: min(62vh, 480px) !important;
+        margin: 0 !important;
+        border-radius: 14px !important;
+        overflow-y: auto !important;
+    }
+    body.notifications-sheet-open #notificationsPanel {
+        box-shadow: 0 -10px 26px rgba(2, 6, 14, 0.5) !important;
     }
 }
 

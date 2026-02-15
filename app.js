@@ -267,6 +267,10 @@ function bindStaticUiActions() {
     on('navAllianceBtn', 'click', showAlliancePage);
     on('navSettingsBtn', 'click', openSettingsModal);
     on('navSupportBtn', 'click', showSupportPage);
+    on('mobileNavGeneratorBtn', 'click', showGeneratorPage);
+    on('mobileNavConfigBtn', 'click', showConfigurationPage);
+    on('mobileNavPlayersBtn', 'click', showPlayersManagementPage);
+    on('mobileNavAllianceBtn', 'click', showAlliancePage);
     on('navSignOutBtn', 'click', () => {
         closeNavigationMenu();
         handleSignOut();
@@ -616,6 +620,10 @@ function syncNavigationMenuState() {
     const playersBtn = document.getElementById('navPlayersBtn');
     const allianceBtn = document.getElementById('navAllianceBtn');
     const supportBtn = document.getElementById('navSupportBtn');
+    const mobileGeneratorBtn = document.getElementById('mobileNavGeneratorBtn');
+    const mobileConfigBtn = document.getElementById('mobileNavConfigBtn');
+    const mobilePlayersBtn = document.getElementById('mobileNavPlayersBtn');
+    const mobileAllianceBtn = document.getElementById('mobileNavAllianceBtn');
     if (generatorBtn) {
         const isActive = currentPageView === 'generator';
         generatorBtn.classList.toggle('active', isActive);
@@ -640,6 +648,26 @@ function syncNavigationMenuState() {
         const isActive = currentPageView === 'support';
         supportBtn.classList.toggle('active', isActive);
         supportBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (mobileGeneratorBtn) {
+        const isActive = currentPageView === 'generator';
+        mobileGeneratorBtn.classList.toggle('active', isActive);
+        mobileGeneratorBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (mobileConfigBtn) {
+        const isActive = currentPageView === 'configuration';
+        mobileConfigBtn.classList.toggle('active', isActive);
+        mobileConfigBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (mobilePlayersBtn) {
+        const isActive = currentPageView === 'players';
+        mobilePlayersBtn.classList.toggle('active', isActive);
+        mobilePlayersBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
+    if (mobileAllianceBtn) {
+        const isActive = currentPageView === 'alliance';
+        mobileAllianceBtn.classList.toggle('active', isActive);
+        mobileAllianceBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
 }
 
@@ -692,6 +720,7 @@ function setPageView(view) {
     supportPage.classList.toggle('hidden', currentPageView !== 'support');
     syncNavigationMenuState();
     closeNavigationMenu();
+    closeNotificationsPanel();
 
     if (currentPageView === 'configuration') {
         loadBuildingConfig();
@@ -3293,14 +3322,33 @@ function stopNotificationPolling() {
 
 async function toggleNotificationsPanel() {
     const panel = document.getElementById('notificationsPanel');
+    const triggerBtn = document.getElementById('notificationBtn');
     if (!panel) {
         return;
     }
     panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) {
+    const isOpen = !panel.classList.contains('hidden');
+    if (triggerBtn) {
+        triggerBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+    document.body.classList.toggle('notifications-sheet-open', isOpen);
+    if (isOpen) {
         await checkAndDisplayNotifications();
         renderNotifications();
     }
+}
+
+function closeNotificationsPanel() {
+    const panel = document.getElementById('notificationsPanel');
+    const triggerBtn = document.getElementById('notificationBtn');
+    if (!panel || panel.classList.contains('hidden')) {
+        return;
+    }
+    panel.classList.add('hidden');
+    if (triggerBtn) {
+        triggerBtn.setAttribute('aria-expanded', 'false');
+    }
+    document.body.classList.remove('notifications-sheet-open');
 }
 
 function getNotificationItems() {
@@ -4535,11 +4583,18 @@ async function saveBuildingPositions() {
 
 function reserveSpaceForFooter() {
     const bar = document.getElementById('floatingButtons');
-    if (!bar) return;
-    const visible = bar.style.display !== 'none';
-    const barHeight = visible ? bar.getBoundingClientRect().height : 0;
+    const mobileNav = document.getElementById('mobileBottomNav');
+    const barVisible = !!bar && bar.style.display !== 'none';
+    const mobileNavVisible = !!mobileNav && window.matchMedia('(max-width: 768px)').matches;
+    const barHeight = barVisible ? bar.getBoundingClientRect().height : 0;
+    const navHeight = mobileNavVisible ? mobileNav.getBoundingClientRect().height : 0;
+    const root = document.documentElement;
+    if (root) {
+        root.style.setProperty('--mobile-nav-runtime-height', `${Math.ceil(navHeight)}px`);
+    }
     const safeAreaInset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-bottom')) || 0;
-    document.body.style.paddingBottom = visible ? `${Math.ceil(barHeight + 18 + safeAreaInset)}px` : '';
+    const totalHeight = barHeight + navHeight;
+    document.body.style.paddingBottom = totalHeight > 0 ? `${Math.ceil(totalHeight + 18 + safeAreaInset)}px` : '';
 }
 
 window.addEventListener('resize', reserveSpaceForFooter);
@@ -5958,6 +6013,17 @@ document.addEventListener('click', (event) => {
     const navMenu = document.getElementById('navMenu');
     if (navMenu && !navMenu.contains(event.target)) {
         closeNavigationMenu();
+    }
+    const notificationsPanel = document.getElementById('notificationsPanel');
+    const notificationBtn = document.getElementById('notificationBtn');
+    if (
+        notificationsPanel &&
+        notificationBtn &&
+        !notificationsPanel.classList.contains('hidden') &&
+        !notificationsPanel.contains(event.target) &&
+        !notificationBtn.contains(event.target)
+    ) {
+        closeNotificationsPanel();
     }
 });
 
