@@ -49,8 +49,14 @@
         deleteUserAccountAndData: async function deleteUserAccountAndData() {
             return withManager((svc) => svc.deleteUserAccountAndData(), notLoadedResult());
         },
+        getCurrentUser: function getCurrentUser() {
+            return withManager((svc) => svc.getCurrentUser(), null);
+        },
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);
+        },
+        loadUserData: async function loadUserData(user) {
+            return withManager((svc) => svc.loadUserData(user), notLoadedResult());
         },
         saveUserData: async function saveUserData(options) {
             return withManager((svc) => svc.saveUserData(options), notLoadedResult());

@@ -2919,6 +2919,27 @@ function getPlayersManagementActiveSource() {
     return FirebaseService.getPlayerSource() === 'alliance' ? 'alliance' : 'personal';
 }
 
+async function refreshPlayersDataAfterMutation(source) {
+    if (typeof FirebaseService === 'undefined') {
+        return;
+    }
+
+    if (source === 'alliance' && typeof FirebaseService.loadAllianceData === 'function') {
+        await FirebaseService.loadAllianceData();
+    } else if (
+        source === 'personal'
+        && typeof FirebaseService.getCurrentUser === 'function'
+        && typeof FirebaseService.loadUserData === 'function'
+    ) {
+        const user = FirebaseService.getCurrentUser();
+        if (user && user.uid) {
+            await FirebaseService.loadUserData(user);
+        }
+    }
+
+    loadPlayerData();
+}
+
 function getPlayersDatabaseBySource(source) {
     if (typeof FirebaseService === 'undefined') {
         return {};
@@ -3245,7 +3266,7 @@ async function handlePlayersManagementAddPlayer() {
             togglePlayersManagementAddPanel(false);
         }
         const returnToPlayersPage = currentPageView === 'players';
-        loadPlayerData();
+        await refreshPlayersDataAfterMutation(source);
         if (returnToPlayersPage) {
             showPlayersManagementPage();
         }
@@ -3309,7 +3330,7 @@ async function handlePlayersManagementTableAction(event) {
             playersManagementEditingName = '';
             showMessage('playersMgmtStatus', t('players_list_saved'), 'success');
             const returnToPlayersPage = currentPageView === 'players';
-            loadPlayerData();
+            await refreshPlayersDataAfterMutation(source);
             if (returnToPlayersPage) {
                 showPlayersManagementPage();
             }
@@ -3327,13 +3348,13 @@ async function handlePlayersManagementTableAction(event) {
         const result = await FirebaseService.removePlayerEntry(source, originalName);
         if (result && result.success) {
             playersManagementEditingName = '';
-            showMessage('playersMgmtStatus', t('players_list_deleted'), 'success');
             const returnToPlayersPage = currentPageView === 'players';
-            loadPlayerData();
+            await refreshPlayersDataAfterMutation(source);
             if (returnToPlayersPage) {
                 showPlayersManagementPage();
             }
             renderPlayersManagementPanel();
+            showMessage('playersMgmtStatus', t('players_list_deleted'), 'success');
             return;
         }
         showMessage('playersMgmtStatus', translatePlayersManagementError(result), 'error');

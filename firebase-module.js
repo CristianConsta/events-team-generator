@@ -1914,7 +1914,11 @@ const FirebaseManager = (function() {
         try {
             console.log(`💾 Saving data (${changedFields.join(', ')})...`);
             if (hasDocPayload) {
-                await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+                const mergeFieldKeys = Object.keys(payload);
+                await db.collection('users').doc(currentUser.uid).set(
+                    payload,
+                    mergeFieldKeys.length > 0 ? { mergeFields: mergeFieldKeys } : { merge: true }
+                );
             }
             if (mediaChanged) {
                 const previousMedia = lastSavedUserState && lastSavedUserState.eventMedia ? lastSavedUserState.eventMedia : {};
@@ -2305,10 +2309,21 @@ const FirebaseManager = (function() {
         if (source === 'personal') {
             const previousDatabase = playerDatabase;
             playerDatabase = nextDatabase;
-            const saveResult = await saveUserData({ immediate: true });
-            if (!saveResult.success) {
+            try {
+                await db.collection('users').doc(currentUser.uid).set({
+                    playerDatabase: nextDatabase,
+                    metadata: {
+                        email: currentUser.email || null,
+                        emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
+                        totalPlayers: Object.keys(nextDatabase).length,
+                        lastUpload: new Date().toISOString(),
+                        lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+                    },
+                }, { mergeFields: ['playerDatabase', 'metadata'] });
+                rememberLastSavedUserState();
+            } catch (error) {
                 playerDatabase = previousDatabase;
-                return saveResult;
+                return { success: false, error: error.message };
             }
             return { success: true };
         }
@@ -2323,7 +2338,7 @@ const FirebaseManager = (function() {
                     totalPlayers: Object.keys(nextDatabase).length,
                     lastModified: firebase.firestore.FieldValue.serverTimestamp(),
                 },
-            }, { merge: true });
+            }, { mergeFields: ['playerDatabase', 'metadata'] });
 
             if (!allianceData || typeof allianceData !== 'object') {
                 allianceData = {};
