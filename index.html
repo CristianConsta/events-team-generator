@@ -329,10 +329,10 @@
                 <div id="notificationsList"></div>
             </div>
 
-            <div id="settingsModal" class="coord-overlay hidden">
+            <div id="settingsModal" class="coord-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" tabindex="-1">
                 <div id="settingsModalCard" class="modal-shell modal-shell--settings">
                     <div class="settings-modal-header">
-                        <h2 class="modal-title" data-i18n="settings_title">Settings</h2>
+                        <h2 id="settingsModalTitle" class="modal-title" data-i18n="settings_title">Settings</h2>
                         <button id="settingsModalCloseBtn" class="clear-btn"><span data-i18n="close">Close</span></button>
                     </div>
                     <p class="modal-description" data-i18n="settings_description">Set how your profile appears in the header.</p>
@@ -389,9 +389,9 @@
                 </div>
             </div>
 
-            <div id="uploadTargetModal" class="coord-overlay hidden">
+            <div id="uploadTargetModal" class="coord-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="uploadTargetTitle" tabindex="-1">
                 <div class="upload-target-card modal-shell modal-shell--upload-target">
-                    <h2 class="upload-target-title" data-i18n="upload_target_title">Upload Destination</h2>
+                    <h2 id="uploadTargetTitle" class="upload-target-title" data-i18n="upload_target_title">Upload Destination</h2>
                     <p class="upload-target-desc" data-i18n="upload_target_desc">Where should this player data be stored?</p>
                     <div class="upload-target-grid">
                         <button id="uploadPersonalBtn" class="upload-target-btn"><span data-i18n="upload_target_personal">My Database</span></button>
@@ -402,10 +402,10 @@
                 </div>
             </div>
 
-            <div id="coordPickerOverlay" class="coord-overlay hidden">
+            <div id="coordPickerOverlay" class="coord-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="coordPickerTitle" tabindex="-1">
                 <div class="coord-picker-card modal-shell modal-shell--coord-picker">
                     <div id="coordHeader">
-                        <h2 class="modal-title" data-i18n="coord_picker_title">Player Name Label Position Picker</h2>
+                        <h2 id="coordPickerTitle" class="modal-title" data-i18n="coord_picker_title">Player Name Label Position Picker</h2>
                         <button id="coordCloseBtn" class="clear-btn"><span data-i18n="close">Close</span></button>
                     </div>
                     <p class="coord-picker-help" data-i18n="coord_picker_help">Click the map to set the center point where player name labels will appear for the selected building. Update buildings one by one.</p>
@@ -791,7 +791,7 @@
             
             
             <!-- Download Modal -->
-            <div id="downloadModalOverlay" class="coord-overlay hidden">
+            <div id="downloadModalOverlay" class="coord-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="downloadModalTitle" tabindex="-1">
                 <div class="download-modal-card modal-shell modal-shell--download">
                     <div class="download-modal-header">
                         <h2 id="downloadModalTitle" class="modal-title"></h2>

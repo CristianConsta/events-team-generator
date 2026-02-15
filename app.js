@@ -85,6 +85,27 @@ function initLanguage() {
 const UI_MOTION_MS = Object.freeze({
     panel: 170,
 });
+const MODAL_OVERLAY_IDS = Object.freeze([
+    'settingsModal',
+    'uploadTargetModal',
+    'coordPickerOverlay',
+    'downloadModalOverlay',
+]);
+const MODAL_FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'area[href]',
+    'button:not([disabled])',
+    'input:not([disabled]):not([type="hidden"])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    'iframe',
+    'object',
+    'embed',
+    '[tabindex]:not([tabindex="-1"])',
+    '[contenteditable="true"]',
+].join(', ');
+const modalFocusReturnMap = new WeakMap();
+const modalOpenOrder = [];
 
 function clearPanelMotionTimer(element) {
     if (!element || !element.dataset) {
@@ -120,6 +141,235 @@ function setPanelVisibility(element, shouldOpen) {
     }, UI_MOTION_MS.panel);
     if (element.dataset) {
         element.dataset.motionTimerId = String(timerId);
+    }
+}
+
+function isVisibleInteractiveElement(element) {
+    if (!(element instanceof HTMLElement)) {
+        return false;
+    }
+    if (element.hidden || element.closest('.hidden')) {
+        return false;
+    }
+    const styles = window.getComputedStyle(element);
+    return styles.display !== 'none' && styles.visibility !== 'hidden';
+}
+
+function getFocusableElements(container) {
+    if (!(container instanceof HTMLElement)) {
+        return [];
+    }
+    return Array.from(container.querySelectorAll(MODAL_FOCUSABLE_SELECTOR)).filter((element) => {
+        if (!(element instanceof HTMLElement)) {
+            return false;
+        }
+        if (element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true') {
+            return false;
+        }
+        return isVisibleInteractiveElement(element);
+    });
+}
+
+function rememberModalOpenOrder(overlay) {
+    if (!(overlay instanceof HTMLElement)) {
+        return;
+    }
+    const existingIndex = modalOpenOrder.indexOf(overlay);
+    if (existingIndex >= 0) {
+        modalOpenOrder.splice(existingIndex, 1);
+    }
+    modalOpenOrder.push(overlay);
+}
+
+function forgetModalOpenOrder(overlay) {
+    const existingIndex = modalOpenOrder.indexOf(overlay);
+    if (existingIndex >= 0) {
+        modalOpenOrder.splice(existingIndex, 1);
+    }
+}
+
+function getOpenModalOverlays() {
+    return MODAL_OVERLAY_IDS
+        .map((id) => document.getElementById(id))
+        .filter((overlay) => overlay instanceof HTMLElement && !overlay.classList.contains('hidden'));
+}
+
+function getTopOpenModalOverlay() {
+    for (let index = modalOpenOrder.length - 1; index >= 0; index -= 1) {
+        const overlay = modalOpenOrder[index];
+        if (overlay instanceof HTMLElement && !overlay.classList.contains('hidden')) {
+            return overlay;
+        }
+        modalOpenOrder.splice(index, 1);
+    }
+    const openOverlays = getOpenModalOverlays();
+    if (openOverlays.length === 0) {
+        return null;
+    }
+    const fallback = openOverlays[openOverlays.length - 1];
+    rememberModalOpenOrder(fallback);
+    return fallback;
+}
+
+function syncBodyScrollState() {
+    if (!document.body) {
+        return;
+    }
+    const hasOpenModal = getOpenModalOverlays().length > 0;
+    if (hasOpenModal) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = '';
+    }
+}
+
+function openModalOverlay(overlay, options) {
+    if (!(overlay instanceof HTMLElement)) {
+        return;
+    }
+    const returnFocusEl = options && options.returnFocusEl instanceof HTMLElement
+        ? options.returnFocusEl
+        : document.activeElement;
+    if (returnFocusEl instanceof HTMLElement) {
+        modalFocusReturnMap.set(overlay, returnFocusEl);
+    }
+    overlay.classList.remove('hidden');
+    rememberModalOpenOrder(overlay);
+    syncBodyScrollState();
+
+    const requestedFocus = options && typeof options.initialFocusSelector === 'string'
+        ? overlay.querySelector(options.initialFocusSelector)
+        : null;
+    const fallbackFocus = getFocusableElements(overlay)[0] || overlay;
+    const focusTarget = requestedFocus instanceof HTMLElement && isVisibleInteractiveElement(requestedFocus)
+        ? requestedFocus
+        : fallbackFocus;
+    const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+    schedule(() => {
+        if (focusTarget instanceof HTMLElement) {
+            focusTarget.focus();
+        }
+    });
+}
+
+function closeModalOverlay(overlay) {
+    if (!(overlay instanceof HTMLElement) || overlay.classList.contains('hidden')) {
+        return false;
+    }
+    overlay.classList.add('hidden');
+    forgetModalOpenOrder(overlay);
+    syncBodyScrollState();
+
+    const returnFocusEl = modalFocusReturnMap.get(overlay);
+    modalFocusReturnMap.delete(overlay);
+    if (returnFocusEl instanceof HTMLElement && document.contains(returnFocusEl) && isVisibleInteractiveElement(returnFocusEl)) {
+        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+        schedule(() => {
+            returnFocusEl.focus();
+        });
+    }
+    return true;
+}
+
+function isNavigationMenuOpen() {
+    const panel = document.getElementById('navMenuPanel');
+    return !!(panel && panel.classList.contains('ui-open') && !panel.classList.contains('hidden'));
+}
+
+function isNotificationsPanelOpen() {
+    const panel = document.getElementById('notificationsPanel');
+    return !!(panel && panel.classList.contains('ui-open') && !panel.classList.contains('hidden'));
+}
+
+function closeOpenFilterDropdowns() {
+    const openPanels = Array.from(document.querySelectorAll('.filter-dropdown-panel.open'));
+    if (openPanels.length === 0) {
+        return false;
+    }
+    openPanels.forEach((panel) => panel.classList.remove('open'));
+    const lastPanel = openPanels[openPanels.length - 1];
+    const triggerBtn = lastPanel.closest('.filter-dropdown')?.querySelector('.filter-icon-btn');
+    if (triggerBtn instanceof HTMLElement) {
+        triggerBtn.focus();
+    }
+    return true;
+}
+
+function trapFocusWithinTopModal(event) {
+    if (!event || event.key !== 'Tab') {
+        return false;
+    }
+    const activeModal = getTopOpenModalOverlay();
+    if (!activeModal) {
+        return false;
+    }
+    const focusable = getFocusableElements(activeModal);
+    if (focusable.length === 0) {
+        event.preventDefault();
+        activeModal.focus();
+        return true;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const activeElement = document.activeElement;
+
+    if (event.shiftKey) {
+        if (activeElement === first || !activeModal.contains(activeElement)) {
+            event.preventDefault();
+            last.focus();
+            return true;
+        }
+        return false;
+    }
+
+    if (activeElement === last || !activeModal.contains(activeElement)) {
+        event.preventDefault();
+        first.focus();
+        return true;
+    }
+    return false;
+}
+
+function closeTopOpenModal() {
+    const activeModal = getTopOpenModalOverlay();
+    if (!activeModal) {
+        return false;
+    }
+    if (activeModal.id === 'settingsModal') {
+        closeSettingsModal();
+        return true;
+    }
+    if (activeModal.id === 'uploadTargetModal') {
+        closeUploadTargetModal();
+        return true;
+    }
+    if (activeModal.id === 'coordPickerOverlay') {
+        closeCoordinatesPicker();
+        return true;
+    }
+    if (activeModal.id === 'downloadModalOverlay') {
+        closeDownloadModal();
+        return true;
+    }
+    return closeModalOverlay(activeModal);
+}
+
+function handleGlobalKeydown(event) {
+    if (trapFocusWithinTopModal(event)) {
+        return;
+    }
+    if (!event || event.key !== 'Escape') {
+        return;
+    }
+    const handled =
+        closeOpenFilterDropdowns() ||
+        closeTopOpenModal() ||
+        (isNotificationsPanelOpen() && (closeNotificationsPanel(), true)) ||
+        (isNavigationMenuOpen() && (closeNavigationMenu(), true));
+
+    if (handled) {
+        event.preventDefault();
+        event.stopPropagation();
     }
 }
 
@@ -322,7 +572,7 @@ function bindStaticUiActions() {
     on('notificationBtn', 'click', toggleNotificationsPanel);
     on('notificationsPanelCloseBtn', 'click', toggleNotificationsPanel);
 
-    on('settingsModal', 'click', handleSettingsOverlayClick);
+    on('settingsModal', 'click', handleModalOverlayDismissClick);
     on('settingsModalCloseBtn', 'click', closeSettingsModal);
     on('settingsAvatarUploadBtn', 'click', triggerSettingsAvatarUpload);
     on('settingsAvatarRemoveBtn', 'click', removeSettingsAvatar);
@@ -334,10 +584,12 @@ function bindStaticUiActions() {
     on('uploadPersonalBtn', 'click', uploadToPersonal);
     on('uploadAllianceBtn', 'click', uploadToAlliance);
     on('uploadBothBtn', 'click', uploadToBoth);
+    on('uploadTargetModal', 'click', handleModalOverlayDismissClick);
     on('uploadTargetCloseBtn', 'click', closeUploadTargetModal);
     on('selectionSourcePersonalBtn', 'click', () => switchPlayerSource('personal', 'selectionSourceStatus'));
     on('selectionSourceAllianceBtn', 'click', () => switchPlayerSource('alliance', 'selectionSourceStatus'));
 
+    on('coordPickerOverlay', 'click', handleModalOverlayDismissClick);
     on('coordCloseBtn', 'click', closeCoordinatesPicker);
     on('coordPrevBtn', 'click', prevCoordBuilding);
     on('coordNextBtn', 'click', nextCoordBuilding);
@@ -382,6 +634,7 @@ function bindStaticUiActions() {
     on('eventDeleteBtn', 'click', deleteSelectedEvent);
 
     on('mapCoordinatesBtn', 'click', openCoordinatesPickerFromEditor);
+    on('downloadModalOverlay', 'click', handleModalOverlayDismissClick);
     on('downloadModalCloseBtn', 'click', closeDownloadModal);
     on('generateBtnA', 'click', () => generateTeamAssignments('A'));
     on('generateBtnB', 'click', () => generateTeamAssignments('B'));
@@ -427,12 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
         coordCanvas.addEventListener('pointerdown', coordCanvasClick, { passive: false });
     }
 
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-            closeNavigationMenu();
-            closeSettingsModal();
-        }
-    });
+    document.addEventListener('keydown', handleGlobalKeydown);
 
     bindEventEditorTableActions();
     const eventNameInput = document.getElementById('eventNameInput');
@@ -995,19 +1243,34 @@ function openSettingsModal() {
         deleteBtn.disabled = false;
     }
     updateSettingsAvatarPreview();
-    modal.classList.remove('hidden');
+    openModalOverlay(modal, { initialFocusSelector: '#settingsDisplayNameInput' });
 }
 
 function closeSettingsModal() {
     const modal = document.getElementById('settingsModal');
     if (modal) {
-        modal.classList.add('hidden');
+        closeModalOverlay(modal);
     }
 }
 
-function handleSettingsOverlayClick(event) {
-    if (event && event.target && event.target.id === 'settingsModal') {
+function handleModalOverlayDismissClick(event) {
+    if (!event || !(event.currentTarget instanceof HTMLElement) || event.target !== event.currentTarget) {
+        return;
+    }
+    if (event.currentTarget.id === 'settingsModal') {
         closeSettingsModal();
+        return;
+    }
+    if (event.currentTarget.id === 'uploadTargetModal') {
+        closeUploadTargetModal();
+        return;
+    }
+    if (event.currentTarget.id === 'coordPickerOverlay') {
+        closeCoordinatesPicker();
+        return;
+    }
+    if (event.currentTarget.id === 'downloadModalOverlay') {
+        closeDownloadModal();
     }
 }
 
@@ -3597,7 +3860,10 @@ async function uploadPlayerData() {
 
 function closeUploadTargetModal() {
     pendingUploadFile = null;
-    document.getElementById('uploadTargetModal').classList.add('hidden');
+    const modal = document.getElementById('uploadTargetModal');
+    if (modal) {
+        closeModalOverlay(modal);
+    }
 }
 
 function openUploadTargetModal() {
@@ -3612,7 +3878,7 @@ function openUploadTargetModal() {
     if (personalBtn) personalBtn.classList.remove('hidden');
     if (allianceBtn) allianceBtn.classList.toggle('hidden', !hasAlliance);
     if (bothBtn) bothBtn.classList.toggle('hidden', !hasAlliance);
-    modal.classList.remove('hidden');
+    openModalOverlay(modal, { initialFocusSelector: '#uploadPersonalBtn' });
 }
 
 async function uploadToPersonal() {
@@ -4368,8 +4634,10 @@ function openCoordinatesPicker() {
         return;
     }
     const overlay = document.getElementById('coordPickerOverlay');
-    overlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
+    if (!overlay) {
+        return;
+    }
+    openModalOverlay(overlay, { initialFocusSelector: '#coordCloseBtn' });
     refreshCoordinatesPickerForCurrentEvent();
 }
 
@@ -4381,8 +4649,10 @@ function openCoordinatesPickerForEvent(eventId) {
 }
 
 function closeCoordinatesPicker() {
-    document.getElementById('coordPickerOverlay').classList.add('hidden');
-    document.body.style.overflow = '';
+    const overlay = document.getElementById('coordPickerOverlay');
+    if (overlay) {
+        closeModalOverlay(overlay);
+    }
 }
 
 function updateCoordLabel() {
@@ -5094,12 +5364,18 @@ function openDownloadModal(team) {
     document.getElementById('downloadExcelBtn').style.background = gradient;
     document.getElementById('downloadExcelBtn').onclick = () => downloadTeamExcel(team);
     document.getElementById('downloadStatus').innerHTML = '';
-    document.getElementById('downloadModalOverlay').classList.remove('hidden');
+    const overlay = document.getElementById('downloadModalOverlay');
+    if (overlay) {
+        openModalOverlay(overlay, { initialFocusSelector: '#downloadModalCloseBtn' });
+    }
 }
 
 function closeDownloadModal() {
     activeDownloadTeam = null;
-    document.getElementById('downloadModalOverlay').classList.add('hidden');
+    const overlay = document.getElementById('downloadModalOverlay');
+    if (overlay) {
+        closeModalOverlay(overlay);
+    }
 }
 
 // ============================================================
