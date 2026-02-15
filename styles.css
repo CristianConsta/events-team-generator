@@ -692,6 +692,30 @@ select {
     border-bottom: 1px solid rgba(255,255,255,0.08);
     color: var(--text-primary);
 }
+@media (min-width: 769px) {
+    #playersTable th:nth-child(2),
+    #playersTable th:nth-child(3),
+    #playersTable th:nth-child(4),
+    #playersTable td:nth-child(2),
+    #playersTable td:nth-child(3),
+    #playersTable td:nth-child(4),
+    #playersMgmtTable th:nth-child(2),
+    #playersMgmtTable th:nth-child(3),
+    #playersMgmtTable th:nth-child(4),
+    #playersMgmtTable td:nth-child(2),
+    #playersMgmtTable td:nth-child(3),
+    #playersMgmtTable td:nth-child(4) {
+        text-align: center;
+    }
+    #playersTable th:nth-child(2) .table-head-content,
+    #playersTable th:nth-child(3) .table-head-content,
+    #playersTable th:nth-child(4) .table-head-content,
+    #playersMgmtTable th:nth-child(2) .table-head-content,
+    #playersMgmtTable th:nth-child(3) .table-head-content,
+    #playersMgmtTable th:nth-child(4) .table-head-content {
+        justify-content: center;
+    }
+}
 .players-table tr:hover {
     background: rgba(255,255,255,0.06);
 }
