@@ -3688,8 +3688,7 @@ function renderNotifications() {
 
     if (notifications.length === 0) {
         const emptyState = document.createElement('p');
-        emptyState.style.opacity = '0.6';
-        emptyState.style.textAlign = 'center';
+        emptyState.className = 'notifications-empty';
         emptyState.textContent = t('notifications_empty');
         container.replaceChildren(emptyState);
         return;
@@ -3698,17 +3697,12 @@ function renderNotifications() {
     container.replaceChildren();
     notifications.forEach((item) => {
         const card = document.createElement('div');
-        card.style.padding = '12px';
-        card.style.background = 'rgba(255,255,255,0.05)';
-        card.style.borderRadius = '8px';
-        card.style.marginBottom = '10px';
-        card.style.border = '1px solid rgba(255,255,255,0.1)';
-        card.style.cursor = 'pointer';
+        card.className = 'notification-card';
         card.tabIndex = 0;
         card.setAttribute('role', 'button');
 
         const heading = document.createElement('div');
-        heading.style.marginBottom = '8px';
+        heading.className = 'notification-card-heading';
         const allianceLabel = (typeof item.allianceName === 'string' && item.allianceName.trim())
             ? item.allianceName.trim()
             : String(item.allianceId || '');
@@ -3717,9 +3711,7 @@ function renderNotifications() {
         heading.appendChild(title);
 
         const detail = document.createElement('div');
-        detail.style.opacity = '0.7';
-        detail.style.fontSize = '13px';
-        detail.style.marginBottom = '10px';
+        detail.className = 'notification-card-detail';
         const notificationType = item && typeof item.notificationType === 'string'
             ? item.notificationType
             : 'invitation_pending';
@@ -3732,9 +3724,7 @@ function renderNotifications() {
         }
 
         const cta = document.createElement('div');
-        cta.style.fontSize = '12px';
-        cta.style.opacity = '0.88';
-        cta.style.color = 'var(--gold)';
+        cta.className = 'notification-card-cta';
         cta.textContent = t('notification_open_alliance');
 
         card.appendChild(heading);
@@ -5352,16 +5342,16 @@ function findMixPartner(player, available) {
 
 function openDownloadModal(team) {
     const isA = team === 'A';
-    const gradient = isA ? 'linear-gradient(135deg, #4169E1, #1E90FF)' : 'linear-gradient(135deg, #DC143C, #FF6347)';
-    const color = isA ? '#4169E1' : '#DC143C';
     activeDownloadTeam = team;
 
+    const modalCard = document.querySelector('#downloadModalOverlay .download-modal-card');
+    if (modalCard) {
+        modalCard.classList.toggle('download-modal-card--team-a', isA);
+        modalCard.classList.toggle('download-modal-card--team-b', !isA);
+    }
     document.getElementById('downloadModalTitle').textContent = t('download_modal_title', { team: team });
-    document.getElementById('downloadModalTitle').style.color = color;
     document.getElementById('downloadModalSubtitle').textContent = t('download_modal_subtitle', { team: team });
-    document.getElementById('downloadMapBtn').style.background = gradient;
     document.getElementById('downloadMapBtn').onclick = () => downloadTeamMap(team);
-    document.getElementById('downloadExcelBtn').style.background = gradient;
     document.getElementById('downloadExcelBtn').onclick = () => downloadTeamExcel(team);
     document.getElementById('downloadStatus').innerHTML = '';
     const overlay = document.getElementById('downloadModalOverlay');

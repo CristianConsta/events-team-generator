@@ -1586,6 +1586,32 @@ select {
     margin: 0;
     color: var(--gold);
 }
+.notifications-empty {
+    margin: 6px 0;
+    opacity: 0.6;
+    text-align: center;
+}
+.notification-card {
+    margin-bottom: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05);
+    cursor: pointer;
+}
+.notification-card-heading {
+    margin-bottom: 8px;
+}
+.notification-card-detail {
+    margin-bottom: 10px;
+    font-size: 13px;
+    opacity: 0.7;
+}
+.notification-card-cta {
+    font-size: 12px;
+    opacity: 0.88;
+    color: var(--gold);
+}
 #navMenuBtn:hover {
     background: rgba(255,255,255,0.14);
     transform: none;
@@ -2126,11 +2152,22 @@ select {
     width: min(480px, 90vw);
     padding: 30px;
 }
+.download-modal-card {
+    --download-accent: #4169E1;
+    --download-gradient: linear-gradient(135deg, #4169E1, #1E90FF);
+}
+.download-modal-card--team-b {
+    --download-accent: #DC143C;
+    --download-gradient: linear-gradient(135deg, #DC143C, #FF6347);
+}
 .download-modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+}
+#downloadModalTitle {
+    color: var(--download-accent);
 }
 #downloadModalSubtitle {
     opacity: 0.9;
@@ -2144,9 +2181,11 @@ select {
 #downloadMapBtn {
     font-size: 17px;
     padding: 16px 25px;
+    background: var(--download-gradient);
 }
 #downloadExcelBtn {
     padding: 16px 25px;
+    background: var(--download-gradient);
 }
 #downloadStatus {
     margin-top: 15px;
