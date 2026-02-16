@@ -618,10 +618,38 @@ function bindStaticUiActions() {
         handleSignOut();
     });
     on('headerProfileBtn', 'click', openSettingsModal);
-    on('allianceDisplay', 'click', showAlliancePage);
-    on('allianceCreateBtn', 'click', showAlliancePage);
-    on('notificationBtn', 'click', toggleNotificationsPanel);
-    on('notificationsPanelCloseBtn', 'click', toggleNotificationsPanel);
+    on('allianceDisplay', 'click', () => {
+        const controller = getAllianceFeatureController();
+        if (controller && typeof controller.openPanel === 'function') {
+            controller.openPanel();
+            return;
+        }
+        showAlliancePage();
+    });
+    on('allianceCreateBtn', 'click', () => {
+        const controller = getAllianceFeatureController();
+        if (controller && typeof controller.openPanel === 'function') {
+            controller.openPanel();
+            return;
+        }
+        showAlliancePage();
+    });
+    on('notificationBtn', 'click', () => {
+        const controller = getNotificationsFeatureController();
+        if (controller && typeof controller.togglePanel === 'function') {
+            controller.togglePanel();
+            return;
+        }
+        toggleNotificationsPanel();
+    });
+    on('notificationsPanelCloseBtn', 'click', () => {
+        const controller = getNotificationsFeatureController();
+        if (controller && typeof controller.togglePanel === 'function') {
+            controller.togglePanel();
+            return;
+        }
+        toggleNotificationsPanel();
+    });
 
     on('settingsModal', 'click', handleModalOverlayDismissClick);
     on('settingsModalCloseBtn', 'click', closeSettingsModal);
@@ -1322,6 +1350,53 @@ function getEventsManagerFeatureController() {
         });
     }
     return eventsManagerFeatureController;
+}
+
+let allianceFeatureController = null;
+function getAllianceFeatureController() {
+    if (allianceFeatureController) {
+        return allianceFeatureController;
+    }
+    if (
+        window.DSFeatureAllianceController
+        && typeof window.DSFeatureAllianceController.createController === 'function'
+    ) {
+        allianceFeatureController = window.DSFeatureAllianceController.createController({
+            renderPanel: renderAlliancePanel,
+            createAlliance: handleCreateAlliance,
+            sendInvitation: handleSendInvitation,
+            leaveAlliance: handleLeaveAlliance,
+            acceptInvitation: handleAcceptInvitation,
+            rejectInvitation: handleRejectInvitation,
+            resendInvitation: handleResendInvitation,
+            revokeInvitation: handleRevokeInvitation,
+            openPanel: openAlliancePanel,
+            closePanel: closeAlliancePanel,
+        });
+    }
+    return allianceFeatureController;
+}
+
+let notificationsFeatureController = null;
+function getNotificationsFeatureController() {
+    if (notificationsFeatureController) {
+        return notificationsFeatureController;
+    }
+    if (
+        window.DSFeatureNotificationsController
+        && typeof window.DSFeatureNotificationsController.createController === 'function'
+    ) {
+        notificationsFeatureController = window.DSFeatureNotificationsController.createController({
+            checkAndDisplay: checkAndDisplayNotifications,
+            render: renderNotifications,
+            togglePanel: toggleNotificationsPanel,
+            closePanel: closeNotificationsPanel,
+            startPolling: startNotificationPolling,
+            stopPolling: stopNotificationPolling,
+            openAllianceInvite: openAllianceInvitesFromNotification,
+        });
+    }
+    return notificationsFeatureController;
 }
 
 let uploadPanelExpanded = true;
@@ -4136,13 +4211,62 @@ function renderAlliancePanel() {
             setPendingInviteFocusId: (value) => {
                 pendingAllianceInviteFocusId = typeof value === 'string' ? value : '';
             },
-            onCreateAlliance: handleCreateAlliance,
-            onSendInvitation: handleSendInvitation,
-            onLeaveAlliance: handleLeaveAlliance,
-            onAcceptInvitation: handleAcceptInvitation,
-            onRejectInvitation: handleRejectInvitation,
-            onResendInvitation: handleResendInvitation,
-            onRevokeInvitation: handleRevokeInvitation,
+            onCreateAlliance: () => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.createAlliance === 'function') {
+                    controller.createAlliance();
+                    return;
+                }
+                handleCreateAlliance();
+            },
+            onSendInvitation: () => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.sendInvitation === 'function') {
+                    controller.sendInvitation();
+                    return;
+                }
+                handleSendInvitation();
+            },
+            onLeaveAlliance: () => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.leaveAlliance === 'function') {
+                    controller.leaveAlliance();
+                    return;
+                }
+                handleLeaveAlliance();
+            },
+            onAcceptInvitation: (invitationId, statusElementId) => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.acceptInvitation === 'function') {
+                    controller.acceptInvitation(invitationId, statusElementId);
+                    return;
+                }
+                handleAcceptInvitation(invitationId, statusElementId);
+            },
+            onRejectInvitation: (invitationId, statusElementId) => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.rejectInvitation === 'function') {
+                    controller.rejectInvitation(invitationId, statusElementId);
+                    return;
+                }
+                handleRejectInvitation(invitationId, statusElementId);
+            },
+            onResendInvitation: (invitationId, statusElementId) => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.resendInvitation === 'function') {
+                    controller.resendInvitation(invitationId, statusElementId);
+                    return;
+                }
+                handleResendInvitation(invitationId, statusElementId);
+            },
+            onRevokeInvitation: (invitationId, statusElementId) => {
+                const controller = getAllianceFeatureController();
+                if (controller && typeof controller.revokeInvitation === 'function') {
+                    controller.revokeInvitation(invitationId, statusElementId);
+                    return;
+                }
+                handleRevokeInvitation(invitationId, statusElementId);
+            },
             translate: t,
         });
         return;

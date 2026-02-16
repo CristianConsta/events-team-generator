@@ -36,14 +36,38 @@
                 }
                 applyTranslations();
                 initOnboarding();
-                startNotificationPolling();
+                if (
+                    global.getNotificationsFeatureController
+                    && typeof global.getNotificationsFeatureController === 'function'
+                ) {
+                    const notificationsController = global.getNotificationsFeatureController();
+                    if (notificationsController && typeof notificationsController.startPolling === 'function') {
+                        notificationsController.startPolling();
+                    } else {
+                        startNotificationPolling();
+                    }
+                } else {
+                    startNotificationPolling();
+                }
             } else {
                 document.getElementById('loginScreen').style.display = 'block';
                 document.getElementById('mainApp').style.display = 'none';
                 if (typeof updateUserHeaderIdentity === 'function') {
                     updateUserHeaderIdentity(null);
                 }
-                stopNotificationPolling();
+                if (
+                    global.getNotificationsFeatureController
+                    && typeof global.getNotificationsFeatureController === 'function'
+                ) {
+                    const notificationsController = global.getNotificationsFeatureController();
+                    if (notificationsController && typeof notificationsController.stopPolling === 'function') {
+                        notificationsController.stopPolling();
+                    } else {
+                        stopNotificationPolling();
+                    }
+                } else {
+                    stopNotificationPolling();
+                }
             }
         });
 
