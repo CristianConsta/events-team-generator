@@ -2,12 +2,36 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const gatewayUtilsPath = path.resolve(__dirname, '../js/shared/data/firebase-gateway-utils.js');
+const authGatewayPath = path.resolve(__dirname, '../js/shared/data/firebase-auth-gateway.js');
+const playersGatewayPath = path.resolve(__dirname, '../js/shared/data/firebase-players-gateway.js');
+const eventsGatewayPath = path.resolve(__dirname, '../js/shared/data/firebase-events-gateway.js');
+const allianceGatewayPath = path.resolve(__dirname, '../js/shared/data/firebase-alliance-gateway.js');
+const notificationsGatewayPath = path.resolve(__dirname, '../js/shared/data/firebase-notifications-gateway.js');
 const modulePath = path.resolve(__dirname, '../js/services/firebase-service.js');
 
 function loadModule() {
   global.window = global;
+  delete global.DSSharedFirebaseGatewayUtils;
+  delete global.DSSharedFirebaseAuthGateway;
+  delete global.DSSharedFirebasePlayersGateway;
+  delete global.DSSharedFirebaseEventsGateway;
+  delete global.DSSharedFirebaseAllianceGateway;
+  delete global.DSSharedFirebaseNotificationsGateway;
   delete global.FirebaseService;
+  delete require.cache[require.resolve(gatewayUtilsPath)];
+  delete require.cache[require.resolve(authGatewayPath)];
+  delete require.cache[require.resolve(playersGatewayPath)];
+  delete require.cache[require.resolve(eventsGatewayPath)];
+  delete require.cache[require.resolve(allianceGatewayPath)];
+  delete require.cache[require.resolve(notificationsGatewayPath)];
   delete require.cache[require.resolve(modulePath)];
+  require(gatewayUtilsPath);
+  require(authGatewayPath);
+  require(playersGatewayPath);
+  require(eventsGatewayPath);
+  require(allianceGatewayPath);
+  require(notificationsGatewayPath);
   require(modulePath);
 }
 
