@@ -749,20 +749,111 @@ function bindStaticUiActions() {
     });
     on('playerFileInput', 'change', uploadPlayerData);
 
-    on('eventsPanelHeader', 'click', toggleEventsPanel);
-    on('eventEditModeBtn', 'click', enterEventEditMode);
-    on('eventLogoUploadBtn', 'click', triggerEventLogoUpload);
-    on('eventLogoRandomBtn', 'click', removeEventLogo);
-    on('eventLogoInput', 'change', handleEventLogoChange);
-    on('eventMapUploadBtn', 'click', triggerEventMapUpload);
-    on('eventMapRemoveBtn', 'click', removeEventMap);
-    on('eventMapInput', 'change', handleEventMapChange);
-    on('eventAddBuildingBtn', 'click', addEventBuildingRow);
-    on('eventSaveBtn', 'click', saveEventDefinition);
-    on('eventCancelEditBtn', 'click', cancelEventEditing);
-    on('eventDeleteBtn', 'click', deleteSelectedEvent);
+    on('eventsPanelHeader', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.toggleEventsPanel === 'function') {
+            controller.toggleEventsPanel();
+            return;
+        }
+        toggleEventsPanel();
+    });
+    on('eventEditModeBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.enterEditMode === 'function') {
+            controller.enterEditMode();
+            return;
+        }
+        enterEventEditMode();
+    });
+    on('eventLogoUploadBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.triggerLogoUpload === 'function') {
+            controller.triggerLogoUpload();
+            return;
+        }
+        triggerEventLogoUpload();
+    });
+    on('eventLogoRandomBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.removeLogo === 'function') {
+            controller.removeLogo();
+            return;
+        }
+        removeEventLogo();
+    });
+    on('eventLogoInput', 'change', (event) => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.handleLogoChange === 'function') {
+            controller.handleLogoChange(event);
+            return;
+        }
+        handleEventLogoChange(event);
+    });
+    on('eventMapUploadBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.triggerMapUpload === 'function') {
+            controller.triggerMapUpload();
+            return;
+        }
+        triggerEventMapUpload();
+    });
+    on('eventMapRemoveBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.removeMap === 'function') {
+            controller.removeMap();
+            return;
+        }
+        removeEventMap();
+    });
+    on('eventMapInput', 'change', (event) => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.handleMapChange === 'function') {
+            controller.handleMapChange(event);
+            return;
+        }
+        handleEventMapChange(event);
+    });
+    on('eventAddBuildingBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.addBuildingRow === 'function') {
+            controller.addBuildingRow();
+            return;
+        }
+        addEventBuildingRow();
+    });
+    on('eventSaveBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.saveEvent === 'function') {
+            controller.saveEvent();
+            return;
+        }
+        saveEventDefinition();
+    });
+    on('eventCancelEditBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.cancelEdit === 'function') {
+            controller.cancelEdit();
+            return;
+        }
+        cancelEventEditing();
+    });
+    on('eventDeleteBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.deleteEvent === 'function') {
+            controller.deleteEvent();
+            return;
+        }
+        deleteSelectedEvent();
+    });
 
-    on('mapCoordinatesBtn', 'click', openCoordinatesPickerFromEditor);
+    on('mapCoordinatesBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.openCoordinatesPicker === 'function') {
+            controller.openCoordinatesPicker();
+            return;
+        }
+        openCoordinatesPickerFromEditor();
+    });
     on('downloadModalOverlay', 'click', handleModalOverlayDismissClick);
     on('downloadModalCloseBtn', 'click', closeDownloadModal);
     on('generateBtnA', 'click', () => {
@@ -1203,6 +1294,34 @@ function getPlayersManagementFeatureController() {
         });
     }
     return playersManagementFeatureController;
+}
+
+let eventsManagerFeatureController = null;
+function getEventsManagerFeatureController() {
+    if (eventsManagerFeatureController) {
+        return eventsManagerFeatureController;
+    }
+    if (
+        window.DSFeatureEventsManagerController
+        && typeof window.DSFeatureEventsManagerController.createController === 'function'
+    ) {
+        eventsManagerFeatureController = window.DSFeatureEventsManagerController.createController({
+            toggleEventsPanel: toggleEventsPanel,
+            enterEditMode: enterEventEditMode,
+            triggerLogoUpload: triggerEventLogoUpload,
+            removeLogo: removeEventLogo,
+            handleLogoChange: handleEventLogoChange,
+            triggerMapUpload: triggerEventMapUpload,
+            removeMap: removeEventMap,
+            handleMapChange: handleEventMapChange,
+            addBuildingRow: addEventBuildingRow,
+            saveEvent: saveEventDefinition,
+            cancelEdit: cancelEventEditing,
+            deleteEvent: deleteSelectedEvent,
+            openCoordinatesPicker: openCoordinatesPickerFromEditor,
+        });
+    }
+    return eventsManagerFeatureController;
 }
 
 let uploadPanelExpanded = true;
