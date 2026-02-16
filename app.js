@@ -647,7 +647,14 @@ function bindStaticUiActions() {
     on('coordSaveBtn', 'click', saveBuildingPositions);
 
     on('searchFilter', 'input', filterPlayers);
-    on('clearAllBtn', 'click', clearAllSelections);
+    on('clearAllBtn', 'click', () => {
+        const controller = getGeneratorFeatureController();
+        if (controller && typeof controller.clearAllSelections === 'function') {
+            controller.clearAllSelections();
+            return;
+        }
+        clearAllSelections();
+    });
     on('uploadPanelHeader', 'click', toggleUploadPanel);
     on('playersListPanelHeader', 'click', togglePlayersListPanel);
     on('playersMgmtAddPanelHeader', 'click', () => togglePlayersManagementAddPanel());
@@ -664,9 +671,30 @@ function bindStaticUiActions() {
     on('playersMgmtTroopsFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtSortFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtClearFiltersBtn', 'click', clearPlayersManagementFilters);
-    on('assignmentAlgorithmBalanced', 'change', handleAssignmentAlgorithmChange);
-    on('assignmentAlgorithmAggressive', 'change', handleAssignmentAlgorithmChange);
-    on('assignmentAlgorithmSelect', 'change', handleAssignmentAlgorithmChange);
+    on('assignmentAlgorithmBalanced', 'change', (event) => {
+        const controller = getGeneratorFeatureController();
+        if (controller && typeof controller.changeAlgorithm === 'function') {
+            controller.changeAlgorithm(event);
+            return;
+        }
+        handleAssignmentAlgorithmChange(event);
+    });
+    on('assignmentAlgorithmAggressive', 'change', (event) => {
+        const controller = getGeneratorFeatureController();
+        if (controller && typeof controller.changeAlgorithm === 'function') {
+            controller.changeAlgorithm(event);
+            return;
+        }
+        handleAssignmentAlgorithmChange(event);
+    });
+    on('assignmentAlgorithmSelect', 'change', (event) => {
+        const controller = getGeneratorFeatureController();
+        if (controller && typeof controller.changeAlgorithm === 'function') {
+            controller.changeAlgorithm(event);
+            return;
+        }
+        handleAssignmentAlgorithmChange(event);
+    });
     on('downloadTemplateBtn', 'click', downloadPlayerTemplate);
     on('uploadPlayerBtn', 'click', () => {
         const input = document.getElementById('playerFileInput');
@@ -690,8 +718,22 @@ function bindStaticUiActions() {
     on('mapCoordinatesBtn', 'click', openCoordinatesPickerFromEditor);
     on('downloadModalOverlay', 'click', handleModalOverlayDismissClick);
     on('downloadModalCloseBtn', 'click', closeDownloadModal);
-    on('generateBtnA', 'click', () => generateTeamAssignments('A'));
-    on('generateBtnB', 'click', () => generateTeamAssignments('B'));
+    on('generateBtnA', 'click', () => {
+        const controller = getGeneratorFeatureController();
+        if (controller && typeof controller.generateAssignments === 'function') {
+            controller.generateAssignments('A');
+            return;
+        }
+        generateTeamAssignments('A');
+    });
+    on('generateBtnB', 'click', () => {
+        const controller = getGeneratorFeatureController();
+        if (controller && typeof controller.generateAssignments === 'function') {
+            controller.generateAssignments('B');
+            return;
+        }
+        generateTeamAssignments('B');
+    });
     on('supportCopyDiscordBtn', 'click', copySupportDiscordHandle);
     on('supportOpenDiscordBtn', 'click', openSupportDiscordProfile);
     on('supportReportBugBtn', 'click', () => openSupportIssueComposer('bug'));
@@ -1017,6 +1059,17 @@ function normalizeAssignmentAlgorithm(value) {
 
 function syncAssignmentAlgorithmControl() {
     const normalized = normalizeAssignmentAlgorithm(getCurrentAssignmentAlgorithmState());
+    if (
+        window.DSFeatureGeneratorView
+        && typeof window.DSFeatureGeneratorView.syncAssignmentAlgorithmControl === 'function'
+    ) {
+        window.DSFeatureGeneratorView.syncAssignmentAlgorithmControl({
+            document: document,
+            value: normalized,
+        });
+        return;
+    }
+
     const radioInputs = document.querySelectorAll('input[name="assignmentAlgorithm"]');
     if (radioInputs && radioInputs.length > 0) {
         radioInputs.forEach((input) => {
@@ -1034,12 +1087,48 @@ function syncAssignmentAlgorithmControl() {
 }
 
 function handleAssignmentAlgorithmChange(event) {
+    const controller = getGeneratorFeatureController();
+    if (controller && typeof controller.changeAlgorithm === 'function') {
+        controller.changeAlgorithm(event);
+        return;
+    }
+
     if (event && event.target instanceof HTMLInputElement && event.target.type === 'radio' && !event.target.checked) {
         return;
     }
     const next = normalizeAssignmentAlgorithm(event && event.target ? event.target.value : ASSIGNMENT_ALGO_DEFAULT);
     setCurrentAssignmentAlgorithmState(next);
     syncAssignmentAlgorithmControl();
+}
+
+let generatorFeatureController = null;
+function getGeneratorFeatureController() {
+    if (generatorFeatureController) {
+        return generatorFeatureController;
+    }
+    if (
+        window.DSFeatureGeneratorController
+        && typeof window.DSFeatureGeneratorController.createController === 'function'
+    ) {
+        generatorFeatureController = window.DSFeatureGeneratorController.createController({
+            document: document,
+            defaultAlgorithm: ASSIGNMENT_ALGO_DEFAULT,
+            normalizeAssignmentAlgorithm: normalizeAssignmentAlgorithm,
+            setAssignmentAlgorithm: setCurrentAssignmentAlgorithmState,
+            syncAssignmentAlgorithmControl: syncAssignmentAlgorithmControl,
+            toggleTeamSelection: (playerName, team) => toggleTeam(playerName, team),
+            setPlayerRole: (playerName, role) => togglePlayerRole(playerName, role),
+            clearPlayerSelection: (playerName) => clearPlayerSelection(playerName),
+            clearAllSelections: () => clearAllSelections(),
+            generateAssignments: (team) => generateTeamAssignments(team),
+            roleLimits: {
+                maxTotal: 30,
+                maxStarters: 20,
+                maxSubstitutes: 10,
+            },
+        });
+    }
+    return generatorFeatureController;
 }
 
 let uploadPanelExpanded = true;
@@ -5760,12 +5849,37 @@ document.getElementById('playersTableBody').addEventListener('click', (e) => {
     if (!btn) return;
     const name = btn.closest('tr')?.dataset.player;
     if (!name) return;
-    if (btn.classList.contains('team-a-btn')) toggleTeam(name, 'A');
-    else if (btn.classList.contains('team-b-btn')) toggleTeam(name, 'B');
-    else if (btn.classList.contains('clear-btn')) clearPlayerSelection(name);
+    const controller = getGeneratorFeatureController();
+    if (btn.classList.contains('team-a-btn')) {
+        if (controller && typeof controller.toggleTeamSelection === 'function') {
+            controller.toggleTeamSelection(name, 'A');
+        } else {
+            toggleTeam(name, 'A');
+        }
+    }
+    else if (btn.classList.contains('team-b-btn')) {
+        if (controller && typeof controller.toggleTeamSelection === 'function') {
+            controller.toggleTeamSelection(name, 'B');
+        } else {
+            toggleTeam(name, 'B');
+        }
+    }
+    else if (btn.classList.contains('clear-btn')) {
+        if (controller && typeof controller.clearPlayerSelection === 'function') {
+            controller.clearPlayerSelection(name);
+        } else {
+            clearPlayerSelection(name);
+        }
+    }
     else if (btn.classList.contains('role-btn')) {
         const newRole = btn.dataset.role;
-        if (newRole) togglePlayerRole(name, newRole);
+        if (newRole) {
+            if (controller && typeof controller.setPlayerRole === 'function') {
+                controller.setPlayerRole(name, newRole);
+            } else {
+                togglePlayerRole(name, newRole);
+            }
+        }
     }
 });
 
