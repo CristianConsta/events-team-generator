@@ -824,10 +824,13 @@ function getSubstituteCount(teamKey) {
 }
 
 function normalizeAssignmentAlgorithm(value) {
-    if (value === ASSIGNMENT_ALGO_AGGRESSIVE) {
-        return ASSIGNMENT_ALGO_AGGRESSIVE;
+    if (
+        window.DSCoreGeneratorAssignment
+        && typeof window.DSCoreGeneratorAssignment.normalizeAssignmentAlgorithm === 'function'
+    ) {
+        return window.DSCoreGeneratorAssignment.normalizeAssignmentAlgorithm(value);
     }
-    return ASSIGNMENT_ALGO_BALANCED;
+    return value === ASSIGNMENT_ALGO_AGGRESSIVE ? ASSIGNMENT_ALGO_AGGRESSIVE : ASSIGNMENT_ALGO_BALANCED;
 }
 
 function syncAssignmentAlgorithmControl() {
@@ -5311,40 +5314,6 @@ function updateTeamCounters() {
 // ASSIGNMENT GENERATION
 // ============================================================
 
-const ASSIGNMENT_POWER_SIMILARITY_THRESHOLD = 1000000;
-
-function toNumericAssignmentValue(value) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function comparePlayersForAssignments(a, b) {
-    if (window.DSCoreAssignment && typeof window.DSCoreAssignment.comparePlayersForAssignment === 'function') {
-        return window.DSCoreAssignment.comparePlayersForAssignment(a, b);
-    }
-
-    const powerA = toNumericAssignmentValue(a && a.power);
-    const powerB = toNumericAssignmentValue(b && b.power);
-    const powerDiff = powerB - powerA;
-    if (Math.abs(powerDiff) > ASSIGNMENT_POWER_SIMILARITY_THRESHOLD) {
-        return powerDiff;
-    }
-
-    const thpA = toNumericAssignmentValue(a && a.thp);
-    const thpB = toNumericAssignmentValue(b && b.thp);
-    if (thpB !== thpA) {
-        return thpB - thpA;
-    }
-
-    if (powerDiff !== 0) {
-        return powerDiff;
-    }
-
-    const nameA = (a && a.name ? String(a.name) : '').toLowerCase();
-    const nameB = (b && b.name ? String(b.name) : '').toLowerCase();
-    return nameA.localeCompare(nameB);
-}
-
 function generateTeamAssignments(team) {
     if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
@@ -5373,19 +5342,29 @@ function generateTeamAssignments(team) {
 
     const playerDB = FirebaseService.getActivePlayerDatabase();
 
-    const starterPlayers = starters.map(s => ({
-        name: s.name,
-        power: playerDB[s.name].power,
-        troops: playerDB[s.name].troops,
-        thp: playerDB[s.name].thp
-    })).sort(comparePlayersForAssignments);
-
-    const substitutePlayers = substitutes.map(s => ({
-        name: s.name,
-        power: playerDB[s.name].power,
-        troops: playerDB[s.name].troops,
-        thp: playerDB[s.name].thp
-    })).sort(comparePlayersForAssignments);
+    const assignmentCore = window.DSCoreGeneratorAssignment;
+    const prepared = assignmentCore && typeof assignmentCore.preparePlayersForAssignment === 'function'
+        ? assignmentCore.preparePlayersForAssignment(selections, playerDB)
+        : {
+            starters: starters
+                .map((selection) => ({
+                    name: selection.name,
+                    power: Number(playerDB[selection.name] && playerDB[selection.name].power) || 0,
+                    troops: playerDB[selection.name] && playerDB[selection.name].troops,
+                    thp: Number(playerDB[selection.name] && playerDB[selection.name].thp) || 0,
+                }))
+                .sort((a, b) => Number(b.power || 0) - Number(a.power || 0)),
+            substitutes: substitutes
+                .map((selection) => ({
+                    name: selection.name,
+                    power: Number(playerDB[selection.name] && playerDB[selection.name].power) || 0,
+                    troops: playerDB[selection.name] && playerDB[selection.name].troops,
+                    thp: Number(playerDB[selection.name] && playerDB[selection.name].thp) || 0,
+                }))
+                .sort((a, b) => Number(b.power || 0) - Number(a.power || 0)),
+        };
+    const starterPlayers = prepared.starters;
+    const substitutePlayers = prepared.substitutes;
 
     const assignments = assignTeamToBuildings(starterPlayers);
 
@@ -5416,12 +5395,6 @@ function assignTeamToBuildings(players) {
     }
 
     return window.DSCoreAssignment.assignTeamToBuildings(players, buildingConfig);
-}
-
-// Searches the next 3 available players by power for a different
-// troop type than the given player. Falls back to next by power.
-function findMixPartner(player, available) {
-    return window.DSCoreAssignment.findMixPartner(player, available);
 }
 
 // ============================================================
