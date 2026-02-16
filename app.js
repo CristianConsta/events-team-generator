@@ -228,6 +228,38 @@ function openModalOverlay(overlay, options) {
     if (!(overlay instanceof HTMLElement)) {
         return;
     }
+    if (window.DSShellModalController && typeof window.DSShellModalController.open === 'function') {
+        window.DSShellModalController.open({
+            overlay: overlay,
+            onBeforeOpen: () => {
+                const returnFocusEl = options && options.returnFocusEl instanceof HTMLElement
+                    ? options.returnFocusEl
+                    : document.activeElement;
+                if (returnFocusEl instanceof HTMLElement) {
+                    modalFocusReturnMap.set(overlay, returnFocusEl);
+                }
+            },
+            onAfterOpen: () => {
+                rememberModalOpenOrder(overlay);
+                syncBodyScrollState();
+                const requestedFocus = options && typeof options.initialFocusSelector === 'string'
+                    ? overlay.querySelector(options.initialFocusSelector)
+                    : null;
+                const fallbackFocus = getFocusableElements(overlay)[0] || overlay;
+                const focusTarget = requestedFocus instanceof HTMLElement && isVisibleInteractiveElement(requestedFocus)
+                    ? requestedFocus
+                    : fallbackFocus;
+                const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+                schedule(() => {
+                    if (focusTarget instanceof HTMLElement) {
+                        focusTarget.focus();
+                    }
+                });
+            },
+        });
+        return;
+    }
+
     const returnFocusEl = options && options.returnFocusEl instanceof HTMLElement
         ? options.returnFocusEl
         : document.activeElement;
@@ -257,6 +289,24 @@ function closeModalOverlay(overlay) {
     if (!(overlay instanceof HTMLElement) || overlay.classList.contains('hidden')) {
         return false;
     }
+    if (window.DSShellModalController && typeof window.DSShellModalController.close === 'function') {
+        return window.DSShellModalController.close({
+            overlay: overlay,
+            onAfterClose: () => {
+                forgetModalOpenOrder(overlay);
+                syncBodyScrollState();
+                const returnFocusEl = modalFocusReturnMap.get(overlay);
+                modalFocusReturnMap.delete(overlay);
+                if (returnFocusEl instanceof HTMLElement && document.contains(returnFocusEl) && isVisibleInteractiveElement(returnFocusEl)) {
+                    const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+                    schedule(() => {
+                        returnFocusEl.focus();
+                    });
+                }
+            },
+        });
+    }
+
     overlay.classList.add('hidden');
     forgetModalOpenOrder(overlay);
     syncBodyScrollState();
@@ -1060,6 +1110,18 @@ function isConfigurationPageVisible() {
 function closeNavigationMenu() {
     const panel = document.getElementById('navMenuPanel');
     const menuBtn = document.getElementById('navMenuBtn');
+    if (
+        window.DSShellNavigationController
+        && typeof window.DSShellNavigationController.syncMenuVisibility === 'function'
+    ) {
+        window.DSShellNavigationController.syncMenuVisibility({
+            panel: panel,
+            menuButton: menuBtn,
+            open: false,
+            setPanelVisibility: setPanelVisibility,
+        });
+        return;
+    }
     if (panel) {
         setPanelVisibility(panel, false);
     }
@@ -1071,6 +1133,18 @@ function closeNavigationMenu() {
 function openNavigationMenu() {
     const panel = document.getElementById('navMenuPanel');
     const menuBtn = document.getElementById('navMenuBtn');
+    if (
+        window.DSShellNavigationController
+        && typeof window.DSShellNavigationController.syncMenuVisibility === 'function'
+    ) {
+        window.DSShellNavigationController.syncMenuVisibility({
+            panel: panel,
+            menuButton: menuBtn,
+            open: true,
+            setPanelVisibility: setPanelVisibility,
+        });
+        return;
+    }
     if (panel) {
         setPanelVisibility(panel, true);
     }
@@ -1095,6 +1169,27 @@ function toggleNavigationMenu(event) {
 }
 
 function syncNavigationMenuState() {
+    if (
+        window.DSShellNavigationController
+        && typeof window.DSShellNavigationController.syncNavigationButtons === 'function'
+    ) {
+        window.DSShellNavigationController.syncNavigationButtons({
+            currentView: getCurrentPageViewState(),
+            entries: [
+                { view: 'generator', button: document.getElementById('navGeneratorBtn') },
+                { view: 'configuration', button: document.getElementById('navConfigBtn') },
+                { view: 'players', button: document.getElementById('navPlayersBtn') },
+                { view: 'alliance', button: document.getElementById('navAllianceBtn') },
+                { view: 'support', button: document.getElementById('navSupportBtn') },
+                { view: 'generator', button: document.getElementById('mobileNavGeneratorBtn') },
+                { view: 'configuration', button: document.getElementById('mobileNavConfigBtn') },
+                { view: 'players', button: document.getElementById('mobileNavPlayersBtn') },
+                { view: 'alliance', button: document.getElementById('mobileNavAllianceBtn') },
+            ],
+        });
+        return;
+    }
+
     const generatorBtn = document.getElementById('navGeneratorBtn');
     const configBtn = document.getElementById('navConfigBtn');
     const playersBtn = document.getElementById('navPlayersBtn');
@@ -1193,12 +1288,28 @@ function setPageView(view) {
     } else {
         setCurrentPageViewState('generator');
     }
-    const currentView = getCurrentPageViewState();
-    generatorPage.classList.toggle('hidden', currentView !== 'generator');
-    configurationPage.classList.toggle('hidden', currentView !== 'configuration');
-    playersManagementPage.classList.toggle('hidden', currentView !== 'players');
-    alliancePage.classList.toggle('hidden', currentView !== 'alliance');
-    supportPage.classList.toggle('hidden', currentView !== 'support');
+    let currentView = getCurrentPageViewState();
+    if (
+        window.DSShellNavigationController
+        && typeof window.DSShellNavigationController.applyPageVisibility === 'function'
+    ) {
+        currentView = window.DSShellNavigationController.applyPageVisibility({
+            currentView: currentView,
+            pages: {
+                generator: generatorPage,
+                configuration: configurationPage,
+                players: playersManagementPage,
+                alliance: alliancePage,
+                support: supportPage,
+            },
+        });
+    } else {
+        generatorPage.classList.toggle('hidden', currentView !== 'generator');
+        configurationPage.classList.toggle('hidden', currentView !== 'configuration');
+        playersManagementPage.classList.toggle('hidden', currentView !== 'players');
+        alliancePage.classList.toggle('hidden', currentView !== 'alliance');
+        supportPage.classList.toggle('hidden', currentView !== 'support');
+    }
     syncNavigationMenuState();
     closeNavigationMenu();
     closeNotificationsPanel();
@@ -3970,11 +4081,24 @@ async function toggleNotificationsPanel() {
         return;
     }
     const isOpen = panel.classList.contains('hidden') || !panel.classList.contains('ui-open');
-    setPanelVisibility(panel, isOpen);
-    if (triggerBtn) {
-        triggerBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    if (
+        window.DSShellNotificationsSheetController
+        && typeof window.DSShellNotificationsSheetController.setSheetState === 'function'
+    ) {
+        window.DSShellNotificationsSheetController.setSheetState({
+            panel: panel,
+            triggerButton: triggerBtn,
+            body: document.body,
+            isOpen: isOpen,
+            setPanelVisibility: setPanelVisibility,
+        });
+    } else {
+        setPanelVisibility(panel, isOpen);
+        if (triggerBtn) {
+            triggerBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        }
+        document.body.classList.toggle('notifications-sheet-open', isOpen);
     }
-    document.body.classList.toggle('notifications-sheet-open', isOpen);
     if (isOpen) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -3987,11 +4111,24 @@ function closeNotificationsPanel() {
     if (!panel || (panel.classList.contains('hidden') && !panel.classList.contains('ui-open'))) {
         return;
     }
-    setPanelVisibility(panel, false);
-    if (triggerBtn) {
-        triggerBtn.setAttribute('aria-expanded', 'false');
+    if (
+        window.DSShellNotificationsSheetController
+        && typeof window.DSShellNotificationsSheetController.setSheetState === 'function'
+    ) {
+        window.DSShellNotificationsSheetController.setSheetState({
+            panel: panel,
+            triggerButton: triggerBtn,
+            body: document.body,
+            isOpen: false,
+            setPanelVisibility: setPanelVisibility,
+        });
+    } else {
+        setPanelVisibility(panel, false);
+        if (triggerBtn) {
+            triggerBtn.setAttribute('aria-expanded', 'false');
+        }
+        document.body.classList.remove('notifications-sheet-open');
     }
-    document.body.classList.remove('notifications-sheet-open');
 }
 
 function getNotificationItems() {
