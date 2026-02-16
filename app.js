@@ -808,6 +808,7 @@ const SUPPORT_REPO_ISSUES_NEW_URL = 'https://github.com/CristianConsta/events-te
 const ASSIGNMENT_ALGO_BALANCED = 'balanced';
 const ASSIGNMENT_ALGO_AGGRESSIVE = 'aggressive';
 const ASSIGNMENT_ALGO_DEFAULT = ASSIGNMENT_ALGO_BALANCED;
+const PLAYERS_MANAGEMENT_DEFAULT_SORT = 'power-desc';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
@@ -879,7 +880,7 @@ let playersManagementAddPanelInit = false;
 let playersManagementEditingName = '';
 let playersManagementSearchTerm = '';
 let playersManagementTroopsFilter = '';
-let playersManagementSortFilter = 'power-desc';
+let playersManagementSortFilter = PLAYERS_MANAGEMENT_DEFAULT_SORT;
 let eventsPanelExpanded = true;
 let activeDownloadTeam = null;
 let currentPageView = 'generator';
@@ -3030,6 +3031,13 @@ function getPlayersDatabaseBySource(source) {
 }
 
 function normalizePlayerRecordForUi(name, entry) {
+    if (
+        window.DSFeaturePlayersManagementCore
+        && typeof window.DSFeaturePlayersManagementCore.normalizePlayerRecordForUi === 'function'
+    ) {
+        return window.DSFeaturePlayersManagementCore.normalizePlayerRecordForUi(name, entry);
+    }
+
     const raw = entry && typeof entry === 'object' ? entry : {};
     const power = Number(raw.power);
     const thp = Number(raw.thp);
@@ -3043,13 +3051,29 @@ function normalizePlayerRecordForUi(name, entry) {
 
 function buildPlayersManagementRows(source) {
     const db = getPlayersDatabaseBySource(source);
+    if (
+        window.DSFeaturePlayersManagementCore
+        && typeof window.DSFeaturePlayersManagementCore.buildRowsFromDatabase === 'function'
+    ) {
+        return window.DSFeaturePlayersManagementCore.buildRowsFromDatabase(db);
+    }
     return Object.keys(db).map((name) => normalizePlayerRecordForUi(name, db[name]));
 }
 
 function hasActivePlayersManagementFilters() {
+    if (
+        window.DSFeaturePlayersManagementCore
+        && typeof window.DSFeaturePlayersManagementCore.hasActiveFilters === 'function'
+    ) {
+        return window.DSFeaturePlayersManagementCore.hasActiveFilters({
+            searchTerm: playersManagementSearchTerm,
+            troopsFilter: playersManagementTroopsFilter,
+            sortFilter: playersManagementSortFilter,
+        });
+    }
     return playersManagementSearchTerm.length > 0
         || playersManagementTroopsFilter !== ''
-        || playersManagementSortFilter !== 'power-desc';
+        || playersManagementSortFilter !== PLAYERS_MANAGEMENT_DEFAULT_SORT;
 }
 
 function syncPlayersManagementFilterStateFromUi() {
@@ -3057,10 +3081,26 @@ function syncPlayersManagementFilterStateFromUi() {
     const troopsSelect = document.getElementById('playersMgmtTroopsFilter');
     const sortSelect = document.getElementById('playersMgmtSortFilter');
 
-    playersManagementSearchTerm = searchInput ? String(searchInput.value || '').trim() : '';
-    playersManagementTroopsFilter = troopsSelect ? String(troopsSelect.value || '').trim() : '';
-    const nextSort = sortSelect ? String(sortSelect.value || '').trim() : '';
-    playersManagementSortFilter = nextSort || 'power-desc';
+    const nextFilterState = {
+        searchTerm: searchInput ? String(searchInput.value || '').trim() : '',
+        troopsFilter: troopsSelect ? String(troopsSelect.value || '').trim() : '',
+        sortFilter: sortSelect ? String(sortSelect.value || '').trim() : '',
+    };
+
+    if (
+        window.DSFeaturePlayersManagementCore
+        && typeof window.DSFeaturePlayersManagementCore.normalizeFilterState === 'function'
+    ) {
+        const normalized = window.DSFeaturePlayersManagementCore.normalizeFilterState(nextFilterState);
+        playersManagementSearchTerm = normalized.searchTerm;
+        playersManagementTroopsFilter = normalized.troopsFilter;
+        playersManagementSortFilter = normalized.sortFilter;
+        return;
+    }
+
+    playersManagementSearchTerm = nextFilterState.searchTerm;
+    playersManagementTroopsFilter = nextFilterState.troopsFilter;
+    playersManagementSortFilter = nextFilterState.sortFilter || PLAYERS_MANAGEMENT_DEFAULT_SORT;
 }
 
 function updatePlayersManagementClearFiltersButton() {
@@ -3072,6 +3112,17 @@ function updatePlayersManagementClearFiltersButton() {
 }
 
 function applyPlayersManagementFilters(rows) {
+    if (
+        window.DSFeaturePlayersManagementCore
+        && typeof window.DSFeaturePlayersManagementCore.applyFilters === 'function'
+    ) {
+        return window.DSFeaturePlayersManagementCore.applyFilters(rows, {
+            searchTerm: playersManagementSearchTerm,
+            troopsFilter: playersManagementTroopsFilter,
+            sortFilter: playersManagementSortFilter,
+        });
+    }
+
     const filtered = Array.isArray(rows) ? rows.slice() : [];
     const term = playersManagementSearchTerm;
     const termLower = term.toLowerCase();
@@ -3139,11 +3190,11 @@ function clearPlayersManagementFilters() {
         troopsSelect.value = '';
     }
     if (sortSelect) {
-        sortSelect.value = 'power-desc';
+        sortSelect.value = PLAYERS_MANAGEMENT_DEFAULT_SORT;
     }
     playersManagementSearchTerm = '';
     playersManagementTroopsFilter = '';
-    playersManagementSortFilter = 'power-desc';
+    playersManagementSortFilter = PLAYERS_MANAGEMENT_DEFAULT_SORT;
     renderPlayersManagementTable();
 }
 
