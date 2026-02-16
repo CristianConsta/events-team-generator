@@ -815,6 +815,125 @@ let eventDraftMapDataUrl = '';
 let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
 let currentAssignmentAlgorithm = ASSIGNMENT_ALGO_DEFAULT;
+let currentPageView = 'generator';
+const appStateStore = (
+    window.DSAppStateStore
+    && typeof window.DSAppStateStore.createDefaultStore === 'function'
+)
+    ? window.DSAppStateStore.createDefaultStore({
+        navigation: {
+            currentView: currentPageView,
+        },
+        generator: {
+            assignmentAlgorithm: currentAssignmentAlgorithm,
+            teamSelections: teamSelections,
+        },
+        playersManagement: {
+            filters: {
+                searchTerm: '',
+                troopsFilter: '',
+                sortFilter: PLAYERS_MANAGEMENT_DEFAULT_SORT,
+            },
+        },
+    })
+    : null;
+const appStateContract = (
+    window.DSStateStoreContract
+    && typeof window.DSStateStoreContract.createStateStoreContract === 'function'
+    && appStateStore
+)
+    ? window.DSStateStoreContract.createStateStoreContract(appStateStore)
+    : null;
+
+function getAppRuntimeState() {
+    if (appStateContract && typeof appStateContract.getState === 'function') {
+        return appStateContract.getState();
+    }
+    return {
+        navigation: { currentView: currentPageView },
+        generator: {
+            assignmentAlgorithm: currentAssignmentAlgorithm,
+            teamSelections: teamSelections,
+        },
+        playersManagement: {
+            filters: {
+                searchTerm: '',
+                troopsFilter: '',
+                sortFilter: PLAYERS_MANAGEMENT_DEFAULT_SORT,
+            },
+        },
+    };
+}
+
+function setAppRuntimeState(patch) {
+    if (appStateContract && typeof appStateContract.setState === 'function') {
+        appStateContract.setState(patch);
+    }
+}
+
+function getCurrentPageViewState() {
+    if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectNavigationView === 'function'
+    ) {
+        return window.DSAppStateStore.selectors.selectNavigationView(getAppRuntimeState());
+    }
+    return currentPageView;
+}
+
+function setCurrentPageViewState(nextView) {
+    currentPageView = nextView;
+    setAppRuntimeState({
+        navigation: {
+            currentView: nextView,
+        },
+    });
+}
+
+function getCurrentAssignmentAlgorithmState() {
+    if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectAssignmentAlgorithm === 'function'
+    ) {
+        return window.DSAppStateStore.selectors.selectAssignmentAlgorithm(getAppRuntimeState());
+    }
+    return currentAssignmentAlgorithm;
+}
+
+function setCurrentAssignmentAlgorithmState(nextValue) {
+    currentAssignmentAlgorithm = nextValue;
+    setAppRuntimeState({
+        generator: {
+            assignmentAlgorithm: nextValue,
+        },
+    });
+}
+
+function syncGeneratorTeamSelectionsState() {
+    setAppRuntimeState({
+        generator: {
+            teamSelections: {
+                teamA: Array.isArray(teamSelections.teamA) ? teamSelections.teamA : [],
+                teamB: Array.isArray(teamSelections.teamB) ? teamSelections.teamB : [],
+            },
+        },
+    });
+}
+
+function syncPlayersManagementFilterState() {
+    setAppRuntimeState({
+        playersManagement: {
+            filters: {
+                searchTerm: playersManagementSearchTerm,
+                troopsFilter: playersManagementTroopsFilter,
+                sortFilter: playersManagementSortFilter,
+            },
+        },
+    });
+}
+
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     if (
@@ -847,7 +966,7 @@ function normalizeAssignmentAlgorithm(value) {
 }
 
 function syncAssignmentAlgorithmControl() {
-    const normalized = normalizeAssignmentAlgorithm(currentAssignmentAlgorithm);
+    const normalized = normalizeAssignmentAlgorithm(getCurrentAssignmentAlgorithmState());
     const radioInputs = document.querySelectorAll('input[name="assignmentAlgorithm"]');
     if (radioInputs && radioInputs.length > 0) {
         radioInputs.forEach((input) => {
@@ -869,7 +988,7 @@ function handleAssignmentAlgorithmChange(event) {
         return;
     }
     const next = normalizeAssignmentAlgorithm(event && event.target ? event.target.value : ASSIGNMENT_ALGO_DEFAULT);
-    currentAssignmentAlgorithm = next;
+    setCurrentAssignmentAlgorithmState(next);
     syncAssignmentAlgorithmControl();
 }
 
@@ -883,7 +1002,7 @@ let playersManagementTroopsFilter = '';
 let playersManagementSortFilter = PLAYERS_MANAGEMENT_DEFAULT_SORT;
 let eventsPanelExpanded = true;
 let activeDownloadTeam = null;
-let currentPageView = 'generator';
+syncPlayersManagementFilterState();
 
 function normalizeThemePreference(theme) {
     if (typeof theme !== 'string') {
@@ -935,7 +1054,7 @@ function getCurrentAppliedTheme() {
 applyPlatformTheme(getStoredThemePreference(), { skipPersist: true });
 
 function isConfigurationPageVisible() {
-    return currentPageView === 'configuration';
+    return getCurrentPageViewState() === 'configuration';
 }
 
 function closeNavigationMenu() {
@@ -986,47 +1105,47 @@ function syncNavigationMenuState() {
     const mobilePlayersBtn = document.getElementById('mobileNavPlayersBtn');
     const mobileAllianceBtn = document.getElementById('mobileNavAllianceBtn');
     if (generatorBtn) {
-        const isActive = currentPageView === 'generator';
+        const isActive = getCurrentPageViewState() === 'generator';
         generatorBtn.classList.toggle('active', isActive);
         generatorBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (configBtn) {
-        const isActive = currentPageView === 'configuration';
+        const isActive = getCurrentPageViewState() === 'configuration';
         configBtn.classList.toggle('active', isActive);
         configBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (playersBtn) {
-        const isActive = currentPageView === 'players';
+        const isActive = getCurrentPageViewState() === 'players';
         playersBtn.classList.toggle('active', isActive);
         playersBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (allianceBtn) {
-        const isActive = currentPageView === 'alliance';
+        const isActive = getCurrentPageViewState() === 'alliance';
         allianceBtn.classList.toggle('active', isActive);
         allianceBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (supportBtn) {
-        const isActive = currentPageView === 'support';
+        const isActive = getCurrentPageViewState() === 'support';
         supportBtn.classList.toggle('active', isActive);
         supportBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (mobileGeneratorBtn) {
-        const isActive = currentPageView === 'generator';
+        const isActive = getCurrentPageViewState() === 'generator';
         mobileGeneratorBtn.classList.toggle('active', isActive);
         mobileGeneratorBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (mobileConfigBtn) {
-        const isActive = currentPageView === 'configuration';
+        const isActive = getCurrentPageViewState() === 'configuration';
         mobileConfigBtn.classList.toggle('active', isActive);
         mobileConfigBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (mobilePlayersBtn) {
-        const isActive = currentPageView === 'players';
+        const isActive = getCurrentPageViewState() === 'players';
         mobilePlayersBtn.classList.toggle('active', isActive);
         mobilePlayersBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
     if (mobileAllianceBtn) {
-        const isActive = currentPageView === 'alliance';
+        const isActive = getCurrentPageViewState() === 'alliance';
         mobileAllianceBtn.classList.toggle('active', isActive);
         mobileAllianceBtn.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
@@ -1048,7 +1167,7 @@ function updateFloatingButtonsVisibility() {
         return;
     }
     const hasPlayers = Array.isArray(allPlayers) && allPlayers.length > 0;
-    const shouldShow = currentPageView === 'generator' && !selectionSection.classList.contains('hidden') && hasPlayers;
+    const shouldShow = getCurrentPageViewState() === 'generator' && !selectionSection.classList.contains('hidden') && hasPlayers;
     bar.style.display = shouldShow ? 'flex' : 'none';
     reserveSpaceForFooter();
 }
@@ -1064,34 +1183,35 @@ function setPageView(view) {
     }
 
     if (view === 'configuration') {
-        currentPageView = 'configuration';
+        setCurrentPageViewState('configuration');
     } else if (view === 'players') {
-        currentPageView = 'players';
+        setCurrentPageViewState('players');
     } else if (view === 'alliance') {
-        currentPageView = 'alliance';
+        setCurrentPageViewState('alliance');
     } else if (view === 'support') {
-        currentPageView = 'support';
+        setCurrentPageViewState('support');
     } else {
-        currentPageView = 'generator';
+        setCurrentPageViewState('generator');
     }
-    generatorPage.classList.toggle('hidden', currentPageView !== 'generator');
-    configurationPage.classList.toggle('hidden', currentPageView !== 'configuration');
-    playersManagementPage.classList.toggle('hidden', currentPageView !== 'players');
-    alliancePage.classList.toggle('hidden', currentPageView !== 'alliance');
-    supportPage.classList.toggle('hidden', currentPageView !== 'support');
+    const currentView = getCurrentPageViewState();
+    generatorPage.classList.toggle('hidden', currentView !== 'generator');
+    configurationPage.classList.toggle('hidden', currentView !== 'configuration');
+    playersManagementPage.classList.toggle('hidden', currentView !== 'players');
+    alliancePage.classList.toggle('hidden', currentView !== 'alliance');
+    supportPage.classList.toggle('hidden', currentView !== 'support');
     syncNavigationMenuState();
     closeNavigationMenu();
     closeNotificationsPanel();
 
-    if (currentPageView === 'configuration') {
+    if (currentView === 'configuration') {
         loadBuildingConfig();
         loadBuildingPositions();
         renderBuildingsTable();
         renderEventsList();
         refreshEventEditorDeleteState();
-    } else if (currentPageView === 'players') {
+    } else if (currentView === 'players') {
         renderPlayersManagementPanel();
-    } else if (currentPageView === 'alliance') {
+    } else if (currentView === 'alliance') {
         renderAlliancePanel();
     }
 
@@ -1125,7 +1245,7 @@ function showAlliancePage() {
             await checkAndDisplayNotifications();
         })
         .then(() => {
-            if (currentPageView === 'alliance') {
+            if (getCurrentPageViewState() === 'alliance') {
                 renderAlliancePanel();
                 updateAllianceHeaderDisplay();
             }
@@ -3100,6 +3220,17 @@ function buildPlayersManagementRows(source) {
 
 function hasActivePlayersManagementFilters() {
     if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectPlayersManagementFilters === 'function'
+    ) {
+        const filters = window.DSAppStateStore.selectors.selectPlayersManagementFilters(getAppRuntimeState());
+        return filters.searchTerm.length > 0
+            || filters.troopsFilter !== ''
+            || filters.sortFilter !== PLAYERS_MANAGEMENT_DEFAULT_SORT;
+    }
+
+    if (
         window.DSFeaturePlayersManagementCore
         && typeof window.DSFeaturePlayersManagementCore.hasActiveFilters === 'function'
     ) {
@@ -3133,12 +3264,14 @@ function syncPlayersManagementFilterStateFromUi() {
         playersManagementSearchTerm = normalized.searchTerm;
         playersManagementTroopsFilter = normalized.troopsFilter;
         playersManagementSortFilter = normalized.sortFilter;
+        syncPlayersManagementFilterState();
         return;
     }
 
     playersManagementSearchTerm = nextFilterState.searchTerm;
     playersManagementTroopsFilter = nextFilterState.troopsFilter;
     playersManagementSortFilter = nextFilterState.sortFilter || PLAYERS_MANAGEMENT_DEFAULT_SORT;
+    syncPlayersManagementFilterState();
 }
 
 function updatePlayersManagementClearFiltersButton() {
@@ -3233,6 +3366,7 @@ function clearPlayersManagementFilters() {
     playersManagementSearchTerm = '';
     playersManagementTroopsFilter = '';
     playersManagementSortFilter = PLAYERS_MANAGEMENT_DEFAULT_SORT;
+    syncPlayersManagementFilterState();
     renderPlayersManagementTable();
 }
 
@@ -3372,7 +3506,7 @@ function renderPlayersManagementPanel() {
 }
 
 async function switchPlayersManagementSource(source) {
-    const returnToPlayersPage = currentPageView === 'players';
+    const returnToPlayersPage = getCurrentPageViewState() === 'players';
     await switchPlayerSource(source, 'playersMgmtSourceStatus');
     if (returnToPlayersPage) {
         showPlayersManagementPage();
@@ -3425,7 +3559,7 @@ async function handlePlayersManagementAddPlayer() {
         if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
             togglePlayersManagementAddPanel(false);
         }
-        const returnToPlayersPage = currentPageView === 'players';
+        const returnToPlayersPage = getCurrentPageViewState() === 'players';
         await refreshPlayersDataAfterMutation(source);
         if (returnToPlayersPage) {
             showPlayersManagementPage();
@@ -3489,7 +3623,7 @@ async function handlePlayersManagementTableAction(event) {
         if (result && result.success) {
             playersManagementEditingName = '';
             showMessage('playersMgmtStatus', t('players_list_saved'), 'success');
-            const returnToPlayersPage = currentPageView === 'players';
+            const returnToPlayersPage = getCurrentPageViewState() === 'players';
             await refreshPlayersDataAfterMutation(source);
             if (returnToPlayersPage) {
                 showPlayersManagementPage();
@@ -3508,7 +3642,7 @@ async function handlePlayersManagementTableAction(event) {
         const result = await FirebaseService.removePlayerEntry(source, originalName);
         if (result && result.success) {
             playersManagementEditingName = '';
-            const returnToPlayersPage = currentPageView === 'players';
+            const returnToPlayersPage = getCurrentPageViewState() === 'players';
             await refreshPlayersDataAfterMutation(source);
             if (returnToPlayersPage) {
                 showPlayersManagementPage();
@@ -4220,7 +4354,7 @@ function handleAllianceDataRealtimeUpdate() {
         return;
     }
 
-    if (currentPageView === 'alliance') {
+    if (getCurrentPageViewState() === 'alliance') {
         renderAlliancePanel();
     }
 
@@ -5144,6 +5278,17 @@ function hasActivePlayerFilters() {
 
 function hasAnySelectedPlayers() {
     if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectTeamSelections === 'function'
+    ) {
+        const selected = window.DSAppStateStore.selectors.selectTeamSelections(getAppRuntimeState());
+        const teamASelected = Array.isArray(selected.teamA) ? selected.teamA.length : 0;
+        const teamBSelected = Array.isArray(selected.teamB) ? selected.teamB.length : 0;
+        return (teamASelected + teamBSelected) > 0;
+    }
+
+    if (
         window.DSFeatureGeneratorTeamSelection
         && typeof window.DSFeatureGeneratorTeamSelection.hasAnySelectedPlayers === 'function'
     ) {
@@ -5163,6 +5308,15 @@ function updateClearAllButtonVisibility() {
 }
 
 function getCurrentTeamCounts() {
+    if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectTeamCounts === 'function'
+    ) {
+        syncGeneratorTeamSelectionsState();
+        return window.DSAppStateStore.selectors.selectTeamCounts(getAppRuntimeState());
+    }
+
     if (
         window.DSFeatureGeneratorTeamSelection
         && typeof window.DSFeatureGeneratorTeamSelection.getCurrentTeamCounts === 'function'
@@ -5486,6 +5640,8 @@ if (playersMgmtTableBody) {
 }
 
 function updateTeamCounters() {
+    syncGeneratorTeamSelectionsState();
+
     const teamAStarterCount = getStarterCount('teamA');
     const teamASubCount = getSubstituteCount('teamA');
     const teamBStarterCount = getStarterCount('teamB');
@@ -5602,7 +5758,7 @@ function generateTeamAssignments(team) {
 }
 
 function assignTeamToBuildings(players) {
-    const strategy = normalizeAssignmentAlgorithm(currentAssignmentAlgorithm);
+    const strategy = normalizeAssignmentAlgorithm(getCurrentAssignmentAlgorithmState());
     const buildingConfig = getEffectiveBuildingConfig();
 
     if (
