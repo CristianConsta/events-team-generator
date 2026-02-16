@@ -33,6 +33,7 @@ function onI18nApplied() {
     renderPlayersTable();
     renderBuildingsTable();
     updateTeamCounters();
+    syncAssignmentAlgorithmControl();
     const navMenuBtn = document.getElementById('navMenuBtn');
     if (navMenuBtn) {
         navMenuBtn.title = t('navigation_menu');
@@ -613,6 +614,7 @@ function bindStaticUiActions() {
     on('playersMgmtTroopsFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtSortFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtClearFiltersBtn', 'click', clearPlayersManagementFilters);
+    on('assignmentAlgorithmSelect', 'change', handleAssignmentAlgorithmChange);
     on('downloadTemplateBtn', 'click', downloadPlayerTemplate);
     on('uploadPlayerBtn', 'click', () => {
         const input = document.getElementById('playerFileInput');
@@ -643,6 +645,7 @@ function bindStaticUiActions() {
     on('supportReportBugBtn', 'click', () => openSupportIssueComposer('bug'));
     on('supportRequestFeatureBtn', 'click', () => openSupportIssueComposer('feature'));
 
+    syncAssignmentAlgorithmControl();
     updateClearAllButtonVisibility();
 }
 
@@ -788,11 +791,15 @@ const SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR]);
 const SUPPORT_DISCORD_HANDLE = 'flashguru2000';
 const SUPPORT_DISCORD_URL = 'https://discord.com/users/1239126582388592667';
 const SUPPORT_REPO_ISSUES_NEW_URL = 'https://github.com/CristianConsta/events-team-generator/issues/new';
+const ASSIGNMENT_ALGO_BALANCED = 'balanced';
+const ASSIGNMENT_ALGO_AGGRESSIVE = 'aggressive';
+const ASSIGNMENT_ALGO_DEFAULT = ASSIGNMENT_ALGO_BALANCED;
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
 let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
+let currentAssignmentAlgorithm = ASSIGNMENT_ALGO_DEFAULT;
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
@@ -801,6 +808,28 @@ function getStarterCount(teamKey) {
 function getSubstituteCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'substitute').length;
 }
+
+function normalizeAssignmentAlgorithm(value) {
+    if (value === ASSIGNMENT_ALGO_AGGRESSIVE) {
+        return ASSIGNMENT_ALGO_AGGRESSIVE;
+    }
+    return ASSIGNMENT_ALGO_BALANCED;
+}
+
+function syncAssignmentAlgorithmControl() {
+    const select = document.getElementById('assignmentAlgorithmSelect');
+    if (!select) {
+        return;
+    }
+    select.value = normalizeAssignmentAlgorithm(currentAssignmentAlgorithm);
+}
+
+function handleAssignmentAlgorithmChange(event) {
+    const next = normalizeAssignmentAlgorithm(event && event.target ? event.target.value : ASSIGNMENT_ALGO_DEFAULT);
+    currentAssignmentAlgorithm = next;
+    syncAssignmentAlgorithmControl();
+}
+
 let uploadPanelExpanded = true;
 let playersListPanelExpanded = true;
 let playersManagementAddPanelExpanded = false;
@@ -5348,7 +5377,18 @@ function generateTeamAssignments(team) {
 }
 
 function assignTeamToBuildings(players) {
-    return window.DSCoreAssignment.assignTeamToBuildings(players, getEffectiveBuildingConfig());
+    const strategy = normalizeAssignmentAlgorithm(currentAssignmentAlgorithm);
+    const buildingConfig = getEffectiveBuildingConfig();
+
+    if (
+        strategy === ASSIGNMENT_ALGO_AGGRESSIVE
+        && window.DSCoreAssignment
+        && typeof window.DSCoreAssignment.assignTeamToBuildingsAggressive === 'function'
+    ) {
+        return window.DSCoreAssignment.assignTeamToBuildingsAggressive(players, buildingConfig);
+    }
+
+    return window.DSCoreAssignment.assignTeamToBuildings(players, buildingConfig);
 }
 
 // Searches the next 3 available players by power for a different

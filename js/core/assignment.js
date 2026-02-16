@@ -116,8 +116,51 @@
         return assignments;
     }
 
+    function sortBuildingsByPriority(buildingConfig) {
+        return (Array.isArray(buildingConfig) ? [...buildingConfig] : []).sort((a, b) => {
+            const aPriority = Number.isFinite(Number(a && a.priority)) ? Number(a.priority) : 1;
+            const bPriority = Number.isFinite(Number(b && b.priority)) ? Number(b.priority) : 1;
+            if (aPriority !== bPriority) {
+                return aPriority - bPriority;
+            }
+            const aName = a && typeof a.name === 'string' ? a.name : '';
+            const bName = b && typeof b.name === 'string' ? b.name : '';
+            return aName.localeCompare(bName);
+        });
+    }
+
+    function assignPlayersSequentially(buildings, available, assignments) {
+        buildings.forEach((building) => {
+            const slots = Number.isFinite(Number(building && building.slots))
+                ? Math.max(0, Math.round(Number(building.slots)))
+                : 0;
+            for (let index = 0; index < slots && available.length > 0; index += 1) {
+                assignments.push(buildAssignment(building, available[0]));
+                available.splice(0, 1);
+            }
+        });
+    }
+
+    // Aggressive strategy:
+    // 1) Fill Team-designated buildings first (showOnMap=false) with top players.
+    // 2) Fill map buildings by ascending priority with remaining players.
+    // Troop mix is intentionally ignored.
+    function assignTeamToBuildingsAggressive(players, buildingConfig) {
+        const assignments = [];
+        const available = Array.isArray(players) ? [...players].sort(comparePlayersForAssignment) : [];
+        const sortedBuildings = sortBuildingsByPriority(buildingConfig);
+        const teamBuildings = sortedBuildings.filter((building) => building && building.slots > 0 && building.showOnMap === false);
+        const mapBuildings = sortedBuildings.filter((building) => building && building.slots > 0 && building.showOnMap !== false);
+
+        assignPlayersSequentially(teamBuildings, available, assignments);
+        assignPlayersSequentially(mapBuildings, available, assignments);
+
+        return assignments;
+    }
+
     global.DSCoreAssignment = {
         assignTeamToBuildings: assignTeamToBuildings,
+        assignTeamToBuildingsAggressive: assignTeamToBuildingsAggressive,
         findMixPartner: findMixPartner,
         comparePlayersForAssignment: comparePlayersForAssignment,
     };

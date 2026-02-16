@@ -429,6 +429,14 @@
             <div id="generatorPage" class="app-view screen-shell">
                 <!-- Player Selection Section -->
                 <div id="selectionSection" class="card screen-panel hidden">
+                    <div class="assignment-algorithm-controls">
+                        <label for="assignmentAlgorithmSelect" class="assignment-algorithm-label" data-i18n="assignment_algorithm_label">Assignment Algorithm</label>
+                        <select id="assignmentAlgorithmSelect" class="assignment-algorithm-select" aria-describedby="assignmentAlgorithmHelp">
+                            <option value="balanced" data-i18n="assignment_algorithm_balanced">Balanced (Recommended)</option>
+                            <option value="aggressive" data-i18n="assignment_algorithm_aggressive">Aggressive</option>
+                        </select>
+                        <p id="assignmentAlgorithmHelp" class="assignment-algorithm-help" data-i18n="assignment_algorithm_help">Balanced keeps troop-mix-aware pairing. Aggressive fills Team-type buildings first using top power/THP players, then fills Building-type rows by priority with remaining players.</p>
+                    </div>
                     <div class="event-selector event-selector-inline" id="selectionEventSelector"></div>
                     <div class="screen-header">
                         <h2 class="section-title" data-i18n="select_players_for_event_title">Select players for the event</h2>

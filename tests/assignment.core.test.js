@@ -116,3 +116,47 @@ test('assignTeamToBuildings uses THP as tie-break for similar power players (+/-
   assert.equal(result.length, 1);
   assert.equal(result[0].player, 'THPLead');
 });
+
+test('assignTeamToBuildingsAggressive fills Team-type buildings first with top players', () => {
+  loadModule();
+  const players = [
+    { name: 'P1', power: 120, thp: 100, troops: 'Tank' },
+    { name: 'P2', power: 110, thp: 90, troops: 'Aero' },
+    { name: 'P3', power: 100, thp: 80, troops: 'Missile' },
+    { name: 'P4', power: 90, thp: 70, troops: 'Tank' },
+    { name: 'P5', power: 80, thp: 60, troops: 'Aero' },
+  ];
+  const config = [
+    { name: 'Map-HQ', priority: 1, slots: 2, showOnMap: true },
+    { name: 'Map-Outpost', priority: 2, slots: 1, showOnMap: true },
+    { name: 'Team-Core', priority: 4, slots: 2, showOnMap: false },
+  ];
+
+  const result = global.DSCoreAssignment.assignTeamToBuildingsAggressive(players, config);
+  assert.equal(result.length, 5);
+
+  const teamAssignments = result.filter((x) => x.buildingKey === 'Team-Core').map((x) => x.player);
+  const hqAssignments = result.filter((x) => x.buildingKey === 'Map-HQ').map((x) => x.player);
+  const outpostAssignments = result.filter((x) => x.buildingKey === 'Map-Outpost').map((x) => x.player);
+
+  assert.deepEqual(teamAssignments, ['P1', 'P2']);
+  assert.deepEqual(hqAssignments, ['P3', 'P4']);
+  assert.deepEqual(outpostAssignments, ['P5']);
+});
+
+test('assignTeamToBuildingsAggressive does not enforce troop mix pairing', () => {
+  loadModule();
+  const players = [
+    { name: 'TopTankA', power: 200, thp: 40, troops: 'Tank' },
+    { name: 'TopTankB', power: 190, thp: 39, troops: 'Tank' },
+    { name: 'MissileC', power: 180, thp: 38, troops: 'Missile' },
+  ];
+  const config = [
+    { name: 'Team-Core', priority: 1, slots: 2, showOnMap: false },
+    { name: 'Map-HQ', priority: 1, slots: 1, showOnMap: true },
+  ];
+
+  const result = global.DSCoreAssignment.assignTeamToBuildingsAggressive(players, config);
+  const teamAssignments = result.filter((x) => x.buildingKey === 'Team-Core').map((x) => x.player);
+  assert.deepEqual(teamAssignments, ['TopTankA', 'TopTankB']);
+});

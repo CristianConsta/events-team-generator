@@ -1902,6 +1902,31 @@ select {
     font-size: 13px;
     min-height: 36px;
 }
+.assignment-algorithm-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 12px;
+    border: 1px solid rgba(var(--gold-rgb), 0.28);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.assignment-algorithm-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.assignment-algorithm-select {
+    width: min(360px, 100%);
+    min-height: 44px;
+    margin: 0;
+}
+.assignment-algorithm-help {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
 .events-editor-card #eventBuildingsEditorTable th:nth-child(4),
 .events-editor-card #eventBuildingsEditorTable td:nth-child(4) {
     text-align: center;
