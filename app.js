@@ -652,7 +652,14 @@ function bindStaticUiActions() {
 }
 
 // ── Dismiss event wiring (runs once DOM is ready) ──
-document.addEventListener('DOMContentLoaded', () => {
+let appUiRuntimeInitialized = false;
+
+function initializeApplicationUiRuntime() {
+    if (appUiRuntimeInitialized) {
+        return;
+    }
+    appUiRuntimeInitialized = true;
+
     bindStaticUiActions();
 
     // Advance onboarding when the user interacts with the active target.
@@ -702,7 +709,12 @@ document.addEventListener('DOMContentLoaded', () => {
     startNewEventDraft();
     switchEvent(currentEvent);
     updateUserHeaderIdentity(currentAuthUser);
-});
+}
+
+// Backward-compatible fallback when shell bootstrap script is not loaded.
+if (!(window.DSAppShellBootstrap && typeof window.DSAppShellBootstrap.boot === 'function')) {
+    document.addEventListener('DOMContentLoaded', initializeApplicationUiRuntime);
+}
 
 // ============================================================
 // INITIALIZATION CHECK
