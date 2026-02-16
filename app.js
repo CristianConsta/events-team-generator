@@ -816,10 +816,22 @@ let eventEditorIsEditMode = false;
 let currentAssignmentAlgorithm = ASSIGNMENT_ALGO_DEFAULT;
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.getStarterCount === 'function'
+    ) {
+        return window.DSFeatureGeneratorTeamSelection.getStarterCount(teamSelections, teamKey);
+    }
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
 }
 
 function getSubstituteCount(teamKey) {
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.getSubstituteCount === 'function'
+    ) {
+        return window.DSFeatureGeneratorTeamSelection.getSubstituteCount(teamSelections, teamKey);
+    }
     return teamSelections[teamKey].filter(p => p.role === 'substitute').length;
 }
 
@@ -4999,6 +5011,12 @@ function hasActivePlayerFilters() {
 }
 
 function hasAnySelectedPlayers() {
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.hasAnySelectedPlayers === 'function'
+    ) {
+        return window.DSFeatureGeneratorTeamSelection.hasAnySelectedPlayers(teamSelections);
+    }
     const teamASelected = Array.isArray(teamSelections?.teamA) ? teamSelections.teamA.length : 0;
     const teamBSelected = Array.isArray(teamSelections?.teamB) ? teamSelections.teamB.length : 0;
     return (teamASelected + teamBSelected) > 0;
@@ -5013,6 +5031,12 @@ function updateClearAllButtonVisibility() {
 }
 
 function getCurrentTeamCounts() {
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.getCurrentTeamCounts === 'function'
+    ) {
+        return window.DSFeatureGeneratorTeamSelection.getCurrentTeamCounts(teamSelections);
+    }
     return {
         teamAStarterCount: getStarterCount('teamA'),
         teamASubCount: getSubstituteCount('teamA'),
@@ -5022,6 +5046,12 @@ function getCurrentTeamCounts() {
 }
 
 function buildTeamSelectionMaps() {
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.buildTeamSelectionMaps === 'function'
+    ) {
+        return window.DSFeatureGeneratorTeamSelection.buildTeamSelectionMaps(teamSelections);
+    }
     return {
         teamA: new Map(teamSelections.teamA.map((item) => [item.name, item])),
         teamB: new Map(teamSelections.teamB.map((item) => [item.name, item])),
@@ -5080,44 +5110,60 @@ function renderPlayersTable() {
 }
 
 function toggleTeam(playerName, team) {
-    const teamKey = team === 'A' ? 'teamA' : 'teamB';
-    const otherTeamKey = team === 'A' ? 'teamB' : 'teamA';
-
-    const existingIndex = teamSelections[teamKey].findIndex(p => p.name === playerName);
-
-    if (existingIndex > -1) {
-        // Player is already on this team - remove them
-        teamSelections[teamKey].splice(existingIndex, 1);
-    } else {
-        // Remove from other team if present
-        const otherIndex = teamSelections[otherTeamKey].findIndex(p => p.name === playerName);
-        if (otherIndex > -1) {
-            teamSelections[otherTeamKey].splice(otherIndex, 1);
-        }
-
-        // Check total limit (30 players)
-        if (teamSelections[teamKey].length >= 30) {
-            return;
-        }
-
-        // Determine default role: starter if < 20 starters, otherwise substitute
-        const starterCount = getStarterCount(teamKey);
-        const subCount = getSubstituteCount(teamKey);
-
-        let defaultRole;
-        if (starterCount < 20) {
-            defaultRole = 'starter';
-        } else if (subCount < 10) {
-            defaultRole = 'substitute';
-        } else {
-            // Both full - shouldn't happen if UI disables correctly
-            return;
-        }
-
-        teamSelections[teamKey].push({
-            name: playerName,
-            role: defaultRole
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.toggleTeamSelection === 'function'
+    ) {
+        const result = window.DSFeatureGeneratorTeamSelection.toggleTeamSelection(teamSelections, playerName, team, {
+            maxTotal: 30,
+            maxStarters: 20,
+            maxSubstitutes: 10,
         });
+        if (!result || !result.changed) {
+            return;
+        }
+        teamSelections.teamA = Array.isArray(result.teamA) ? result.teamA : [];
+        teamSelections.teamB = Array.isArray(result.teamB) ? result.teamB : [];
+    } else {
+        const teamKey = team === 'A' ? 'teamA' : 'teamB';
+        const otherTeamKey = team === 'A' ? 'teamB' : 'teamA';
+
+        const existingIndex = teamSelections[teamKey].findIndex(p => p.name === playerName);
+
+        if (existingIndex > -1) {
+            // Player is already on this team - remove them
+            teamSelections[teamKey].splice(existingIndex, 1);
+        } else {
+            // Remove from other team if present
+            const otherIndex = teamSelections[otherTeamKey].findIndex(p => p.name === playerName);
+            if (otherIndex > -1) {
+                teamSelections[otherTeamKey].splice(otherIndex, 1);
+            }
+
+            // Check total limit (30 players)
+            if (teamSelections[teamKey].length >= 30) {
+                return;
+            }
+
+            // Determine default role: starter if < 20 starters, otherwise substitute
+            const starterCount = getStarterCount(teamKey);
+            const subCount = getSubstituteCount(teamKey);
+
+            let defaultRole;
+            if (starterCount < 20) {
+                defaultRole = 'starter';
+            } else if (subCount < 10) {
+                defaultRole = 'substitute';
+            } else {
+                // Both full - shouldn't happen if UI disables correctly
+                return;
+            }
+
+            teamSelections[teamKey].push({
+                name: playerName,
+                role: defaultRole
+            });
+        }
     }
 
     updateTeamCounters();
@@ -5125,50 +5171,82 @@ function toggleTeam(playerName, team) {
 }
 
 function togglePlayerRole(playerName, newRole) {
-    // Find which team the player is on
-    let teamKey = null;
-    let playerIndex = teamSelections.teamA.findIndex(p => p.name === playerName);
-
-    if (playerIndex > -1) {
-        teamKey = 'teamA';
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.setPlayerRole === 'function'
+    ) {
+        const result = window.DSFeatureGeneratorTeamSelection.setPlayerRole(teamSelections, playerName, newRole, {
+            maxStarters: 20,
+            maxSubstitutes: 10,
+        });
+        if (!result || !result.changed) {
+            if (result && result.reason === 'starters_full') {
+                alert(t('alert_starters_full'));
+            } else if (result && result.reason === 'substitutes_full') {
+                alert(t('alert_subs_full'));
+            }
+            return;
+        }
+        teamSelections.teamA = Array.isArray(result.teamA) ? result.teamA : [];
+        teamSelections.teamB = Array.isArray(result.teamB) ? result.teamB : [];
     } else {
-        playerIndex = teamSelections.teamB.findIndex(p => p.name === playerName);
+        // Find which team the player is on
+        let teamKey = null;
+        let playerIndex = teamSelections.teamA.findIndex(p => p.name === playerName);
+
         if (playerIndex > -1) {
-            teamKey = 'teamB';
+            teamKey = 'teamA';
+        } else {
+            playerIndex = teamSelections.teamB.findIndex(p => p.name === playerName);
+            if (playerIndex > -1) {
+                teamKey = 'teamB';
+            }
         }
+
+        if (!teamKey || playerIndex === -1) return;
+
+        const currentRole = teamSelections[teamKey][playerIndex].role;
+        if (currentRole === newRole) return; // No change needed
+
+        // Check if switching is allowed
+        if (newRole === 'starter') {
+            if (getStarterCount(teamKey) >= 20) {
+                alert(t('alert_starters_full'));
+                return;
+            }
+        } else {
+            if (getSubstituteCount(teamKey) >= 10) {
+                alert(t('alert_subs_full'));
+                return;
+            }
+        }
+
+        // Update role
+        teamSelections[teamKey][playerIndex].role = newRole;
     }
-
-    if (!teamKey || playerIndex === -1) return;
-
-    const currentRole = teamSelections[teamKey][playerIndex].role;
-    if (currentRole === newRole) return; // No change needed
-
-    // Check if switching is allowed
-    if (newRole === 'starter') {
-        if (getStarterCount(teamKey) >= 20) {
-            alert(t('alert_starters_full'));
-            return;
-        }
-    } else {
-        if (getSubstituteCount(teamKey) >= 10) {
-            alert(t('alert_subs_full'));
-            return;
-        }
-    }
-
-    // Update role
-    teamSelections[teamKey][playerIndex].role = newRole;
 
     updateTeamCounters();
     refreshVisiblePlayerRows();
 }
 
 function clearPlayerSelection(playerName) {
-    const aIndex = teamSelections.teamA.findIndex(p => p.name === playerName);
-    if (aIndex > -1) teamSelections.teamA.splice(aIndex, 1);
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.clearPlayerSelection === 'function'
+    ) {
+        const result = window.DSFeatureGeneratorTeamSelection.clearPlayerSelection(teamSelections, playerName);
+        if (!result || !result.changed) {
+            return;
+        }
+        teamSelections.teamA = Array.isArray(result.teamA) ? result.teamA : [];
+        teamSelections.teamB = Array.isArray(result.teamB) ? result.teamB : [];
+    } else {
+        const aIndex = teamSelections.teamA.findIndex(p => p.name === playerName);
+        if (aIndex > -1) teamSelections.teamA.splice(aIndex, 1);
 
-    const bIndex = teamSelections.teamB.findIndex(p => p.name === playerName);
-    if (bIndex > -1) teamSelections.teamB.splice(bIndex, 1);
+        const bIndex = teamSelections.teamB.findIndex(p => p.name === playerName);
+        if (bIndex > -1) teamSelections.teamB.splice(bIndex, 1);
+    }
 
     updateTeamCounters();
     refreshVisiblePlayerRows();
@@ -5176,8 +5254,17 @@ function clearPlayerSelection(playerName) {
 
 function clearAllSelections() {
     if (confirm(t('confirm_clear_all'))) {
-        teamSelections.teamA = [];
-        teamSelections.teamB = [];
+        if (
+            window.DSFeatureGeneratorTeamSelection
+            && typeof window.DSFeatureGeneratorTeamSelection.clearAllSelections === 'function'
+        ) {
+            const cleared = window.DSFeatureGeneratorTeamSelection.clearAllSelections();
+            teamSelections.teamA = Array.isArray(cleared.teamA) ? cleared.teamA : [];
+            teamSelections.teamB = Array.isArray(cleared.teamB) ? cleared.teamB : [];
+        } else {
+            teamSelections.teamA = [];
+            teamSelections.teamB = [];
+        }
         assignmentsA = [];
         assignmentsB = [];
         substitutesA = [];
