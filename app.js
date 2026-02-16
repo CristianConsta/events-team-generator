@@ -3637,6 +3637,13 @@ function getSentInvitationsList() {
 }
 
 function getInvitationSenderDisplay(invitation) {
+    if (
+        window.DSFeatureNotificationsCore
+        && typeof window.DSFeatureNotificationsCore.getInvitationSenderDisplay === 'function'
+    ) {
+        return window.DSFeatureNotificationsCore.getInvitationSenderDisplay(invitation);
+    }
+
     if (!invitation || typeof invitation !== 'object') {
         return '';
     }
@@ -3650,6 +3657,13 @@ function getInvitationSenderDisplay(invitation) {
 }
 
 function formatInvitationCreatedAt(createdAt) {
+    if (
+        window.DSFeatureNotificationsCore
+        && typeof window.DSFeatureNotificationsCore.formatInvitationCreatedAt === 'function'
+    ) {
+        return window.DSFeatureNotificationsCore.formatInvitationCreatedAt(createdAt);
+    }
+
     if (!createdAt) {
         return '';
     }
@@ -3779,15 +3793,23 @@ async function checkAndDisplayNotifications() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.isSignedIn()) return;
 
     const notifications = await FirebaseService.checkInvitations();
-    const totalNotifications = Array.isArray(notifications) ? notifications.length : 0;
+    const badgeState = (
+        window.DSFeatureNotificationsCore
+        && typeof window.DSFeatureNotificationsCore.getNotificationBadgeState === 'function'
+    )
+        ? window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications)
+        : {
+            count: Array.isArray(notifications) ? notifications.length : 0,
+            hasNotifications: Array.isArray(notifications) && notifications.length > 0,
+        };
     const badge = document.getElementById('notificationBadge');
     const notificationBtn = document.getElementById('notificationBtn');
     if (badge) {
-        badge.textContent = totalNotifications;
-        badge.style.display = totalNotifications > 0 ? 'flex' : 'none';
+        badge.textContent = badgeState.count;
+        badge.style.display = badgeState.hasNotifications ? 'flex' : 'none';
     }
     if (notificationBtn) {
-        notificationBtn.classList.toggle('has-notifications', totalNotifications > 0);
+        notificationBtn.classList.toggle('has-notifications', badgeState.hasNotifications);
     }
 }
 
@@ -3842,15 +3864,29 @@ function getNotificationItems() {
     if (typeof FirebaseService === 'undefined') {
         return [];
     }
-    if (FirebaseService.getInvitationNotifications) {
-        const items = FirebaseService.getInvitationNotifications();
-        return Array.isArray(items) ? items : [];
+
+    const invitationNotifications = FirebaseService.getInvitationNotifications
+        ? FirebaseService.getInvitationNotifications()
+        : null;
+    const pendingInvitations = FirebaseService.getPendingInvitations
+        ? FirebaseService.getPendingInvitations()
+        : [];
+
+    if (
+        window.DSFeatureNotificationsCore
+        && typeof window.DSFeatureNotificationsCore.normalizeNotificationItems === 'function'
+    ) {
+        return window.DSFeatureNotificationsCore.normalizeNotificationItems({
+            invitationNotifications: invitationNotifications,
+            pendingInvitations: pendingInvitations,
+        });
     }
 
-    const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations() : [];
-    if (!Array.isArray(invitations)) {
-        return [];
+    if (Array.isArray(invitationNotifications)) {
+        return invitationNotifications;
     }
+
+    const invitations = Array.isArray(pendingInvitations) ? pendingInvitations : [];
     return invitations.map((inv) => ({
         id: inv && inv.id ? `invite:${inv.id}` : '',
         invitationId: inv && inv.id ? inv.id : '',
@@ -3893,15 +3929,22 @@ function renderNotifications() {
 
         const detail = document.createElement('div');
         detail.className = 'notification-card-detail';
-        const notificationType = item && typeof item.notificationType === 'string'
-            ? item.notificationType
-            : 'invitation_pending';
-        if (notificationType === 'invite_reminder_day1') {
-            detail.textContent = t('notification_invite_reminder_day1');
-        } else if (notificationType === 'invite_reminder_day3') {
-            detail.textContent = t('notification_invite_reminder_day3');
+        if (
+            window.DSFeatureNotificationsCore
+            && typeof window.DSFeatureNotificationsCore.getNotificationDetailText === 'function'
+        ) {
+            detail.textContent = window.DSFeatureNotificationsCore.getNotificationDetailText(item, t);
         } else {
-            detail.textContent = t('notification_invited_by', { email: getInvitationSenderDisplay(item) || '-' });
+            const notificationType = item && typeof item.notificationType === 'string'
+                ? item.notificationType
+                : 'invitation_pending';
+            if (notificationType === 'invite_reminder_day1') {
+                detail.textContent = t('notification_invite_reminder_day1');
+            } else if (notificationType === 'invite_reminder_day3') {
+                detail.textContent = t('notification_invite_reminder_day3');
+            } else {
+                detail.textContent = t('notification_invited_by', { email: getInvitationSenderDisplay(item) || '-' });
+            }
         }
 
         const cta = document.createElement('div');
