@@ -1917,10 +1917,42 @@ select {
     font-weight: 700;
     color: var(--text-primary);
 }
-.assignment-algorithm-select {
-    width: min(360px, 100%);
-    min-height: 44px;
+.assignment-algorithm-group {
     margin: 0;
+    padding: 0;
+    border: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.assignment-algorithm-option {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--gold-rgb), 0.28);
+    background: rgba(8, 13, 24, 0.6);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+.assignment-algorithm-option input[type="radio"] {
+    margin: 0;
+    accent-color: var(--gold);
+}
+.assignment-algorithm-option-text {
+    font-size: 13px;
+    line-height: 1.25;
+}
+.assignment-algorithm-option input[type="radio"]:checked + .assignment-algorithm-option-text {
+    color: var(--gold);
+    font-weight: 700;
+}
+.assignment-algorithm-option:focus-within {
+    outline: 2px solid rgba(var(--gold-rgb), 0.8);
+    outline-offset: 2px;
 }
 .assignment-algorithm-help {
     margin: 0;

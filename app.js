@@ -614,6 +614,8 @@ function bindStaticUiActions() {
     on('playersMgmtTroopsFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtSortFilter', 'change', handlePlayersManagementFilterChange);
     on('playersMgmtClearFiltersBtn', 'click', clearPlayersManagementFilters);
+    on('assignmentAlgorithmBalanced', 'change', handleAssignmentAlgorithmChange);
+    on('assignmentAlgorithmAggressive', 'change', handleAssignmentAlgorithmChange);
     on('assignmentAlgorithmSelect', 'change', handleAssignmentAlgorithmChange);
     on('downloadTemplateBtn', 'click', downloadPlayerTemplate);
     on('uploadPlayerBtn', 'click', () => {
@@ -817,14 +819,27 @@ function normalizeAssignmentAlgorithm(value) {
 }
 
 function syncAssignmentAlgorithmControl() {
-    const select = document.getElementById('assignmentAlgorithmSelect');
-    if (!select) {
+    const normalized = normalizeAssignmentAlgorithm(currentAssignmentAlgorithm);
+    const radioInputs = document.querySelectorAll('input[name="assignmentAlgorithm"]');
+    if (radioInputs && radioInputs.length > 0) {
+        radioInputs.forEach((input) => {
+            if (input instanceof HTMLInputElement) {
+                input.checked = input.value === normalized;
+            }
+        });
         return;
     }
-    select.value = normalizeAssignmentAlgorithm(currentAssignmentAlgorithm);
+
+    const select = document.getElementById('assignmentAlgorithmSelect');
+    if (select) {
+        select.value = normalized;
+    }
 }
 
 function handleAssignmentAlgorithmChange(event) {
+    if (event && event.target instanceof HTMLInputElement && event.target.type === 'radio' && !event.target.checked) {
+        return;
+    }
     const next = normalizeAssignmentAlgorithm(event && event.target ? event.target.value : ASSIGNMENT_ALGO_DEFAULT);
     currentAssignmentAlgorithm = next;
     syncAssignmentAlgorithmControl();

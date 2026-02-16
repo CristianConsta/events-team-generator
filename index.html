@@ -430,11 +430,18 @@
                 <!-- Player Selection Section -->
                 <div id="selectionSection" class="card screen-panel hidden">
                     <div class="assignment-algorithm-controls">
-                        <label for="assignmentAlgorithmSelect" class="assignment-algorithm-label" data-i18n="assignment_algorithm_label">Assignment Algorithm</label>
-                        <select id="assignmentAlgorithmSelect" class="assignment-algorithm-select" aria-describedby="assignmentAlgorithmHelp">
-                            <option value="balanced" data-i18n="assignment_algorithm_balanced">Balanced (Recommended)</option>
-                            <option value="aggressive" data-i18n="assignment_algorithm_aggressive">Aggressive</option>
-                        </select>
+                        <span class="assignment-algorithm-label" data-i18n="assignment_algorithm_label">Assignment Algorithm</span>
+                        <fieldset class="assignment-algorithm-group" aria-describedby="assignmentAlgorithmHelp">
+                            <legend class="sr-only" data-i18n="assignment_algorithm_label">Assignment Algorithm</legend>
+                            <label class="assignment-algorithm-option" for="assignmentAlgorithmBalanced">
+                                <input type="radio" id="assignmentAlgorithmBalanced" name="assignmentAlgorithm" value="balanced" checked>
+                                <span class="assignment-algorithm-option-text" data-i18n="assignment_algorithm_balanced">Balanced (Recommended)</span>
+                            </label>
+                            <label class="assignment-algorithm-option" for="assignmentAlgorithmAggressive">
+                                <input type="radio" id="assignmentAlgorithmAggressive" name="assignmentAlgorithm" value="aggressive">
+                                <span class="assignment-algorithm-option-text" data-i18n="assignment_algorithm_aggressive">Aggressive</span>
+                            </label>
+                        </fieldset>
                         <p id="assignmentAlgorithmHelp" class="assignment-algorithm-help" data-i18n="assignment_algorithm_help">Balanced keeps troop-mix-aware pairing. Aggressive fills Team-type buildings first using top power/THP players, then fills Building-type rows by priority with remaining players.</p>
                     </div>
                     <div class="event-selector event-selector-inline" id="selectionEventSelector"></div>
