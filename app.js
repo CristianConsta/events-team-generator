@@ -1754,6 +1754,16 @@ function syncRuntimeStateWithRegistry() {
 }
 
 function getEventDisplayName(eventId) {
+    if (
+        window.DSFeatureEventsManagerSelector
+        && typeof window.DSFeatureEventsManagerSelector.resolveEventDisplayName === 'function'
+    ) {
+        return window.DSFeatureEventsManagerSelector.resolveEventDisplayName(eventId, {
+            getEvent: (id) => window.DSCoreEvents.getEvent(id),
+            translate: t,
+        });
+    }
+
     const event = window.DSCoreEvents.getEvent(eventId);
     if (!event) {
         return eventId;
@@ -1771,6 +1781,19 @@ function getEventDisplayName(eventId) {
 }
 
 function createEventSelectorButton(eventId) {
+    if (
+        window.DSFeatureEventsManagerSelector
+        && typeof window.DSFeatureEventsManagerSelector.createEventSelectorButton === 'function'
+    ) {
+        return window.DSFeatureEventsManagerSelector.createEventSelectorButton({
+            document: document,
+            eventId: eventId,
+            currentEvent: currentEvent,
+            displayName: getEventDisplayName(eventId),
+            onSelect: switchEvent,
+        });
+    }
+
     const button = document.createElement('button');
     button.className = `event-btn${eventId === currentEvent ? ' active' : ''}`;
     button.type = 'button';
@@ -1781,6 +1804,21 @@ function createEventSelectorButton(eventId) {
 }
 
 function renderEventSelector(containerId) {
+    if (
+        window.DSFeatureEventsManagerSelector
+        && typeof window.DSFeatureEventsManagerSelector.renderEventSelector === 'function'
+    ) {
+        window.DSFeatureEventsManagerSelector.renderEventSelector({
+            document: document,
+            containerId: containerId,
+            eventIds: getEventIds(),
+            currentEvent: currentEvent,
+            getDisplayName: getEventDisplayName,
+            onSelect: switchEvent,
+        });
+        return;
+    }
+
     const container = document.getElementById(containerId);
     if (!container) {
         return;
