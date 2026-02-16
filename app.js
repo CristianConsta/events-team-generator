@@ -658,19 +658,66 @@ function bindStaticUiActions() {
     on('uploadPanelHeader', 'click', toggleUploadPanel);
     on('playersListPanelHeader', 'click', togglePlayersListPanel);
     on('playersMgmtAddPanelHeader', 'click', () => togglePlayersManagementAddPanel());
-    on('playersMgmtSourcePersonalBtn', 'click', () => switchPlayersManagementSource('personal'));
-    on('playersMgmtSourceAllianceBtn', 'click', () => switchPlayersManagementSource('alliance'));
+    on('playersMgmtSourcePersonalBtn', 'click', () => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.switchSource === 'function') {
+            controller.switchSource('personal');
+            return;
+        }
+        switchPlayersManagementSource('personal');
+    });
+    on('playersMgmtSourceAllianceBtn', 'click', () => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.switchSource === 'function') {
+            controller.switchSource('alliance');
+            return;
+        }
+        switchPlayersManagementSource('alliance');
+    });
     const playersMgmtAddForm = document.getElementById('playersMgmtAddForm');
     if (playersMgmtAddForm) {
         playersMgmtAddForm.addEventListener('submit', (event) => {
+            const controller = getPlayersManagementFeatureController();
+            if (controller && typeof controller.submitAddPlayer === 'function') {
+                controller.submitAddPlayer(event);
+                return;
+            }
             event.preventDefault();
             handlePlayersManagementAddPlayer();
         });
     }
-    on('playersMgmtSearchFilter', 'input', handlePlayersManagementFilterChange);
-    on('playersMgmtTroopsFilter', 'change', handlePlayersManagementFilterChange);
-    on('playersMgmtSortFilter', 'change', handlePlayersManagementFilterChange);
-    on('playersMgmtClearFiltersBtn', 'click', clearPlayersManagementFilters);
+    on('playersMgmtSearchFilter', 'input', (event) => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.handleFilterChange === 'function') {
+            controller.handleFilterChange(event);
+            return;
+        }
+        handlePlayersManagementFilterChange(event);
+    });
+    on('playersMgmtTroopsFilter', 'change', (event) => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.handleFilterChange === 'function') {
+            controller.handleFilterChange(event);
+            return;
+        }
+        handlePlayersManagementFilterChange(event);
+    });
+    on('playersMgmtSortFilter', 'change', (event) => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.handleFilterChange === 'function') {
+            controller.handleFilterChange(event);
+            return;
+        }
+        handlePlayersManagementFilterChange(event);
+    });
+    on('playersMgmtClearFiltersBtn', 'click', () => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.clearFilters === 'function') {
+            controller.clearFilters();
+            return;
+        }
+        clearPlayersManagementFilters();
+    });
     on('assignmentAlgorithmBalanced', 'change', (event) => {
         const controller = getGeneratorFeatureController();
         if (controller && typeof controller.changeAlgorithm === 'function') {
@@ -1129,6 +1176,33 @@ function getGeneratorFeatureController() {
         });
     }
     return generatorFeatureController;
+}
+
+let playersManagementFeatureController = null;
+function getPlayersManagementFeatureController() {
+    if (playersManagementFeatureController) {
+        return playersManagementFeatureController;
+    }
+    if (
+        window.DSFeaturePlayersManagementController
+        && typeof window.DSFeaturePlayersManagementController.createController === 'function'
+    ) {
+        playersManagementFeatureController = window.DSFeaturePlayersManagementController.createController({
+            document: document,
+            handleAddPlayer: handlePlayersManagementAddPlayer,
+            handleTableAction: handlePlayersManagementTableAction,
+            handleFilterChange: handlePlayersManagementFilterChange,
+            clearFilters: clearPlayersManagementFilters,
+            switchSource: switchPlayersManagementSource,
+            focusAddNameField: () => {
+                const input = document.getElementById('playersMgmtNewName');
+                if (input && typeof input.focus === 'function') {
+                    input.focus();
+                }
+            },
+        });
+    }
+    return playersManagementFeatureController;
 }
 
 let uploadPanelExpanded = true;
@@ -3765,7 +3839,10 @@ async function handlePlayersManagementAddPlayer() {
             showPlayersManagementPage();
         }
         renderPlayersManagementPanel();
-        if (nameInput) {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.focusAddNameField === 'function') {
+            controller.focusAddNameField();
+        } else if (nameInput) {
             nameInput.focus();
         }
         return;
@@ -5886,6 +5963,11 @@ document.getElementById('playersTableBody').addEventListener('click', (e) => {
 const playersMgmtTableBody = document.getElementById('playersMgmtTableBody');
 if (playersMgmtTableBody) {
     playersMgmtTableBody.addEventListener('click', (event) => {
+        const controller = getPlayersManagementFeatureController();
+        if (controller && typeof controller.handleTableAction === 'function') {
+            controller.handleTableAction(event);
+            return;
+        }
         handlePlayersManagementTableAction(event);
     });
 }
