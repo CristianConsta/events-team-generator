@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "js/main.mjs",
+    "js/shell/bootstrap/app-shell-bootstrap.esm.mjs",
+    "types/**/*.d.ts"
+  ]
+}

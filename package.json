@@ -6,10 +6,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint \"js/shared/**/*.js\" \"js/features/**/*.js\" \"js/shell/**/*.js\" \"js/services/firebase-service.js\" \"tests/**/*.js\"",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "node --test tests/*.test.js",
+    "test:smoke": "node --test tests/smoke-workflows.test.js",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=js/app-init.js --test-coverage-include=js/core/*.js --test-coverage-include=js/services/firebase-service.js --test-coverage-lines=90 tests/*.test.js"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
+    "typescript": "^5.9.2",
     "vite": "^7.1.5"
   },
   "dependencies": {
