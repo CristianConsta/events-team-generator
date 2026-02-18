@@ -2610,7 +2610,10 @@ select {
         font-size: 16px;
     }
 
-    .counter { padding: 12px 22px; font-size: 16px; }
+    /* flex: 1 + min-width: 0 allow counters to shrink equally so long labels like
+       "Team A: 20/20 | Sub: 10/10" don't overflow the card at 481-600px widths. */
+    .team-counters { gap: 15px; }
+    .counter { padding: 12px 22px; font-size: 16px; flex: 1; min-width: 0; }
 
     #userHeaderTop { gap: 10px; }
     #headerActions { min-width: 0; justify-content: flex-end; }
@@ -3087,6 +3090,10 @@ select {
     }
 
     /* ── Selection section ── */
+    /* overflow: hidden (from .card and the global rule) would clip the absolutely-
+       positioned filter dropdown panels when the card is short (few players).
+       Restore overflow: visible so dropdowns render outside the card bounds. */
+    #selectionSection { overflow: visible; }
     #selectionSection > p      { margin-bottom: 12px; }
 
     /* ── Buildings panel ── */
