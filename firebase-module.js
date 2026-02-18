@@ -105,6 +105,17 @@ const FirebaseManager = (function() {
     const GAME_INVITATIONS_SUBCOLLECTION = 'invitations';
     const DEFAULT_GAME_ID = 'last_war';
     const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
+    const DEFAULT_PLAYER_IMPORT_SCHEMA = Object.freeze({
+        id: 'last_war_players_v1',
+        templateFileName: 'player_database_template.xlsx',
+        sheetName: 'Players',
+        headerRowIndex: 9,
+        columns: Object.freeze([
+            Object.freeze({ key: 'name', header: 'Player Name', required: true }),
+            Object.freeze({ key: 'power', header: 'E1 Total Power(M)', required: true }),
+            Object.freeze({ key: 'troops', header: 'E1 Troops', required: true }),
+        ]),
+    });
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
         MULTIGAME_ENABLED: false,
         MULTIGAME_READ_FALLBACK_ENABLED: true,
@@ -797,6 +808,145 @@ const FirebaseManager = (function() {
             normalized.push(next);
         });
         return normalized.length > 0 ? normalized : null;
+    }
+
+    function clonePlayerImportSchema(schema) {
+        return JSON.parse(JSON.stringify(schema && typeof schema === 'object' ? schema : DEFAULT_PLAYER_IMPORT_SCHEMA));
+    }
+
+    function normalizePlayerImportSchema(schema) {
+        const source = schema && typeof schema === 'object' ? schema : DEFAULT_PLAYER_IMPORT_SCHEMA;
+        const sheetName = typeof source.sheetName === 'string' && source.sheetName.trim()
+            ? source.sheetName.trim()
+            : DEFAULT_PLAYER_IMPORT_SCHEMA.sheetName;
+        const templateFileName = typeof source.templateFileName === 'string' && source.templateFileName.trim()
+            ? source.templateFileName.trim()
+            : DEFAULT_PLAYER_IMPORT_SCHEMA.templateFileName;
+        const headerRowIndexRaw = Number(source.headerRowIndex);
+        const headerRowIndex = Number.isFinite(headerRowIndexRaw) && headerRowIndexRaw >= 0
+            ? Math.floor(headerRowIndexRaw)
+            : DEFAULT_PLAYER_IMPORT_SCHEMA.headerRowIndex;
+        const columns = Array.isArray(source.columns) && source.columns.length > 0
+            ? source.columns
+                .map((column) => {
+                    const key = typeof column.key === 'string' ? column.key.trim() : '';
+                    const header = typeof column.header === 'string' ? column.header.trim() : '';
+                    if (!key || !header) {
+                        return null;
+                    }
+                    return {
+                        key: key,
+                        header: header,
+                        required: column.required !== false,
+                    };
+                })
+                .filter(Boolean)
+            : clonePlayerImportSchema(DEFAULT_PLAYER_IMPORT_SCHEMA).columns;
+        return {
+            id: typeof source.id === 'string' && source.id.trim() ? source.id.trim() : DEFAULT_PLAYER_IMPORT_SCHEMA.id,
+            templateFileName: templateFileName,
+            sheetName: sheetName,
+            headerRowIndex: headerRowIndex,
+            columns: columns,
+        };
+    }
+
+    function getPlayerImportSchema(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (typeof window !== 'undefined' && window.DSCoreGames && typeof window.DSCoreGames.getGame === 'function') {
+            const game = window.DSCoreGames.getGame(normalizedGameId);
+            if (game && game.playerImportSchema && typeof game.playerImportSchema === 'object') {
+                return normalizePlayerImportSchema(game.playerImportSchema);
+            }
+        }
+        return normalizePlayerImportSchema(DEFAULT_PLAYER_IMPORT_SCHEMA);
+    }
+
+    function resolvePlayerImportColumnMap(schema) {
+        const normalizedSchema = normalizePlayerImportSchema(schema);
+        const map = {};
+        normalizedSchema.columns.forEach((column) => {
+            map[column.key] = column;
+        });
+        return {
+            schema: normalizedSchema,
+            nameColumn: map.name || { key: 'name', header: 'Player Name', required: true },
+            powerColumn: map.power || { key: 'power', header: 'E1 Total Power(M)', required: false },
+            troopsColumn: map.troops || { key: 'troops', header: 'E1 Troops', required: false },
+            requiredColumns: normalizedSchema.columns.filter((column) => column.required !== false),
+        };
+    }
+
+    function parseWorkbookPlayers(workbook, schema) {
+        const columnMap = resolvePlayerImportColumnMap(schema);
+        const normalizedSchema = columnMap.schema;
+        const sheet = workbook && workbook.Sheets ? workbook.Sheets[normalizedSchema.sheetName] : null;
+        if (!sheet) {
+            return {
+                success: false,
+                errorKey: 'players_upload_schema_mismatch',
+                error: 'players_upload_schema_mismatch',
+                errorParams: {
+                    sheet: normalizedSchema.sheetName,
+                    columns: columnMap.requiredColumns.map((column) => column.header).join(', '),
+                },
+            };
+        }
+
+        const headerRows = XLSX.utils.sheet_to_json(sheet, {
+            header: 1,
+            range: normalizedSchema.headerRowIndex,
+            blankrows: false,
+        });
+        const headerRow = Array.isArray(headerRows) && Array.isArray(headerRows[0]) ? headerRows[0] : [];
+        const normalizedHeaders = new Set(headerRow
+            .map((header) => (typeof header === 'string' ? header.trim() : ''))
+            .filter(Boolean));
+        const missingRequiredHeaders = columnMap.requiredColumns
+            .map((column) => column.header)
+            .filter((header) => !normalizedHeaders.has(header));
+        if (missingRequiredHeaders.length > 0) {
+            return {
+                success: false,
+                errorKey: 'players_upload_schema_mismatch',
+                error: 'players_upload_schema_mismatch',
+                errorParams: {
+                    sheet: normalizedSchema.sheetName,
+                    columns: missingRequiredHeaders.join(', '),
+                },
+            };
+        }
+
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+            range: normalizedSchema.headerRowIndex,
+        });
+        const nextDatabase = {};
+        const skippedPlayers = [];
+        let skippedCount = 0;
+        const nowIso = new Date().toISOString();
+
+        rows.forEach((row) => {
+            const name = normalizeEditablePlayerName(row[columnMap.nameColumn.header]);
+            const power = row[columnMap.powerColumn.header];
+            const troops = row[columnMap.troopsColumn.header];
+            if (name) {
+                nextDatabase[name] = {
+                    power: normalizeEditablePlayerPower(power),
+                    troops: normalizeEditablePlayerTroops(troops),
+                    lastUpdated: nowIso,
+                };
+            } else {
+                skippedCount += 1;
+                skippedPlayers.push(`Row with no name (power: ${power || 'none'}, troops: ${troops || 'none'})`);
+            }
+        });
+
+        return {
+            success: true,
+            nextDatabase: nextDatabase,
+            skippedCount: skippedCount,
+            skippedPlayers: skippedPlayers,
+        };
     }
 
     function normalizeAssignmentAlgorithmId(value, fallback) {
@@ -2156,7 +2306,9 @@ const FirebaseManager = (function() {
     /**
      * Upload player database from Excel
      */
-    async function uploadPlayerDatabase(file) {
+    async function uploadPlayerDatabase(file, context) {
+        const gameId = getResolvedGameId('uploadPlayerDatabase', context);
+        const importSchema = getPlayerImportSchema(gameId);
         return new Promise((resolve, reject) => {
             if (!file || file.size > MAX_UPLOAD_BYTES) {
                 reject({ success: false, error: 'File too large (max 5MB)' });
@@ -2169,40 +2321,15 @@ const FirebaseManager = (function() {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    
-                    // Check if Players sheet exists
-                    if (!workbook.Sheets['Players']) {
-                        reject({ success: false, error: 'Excel file must contain a "Players" sheet' });
+
+                    const parsed = parseWorkbookPlayers(workbook, importSchema);
+                    if (!parsed.success) {
+                        reject(parsed);
                         return;
                     }
-                    
-                    const sheet = workbook.Sheets['Players'];
-                    // Headers at row 10, so start reading from row 10 (0-indexed = 9)
-                    const players = XLSX.utils.sheet_to_json(sheet, {range: 9});
-                    
-                    const nextDatabase = {};
-                    let skippedCount = 0;
-                    const skippedPlayers = [];
-                    const nowIso = new Date().toISOString();
-                    
-                    players.forEach(row => {
-                        const name = normalizeEditablePlayerName(row['Player Name']);
-                        const power = row['E1 Total Power(M)'];
-                        const troops = row['E1 Troops'];
-                        
-                        // Only require name (power and troops are optional)
-                        if (name) {
-                            nextDatabase[name] = {
-                                power: normalizeEditablePlayerPower(power), // Default to 0 if power missing
-                                troops: normalizeEditablePlayerTroops(troops), // Default to 'Unknown' if troops missing
-                                lastUpdated: nowIso,
-                            };
-                        } else {
-                            // Track skipped players (only if name is missing)
-                            skippedCount++;
-                            skippedPlayers.push(`Row with no name (power: ${power || 'none'}, troops: ${troops || 'none'})`);
-                        }
-                    });
+                    const nextDatabase = parsed.nextDatabase;
+                    const skippedCount = parsed.skippedCount;
+                    const skippedPlayers = parsed.skippedPlayers;
 
                     const addedCount = Object.keys(nextDatabase).length;
                     if (addedCount > MAX_PLAYER_DATABASE_SIZE) {
@@ -2219,7 +2346,7 @@ const FirebaseManager = (function() {
                     playerDatabase = nextDatabase;
                     
                     // Save to Firestore
-                    const saveResult = await saveUserData();
+                    const saveResult = await saveUserData(undefined, { gameId: gameId });
                     
                     if (saveResult.success) {
                         console.log(`✅ Uploaded ${addedCount} players`);
@@ -3280,6 +3407,7 @@ const FirebaseManager = (function() {
     async function uploadAlliancePlayerDatabase(file, context) {
         const gameId = getResolvedGameId('uploadAlliancePlayerDatabase', context);
         await setActiveAllianceGameContext(gameId);
+        const importSchema = getPlayerImportSchema(gameId);
         if (!currentUser || !allianceId) {
             return Promise.reject({ success: false, error: 'Not in an alliance' });
         }
@@ -3295,28 +3423,14 @@ const FirebaseManager = (function() {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-
-                    if (!workbook.Sheets['Players']) {
-                        reject({ success: false, error: 'Excel file must contain a "Players" sheet' });
+                    const parsed = parseWorkbookPlayers(workbook, importSchema);
+                    if (!parsed.success) {
+                        reject(parsed);
                         return;
                     }
-
-                    const sheet = workbook.Sheets['Players'];
-                    const players = XLSX.utils.sheet_to_json(sheet, { range: 9 });
-
-                    const alliancePlayerDB = {};
-                    const nowIso = new Date().toISOString();
-
-                    players.forEach(row => {
-                        const name = normalizeEditablePlayerName(row['Player Name']);
-                        if (name) {
-                            alliancePlayerDB[name] = {
-                                power: normalizeEditablePlayerPower(row['E1 Total Power(M)']),
-                                troops: normalizeEditablePlayerTroops(row['E1 Troops']),
-                                lastUpdated: nowIso,
-                                updatedBy: currentUser.uid
-                            };
-                        }
+                    const alliancePlayerDB = parsed.nextDatabase;
+                    Object.keys(alliancePlayerDB).forEach((name) => {
+                        alliancePlayerDB[name].updatedBy = currentUser.uid;
                     });
 
                     const addedCount = Object.keys(alliancePlayerDB).length;
@@ -3681,8 +3795,8 @@ const FirebaseManager = (function() {
             return saveUserData(options);
         },
         uploadPlayerDatabase: function uploadPlayerDatabaseGameAware(file, context) {
-            resolveGameplayContext('uploadPlayerDatabase', context);
-            return uploadPlayerDatabase(file);
+            const gameContext = resolveGameplayContext('uploadPlayerDatabase', context);
+            return uploadPlayerDatabase(file, gameContext);
         },
         getPlayerDatabase: function getPlayerDatabaseGameAware(context) {
             resolveGameplayContext('getPlayerDatabase', context);

@@ -3406,6 +3406,49 @@ async function handlePlayersManagementTableAction(event) {
 // TEMPLATE GENERATION
 // ============================================================
 
+function getActivePlayerImportSchema() {
+    const defaultSchema = {
+        templateFileName: 'player_database_template.xlsx',
+        sheetName: 'Players',
+        headerRowIndex: 9,
+        columns: [
+            { key: 'name', header: 'Player Name', required: true },
+            { key: 'power', header: 'E1 Total Power(M)', required: true },
+            { key: 'troops', header: 'E1 Troops', required: true },
+        ],
+    };
+    const gameplayContext = getGameplayContext();
+    const gameId = gameplayContext ? gameplayContext.gameId : '';
+    if (window.DSCoreGames && typeof window.DSCoreGames.getGame === 'function') {
+        const game = window.DSCoreGames.getGame(gameId);
+        if (game && game.playerImportSchema && typeof game.playerImportSchema === 'object') {
+            const schema = game.playerImportSchema;
+            const columns = Array.isArray(schema.columns) && schema.columns.length > 0
+                ? schema.columns
+                    .map((column) => ({
+                        key: typeof column.key === 'string' ? column.key.trim() : '',
+                        header: typeof column.header === 'string' ? column.header.trim() : '',
+                        required: column.required !== false,
+                    }))
+                    .filter((column) => column.key && column.header)
+                : defaultSchema.columns;
+            return {
+                templateFileName: typeof schema.templateFileName === 'string' && schema.templateFileName.trim()
+                    ? schema.templateFileName.trim()
+                    : defaultSchema.templateFileName,
+                sheetName: typeof schema.sheetName === 'string' && schema.sheetName.trim()
+                    ? schema.sheetName.trim()
+                    : defaultSchema.sheetName,
+                headerRowIndex: Number.isFinite(Number(schema.headerRowIndex)) && Number(schema.headerRowIndex) >= 0
+                    ? Math.floor(Number(schema.headerRowIndex))
+                    : defaultSchema.headerRowIndex,
+                columns: columns.length > 0 ? columns : defaultSchema.columns,
+            };
+        }
+    }
+    return defaultSchema;
+}
+
 async function downloadPlayerTemplate() {
     try {
         await ensureXLSXLoaded();
@@ -3416,6 +3459,11 @@ async function downloadPlayerTemplate() {
     }
 
     const wb = XLSX.utils.book_new();
+    const schema = getActivePlayerImportSchema();
+    const headerRowIndex = Number.isFinite(Number(schema.headerRowIndex)) ? Math.max(0, Math.floor(Number(schema.headerRowIndex))) : 9;
+    const headers = Array.isArray(schema.columns) && schema.columns.length > 0
+        ? schema.columns.map((column) => column.header)
+        : [t('template_header_player_name'), t('template_header_power'), t('template_header_troops')];
     
     const instructions = [
         [t('template_title')],
@@ -3425,25 +3473,43 @@ async function downloadPlayerTemplate() {
         [t('template_step2')],
         [t('template_step3')],
         [t('template_step4')],
-        [t('template_step5')],
-        [''],
-        [t('template_header_player_name'), t('template_header_power'), t('template_header_troops')]
+        [t('template_step5')]
     ];
+    while (instructions.length < headerRowIndex) {
+        instructions.push(['']);
+    }
+    instructions.push(headers);
     
+    const exampleValueByKey = {
+        name: 'Player1',
+        power: 65.0,
+        troops: 'Tank',
+    };
+    const createExampleRow = (overrides) => schema.columns.map((column) => {
+        if (!column || !column.key) {
+            return '';
+        }
+        if (overrides && Object.prototype.hasOwnProperty.call(overrides, column.key)) {
+            return overrides[column.key];
+        }
+        return Object.prototype.hasOwnProperty.call(exampleValueByKey, column.key) ? exampleValueByKey[column.key] : '';
+    });
     const examples = [
-        ['Player1', 65.0, 'Tank'],
-        ['Player2', 68.0, 'Aero'],
-        ['Player3', 64.0, 'Missile'],
-        ['', '', ''],
-        ['', '', '']
+        createExampleRow({ name: 'Player1', power: 65.0, troops: 'Tank' }),
+        createExampleRow({ name: 'Player2', power: 68.0, troops: 'Aero' }),
+        createExampleRow({ name: 'Player3', power: 64.0, troops: 'Missile' }),
+        createExampleRow({}),
+        createExampleRow({}),
     ];
     
     const data = [...instructions, ...examples];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}];
+    ws['!cols'] = headers.map((header) => ({
+        wch: Math.max(15, String(header || '').length + 4),
+    }));
     
-    XLSX.utils.book_append_sheet(wb, ws, t('template_sheet_name'));
-    XLSX.writeFile(wb, 'player_database_template.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, schema.sheetName || t('template_sheet_name'));
+    XLSX.writeFile(wb, schema.templateFileName || 'player_database_template.xlsx');
     
     showMessage('uploadMessage', t('message_template_downloaded'), 'success');
 }
@@ -4003,6 +4069,21 @@ async function uploadToBoth() {
     if (file) await performUpload(file, 'both');
 }
 
+function getUploadErrorMessage(resultOrError) {
+    if (resultOrError && typeof resultOrError === 'object') {
+        if (resultOrError.errorKey) {
+            return t(resultOrError.errorKey, resultOrError.errorParams || {});
+        }
+        if (typeof resultOrError.error === 'string' && resultOrError.error) {
+            return resultOrError.error;
+        }
+        if (typeof resultOrError.message === 'string' && resultOrError.message) {
+            return resultOrError.message;
+        }
+    }
+    return String(resultOrError || 'unknown');
+}
+
 async function performUpload(file, target) {
     try {
         await ensureXLSXLoaded();
@@ -4028,13 +4109,13 @@ async function performUpload(file, target) {
             try {
                 personalResult = await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
             } catch (error) {
-                personalError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
+                personalError = getUploadErrorMessage(error);
             }
 
             try {
                 allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext);
             } catch (error) {
-                allianceError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
+                allianceError = getUploadErrorMessage(error);
             }
 
             const personalOk = !!(personalResult && personalResult.success);
@@ -4046,14 +4127,14 @@ async function performUpload(file, target) {
             }
 
             if (personalOk || allianceOk) {
-                const personalStatus = personalOk ? t('success_generic') : t('message_upload_failed', { error: personalError || (personalResult && personalResult.error) || 'unknown' });
-                const allianceStatus = allianceOk ? t('success_generic') : t('message_upload_failed', { error: allianceError || (allianceResult && allianceResult.error) || 'unknown' });
+                const personalStatus = personalOk ? t('success_generic') : t('message_upload_failed', { error: personalError || getUploadErrorMessage(personalResult) });
+                const allianceStatus = allianceOk ? t('success_generic') : t('message_upload_failed', { error: allianceError || getUploadErrorMessage(allianceResult) });
                 showMessage('uploadMessage', `${t('upload_target_personal')}: ${personalStatus} | ${t('upload_target_alliance')}: ${allianceStatus}`, 'warning');
                 loadPlayerData();
                 return;
             }
 
-            const mergedError = [personalError || (personalResult && personalResult.error), allianceError || (allianceResult && allianceResult.error)]
+            const mergedError = [personalError || getUploadErrorMessage(personalResult), allianceError || getUploadErrorMessage(allianceResult)]
                 .filter(Boolean)
                 .join(' | ');
             showMessage('uploadMessage', t('message_upload_failed', { error: mergedError || 'unknown' }), 'error');
@@ -4065,13 +4146,13 @@ async function performUpload(file, target) {
             : await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
 
         if (!result || !result.success) {
-            showMessage('uploadMessage', t('message_upload_failed', { error: result && result.error ? result.error : 'unknown' }), 'error');
+            showMessage('uploadMessage', t('message_upload_failed', { error: getUploadErrorMessage(result) }), 'error');
             return;
         }
         showMessage('uploadMessage', result.message, 'success');
         loadPlayerData();
     } catch (error) {
-        showMessage('uploadMessage', t('message_upload_failed', { error: error.error || error.message }), 'error');
+        showMessage('uploadMessage', t('message_upload_failed', { error: getUploadErrorMessage(error) }), 'error');
     }
 }
 
