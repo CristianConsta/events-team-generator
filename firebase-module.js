@@ -1085,6 +1085,62 @@ const FirebaseManager = (function() {
         };
     }
 
+    function isDualWriteEnabled() {
+        return isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED');
+    }
+
+    function buildGameScopedUserPayload(currentState, changedFields) {
+        const state = currentState && typeof currentState === 'object' ? currentState : getCurrentPersistedUserState();
+        const changed = Array.isArray(changedFields) ? changedFields : [];
+        const payload = {};
+
+        if (changed.includes('playerDatabase')) {
+            payload.playerDatabase = state.playerDatabase || {};
+        }
+        if (changed.includes('events')) {
+            payload.events = state.events || {};
+        }
+        if (changed.includes('userProfile')) {
+            payload.userProfile = state.userProfile || normalizeUserProfile(null);
+        }
+
+        payload.playerSource = playerSource || 'personal';
+        payload.allianceId = allianceId || null;
+        payload.allianceName = allianceName || null;
+
+        payload.metadata = {
+            totalPlayers: state.playerDatabase ? Object.keys(state.playerDatabase).length : 0,
+            lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        return payload;
+    }
+
+    async function persistGameScopedDualWrite(currentState, changedFields) {
+        if (!currentUser || !isDualWriteEnabled()) {
+            return { success: true, skipped: true };
+        }
+        const gameRef = getUserGameDocRef(currentUser.uid, DEFAULT_GAME_ID);
+        if (!gameRef) {
+            return { success: false, error: 'Unable to resolve game document reference' };
+        }
+
+        const payload = buildGameScopedUserPayload(currentState, changedFields);
+        try {
+            await gameRef.set(payload, { merge: true });
+            await db.collection('users').doc(currentUser.uid).set({
+                migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
+                migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
+                lastActiveGameId: DEFAULT_GAME_ID,
+            }, { merge: true });
+            migrationVersion = Math.max(migrationVersion, GAME_SUBCOLLECTION_MIGRATION_VERSION);
+            migratedToGameSubcollectionsAt = new Date().toISOString();
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message || String(error) };
+        }
+    }
+
     function rememberLastSavedUserState(state) {
         const source = state && typeof state === 'object' ? state : getCurrentPersistedUserState();
         lastSavedUserState = cloneJson(source);
@@ -1794,6 +1850,10 @@ const FirebaseManager = (function() {
             console.log(`💾 Saving data (${changedFields.join(', ')})...`);
             if (hasDocPayload) {
                 await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+                const dualWriteResult = await persistGameScopedDualWrite(currentState, changedFields);
+                if (!dualWriteResult.success) {
+                    throw new Error(`Dual-write failed: ${dualWriteResult.error || 'unknown'}`);
+                }
             }
             if (mediaChanged) {
                 const previousMedia = lastSavedUserState && lastSavedUserState.eventMedia ? lastSavedUserState.eventMedia : {};
@@ -2951,6 +3011,17 @@ const FirebaseManager = (function() {
             await db.collection('users').doc(currentUser.uid).set({
                 playerSource: source
             }, { merge: true });
+            if (isDualWriteEnabled()) {
+                const gameRef = getUserGameDocRef(currentUser.uid, DEFAULT_GAME_ID);
+                if (gameRef) {
+                    await gameRef.set({
+                        playerSource: source,
+                        metadata: {
+                            lastModified: firebase.firestore.FieldValue.serverTimestamp()
+                        }
+                    }, { merge: true });
+                }
+            }
         }
     }
 
