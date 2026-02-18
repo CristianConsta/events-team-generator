@@ -2032,11 +2032,11 @@ const FirebaseManager = (function() {
         return payload;
     }
 
-    async function persistGameScopedDualWrite(currentState, changedFields, context) {
-        if (!currentUser || !isDualWriteEnabled()) {
-            return { success: true, skipped: true };
+    async function persistGameScopedPrimaryWrite(currentState, changedFields, context) {
+        if (!currentUser) {
+            return { success: false, error: 'No user signed in' };
         }
-        const gameId = getResolvedGameId('persistGameScopedDualWrite', context);
+        const gameId = getResolvedGameId('persistGameScopedPrimaryWrite', context);
         const gameRef = getUserGameDocRef(currentUser.uid, gameId);
         if (!gameRef) {
             return { success: false, error: 'Unable to resolve game document reference' };
@@ -2056,6 +2056,11 @@ const FirebaseManager = (function() {
         } catch (error) {
             return { success: false, error: error.message || String(error) };
         }
+    }
+
+    function shouldLegacyDualWriteGame(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        return normalizedGameId === DEFAULT_GAME_ID && isDualWriteEnabled();
     }
 
     function rememberLastSavedUserState(state) {
@@ -2634,6 +2639,8 @@ const FirebaseManager = (function() {
             if (bothReadsDenied) {
                 console.warn('⚠️ Firestore rules denied all profile reads; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
+                activeGameplayGameId = gameId;
+                activeAllianceGameId = gameId;
                 if (onDataLoadCallback) {
                     onDataLoadCallback(playerDatabase);
                 }
@@ -2716,15 +2723,19 @@ const FirebaseManager = (function() {
                     // Save migrated data and remove old top-level fields
                     try {
                         const batch = db.batch();
-                        batch.set(userDocRef, {
-                            events: buildEventsWithoutMedia(eventData)
-                        }, { merge: true });
-                        batch.update(userDocRef, {
-                            buildingConfig: firebase.firestore.FieldValue.delete(),
-                            buildingConfigVersion: firebase.firestore.FieldValue.delete(),
-                            buildingPositions: firebase.firestore.FieldValue.delete(),
-                            buildingPositionsVersion: firebase.firestore.FieldValue.delete()
-                        });
+                        if (gameDocRef) {
+                            batch.set(gameDocRef, {
+                                events: buildEventsWithoutMedia(eventData),
+                            }, { merge: true });
+                        }
+                        if (gameId === DEFAULT_GAME_ID) {
+                            batch.update(userDocRef, {
+                                buildingConfig: firebase.firestore.FieldValue.delete(),
+                                buildingConfigVersion: firebase.firestore.FieldValue.delete(),
+                                buildingPositions: firebase.firestore.FieldValue.delete(),
+                                buildingPositionsVersion: firebase.firestore.FieldValue.delete(),
+                            });
+                        }
                         await batch.commit();
                         console.log('✅ Migration complete');
                     } catch (migErr) {
@@ -2755,7 +2766,7 @@ const FirebaseManager = (function() {
 
                 if (shouldPersistLegacyDefaults) {
                     try {
-                        await userDocRef.set({
+                        await gameDocRef.set({
                             events: buildEventsWithoutMedia(eventData),
                         }, { merge: true });
                         console.log('✅ Bootstrap default events saved for user');
@@ -2765,7 +2776,7 @@ const FirebaseManager = (function() {
                 }
                 if (shouldPersistNormalizedPlayerDatabase) {
                     try {
-                        await db.collection('users').doc(user.uid).set({
+                        await gameDocRef.set({
                             playerDatabase: playerDatabase,
                         }, { merge: true });
                         console.log('✅ Player database normalized and saved for user');
@@ -2775,9 +2786,9 @@ const FirebaseManager = (function() {
                 }
                 if (shouldPersistNormalizedPlayerSource) {
                     try {
-                        await db.collection('users').doc(user.uid).set({
+                        await persistUserGameAssociationState(gameId, {
                             playerSource: playerSource,
-                        }, { merge: true });
+                        });
                         console.log('✅ Player source normalized and saved for user');
                     } catch (sourceErr) {
                         console.warn('⚠️ Failed to persist normalized player source:', sourceErr);
@@ -2826,6 +2837,8 @@ const FirebaseManager = (function() {
             if (isPermissionDeniedError(error)) {
                 console.warn('⚠️ Firestore rules denied user data read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
+                activeGameplayGameId = gameId;
+                activeAllianceGameId = gameId;
                 if (onDataLoadCallback) {
                     onDataLoadCallback(playerDatabase);
                 }
@@ -2871,12 +2884,12 @@ const FirebaseManager = (function() {
             changedFields.push('userProfile');
         }
 
-        const hasDocPayload = Object.keys(payload).length > 0;
-        if (!hasDocPayload && !mediaChanged) {
+        const hasLegacyPayload = Object.keys(payload).length > 0;
+        if (!hasLegacyPayload && !mediaChanged) {
             return { success: true, skipped: true };
         }
 
-        if (hasDocPayload) {
+        if (hasLegacyPayload) {
             payload.metadata = {
                 email: currentUser.email || null,
                 emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
@@ -2890,12 +2903,17 @@ const FirebaseManager = (function() {
 
         try {
             console.log(`💾 Saving data (${changedFields.join(', ')})...`);
-            if (hasDocPayload) {
-                await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
-                const dualWriteResult = await persistGameScopedDualWrite(currentState, changedFields, { gameId: gameId });
-                if (!dualWriteResult.success) {
+            const primaryWriteResult = await persistGameScopedPrimaryWrite(currentState, changedFields, { gameId: gameId });
+            if (!primaryWriteResult.success) {
+                throw new Error(`Primary game write failed: ${primaryWriteResult.error || 'unknown'}`);
+            }
+
+            if (hasLegacyPayload && shouldLegacyDualWriteGame(gameId)) {
+                try {
+                    await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+                } catch (legacyWriteError) {
                     incrementObservabilityCounter('dualWriteMismatchCount', 1);
-                    throw new Error(`Dual-write failed: ${dualWriteResult.error || 'unknown'}`);
+                    throw new Error(`Legacy dual-write failed: ${legacyWriteError.message || legacyWriteError}`);
                 }
             }
             if (mediaChanged) {
