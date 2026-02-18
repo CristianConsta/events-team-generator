@@ -26,6 +26,8 @@ function resetGlobals() {
   delete global.updateUserHeaderIdentity;
   delete global.updateActiveGameBadge;
   delete global.handleAllianceDataRealtimeUpdate;
+  delete global.showPostAuthGameSelector;
+  delete global.resetPostAuthGameSelectorState;
   delete global.t;
   delete global.__APP_FEATURE_FLAGS;
   delete global.__ACTIVE_GAME_ID;
@@ -63,6 +65,8 @@ function buildEnv(overrides) {
   global.checkAndDisplayNotifications = () => {};
   global.startNotificationPolling    = overrides.startNotificationPolling || (() => {});
   global.stopNotificationPolling     = overrides.stopNotificationPolling  || (() => {});
+  global.showPostAuthGameSelector    = overrides.showPostAuthGameSelector || (() => {});
+  global.resetPostAuthGameSelectorState = overrides.resetPostAuthGameSelectorState || (() => {});
   global.loadBuildingConfig          = () => false;
   global.loadBuildingPositions       = () => false;
   global.updateUserHeaderIdentity    = overrides.updateUserHeaderIdentity || (() => {});
@@ -187,6 +191,24 @@ test('auth callback calls startNotificationPolling on sign-in', () => {
   assert.ok(calls.includes('start'));
 });
 
+test('auth callback triggers post-auth game selector hook on sign-in', () => {
+  const calls = [];
+  buildEnv({ showPostAuthGameSelector: () => calls.push('selector') });
+
+  let authCb;
+  global.FirebaseService = {
+    isAvailable: () => true,
+    setAuthCallback:         (cb) => { authCb = cb; },
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  authCb(true, { email: 'x@y.com' });
+
+  assert.ok(calls.includes('selector'));
+});
+
 test('auth callback ensures active game context on sign-in', () => {
   buildEnv();
   let authCb;
@@ -287,6 +309,24 @@ test('auth callback clears active game context on sign-out', () => {
 
   assert.equal(clearCalls, 1);
   assert.equal(global.__ACTIVE_GAME_ID, '');
+});
+
+test('auth callback resets post-auth selector state on sign-out', () => {
+  const calls = [];
+  buildEnv({ resetPostAuthGameSelectorState: () => calls.push('reset') });
+  let authCb;
+  global.FirebaseService = {
+    isAvailable: () => true,
+    clearActiveGame: () => {},
+    setAuthCallback:         (cb) => { authCb = cb; },
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  authCb(false, null);
+
+  assert.ok(calls.includes('reset'));
 });
 
 // ── Data load callback ────────────────────────────────────────────────────────

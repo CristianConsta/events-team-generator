@@ -62,6 +62,9 @@
                     updateUserHeaderIdentity(user);
                 }
                 applyTranslations();
+                if (typeof global.showPostAuthGameSelector === 'function') {
+                    global.showPostAuthGameSelector();
+                }
                 initOnboarding();
                 startNotificationPolling();
             } else {
@@ -73,6 +76,9 @@
                 }
                 if (typeof global.updateActiveGameBadge === 'function') {
                     global.updateActiveGameBadge('');
+                }
+                if (typeof global.resetPostAuthGameSelectorState === 'function') {
+                    global.resetPostAuthGameSelectorState();
                 }
                 if (typeof updateUserHeaderIdentity === 'function') {
                     updateUserHeaderIdentity(null);

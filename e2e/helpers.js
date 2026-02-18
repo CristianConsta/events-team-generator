@@ -39,6 +39,8 @@ async function injectMockFirebase(page, options) {
     events: {},
     allianceId: null,
     allianceName: null,
+    games: [{ id: 'last_war', name: 'Last War: Survival', logo: '' }],
+    featureFlags: {},
   }, options || {});
 
   await page.addInitScript((config) => {
@@ -85,6 +87,20 @@ async function injectMockFirebase(page, options) {
 
       const mockManager = {
         __isPlaywrightMock: true,
+        getFeatureFlags()           {
+          return Object.assign({
+            MULTIGAME_ENABLED: false,
+            MULTIGAME_READ_FALLBACK_ENABLED: true,
+            MULTIGAME_DUAL_WRITE_ENABLED: false,
+            MULTIGAME_GAME_SELECTOR_ENABLED: false,
+          }, config.featureFlags || {});
+        },
+        isFeatureFlagEnabled(flag) {
+          return this.getFeatureFlags()[flag] === true;
+        },
+        listAvailableGames()       {
+          return Array.isArray(config.games) ? config.games : [];
+        },
         // Auth
         setAuthCallback(cb)          {
           _authCb = cb;

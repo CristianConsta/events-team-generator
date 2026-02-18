@@ -233,7 +233,7 @@ test('qa: index.html — login screen and main app containers present', () => {
 test('qa: index.html — critical nav buttons present', () => {
   const html = fs.readFileSync(paths.indexHtml, 'utf8');
   ['navGeneratorBtn', 'navPlayersBtn', 'navConfigBtn', 'navAllianceBtn',
-   'navSettingsBtn', 'navSignOutBtn'].forEach((id) => {
+   'navSettingsBtn', 'navSwitchGameBtn', 'navSignOutBtn'].forEach((id) => {
     assert.ok(html.includes(`id="${id}"`), `Missing nav button #${id}`);
   });
 });

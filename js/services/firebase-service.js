@@ -94,10 +94,29 @@
             .replace(/^_+|_+$/g, '');
     }
 
-    function listKnownGameIds() {
-        return listAvailableGamesFromCore()
+    function normalizeGameIdsFromCatalog(catalog) {
+        if (!Array.isArray(catalog)) {
+            return [];
+        }
+        return catalog
             .map((game) => normalizeGameId(game && game.id))
             .filter(Boolean);
+    }
+
+    function listKnownGameIds() {
+        const managerGameIds = withManager(
+            (svc) => {
+                if (typeof svc.listAvailableGames !== 'function') {
+                    return [];
+                }
+                return normalizeGameIdsFromCatalog(svc.listAvailableGames());
+            },
+            []
+        );
+        if (managerGameIds.length > 0) {
+            return managerGameIds;
+        }
+        return normalizeGameIdsFromCatalog(listAvailableGamesFromCore());
     }
 
     function resolveDefaultGameId() {

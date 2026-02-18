@@ -165,6 +165,24 @@ test('setActiveGame rejects unknown game id when catalog is available', () => {
   });
 });
 
+test('setActiveGame accepts ids exposed by manager game catalog', () => {
+  global.DSCoreGames = {
+    listAvailableGames: () => ([{ id: 'last_war', name: 'Last War: Survival' }]),
+  };
+  global.FirebaseManager = {
+    listAvailableGames: () => ([
+      { id: 'last_war', name: 'Last War: Survival' },
+      { id: 'desert_ops', name: 'Desert Ops' },
+    ]),
+  };
+  loadModule();
+  assert.deepEqual(global.FirebaseService.setActiveGame('desert_ops'), {
+    success: true,
+    gameId: 'desert_ops',
+    changed: true,
+  });
+});
+
 // ── Delegation when FirebaseManager is present ───────────────────────────────
 
 test('isAvailable returns true when FirebaseManager exists', () => {

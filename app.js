@@ -53,6 +53,7 @@ function onI18nApplied() {
     }
     updateUserHeaderIdentity(currentAuthUser);
     updateActiveGameBadge();
+    refreshGameSelectorMenuAvailability();
     syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
@@ -90,7 +91,45 @@ function createMissingActiveGameError() {
     return error;
 }
 
+function listSelectableGames() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listAvailableGames !== 'function') {
+        return [];
+    }
+    const games = FirebaseService.listAvailableGames();
+    if (!Array.isArray(games)) {
+        return [];
+    }
+    return games
+        .map((game) => {
+            const id = game && typeof game.id === 'string' ? game.id.trim() : '';
+            if (!id) {
+                return null;
+            }
+            const name = game && typeof game.name === 'string' && game.name.trim()
+                ? game.name.trim()
+                : id;
+            const logo = game && typeof game.logo === 'string' ? game.logo.trim() : '';
+            return { id, name, logo };
+        })
+        .filter(Boolean);
+}
+
+function getSelectableGameById(gameId) {
+    const normalizedId = typeof gameId === 'string' ? gameId.trim() : '';
+    if (!normalizedId) {
+        return null;
+    }
+    return listSelectableGames().find((game) => game.id === normalizedId) || null;
+}
+
 function resolveActiveGameName(gameId) {
+    const selectedGame = getSelectableGameById(gameId);
+    if (selectedGame && selectedGame.name) {
+        return selectedGame.name;
+    }
+    if (!gameId) {
+        return '';
+    }
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listAvailableGames !== 'function') {
         return gameId;
     }
@@ -117,6 +156,16 @@ function updateActiveGameBadge(forcedGameId) {
     }
     badge.textContent = resolveActiveGameName(activeGameId);
     badge.style.display = 'inline-flex';
+}
+
+function refreshGameSelectorMenuAvailability() {
+    const switchBtn = document.getElementById('navSwitchGameBtn');
+    if (!switchBtn) {
+        return;
+    }
+    const hasGames = listSelectableGames().length > 0;
+    switchBtn.classList.toggle('hidden', !hasGames);
+    switchBtn.disabled = !hasGames;
 }
 
 function getActiveGameContext() {
@@ -190,9 +239,204 @@ function enforceGameplayContext(statusElementId) {
     }
 }
 
+let gameSelectorRequiresChoice = false;
+let postAuthSelectorShownThisSession = false;
+
+function isPostAuthGameSelectorEnabled() {
+    if (window.__APP_FEATURE_FLAGS && typeof window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === 'boolean') {
+        return window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
+    }
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.isFeatureFlagEnabled !== 'function') {
+        return false;
+    }
+    return FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED');
+}
+
+function renderGameSelectorOptions(preferredGameId) {
+    const selector = document.getElementById('gameSelectorInput');
+    if (!selector) {
+        return [];
+    }
+    const games = listSelectableGames();
+    selector.replaceChildren();
+    games.forEach((game) => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.name;
+        selector.appendChild(option);
+    });
+
+    const preferred = typeof preferredGameId === 'string' ? preferredGameId.trim() : '';
+    if (preferred && games.some((game) => game.id === preferred)) {
+        selector.value = preferred;
+    } else if (games.length > 0) {
+        selector.value = games[0].id;
+    } else {
+        selector.value = '';
+    }
+    return games;
+}
+
+function closeGameSelector(forceClose) {
+    if (gameSelectorRequiresChoice && forceClose !== true) {
+        return;
+    }
+    const overlay = document.getElementById('gameSelectorOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    gameSelectorRequiresChoice = false;
+    const statusEl = document.getElementById('gameSelectorStatus');
+    if (statusEl) {
+        statusEl.replaceChildren();
+    }
+}
+
+function openGameSelector(options) {
+    const config = options && typeof options === 'object' ? options : {};
+    const overlay = document.getElementById('gameSelectorOverlay');
+    const cancelBtn = document.getElementById('gameSelectorCancelBtn');
+    const selector = document.getElementById('gameSelectorInput');
+    if (!overlay || !cancelBtn || !selector) {
+        return;
+    }
+
+    closeNavigationMenu();
+    refreshGameSelectorMenuAvailability();
+
+    const activeGameId = getActiveGame() || ensureActiveGameContext();
+    const games = renderGameSelectorOptions(activeGameId);
+    const statusEl = document.getElementById('gameSelectorStatus');
+    if (statusEl) {
+        statusEl.replaceChildren();
+    }
+
+    gameSelectorRequiresChoice = config.requireChoice === true;
+    cancelBtn.hidden = gameSelectorRequiresChoice;
+    cancelBtn.disabled = gameSelectorRequiresChoice;
+
+    if (games.length === 0) {
+        showMessage('gameSelectorStatus', t('game_selector_no_games'), 'warning');
+    }
+
+    overlay.classList.remove('hidden');
+    selector.focus();
+}
+
+function handleGameSelectorOverlayClick(event) {
+    if (event && event.target && event.target.id === 'gameSelectorOverlay') {
+        closeGameSelector(false);
+    }
+}
+
+function normalizeFilterPanels() {
+    const troopsFilterBtn = document.getElementById('troopsFilterBtn');
+    if (troopsFilterBtn) {
+        troopsFilterBtn.classList.remove('active');
+    }
+    document.querySelectorAll('.filter-dropdown-panel').forEach((panel) => {
+        const defaultVal = panel.id === 'troopsFilterPanel' ? '' : 'power-desc';
+        panel.querySelectorAll('.filter-option').forEach((opt) => {
+            opt.classList.toggle('selected', opt.dataset.value === defaultVal);
+        });
+    });
+}
+
+function resetTransientPlanningState(options) {
+    const config = options && typeof options === 'object' ? options : {};
+    teamSelections.teamA = [];
+    teamSelections.teamB = [];
+    assignmentsA = [];
+    assignmentsB = [];
+    substitutesA = [];
+    substitutesB = [];
+    closeDownloadModal();
+
+    const searchFilterInput = document.getElementById('searchFilter');
+    if (searchFilterInput) {
+        searchFilterInput.value = '';
+    }
+    currentTroopsFilter = '';
+    currentSortFilter = 'power-desc';
+    normalizeFilterPanels();
+
+    if (config.renderPlayersTable !== false) {
+        renderPlayersTable();
+    }
+    updateTeamCounters();
+}
+
+function applyGameSwitch(gameId, options) {
+    const config = options && typeof options === 'object' ? options : {};
+    const statusElementId = typeof config.statusElementId === 'string' ? config.statusElementId : '';
+
+    const result = setActiveGame(gameId);
+    if (!result || !result.success || !result.gameId) {
+        if (statusElementId) {
+            showMessage(statusElementId, t('game_selector_invalid'), 'error');
+        }
+        return false;
+    }
+
+    const shouldReload = result.changed === true || config.forceReload === true;
+    if (shouldReload) {
+        resetTransientPlanningState({ renderPlayersTable: false });
+        loadPlayerData();
+        updateAllianceHeaderDisplay();
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.loadAllianceData === 'function' && FirebaseService.isSignedIn()) {
+            Promise.resolve(FirebaseService.loadAllianceData({ gameId: result.gameId }))
+                .then(() => {
+                    if (currentPageView === 'alliance') {
+                        renderAlliancePanel();
+                        updateAllianceHeaderDisplay();
+                    }
+                })
+                .catch(() => {
+                    // Ignore transient alliance refresh errors after game switch.
+                });
+        }
+    }
+
+    closeGameSelector(true);
+    return true;
+}
+
+function confirmGameSelectorChoice() {
+    const selector = document.getElementById('gameSelectorInput');
+    if (!selector) {
+        return;
+    }
+    const selectedGameId = typeof selector.value === 'string' ? selector.value.trim() : '';
+    if (!selectedGameId) {
+        showMessage('gameSelectorStatus', t('game_selector_invalid'), 'error');
+        return;
+    }
+    applyGameSwitch(selectedGameId, { statusElementId: 'gameSelectorStatus' });
+}
+
+function showPostAuthGameSelector() {
+    refreshGameSelectorMenuAvailability();
+    if (postAuthSelectorShownThisSession) {
+        return;
+    }
+    postAuthSelectorShownThisSession = true;
+    if (!isPostAuthGameSelectorEnabled()) {
+        return;
+    }
+    openGameSelector({ requireChoice: true });
+}
+
+function resetPostAuthGameSelectorState() {
+    postAuthSelectorShownThisSession = false;
+    closeGameSelector(true);
+}
+
 window.setActiveGame = setActiveGame;
 window.getActiveGame = getActiveGame;
 window.updateActiveGameBadge = updateActiveGameBadge;
+window.showPostAuthGameSelector = showPostAuthGameSelector;
+window.resetPostAuthGameSelectorState = resetPostAuthGameSelectorState;
 
 // ============================================================
 // ONBOARDING TOUR
@@ -378,6 +622,9 @@ function bindStaticUiActions() {
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
     on('navSettingsBtn', 'click', openSettingsModal);
+    on('navSwitchGameBtn', 'click', () => {
+        openGameSelector({ requireChoice: false });
+    });
     on('navSignOutBtn', 'click', () => {
         closeNavigationMenu();
         handleSignOut();
@@ -396,6 +643,15 @@ function bindStaticUiActions() {
     on('settingsDeleteBtn', 'click', deleteAccountFromSettings);
     on('settingsCancelBtn', 'click', closeSettingsModal);
     on('settingsSaveBtn', 'click', saveSettings);
+    on('gameSelectorOverlay', 'click', handleGameSelectorOverlayClick);
+    on('gameSelectorCancelBtn', 'click', () => closeGameSelector(false));
+    on('gameSelectorConfirmBtn', 'click', confirmGameSelectorChoice);
+    on('gameSelectorInput', 'change', () => {
+        const status = document.getElementById('gameSelectorStatus');
+        if (status) {
+            status.replaceChildren();
+        }
+    });
 
     on('uploadPersonalBtn', 'click', uploadToPersonal);
     on('uploadAllianceBtn', 'click', uploadToAlliance);
@@ -493,6 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'Escape') {
             closeNavigationMenu();
             closeSettingsModal();
+            closeGameSelector(false);
         }
     });
 
@@ -513,6 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUserHeaderIdentity(currentAuthUser);
     ensureActiveGameContext();
     updateActiveGameBadge();
+    refreshGameSelectorMenuAvailability();
 });
 
 // ============================================================
@@ -4602,25 +4860,7 @@ function clearPlayerSelection(playerName) {
 
 function clearAllSelections() {
     if (confirm(t('confirm_clear_all'))) {
-        teamSelections.teamA = [];
-        teamSelections.teamB = [];
-        assignmentsA = [];
-        assignmentsB = [];
-        substitutesA = [];
-        substitutesB = [];
-        closeDownloadModal();
-        document.getElementById('searchFilter').value = '';
-        currentTroopsFilter = '';
-        currentSortFilter = 'power-desc';
-        document.getElementById('troopsFilterBtn').classList.remove('active');
-        document.querySelectorAll('.filter-dropdown-panel').forEach(panel => {
-            const defaultVal = panel.id === 'troopsFilterPanel' ? '' : 'power-desc';
-            panel.querySelectorAll('.filter-option').forEach(opt => {
-                opt.classList.toggle('selected', opt.dataset.value === defaultVal);
-            });
-        });
-        updateTeamCounters();
-        renderPlayersTable();
+        resetTransientPlanningState({ renderPlayersTable: true });
     }
 }
 

@@ -75,6 +75,7 @@
                             <button id="navConfigBtn" class="header-menu-item" role="menuitem"><span data-i18n="events_manager_title">Events Manager</span></button>
                             <button id="navAllianceBtn" class="header-menu-item" role="menuitem"><span data-i18n="alliance_button">Alliance</span></button>
                             <button id="navSettingsBtn" class="header-menu-item" role="menuitem"><span data-i18n="settings_button">Settings</span></button>
+                            <button id="navSwitchGameBtn" class="header-menu-item" role="menuitem"><span data-i18n="game_switch_button">Switch Game</span></button>
                             <div class="header-menu-divider"></div>
                             <button id="navSignOutBtn" class="header-menu-item danger" role="menuitem"><span data-i18n="sign_out_button">Sign Out</span></button>
                         </div>
@@ -256,6 +257,20 @@
                         <button id="uploadBothBtn" class="secondary" style="padding: 16px;"><span data-i18n="upload_target_both">Both</span></button>
                     </div>
                     <button id="uploadTargetCloseBtn" class="clear-btn" style="display: block; margin: 15px auto 0;"><span data-i18n="close">Close</span></button>
+                </div>
+            </div>
+
+            <div id="gameSelectorOverlay" class="coord-overlay hidden">
+                <div style="width: min(420px, 92vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 26px;">
+                    <h2 style="margin: 0 0 8px;" data-i18n="game_selector_title">Select Game</h2>
+                    <p style="opacity: 0.85; margin: 0 0 16px;" data-i18n="game_selector_help">Choose the game context for this session.</p>
+                    <label for="gameSelectorInput" data-i18n="game_selector_label">Game</label>
+                    <select id="gameSelectorInput" style="width: 100%; margin-top: 8px; margin-bottom: 16px;"></select>
+                    <div id="gameSelectorStatus"></div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                        <button id="gameSelectorCancelBtn" class="secondary"><span data-i18n="settings_cancel">Cancel</span></button>
+                        <button id="gameSelectorConfirmBtn"><span data-i18n="game_selector_confirm">Continue</span></button>
+                    </div>
                 </div>
             </div>
 
