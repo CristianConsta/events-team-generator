@@ -1275,7 +1275,6 @@ const FirebaseManager = (function() {
             name: 'Last War: Survival',
             logo: '',
             company: '',
-            attributes: {},
         }];
     }
 
@@ -1285,14 +1284,10 @@ const FirebaseManager = (function() {
         const nameValue = Object.prototype.hasOwnProperty.call(source, 'name') ? source.name : base.name;
         const logoValue = Object.prototype.hasOwnProperty.call(source, 'logo') ? source.logo : base.logo;
         const companyValue = Object.prototype.hasOwnProperty.call(source, 'company') ? source.company : base.company;
-        const attributesValue = Object.prototype.hasOwnProperty.call(source, 'attributes') ? source.attributes : (base.attributes || {});
         return {
             name: typeof nameValue === 'string' ? nameValue.trim().slice(0, 80) : '',
             logo: typeof logoValue === 'string' ? logoValue.trim().slice(0, MAX_EVENT_LOGO_DATA_URL_LEN) : '',
             company: typeof companyValue === 'string' ? companyValue.trim().slice(0, 80) : '',
-            attributes: attributesValue && typeof attributesValue === 'object' && !Array.isArray(attributesValue)
-                ? JSON.parse(JSON.stringify(attributesValue))
-                : {},
         };
     }
 
@@ -1309,9 +1304,6 @@ const FirebaseManager = (function() {
                 name: typeof game.name === 'string' ? game.name : id,
                 logo: typeof game.logo === 'string' ? game.logo : '',
                 company: typeof game.company === 'string' ? game.company : '',
-                attributes: game.attributes && typeof game.attributes === 'object' && !Array.isArray(game.attributes)
-                    ? JSON.parse(JSON.stringify(game.attributes))
-                    : {},
             });
         });
 
@@ -1373,12 +1365,12 @@ const FirebaseManager = (function() {
                 name: sanitized.name,
                 logo: sanitized.logo,
                 company: sanitized.company,
-                attributes: sanitized.attributes,
+                attributes: firebase.firestore.FieldValue.delete(),
                 metadata: {
                     updatedBy: currentUser.uid,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 },
-            }, { merge: true });
+            }, { mergeFields: ['name', 'logo', 'company', 'attributes', 'metadata'] });
             return {
                 success: true,
                 game: {
@@ -1386,7 +1378,6 @@ const FirebaseManager = (function() {
                     name: sanitized.name,
                     logo: sanitized.logo,
                     company: sanitized.company,
-                    attributes: sanitized.attributes,
                 },
             };
         } catch (error) {

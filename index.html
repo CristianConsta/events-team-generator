@@ -107,7 +107,10 @@
                                 <span id="userIdentityLabel"></span>
                             </span>
                         </button>
-                        <span id="activeGameBadge" style="display: none; color: rgba(255,255,255,0.85); font-size: 12px; padding: 4px 8px; border: 1px solid rgba(255,255,255,0.28); border-radius: 999px;"></span>
+                        <span id="activeGameBadge" class="header-avatar active-game-badge hidden" title="Active game" aria-hidden="true">
+                            <img id="activeGameBadgeImage" class="hidden" alt="Active game logo">
+                            <span id="activeGameBadgeInitials">G</span>
+                        </span>
                         <span id="allianceDisplay" style="display: none; color: var(--gold); font-weight: bold; opacity: 0.7; cursor: pointer;"></span>
                         <button id="allianceCreateBtn" title="Create/Join Alliance" style="display: none;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
@@ -430,12 +433,22 @@
                         <select id="gameMetadataSelect"></select>
                         <label for="gameMetadataNameInput" data-i18n="game_metadata_name_label">Game Name</label>
                         <input id="gameMetadataNameInput" type="text" maxlength="80">
-                        <label for="gameMetadataLogoInput" data-i18n="game_metadata_logo_label">Logo URL</label>
-                        <input id="gameMetadataLogoInput" type="text" maxlength="400000">
+                        <label for="gameMetadataLogoInput" data-i18n="game_metadata_logo_label">Game Avatar</label>
+                        <div class="settings-avatar-wrap game-metadata-avatar-wrap">
+                            <div class="settings-avatar-preview" id="gameMetadataLogoPreview">
+                                <img id="gameMetadataLogoPreviewImage" class="hidden" alt="Game avatar preview">
+                                <span id="gameMetadataLogoPreviewInitials">G</span>
+                            </div>
+                            <div class="settings-avatar-actions">
+                                <div class="settings-avatar-action-row">
+                                    <button id="gameMetadataLogoUploadBtn" class="secondary" type="button"><span data-i18n="events_manager_logo_upload">Upload Avatar</span></button>
+                                    <button id="gameMetadataLogoRemoveBtn" class="clear-btn" type="button"><span data-i18n="settings_avatar_remove">Remove Avatar</span></button>
+                                </div>
+                                <input id="gameMetadataLogoInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                            </div>
+                        </div>
                         <label for="gameMetadataCompanyInput" data-i18n="game_metadata_company_label">Company</label>
                         <input id="gameMetadataCompanyInput" type="text" maxlength="80">
-                        <label for="gameMetadataAttributesInput" data-i18n="game_metadata_attributes_label">Attributes (JSON)</label>
-                        <textarea id="gameMetadataAttributesInput" rows="6" style="resize: vertical; min-height: 120px;"></textarea>
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
                         <button id="gameMetadataSaveBtn" type="button"><span data-i18n="settings_save">Save</span></button>

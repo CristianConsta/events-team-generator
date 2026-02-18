@@ -27,7 +27,8 @@ test.describe('Game selector workflows', () => {
     await page.locator('#gameSelectorConfirmBtn').click();
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();
-    await expect(page.locator('#activeGameBadge')).toContainText('Desert Ops');
+    await expect(page.locator('#activeGameBadge')).toHaveAttribute('title', 'Desert Ops');
+    await expect(page.locator('#activeGameBadge')).not.toHaveClass(/hidden/);
   });
 
   test('@regression @navigation manual switch resets transient generator planning state', async ({ page }) => {
@@ -48,6 +49,7 @@ test.describe('Game selector workflows', () => {
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();
     await expect(page.locator('#teamAStarterCount')).toHaveText('0');
-    await expect(page.locator('#activeGameBadge')).toContainText('Desert Ops');
+    await expect(page.locator('#activeGameBadge')).toHaveAttribute('title', 'Desert Ops');
+    await expect(page.locator('#activeGameBadge')).not.toHaveClass(/hidden/);
   });
 });

@@ -1436,6 +1436,18 @@ select {
     justify-content: flex-end;
     gap: 8px;
 }
+.active-game-badge {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 12px;
+    border-color: rgba(var(--gold-rgb), 0.42);
+}
+#activeGameBadgeImage {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 #allianceDisplay {
     display: none;
     max-width: 180px;
@@ -2002,6 +2014,12 @@ select {
     min-width: 0;
 }
 #settingsAvatarInput {
+    display: none;
+}
+.game-metadata-avatar-wrap {
+    margin-top: 0;
+}
+#gameMetadataLogoInput {
     display: none;
 }
 .settings-danger-zone {

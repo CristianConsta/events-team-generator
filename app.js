@@ -196,7 +196,14 @@ function getSelectableGameById(gameId) {
     if (!normalizedId) {
         return null;
     }
-    return listSelectableGames().find((game) => game.id === normalizedId) || null;
+    const selectableGame = listSelectableGames().find((game) => game.id === normalizedId) || null;
+    if (selectableGame) {
+        return selectableGame;
+    }
+    const cachedGame = Array.isArray(gameMetadataCatalogCache)
+        ? gameMetadataCatalogCache.find((game) => game && game.id === normalizedId)
+        : null;
+    return cachedGame ? normalizeGameMetadataEntry(cachedGame) : null;
 }
 
 function resolveActiveGameName(gameId) {
@@ -220,6 +227,8 @@ function resolveActiveGameName(gameId) {
 
 function updateActiveGameBadge(forcedGameId) {
     const badge = document.getElementById('activeGameBadge');
+    const image = document.getElementById('activeGameBadgeImage');
+    const initials = document.getElementById('activeGameBadgeInitials');
     if (!badge) {
         return;
     }
@@ -227,12 +236,24 @@ function updateActiveGameBadge(forcedGameId) {
         ? forcedGameId.trim()
         : getActiveGame();
     if (!activeGameId) {
-        badge.textContent = '';
-        badge.style.display = 'none';
+        badge.classList.add('hidden');
+        badge.setAttribute('title', '');
+        if (image) {
+            image.src = '';
+            image.classList.add('hidden');
+        }
+        if (initials) {
+            initials.textContent = '';
+        }
         return;
     }
-    badge.textContent = resolveActiveGameName(activeGameId);
-    badge.style.display = 'inline-flex';
+    const selectedGame = getSelectableGameById(activeGameId);
+    const gameName = selectedGame && selectedGame.name ? selectedGame.name : resolveActiveGameName(activeGameId);
+    const gameLogo = selectedGame && typeof selectedGame.logo === 'string' ? selectedGame.logo.trim() : '';
+    const fallbackAvatar = generateGameAvatarDataUrl(gameName || activeGameId, activeGameId);
+    applyAvatar(gameLogo || fallbackAvatar, image, initials, getAvatarInitials(gameName || activeGameId, 'G'));
+    badge.classList.remove('hidden');
+    badge.setAttribute('title', gameName || activeGameId);
 }
 
 function refreshGameSelectorMenuAvailability() {
@@ -560,21 +581,19 @@ function syncGameMetadataMenuAvailability() {
 
 function clearGameMetadataForm() {
     const nameInput = document.getElementById('gameMetadataNameInput');
-    const logoInput = document.getElementById('gameMetadataLogoInput');
     const companyInput = document.getElementById('gameMetadataCompanyInput');
-    const attributesInput = document.getElementById('gameMetadataAttributesInput');
     if (nameInput) {
         nameInput.value = '';
-    }
-    if (logoInput) {
-        logoInput.value = '';
     }
     if (companyInput) {
         companyInput.value = '';
     }
-    if (attributesInput) {
-        attributesInput.value = '{}';
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    if (logoInput) {
+        logoInput.value = '';
     }
+    gameMetadataDraftLogoDataUrl = '';
+    updateGameMetadataLogoPreview();
 }
 
 function clearGameMetadataStatus() {
@@ -585,7 +604,15 @@ function clearGameMetadataStatus() {
 }
 
 function setGameMetadataFormDisabled(disabled) {
-    ['gameMetadataSelect', 'gameMetadataNameInput', 'gameMetadataLogoInput', 'gameMetadataCompanyInput', 'gameMetadataAttributesInput', 'gameMetadataSaveBtn']
+    [
+        'gameMetadataSelect',
+        'gameMetadataNameInput',
+        'gameMetadataLogoUploadBtn',
+        'gameMetadataLogoRemoveBtn',
+        'gameMetadataLogoInput',
+        'gameMetadataCompanyInput',
+        'gameMetadataSaveBtn',
+    ]
         .forEach((id) => {
             const element = document.getElementById(id);
             if (element) {
@@ -603,12 +630,39 @@ function normalizeGameMetadataEntry(entry) {
     return {
         id: id,
         name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : id,
-        logo: typeof source.logo === 'string' ? source.logo : '',
+        logo: typeof source.logo === 'string' ? source.logo.trim() : '',
         company: typeof source.company === 'string' ? source.company : '',
-        attributes: source.attributes && typeof source.attributes === 'object' && !Array.isArray(source.attributes)
-            ? JSON.parse(JSON.stringify(source.attributes))
-            : {},
     };
+}
+
+function resolveGameMetadataDraftName() {
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const explicitName = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
+    if (explicitName) {
+        return explicitName;
+    }
+    const selectedGameId = resolveSelectedMetadataGameId();
+    const selectedGame = selectedGameId ? getSelectableGameById(selectedGameId) : null;
+    if (selectedGame && selectedGame.name) {
+        return selectedGame.name;
+    }
+    return selectedGameId || 'Game';
+}
+
+function generateGameAvatarDataUrl(nameSeed, idSeed) {
+    return generateEventAvatarDataUrl(nameSeed || 'Game', `${idSeed || ''}|game-avatar`);
+}
+
+function updateGameMetadataLogoPreview() {
+    const previewImage = document.getElementById('gameMetadataLogoPreviewImage');
+    const previewInitials = document.getElementById('gameMetadataLogoPreviewInitials');
+    if (!previewImage || !previewInitials) {
+        return;
+    }
+    const selectedGameId = resolveSelectedMetadataGameId();
+    const seedName = resolveGameMetadataDraftName();
+    const fallbackAvatar = generateGameAvatarDataUrl(seedName, selectedGameId || seedName);
+    applyAvatar(gameMetadataDraftLogoDataUrl || fallbackAvatar, previewImage, previewInitials, getAvatarInitials(seedName, 'G'));
 }
 
 function renderGameMetadataSelect(games, preferredGameId) {
@@ -653,21 +707,19 @@ function fillGameMetadataForm(game) {
         return;
     }
     const nameInput = document.getElementById('gameMetadataNameInput');
-    const logoInput = document.getElementById('gameMetadataLogoInput');
     const companyInput = document.getElementById('gameMetadataCompanyInput');
-    const attributesInput = document.getElementById('gameMetadataAttributesInput');
     if (nameInput) {
         nameInput.value = metadata.name || '';
-    }
-    if (logoInput) {
-        logoInput.value = metadata.logo || '';
     }
     if (companyInput) {
         companyInput.value = metadata.company || '';
     }
-    if (attributesInput) {
-        attributesInput.value = JSON.stringify(metadata.attributes || {}, null, 2);
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    if (logoInput) {
+        logoInput.value = '';
     }
+    gameMetadataDraftLogoDataUrl = metadata.logo || '';
+    updateGameMetadataLogoPreview();
 }
 
 function resolveSelectedMetadataGameId() {
@@ -772,16 +824,44 @@ async function handleGameMetadataSelectionChange() {
     await loadGameMetadataForSelection(selectedGameId);
 }
 
-function parseGameMetadataAttributes(rawValue) {
-    const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
-    if (!raw) {
-        return {};
+function triggerGameMetadataLogoUpload() {
+    const input = document.getElementById('gameMetadataLogoInput');
+    if (input) {
+        input.click();
     }
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error(t('game_metadata_invalid_attributes'));
+}
+
+function removeGameMetadataLogo() {
+    gameMetadataDraftLogoDataUrl = '';
+    const input = document.getElementById('gameMetadataLogoInput');
+    if (input) {
+        input.value = '';
     }
-    return parsed;
+    updateGameMetadataLogoPreview();
+}
+
+async function handleGameMetadataLogoChange(event) {
+    const input = event && event.target ? event.target : document.getElementById('gameMetadataLogoInput');
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) {
+        return;
+    }
+    try {
+        gameMetadataDraftLogoDataUrl = await createEventImageDataUrl(file, {
+            maxBytes: AVATAR_MAX_UPLOAD_BYTES,
+            minDimension: AVATAR_MIN_DIMENSION,
+            maxSide: 320,
+            maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
+            tooLargeMessage: t('events_manager_logo_too_large'),
+        });
+        updateGameMetadataLogoPreview();
+    } catch (error) {
+        showMessage('gameMetadataStatus', error.message || t('events_manager_image_process_failed'), 'error');
+    } finally {
+        if (input) {
+            input.value = '';
+        }
+    }
 }
 
 async function saveGameMetadata() {
@@ -799,22 +879,14 @@ async function saveGameMetadata() {
         return;
     }
     const nameInput = document.getElementById('gameMetadataNameInput');
-    const logoInput = document.getElementById('gameMetadataLogoInput');
     const companyInput = document.getElementById('gameMetadataCompanyInput');
-    const attributesInput = document.getElementById('gameMetadataAttributesInput');
-    let attributes = {};
-    try {
-        attributes = parseGameMetadataAttributes(attributesInput ? attributesInput.value : '');
-    } catch (error) {
-        showMessage('gameMetadataStatus', t('game_metadata_invalid_attributes'), 'error');
-        return;
-    }
+    const nameValue = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
+    const resolvedLogoDataUrl = gameMetadataDraftLogoDataUrl || generateGameAvatarDataUrl(nameValue || selectedGameId, selectedGameId);
 
     const payload = {
-        name: nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '',
-        logo: logoInput && typeof logoInput.value === 'string' ? logoInput.value.trim() : '',
+        name: nameValue,
+        logo: resolvedLogoDataUrl,
         company: companyInput && typeof companyInput.value === 'string' ? companyInput.value.trim() : '',
-        attributes: attributes,
     };
 
     setGameMetadataFormDisabled(true);
@@ -1093,6 +1165,10 @@ function bindStaticUiActions() {
     on('gameMetadataOverlay', 'click', handleGameMetadataOverlayClick);
     on('gameMetadataCloseBtn', 'click', () => closeGameMetadataOverlay());
     on('gameMetadataSelect', 'change', handleGameMetadataSelectionChange);
+    on('gameMetadataNameInput', 'input', updateGameMetadataLogoPreview);
+    on('gameMetadataLogoUploadBtn', 'click', triggerGameMetadataLogoUpload);
+    on('gameMetadataLogoRemoveBtn', 'click', removeGameMetadataLogo);
+    on('gameMetadataLogoInput', 'change', handleGameMetadataLogoChange);
     on('gameMetadataSaveBtn', 'click', saveGameMetadata);
 
     on('uploadPersonalBtn', 'click', uploadToPersonal);
@@ -1516,6 +1592,7 @@ let eventDraftMapDataUrl = '';
 let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
 let gameMetadataCatalogCache = [];
+let gameMetadataDraftLogoDataUrl = '';
 const appStateStore = (
     window.DSAppStateStore
     && typeof window.DSAppStateStore.createDefaultStore === 'function'

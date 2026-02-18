@@ -28,7 +28,7 @@ const translations = {
         game_metadata_admin_title: 'Game Metadata Admin',
         game_metadata_admin_help: 'Only super admin can edit global game metadata.',
         game_metadata_name_label: 'Game Name',
-        game_metadata_logo_label: 'Logo URL',
+        game_metadata_logo_label: 'Game Avatar',
         game_metadata_company_label: 'Company',
         game_metadata_attributes_label: 'Attributes (JSON)',
         game_metadata_forbidden: 'Only the platform super admin can edit game metadata.',
