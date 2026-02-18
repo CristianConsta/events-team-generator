@@ -224,6 +224,26 @@ test('getBuildingConfig delegates to manager', () => {
   assert.deepEqual(global.FirebaseService.getBuildingConfig('desert_storm'), config);
 });
 
+test('event-scoped getters accept { gameId, eventId } context object', () => {
+  let receivedEventId = '';
+  let receivedContext = null;
+  global.FirebaseManager = {
+    getBuildingConfig: (eventId, context) => {
+      receivedEventId = eventId;
+      receivedContext = context;
+      return [{ name: 'HQ', slots: 1, priority: 1 }];
+    },
+  };
+  loadModule();
+  const result = global.FirebaseService.getBuildingConfig({
+    gameId: 'last_war',
+    eventId: 'desert_storm',
+  });
+  assert.equal(receivedEventId, 'desert_storm');
+  assert.equal(receivedContext.gameId, 'last_war');
+  assert.equal(Array.isArray(result), true);
+});
+
 test('getBuildingPositions delegates to manager', () => {
   const positions = { HQ: [100, 200] };
   global.FirebaseManager = { getBuildingPositions: () => positions };
@@ -242,6 +262,21 @@ test('getUserProfile delegates to manager', () => {
   global.FirebaseManager = { getUserProfile: () => profile };
   loadModule();
   assert.deepEqual(global.FirebaseService.getUserProfile(), profile);
+});
+
+test('getUserProfile passes explicit game context to manager', () => {
+  let receivedContext = null;
+  const profile = { displayName: 'Alice', nickname: 'A', avatarDataUrl: 'data:...' };
+  global.FirebaseManager = {
+    getUserProfile: (context) => {
+      receivedContext = context;
+      return profile;
+    },
+  };
+  loadModule();
+  const result = global.FirebaseService.getUserProfile({ gameId: 'last_war' });
+  assert.equal(receivedContext.gameId, 'last_war');
+  assert.deepEqual(result, profile);
 });
 
 test('getPlayerSource delegates to manager', () => {

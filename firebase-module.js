@@ -3482,8 +3482,14 @@ const FirebaseManager = (function() {
             resolveGameplayContext('getActivePlayerDatabase', context);
             return getActivePlayerDatabase();
         },
-        getUserProfile: getUserProfile,
-        setUserProfile: setUserProfile,
+        getUserProfile: function getUserProfileGameAware(context) {
+            resolveGameplayContext('getUserProfile', context);
+            return getUserProfile();
+        },
+        setUserProfile: function setUserProfileGameAware(profile, context) {
+            resolveGameplayContext('setUserProfile', context);
+            return setUserProfile(profile);
+        },
         setPlayerSource: function setPlayerSourceGameAware(source, context) {
             resolveGameplayContext('setPlayerSource', context);
             return setPlayerSource(source);

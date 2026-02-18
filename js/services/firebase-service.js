@@ -281,6 +281,28 @@
         return { gameId: resolveDefaultGameId(), explicit: false };
     }
 
+    function normalizeEventId(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value.trim();
+    }
+
+    function resolveEventScopedContext(methodName, eventIdOrContext, contextMaybe) {
+        const explicitEventId = normalizeEventId(eventIdOrContext);
+        const context = explicitEventId
+            ? contextMaybe
+            : (typeof contextMaybe !== 'undefined' ? contextMaybe : eventIdOrContext);
+        const eventIdFromContext = context && typeof context === 'object' ? normalizeEventId(context.eventId) : '';
+        const eventId = explicitEventId || eventIdFromContext;
+        const gameplayContext = resolveGameplayContext(methodName, context);
+        return {
+            eventId: eventId,
+            gameId: gameplayContext.gameId,
+            explicit: gameplayContext.explicit,
+        };
+    }
+
     const FirebaseService = {
         isAvailable: function isAvailable() {
             return manager() !== null;
@@ -417,66 +439,104 @@
             const gameContext = resolveGameplayContext('getEventIds', context);
             return withManager((svc) => svc.getEventIds(gameContext), []);
         },
-        getEventMeta: function getEventMeta(eventId, context) {
-            const gameContext = resolveGameplayContext('getEventMeta', context);
-            return withManager((svc) => svc.getEventMeta(eventId, gameContext), null);
+        getEventMeta: function getEventMeta(eventIdOrContext, context) {
+            const scopedContext = resolveEventScopedContext('getEventMeta', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.getEventMeta(scopedContext.eventId, scopedContext), null);
         },
-        upsertEvent: function upsertEvent(eventId, payload, context) {
-            const gameContext = resolveGameplayContext('upsertEvent', context);
-            return withManager((svc) => svc.upsertEvent(eventId, payload, gameContext), null);
+        upsertEvent: function upsertEvent(eventIdOrContext, payload, context) {
+            const scopedContext = resolveEventScopedContext('upsertEvent', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.upsertEvent(scopedContext.eventId, payload, scopedContext), null);
         },
-        removeEvent: function removeEvent(eventId, context) {
-            const gameContext = resolveGameplayContext('removeEvent', context);
-            return withManager((svc) => svc.removeEvent(eventId, gameContext), false);
+        removeEvent: function removeEvent(eventIdOrContext, context) {
+            const scopedContext = resolveEventScopedContext('removeEvent', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return false;
+            }
+            return withManager((svc) => svc.removeEvent(scopedContext.eventId, scopedContext), false);
         },
-        setEventMetadata: function setEventMetadata(eventId, metadata, context) {
-            const gameContext = resolveGameplayContext('setEventMetadata', context);
-            return withManager((svc) => svc.setEventMetadata(eventId, metadata, gameContext), null);
+        setEventMetadata: function setEventMetadata(eventIdOrContext, metadata, context) {
+            const scopedContext = resolveEventScopedContext('setEventMetadata', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.setEventMetadata(scopedContext.eventId, metadata, scopedContext), null);
         },
         getActivePlayerDatabase: function getActivePlayerDatabase(context) {
             const gameContext = resolveGameplayContext('getActivePlayerDatabase', context);
             return withManager((svc) => svc.getActivePlayerDatabase(gameContext), {});
         },
-        getUserProfile: function getUserProfile() {
-            return withManager((svc) => svc.getUserProfile(), { displayName: '', nickname: '', avatarDataUrl: '' });
+        getUserProfile: function getUserProfile(context) {
+            const gameContext = resolveGameplayContext('getUserProfile', context);
+            return withManager((svc) => svc.getUserProfile(gameContext), { displayName: '', nickname: '', avatarDataUrl: '' });
         },
-        setUserProfile: function setUserProfile(profile) {
-            return withManager((svc) => svc.setUserProfile(profile), { displayName: '', nickname: '', avatarDataUrl: '' });
+        setUserProfile: function setUserProfile(profile, context) {
+            const gameContext = resolveGameplayContext('setUserProfile', context);
+            return withManager((svc) => svc.setUserProfile(profile, gameContext), { displayName: '', nickname: '', avatarDataUrl: '' });
         },
         getPlayerSource: function getPlayerSource() {
             return withManager((svc) => svc.getPlayerSource(), 'personal');
         },
-        getBuildingConfig: function getBuildingConfig(eventId, context) {
-            const gameContext = resolveGameplayContext('getBuildingConfig', context);
-            return withManager((svc) => svc.getBuildingConfig(eventId, gameContext), null);
+        getBuildingConfig: function getBuildingConfig(eventIdOrContext, context) {
+            const scopedContext = resolveEventScopedContext('getBuildingConfig', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.getBuildingConfig(scopedContext.eventId, scopedContext), null);
         },
-        setBuildingConfig: function setBuildingConfig(eventId, config, context) {
-            const gameContext = resolveGameplayContext('setBuildingConfig', context);
-            return withManager((svc) => svc.setBuildingConfig(eventId, config, gameContext), null);
+        setBuildingConfig: function setBuildingConfig(eventIdOrContext, config, context) {
+            const scopedContext = resolveEventScopedContext('setBuildingConfig', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.setBuildingConfig(scopedContext.eventId, config, scopedContext), null);
         },
-        getBuildingConfigVersion: function getBuildingConfigVersion(eventId, context) {
-            const gameContext = resolveGameplayContext('getBuildingConfigVersion', context);
-            return withManager((svc) => svc.getBuildingConfigVersion(eventId, gameContext), 0);
+        getBuildingConfigVersion: function getBuildingConfigVersion(eventIdOrContext, context) {
+            const scopedContext = resolveEventScopedContext('getBuildingConfigVersion', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return 0;
+            }
+            return withManager((svc) => svc.getBuildingConfigVersion(scopedContext.eventId, scopedContext), 0);
         },
-        setBuildingConfigVersion: function setBuildingConfigVersion(eventId, version, context) {
-            const gameContext = resolveGameplayContext('setBuildingConfigVersion', context);
-            return withManager((svc) => svc.setBuildingConfigVersion(eventId, version, gameContext), null);
+        setBuildingConfigVersion: function setBuildingConfigVersion(eventIdOrContext, version, context) {
+            const scopedContext = resolveEventScopedContext('setBuildingConfigVersion', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.setBuildingConfigVersion(scopedContext.eventId, version, scopedContext), null);
         },
-        getBuildingPositions: function getBuildingPositions(eventId, context) {
-            const gameContext = resolveGameplayContext('getBuildingPositions', context);
-            return withManager((svc) => svc.getBuildingPositions(eventId, gameContext), null);
+        getBuildingPositions: function getBuildingPositions(eventIdOrContext, context) {
+            const scopedContext = resolveEventScopedContext('getBuildingPositions', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.getBuildingPositions(scopedContext.eventId, scopedContext), null);
         },
-        setBuildingPositions: function setBuildingPositions(eventId, positions, context) {
-            const gameContext = resolveGameplayContext('setBuildingPositions', context);
-            return withManager((svc) => svc.setBuildingPositions(eventId, positions, gameContext), null);
+        setBuildingPositions: function setBuildingPositions(eventIdOrContext, positions, context) {
+            const scopedContext = resolveEventScopedContext('setBuildingPositions', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.setBuildingPositions(scopedContext.eventId, positions, scopedContext), null);
         },
-        getBuildingPositionsVersion: function getBuildingPositionsVersion(eventId, context) {
-            const gameContext = resolveGameplayContext('getBuildingPositionsVersion', context);
-            return withManager((svc) => svc.getBuildingPositionsVersion(eventId, gameContext), 0);
+        getBuildingPositionsVersion: function getBuildingPositionsVersion(eventIdOrContext, context) {
+            const scopedContext = resolveEventScopedContext('getBuildingPositionsVersion', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return 0;
+            }
+            return withManager((svc) => svc.getBuildingPositionsVersion(scopedContext.eventId, scopedContext), 0);
         },
-        setBuildingPositionsVersion: function setBuildingPositionsVersion(eventId, version, context) {
-            const gameContext = resolveGameplayContext('setBuildingPositionsVersion', context);
-            return withManager((svc) => svc.setBuildingPositionsVersion(eventId, version, gameContext), null);
+        setBuildingPositionsVersion: function setBuildingPositionsVersion(eventIdOrContext, version, context) {
+            const scopedContext = resolveEventScopedContext('setBuildingPositionsVersion', eventIdOrContext, context);
+            if (!scopedContext.eventId) {
+                return null;
+            }
+            return withManager((svc) => svc.setBuildingPositionsVersion(scopedContext.eventId, version, scopedContext), null);
         },
         getGlobalDefaultBuildingConfig: function getGlobalDefaultBuildingConfig(eventId) {
             return withManager((svc) => svc.getGlobalDefaultBuildingConfig(eventId), null);

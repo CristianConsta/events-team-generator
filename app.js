@@ -239,6 +239,29 @@ function enforceGameplayContext(statusElementId) {
     }
 }
 
+function getGameplayContext(statusElementId) {
+    const gameId = enforceGameplayContext(statusElementId);
+    if (!gameId) {
+        return null;
+    }
+    return { gameId: gameId };
+}
+
+function getEventGameplayContext(eventId, statusElementId) {
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return null;
+    }
+    const normalizedEventId = normalizeEventId(eventId || currentEvent);
+    if (!normalizedEventId) {
+        return gameplayContext;
+    }
+    return {
+        gameId: gameplayContext.gameId,
+        eventId: normalizedEventId,
+    };
+}
+
 let gameSelectorRequiresChoice = false;
 let postAuthSelectorShownThisSession = false;
 
@@ -1056,7 +1079,9 @@ function getProfileFromService() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getUserProfile) {
         return { displayName: '', nickname: '', avatarDataUrl: '' };
     }
-    const profile = FirebaseService.getUserProfile();
+    const activeGameId = getActiveGame() || ensureActiveGameContext();
+    const profileContext = activeGameId ? { gameId: activeGameId } : undefined;
+    const profile = FirebaseService.getUserProfile(profileContext);
     if (!profile || typeof profile !== 'object') {
         return { displayName: '', nickname: '', avatarDataUrl: '' };
     }
@@ -1314,6 +1339,10 @@ async function saveSettings() {
         showMessage('settingsStatus', t('error_firebase_not_loaded'), 'error');
         return;
     }
+    const gameplayContext = getGameplayContext('settingsStatus');
+    if (!gameplayContext) {
+        return;
+    }
     const displayInput = document.getElementById('settingsDisplayNameInput');
     const nicknameInput = document.getElementById('settingsNicknameInput');
     const displayName = displayInput && typeof displayInput.value === 'string'
@@ -1328,10 +1357,10 @@ async function saveSettings() {
             displayName: displayName,
             nickname: nickname,
             avatarDataUrl: settingsDraftAvatarDataUrl || '',
-        });
+        }, gameplayContext);
     }
 
-    const result = await FirebaseService.saveUserData();
+    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
     if (result && result.success) {
         updateUserHeaderIdentity(currentAuthUser);
         showMessage('settingsStatus', t('settings_saved'), 'success');
@@ -1647,9 +1676,16 @@ function buildRegistryFromStorage() {
         nextRegistry[eventId] = { ...legacyRegistry[eventId] };
     });
 
-    const storedEvents = (typeof FirebaseService !== 'undefined' && FirebaseService.getAllEventData)
-        ? normalizeStoredEventsData(FirebaseService.getAllEventData())
-        : {};
+    const storedEvents = (() => {
+        if (typeof FirebaseService === 'undefined' || !FirebaseService.getAllEventData) {
+            return {};
+        }
+        const gameplayContext = getGameplayContext();
+        if (!gameplayContext) {
+            return {};
+        }
+        return normalizeStoredEventsData(FirebaseService.getAllEventData(gameplayContext));
+    })();
 
     Object.keys(storedEvents).forEach((eventId) => {
         const stored = storedEvents[eventId];
@@ -2493,8 +2529,8 @@ function buildEventDefinition(eventId, name, buildings) {
 }
 
 async function saveEventDefinition() {
-    const activeGameId = enforceGameplayContext('eventsStatus');
-    if (!activeGameId) {
+    const gameplayContext = getGameplayContext('eventsStatus');
+    if (!gameplayContext) {
         return;
     }
     if (!eventEditorIsEditMode) {
@@ -2517,6 +2553,7 @@ async function saveEventDefinition() {
 
     const existingIds = getEventIds();
     const eventId = eventEditorCurrentId || window.DSCoreEvents.slugifyEventId(eventName, existingIds);
+    const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
     const definition = buildEventDefinition(eventId, eventName, buildings);
     const isNewEvent = !eventEditorCurrentId;
 
@@ -2539,13 +2576,13 @@ async function saveEventDefinition() {
                 mapDataUrl: definition.mapDataUrl,
                 buildingConfig: buildingConfigs[eventId],
                 buildingPositions: buildingPositionsMap[eventId],
-            });
+            }, eventContext);
         }
-        FirebaseService.setBuildingConfig(eventId, buildingConfigs[eventId]);
-        FirebaseService.setBuildingConfigVersion(eventId, getTargetBuildingConfigVersion());
-        FirebaseService.setBuildingPositions(eventId, buildingPositionsMap[eventId]);
-        FirebaseService.setBuildingPositionsVersion(eventId, getTargetBuildingPositionsVersion());
-        const saveResult = await FirebaseService.saveUserData();
+        FirebaseService.setBuildingConfig(eventId, buildingConfigs[eventId], eventContext);
+        FirebaseService.setBuildingConfigVersion(eventId, getTargetBuildingConfigVersion(), eventContext);
+        FirebaseService.setBuildingPositions(eventId, buildingPositionsMap[eventId], eventContext);
+        FirebaseService.setBuildingPositionsVersion(eventId, getTargetBuildingPositionsVersion(), eventContext);
+        const saveResult = await FirebaseService.saveUserData(undefined, gameplayContext);
         if (!saveResult || !saveResult.success) {
             showMessage('eventsStatus', t('events_manager_save_failed', { error: (saveResult && saveResult.error) || 'unknown' }), 'error');
             return;
@@ -2572,6 +2609,10 @@ async function saveEventDefinition() {
 }
 
 async function deleteSelectedEvent() {
+    const gameplayContext = getGameplayContext('eventsStatus');
+    if (!gameplayContext) {
+        return;
+    }
     if (!eventEditorIsEditMode) {
         showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
         return;
@@ -2589,6 +2630,7 @@ async function deleteSelectedEvent() {
     }
 
     const eventId = eventEditorCurrentId;
+    const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
     const removed = window.DSCoreEvents.removeEvent(eventId);
     if (!removed) {
         showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
@@ -2601,8 +2643,8 @@ async function deleteSelectedEvent() {
     delete coordMapWarningShown[eventId];
 
     if (typeof FirebaseService !== 'undefined' && FirebaseService.removeEvent) {
-        FirebaseService.removeEvent(eventId);
-        const result = await FirebaseService.saveUserData();
+        FirebaseService.removeEvent(eventId, eventContext);
+        const result = await FirebaseService.saveUserData(undefined, gameplayContext);
         if (!result || !result.success) {
             showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
             return;
@@ -2845,15 +2887,19 @@ function getPlayersDatabaseBySource(source) {
     if (typeof FirebaseService === 'undefined') {
         return {};
     }
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return {};
+    }
     if (source === 'alliance') {
         if (typeof FirebaseService.getAlliancePlayerDatabase === 'function') {
-            const allianceDb = FirebaseService.getAlliancePlayerDatabase();
+            const allianceDb = FirebaseService.getAlliancePlayerDatabase(gameplayContext);
             return allianceDb && typeof allianceDb === 'object' ? allianceDb : {};
         }
         return {};
     }
     if (typeof FirebaseService.getPlayerDatabase === 'function') {
-        const personalDb = FirebaseService.getPlayerDatabase();
+        const personalDb = FirebaseService.getPlayerDatabase(gameplayContext);
         return personalDb && typeof personalDb === 'object' ? personalDb : {};
     }
     return {};
@@ -3139,13 +3185,17 @@ async function handlePlayersManagementAddPlayer() {
     const powerInput = document.getElementById('playersMgmtNewPower');
     const troopsSelect = document.getElementById('playersMgmtNewTroops');
     const source = getPlayersManagementActiveSource();
+    const gameplayContext = getGameplayContext('playersMgmtStatus');
+    if (!gameplayContext) {
+        return;
+    }
     const payload = {
         name: nameInput ? nameInput.value : '',
         power: powerInput ? powerInput.value : 0,
         troops: troopsSelect ? troopsSelect.value : 'Unknown',
     };
 
-    const result = await FirebaseService.upsertPlayerEntry(source, '', payload);
+    const result = await FirebaseService.upsertPlayerEntry(source, '', payload, gameplayContext);
     if (result && result.success) {
         playersManagementEditingName = '';
         showMessage('playersMgmtStatus', t('players_list_added'), 'success');
@@ -3182,6 +3232,10 @@ async function handlePlayersManagementTableAction(event) {
     const action = button.getAttribute('data-pm-action');
     const originalName = button.getAttribute('data-player') || '';
     const source = getPlayersManagementActiveSource();
+    const gameplayContext = getGameplayContext('playersMgmtStatus');
+    if (!gameplayContext) {
+        return;
+    }
     if (!action || !originalName) {
         return;
     }
@@ -3211,7 +3265,7 @@ async function handlePlayersManagementTableAction(event) {
             power: powerInput ? powerInput.value : 0,
             troops: troopsSelect ? troopsSelect.value : 'Unknown',
         };
-        const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload);
+        const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload, gameplayContext);
         if (result && result.success) {
             playersManagementEditingName = '';
             showMessage('playersMgmtStatus', t('players_list_saved'), 'success');
@@ -3231,7 +3285,7 @@ async function handlePlayersManagementTableAction(event) {
         if (!confirm(t('players_list_delete_confirm', { name: originalName }))) {
             return;
         }
-        const result = await FirebaseService.removePlayerEntry(source, originalName);
+        const result = await FirebaseService.removePlayerEntry(source, originalName, gameplayContext);
         if (result && result.success) {
             playersManagementEditingName = '';
             showMessage('playersMgmtStatus', t('players_list_deleted'), 'success');
@@ -3462,7 +3516,11 @@ async function switchPlayerSource(source, statusElementId) {
     if (source === 'alliance' && !hasAlliance) {
         return;
     }
-    await FirebaseService.setPlayerSource(source);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    await FirebaseService.setPlayerSource(source, gameplayContext);
     loadPlayerData();
     renderAlliancePanel();
     const sourceLabels = {
@@ -3800,6 +3858,10 @@ async function performUpload(file, target) {
     }
 
     showMessage('uploadMessage', t('message_upload_processing'), 'processing');
+    const gameplayContext = getGameplayContext('uploadMessage');
+    if (!gameplayContext) {
+        return;
+    }
 
     try {
         if (target === 'both') {
@@ -3809,13 +3871,13 @@ async function performUpload(file, target) {
             let allianceError = '';
 
             try {
-                personalResult = await FirebaseService.uploadPlayerDatabase(file);
+                personalResult = await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
             } catch (error) {
                 personalError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
             }
 
             try {
-                allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file);
+                allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext);
             } catch (error) {
                 allianceError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
             }
@@ -3844,8 +3906,8 @@ async function performUpload(file, target) {
         }
 
         const result = target === 'alliance'
-            ? await FirebaseService.uploadAlliancePlayerDatabase(file)
-            : await FirebaseService.uploadPlayerDatabase(file);
+            ? await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext)
+            : await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
 
         if (!result || !result.success) {
             showMessage('uploadMessage', t('message_upload_failed', { error: result && result.error ? result.error : 'unknown' }), 'error');
@@ -3864,7 +3926,11 @@ function syncPlayersFromActiveDatabase(options) {
     }
 
     const config = options && typeof options === 'object' ? options : {};
-    const playerDB = FirebaseService.getActivePlayerDatabase();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
     const source = FirebaseService.getPlayerSource();
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
     const count = playerDB && typeof playerDB === 'object' ? Object.keys(playerDB).length : 0;
@@ -3915,8 +3981,8 @@ function handleAllianceDataRealtimeUpdate() {
 }
 
 function loadPlayerData() {
-    const activeGameId = enforceGameplayContext('uploadMessage');
-    if (!activeGameId) {
+    const gameplayContext = getGameplayContext('uploadMessage');
+    if (!gameplayContext) {
         console.error('missing-active-game');
         return;
     }
@@ -3935,7 +4001,7 @@ function loadPlayerData() {
     }
     updateEventEditorState();
     
-    const playerDB = FirebaseService.getActivePlayerDatabase();
+    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
     const count = Object.keys(playerDB).length;
     const source = FirebaseService.getPlayerSource();
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
@@ -4214,7 +4280,8 @@ function loadBuildingConfig() {
         renderBuildingsTable();
         return;
     }
-    const stored = FirebaseService.getBuildingConfig(currentEvent);
+    const eventContext = getEventGameplayContext(currentEvent);
+    const stored = FirebaseService.getBuildingConfig(currentEvent, eventContext || undefined);
     const defaultConfig = getResolvedDefaultBuildingConfig();
     const targetVersion = getTargetBuildingConfigVersion();
     const shouldResetToDefaults = !Array.isArray(stored) || stored.length === 0;
@@ -4259,8 +4326,8 @@ function loadBuildingConfig() {
     });
 
     if (needsSave) {
-        FirebaseService.setBuildingConfig(currentEvent, config);
-        FirebaseService.setBuildingConfigVersion(currentEvent, targetVersion);
+        FirebaseService.setBuildingConfig(currentEvent, config, eventContext || undefined);
+        FirebaseService.setBuildingConfigVersion(currentEvent, targetVersion, eventContext || undefined);
     }
 
     renderBuildingsTable();
@@ -4272,15 +4339,16 @@ function loadBuildingPositions() {
         setBuildingPositionsLocal({});
         return false;
     }
-    const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent);
-    const stored = FirebaseService.getBuildingPositions(currentEvent);
+    const eventContext = getEventGameplayContext(currentEvent);
+    const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent, eventContext || undefined);
+    const stored = FirebaseService.getBuildingPositions(currentEvent, eventContext || undefined);
     const targetDefaults = getResolvedDefaultBuildingPositions();
     const targetVersion = getTargetBuildingPositionsVersion();
     setBuildingPositionsLocal(normalizeBuildingPositions(stored));
     if (Object.keys(getBuildingPositions()).length === 0 || storedVersion < targetVersion) {
         setBuildingPositionsLocal(targetDefaults);
-        FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-        FirebaseService.setBuildingPositionsVersion(currentEvent, targetVersion);
+        FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions(), eventContext || undefined);
+        FirebaseService.setBuildingPositionsVersion(currentEvent, targetVersion, eventContext || undefined);
         return true;
     }
     return false;
@@ -4380,10 +4448,15 @@ async function saveBuildingConfig() {
         showMessage('buildingsStatus', t('buildings_changes_not_saved'), 'error');
         return;
     }
+    const gameplayContext = getGameplayContext('buildingsStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const eventContext = { gameId: gameplayContext.gameId, eventId: normalizeEventId(currentEvent) };
 
-    FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig());
-    FirebaseService.setBuildingConfigVersion(currentEvent, getTargetBuildingConfigVersion());
-    const result = await FirebaseService.saveUserData();
+    FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig(), eventContext);
+    FirebaseService.setBuildingConfigVersion(currentEvent, getTargetBuildingConfigVersion(), eventContext);
+    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
     if (result.success) {
         showMessage('buildingsStatus', t('buildings_saved'), 'success');
     } else {
@@ -4642,9 +4715,14 @@ async function saveBuildingPositions() {
         showMessage('coordStatus', t('coord_changes_not_saved'), 'error');
         return;
     }
-    FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-    FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion());
-    const result = await FirebaseService.saveUserData();
+    const gameplayContext = getGameplayContext('coordStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const eventContext = { gameId: gameplayContext.gameId, eventId: normalizeEventId(currentEvent) };
+    FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions(), eventContext);
+    FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion(), eventContext);
+    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
     if (result.success) {
         showMessage('coordStatus', t('coord_saved'), 'success');
     } else {
@@ -5011,7 +5089,11 @@ function generateTeamAssignments(team) {
         return;
     }
 
-    const playerDB = FirebaseService.getActivePlayerDatabase();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
 
     const starterPlayers = starters.map(s => ({
         name: s.name,
@@ -5366,8 +5448,9 @@ async function generateMap(team, assignments, statusId) {
         const teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
         const teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
         const teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
-        const activePlayerDB = (typeof FirebaseService !== 'undefined' && FirebaseService.getActivePlayerDatabase)
-            ? FirebaseService.getActivePlayerDatabase()
+        const gameplayContext = getGameplayContext();
+        const activePlayerDB = (typeof FirebaseService !== 'undefined' && FirebaseService.getActivePlayerDatabase && gameplayContext)
+            ? FirebaseService.getActivePlayerDatabase(gameplayContext)
             : {};
 
         const mappedAssignments = {};
