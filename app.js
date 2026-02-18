@@ -391,27 +391,95 @@ function isPostAuthGameSelectorEnabled() {
 
 function renderGameSelectorOptions(preferredGameId) {
     const selector = document.getElementById('gameSelectorInput');
-    if (!selector) {
+    const list = document.getElementById('gameSelectorList');
+    if (!selector || !list) {
         return [];
     }
     const games = listSelectableGames();
     selector.replaceChildren();
+    list.replaceChildren();
     games.forEach((game) => {
         const option = document.createElement('option');
         option.value = game.id;
         option.textContent = game.name;
         selector.appendChild(option);
+
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'game-selector-option';
+        row.dataset.gameId = game.id;
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', 'false');
+
+        const avatar = document.createElement('span');
+        avatar.className = 'header-avatar game-selector-option-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        const avatarImage = document.createElement('img');
+        avatarImage.className = 'hidden';
+        avatarImage.alt = `${game.name || game.id} logo`;
+        const avatarInitials = document.createElement('span');
+        avatarInitials.textContent = 'G';
+        avatar.appendChild(avatarImage);
+        avatar.appendChild(avatarInitials);
+
+        const body = document.createElement('span');
+        body.className = 'game-selector-option-body';
+        const name = document.createElement('span');
+        name.className = 'game-selector-option-name';
+        name.textContent = game.name || game.id;
+        const meta = document.createElement('span');
+        meta.className = 'game-selector-option-meta';
+        meta.textContent = game.id;
+        body.appendChild(name);
+        body.appendChild(meta);
+
+        const check = document.createElement('span');
+        check.className = 'game-selector-option-check';
+        check.setAttribute('aria-hidden', 'true');
+        check.textContent = '✓';
+
+        const fallbackLogo = generateGameAvatarDataUrl(game.name || game.id, game.id);
+        applyAvatar(game.logo || fallbackLogo, avatarImage, avatarInitials, getAvatarInitials(game.name || game.id, 'G'));
+
+        row.appendChild(avatar);
+        row.appendChild(body);
+        row.appendChild(check);
+        list.appendChild(row);
     });
 
     const preferred = typeof preferredGameId === 'string' ? preferredGameId.trim() : '';
+    let selectedId = '';
     if (preferred && games.some((game) => game.id === preferred)) {
-        selector.value = preferred;
+        selectedId = preferred;
     } else if (games.length > 0) {
-        selector.value = games[0].id;
+        selectedId = games[0].id;
     } else {
-        selector.value = '';
+        selectedId = '';
     }
+    selector.value = selectedId;
+    setGameSelectorSelection(selectedId);
     return games;
+}
+
+function setGameSelectorSelection(gameId) {
+    const selector = document.getElementById('gameSelectorInput');
+    const list = document.getElementById('gameSelectorList');
+    const selectedId = typeof gameId === 'string' ? gameId.trim() : '';
+    if (!selector || !list || !selectedId) {
+        return false;
+    }
+    const row = Array.from(list.querySelectorAll('.game-selector-option'))
+        .find((option) => (option.dataset.gameId || '').trim() === selectedId) || null;
+    if (!row) {
+        return false;
+    }
+    selector.value = selectedId;
+    list.querySelectorAll('.game-selector-option').forEach((option) => {
+        const isSelected = option === row;
+        option.classList.toggle('is-selected', isSelected);
+        option.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+    });
+    return true;
 }
 
 function closeGameSelector(forceClose) {
@@ -435,7 +503,8 @@ function openGameSelector(options) {
     const overlay = document.getElementById('gameSelectorOverlay');
     const cancelBtn = document.getElementById('gameSelectorCancelBtn');
     const selector = document.getElementById('gameSelectorInput');
-    if (!overlay || !cancelBtn || !selector) {
+    const list = document.getElementById('gameSelectorList');
+    if (!overlay || !cancelBtn || !selector || !list) {
         return;
     }
 
@@ -458,13 +527,65 @@ function openGameSelector(options) {
     }
 
     overlay.classList.remove('hidden');
-    selector.focus();
+    const selectedOption = list.querySelector('.game-selector-option.is-selected') || list.querySelector('.game-selector-option');
+    if (selectedOption) {
+        selectedOption.focus();
+    }
 }
 
 function handleGameSelectorOverlayClick(event) {
     if (event && event.target && event.target.id === 'gameSelectorOverlay') {
         closeGameSelector(false);
     }
+}
+
+function resolveGameSelectorOptionFromEvent(event) {
+    if (!event || !event.target) {
+        return null;
+    }
+    const option = event.target.closest('.game-selector-option');
+    if (!option || !(option instanceof HTMLElement)) {
+        return null;
+    }
+    const gameId = typeof option.dataset.gameId === 'string' ? option.dataset.gameId.trim() : '';
+    if (!gameId) {
+        return null;
+    }
+    return { option, gameId };
+}
+
+function handleGameSelectorListClick(event) {
+    const resolved = resolveGameSelectorOptionFromEvent(event);
+    if (!resolved) {
+        return;
+    }
+    if (!setGameSelectorSelection(resolved.gameId)) {
+        return;
+    }
+    const status = document.getElementById('gameSelectorStatus');
+    if (status) {
+        status.replaceChildren();
+    }
+    confirmGameSelectorChoice();
+}
+
+function handleGameSelectorListKeydown(event) {
+    if (!event || (event.key !== 'Enter' && event.key !== ' ')) {
+        return;
+    }
+    const resolved = resolveGameSelectorOptionFromEvent(event);
+    if (!resolved) {
+        return;
+    }
+    event.preventDefault();
+    if (!setGameSelectorSelection(resolved.gameId)) {
+        return;
+    }
+    const status = document.getElementById('gameSelectorStatus');
+    if (status) {
+        status.replaceChildren();
+    }
+    confirmGameSelectorChoice();
 }
 
 function normalizeFilterPanels() {
@@ -1209,11 +1330,14 @@ function bindStaticUiActions() {
     on('gameSelectorOverlay', 'click', handleGameSelectorOverlayClick);
     on('gameSelectorCancelBtn', 'click', () => closeGameSelector(false));
     on('gameSelectorConfirmBtn', 'click', confirmGameSelectorChoice);
+    on('gameSelectorList', 'click', handleGameSelectorListClick);
+    on('gameSelectorList', 'keydown', handleGameSelectorListKeydown);
     on('gameSelectorInput', 'change', () => {
         const status = document.getElementById('gameSelectorStatus');
         if (status) {
             status.replaceChildren();
         }
+        setGameSelectorSelection(document.getElementById('gameSelectorInput').value);
     });
     on('gameMetadataOverlay', 'click', handleGameMetadataOverlayClick);
     on('gameMetadataCloseBtn', 'click', () => closeGameMetadataOverlay());

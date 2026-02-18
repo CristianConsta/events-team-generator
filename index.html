@@ -98,6 +98,10 @@
 
                 <div id="headerActions">
                     <div id="headerProfileCluster">
+                        <span id="activeGameBadge" class="header-avatar active-game-badge hidden" title="Active game" aria-hidden="true">
+                            <img id="activeGameBadgeImage" class="hidden" alt="Active game logo">
+                            <span id="activeGameBadgeInitials">G</span>
+                        </span>
                         <button id="headerProfileBtn" title="Settings">
                             <span id="headerAvatar" class="header-avatar" aria-hidden="true">
                                 <img id="headerAvatarImage" class="hidden" alt="User avatar">
@@ -107,10 +111,6 @@
                                 <span id="userIdentityLabel"></span>
                             </span>
                         </button>
-                        <span id="activeGameBadge" class="header-avatar active-game-badge hidden" title="Active game" aria-hidden="true">
-                            <img id="activeGameBadgeImage" class="hidden" alt="Active game logo">
-                            <span id="activeGameBadgeInitials">G</span>
-                        </span>
                         <span id="allianceDisplay" style="display: none; color: var(--gold); font-weight: bold; opacity: 0.7; cursor: pointer;"></span>
                         <button id="allianceCreateBtn" title="Create/Join Alliance" style="display: none;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="21" y1="10" x2="21" y2="16"/><line x1="18" y1="13" x2="24" y2="13"/></svg>
@@ -384,13 +384,14 @@
             </div>
 
             <div id="gameSelectorOverlay" class="coord-overlay hidden">
-                <div style="width: min(420px, 92vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 26px;">
-                    <h2 style="margin: 0 0 8px;" data-i18n="game_selector_title">Select Game</h2>
-                    <p style="opacity: 0.85; margin: 0 0 16px;" data-i18n="game_selector_help">Choose the game context for this session.</p>
-                    <label for="gameSelectorInput" data-i18n="game_selector_label">Game</label>
-                    <select id="gameSelectorInput" style="width: 100%; margin-top: 8px; margin-bottom: 16px;"></select>
+                <div class="game-selector-modal">
+                    <h2 class="game-selector-title" data-i18n="game_selector_title">Select Game</h2>
+                    <p class="game-selector-help" data-i18n="game_selector_help">Choose the game context for this session.</p>
+                    <div id="gameSelectorList" class="game-selector-list" role="listbox" aria-label="Game selector"></div>
+                    <label for="gameSelectorInput" class="sr-only" data-i18n="game_selector_label">Game</label>
+                    <select id="gameSelectorInput" class="game-selector-native-select"></select>
                     <div id="gameSelectorStatus"></div>
-                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                    <div class="game-selector-actions">
                         <button id="gameSelectorCancelBtn" class="secondary"><span data-i18n="settings_cancel">Cancel</span></button>
                         <button id="gameSelectorConfirmBtn"><span data-i18n="game_selector_confirm">Continue</span></button>
                     </div>

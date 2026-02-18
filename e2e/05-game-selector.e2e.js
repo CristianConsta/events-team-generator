@@ -23,8 +23,7 @@ test.describe('Game selector workflows', () => {
 
     await waitForMainApp(page);
     await expect(page.locator('#gameSelectorOverlay')).toBeVisible();
-    await page.locator('#gameSelectorInput').selectOption('desert_ops');
-    await page.locator('#gameSelectorConfirmBtn').click();
+    await page.locator('#gameSelectorList .game-selector-option[data-game-id="desert_ops"]').click();
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();
     await expect(page.locator('#activeGameBadge')).toHaveAttribute('title', 'Desert Ops');
@@ -44,8 +43,7 @@ test.describe('Game selector workflows', () => {
     await page.locator('#navMenuBtn').click();
     await page.locator('#navSwitchGameBtn').click();
     await expect(page.locator('#gameSelectorOverlay')).toBeVisible();
-    await page.locator('#gameSelectorInput').selectOption('desert_ops');
-    await page.locator('#gameSelectorConfirmBtn').click();
+    await page.locator('#gameSelectorList .game-selector-option[data-game-id="desert_ops"]').click();
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();
     await expect(page.locator('#teamAStarterCount')).toHaveText('0');

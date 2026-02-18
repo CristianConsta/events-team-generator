@@ -454,6 +454,125 @@ button:focus-visible {
     justify-content: center;
     padding: 20px;
 }
+.game-selector-modal {
+    width: min(560px, 94vw);
+    max-height: min(78vh, 760px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
+        rgba(18, 26, 44, 0.98);
+    border-radius: 18px;
+    border: 1px solid rgba(var(--gold-rgb), 0.34);
+    box-shadow: var(--shadow-elev);
+    padding: 22px;
+}
+.game-selector-title {
+    margin: 0;
+    color: var(--gold);
+    font-size: 26px;
+}
+.game-selector-help {
+    margin: 0;
+    opacity: 0.86;
+}
+.game-selector-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.game-selector-option {
+    width: 100%;
+    margin: 0;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(var(--gold-rgb), 0.3);
+    background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+        rgba(9, 15, 26, 0.86);
+    box-shadow: var(--shadow-soft);
+    text-align: left;
+    transition: transform var(--motion-medium) ease, border-color var(--motion-medium) ease, background var(--motion-medium) ease;
+}
+.game-selector-option:hover {
+    transform: translateY(-1px);
+    border-color: rgba(var(--gold-rgb), 0.58);
+    background:
+        linear-gradient(150deg, rgba(var(--gold-rgb), 0.18), rgba(255, 255, 255, 0.03)),
+        rgba(10, 18, 31, 0.94);
+}
+.game-selector-option.is-selected {
+    border-color: rgba(var(--gold-rgb), 0.74);
+    background:
+        linear-gradient(140deg, rgba(var(--gold-rgb), 0.28), rgba(255, 255, 255, 0.04)),
+        rgba(11, 19, 32, 0.98);
+}
+.game-selector-option-avatar {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    font-size: 14px;
+}
+.game-selector-option-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.game-selector-option-name {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 17px;
+    line-height: 1.2;
+}
+.game-selector-option-meta {
+    opacity: 0.74;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.game-selector-option-check {
+    margin-left: auto;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--gold-rgb), 0.5);
+    background: rgba(var(--gold-rgb), 0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--gold);
+}
+.game-selector-option:not(.is-selected) .game-selector-option-check {
+    opacity: 0.3;
+}
+.game-selector-native-select {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.game-selector-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
 input[type="file"] { display: none; }
 input[type="text"],
 input[type="email"],
@@ -3157,6 +3276,15 @@ select {
     #allianceDisplay          { max-width: 74px; font-size: 11px; }
     #playerCount              { font-size: 12px; }
     #notificationBtn          { padding: 9px; min-width: 44px; min-height: 44px; margin: 0; }
+    .game-selector-modal      { width: min(96vw, 560px); max-height: 84vh; padding: 14px; border-radius: 14px; }
+    .game-selector-title      { font-size: 22px; }
+    .game-selector-help       { font-size: 13px; }
+    .game-selector-list       { gap: 8px; }
+    .game-selector-option     { padding: 10px; gap: 10px; border-radius: 12px; }
+    .game-selector-option-avatar { width: 42px; height: 42px; min-width: 42px; font-size: 12px; }
+    .game-selector-option-name { font-size: 15px; }
+    .game-selector-option-meta { font-size: 11px; }
+    .game-selector-actions    { gap: 8px; margin-top: 2px; }
     .settings-avatar-wrap     { gap: 10px; }
     .settings-avatar-preview  { width: 62px; height: 62px; font-size: 18px; }
 
