@@ -353,6 +353,7 @@ const FirebaseManager = (function() {
     const GAME_PLAYERS_SUBCOLLECTION = 'players';
     const GAME_EVENTS_SUBCOLLECTION = 'events';
     const DEFAULT_GAME_ID = 'last_war';
+    const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
     const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
     const DEFAULT_PLAYER_IMPORT_SCHEMA = Object.freeze({
         id: 'last_war_players_v1',
@@ -711,6 +712,26 @@ const FirebaseManager = (function() {
     function getResolvedGameId(methodName, context) {
         const gameplayContext = resolveGameplayContext(methodName, context);
         return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+    }
+
+    function resolveInitialAuthGameId() {
+        if (typeof window !== 'undefined') {
+            const fromGlobal = normalizeGameId(window.__ACTIVE_GAME_ID);
+            if (fromGlobal) {
+                return fromGlobal;
+            }
+            try {
+                if (window.localStorage && typeof window.localStorage.getItem === 'function') {
+                    const fromStorage = normalizeGameId(window.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
+                    if (fromStorage) {
+                        return fromStorage;
+                    }
+                }
+            } catch (error) {
+                // Ignore storage access issues and use default.
+            }
+        }
+        return DEFAULT_GAME_ID;
     }
 
     function isActiveGameplayGameId(gameId) {
@@ -2181,7 +2202,7 @@ const FirebaseManager = (function() {
 
             console.log('✅ User signed in:', user.email);
             resetSaveState();
-            loadUserData(user, { gameId: DEFAULT_GAME_ID });
+            loadUserData(user, { gameId: resolveInitialAuthGameId() });
             
             if (onAuthCallback) {
                 onAuthCallback(true, user);

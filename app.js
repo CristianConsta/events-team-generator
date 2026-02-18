@@ -340,6 +340,12 @@ function enforceGameplayContext(statusElementId) {
         return requireActiveGameContext();
     } catch (error) {
         if (error && error.code === 'missing-active-game') {
+            if (postAuthGameSelectionPending) {
+                if (statusElementId) {
+                    showMessage(statusElementId, 'Select a game to continue.', 'warning');
+                }
+                return '';
+            }
             const fallbackId = ensureActiveGameContext();
             if (fallbackId) {
                 return fallbackId;
@@ -378,6 +384,7 @@ function getEventGameplayContext(eventId, statusElementId) {
 
 let gameSelectorRequiresChoice = false;
 let postAuthSelectorShownThisSession = false;
+let postAuthGameSelectionPending = false;
 
 function isPostAuthGameSelectorEnabled() {
     if (window.__APP_FEATURE_FLAGS && typeof window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === 'boolean') {
@@ -688,7 +695,13 @@ async function confirmGameSelectorChoice() {
         showMessage('gameSelectorStatus', t('game_selector_invalid'), 'error');
         return;
     }
-    await applyGameSwitch(selectedGameId, { statusElementId: 'gameSelectorStatus' });
+    const switched = await applyGameSwitch(selectedGameId, {
+        statusElementId: 'gameSelectorStatus',
+        forceReload: true,
+    });
+    if (switched) {
+        postAuthGameSelectionPending = false;
+    }
 }
 
 function showPostAuthGameSelector() {
@@ -697,15 +710,23 @@ function showPostAuthGameSelector() {
         return;
     }
     postAuthSelectorShownThisSession = true;
-    if (!isPostAuthGameSelectorEnabled()) {
+    const games = listSelectableGames();
+    if (!Array.isArray(games) || games.length === 0) {
+        postAuthGameSelectionPending = false;
         return;
     }
+    postAuthGameSelectionPending = true;
     openGameSelector({ requireChoice: true });
 }
 
 function resetPostAuthGameSelectorState() {
     postAuthSelectorShownThisSession = false;
+    postAuthGameSelectionPending = false;
     closeGameSelector(true);
+}
+
+function isPostAuthGameSelectionPending() {
+    return postAuthGameSelectionPending === true;
 }
 
 function isGameMetadataSuperAdmin(userOrUid) {
@@ -1088,6 +1109,7 @@ window.updateActiveGameBadge = updateActiveGameBadge;
 window.refreshGameMetadataCatalogCache = refreshGameMetadataCatalogCache;
 window.showPostAuthGameSelector = showPostAuthGameSelector;
 window.resetPostAuthGameSelectorState = resetPostAuthGameSelectorState;
+window.isPostAuthGameSelectionPending = isPostAuthGameSelectionPending;
 
 // ============================================================
 // ONBOARDING TOUR

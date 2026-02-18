@@ -10,15 +10,24 @@
         global.__APP_FEATURE_FLAGS = resolveStartupFeatureFlags();
     }
 
-    function ensureSignedInGameContext() {
-        if (!global.FirebaseService || typeof global.FirebaseService.ensureActiveGame !== 'function') {
+    function syncSignedInGameContext(options) {
+        if (!global.FirebaseService) {
             return '';
         }
-        const context = global.FirebaseService.ensureActiveGame();
+        const config = options && typeof options === 'object' ? options : {};
+        const allowDefault = config.allowDefault === true;
+        let context = null;
+        if (allowDefault && typeof global.FirebaseService.ensureActiveGame === 'function') {
+            context = global.FirebaseService.ensureActiveGame();
+        } else if (typeof global.FirebaseService.getActiveGame === 'function') {
+            context = global.FirebaseService.getActiveGame();
+        }
         const activeGameId = context && typeof context.gameId === 'string' ? context.gameId : '';
         global.__ACTIVE_GAME_ID = activeGameId;
         if (activeGameId && typeof global.updateActiveGameBadge === 'function') {
             global.updateActiveGameBadge(activeGameId);
+        } else if (typeof global.updateActiveGameBadge === 'function') {
+            global.updateActiveGameBadge('');
         }
         return activeGameId;
     }
@@ -55,7 +64,7 @@
 
         FirebaseService.setAuthCallback((isSignedIn, user) => {
             if (isSignedIn) {
-                ensureSignedInGameContext();
+                syncSignedInGameContext({ allowDefault: false });
                 if (typeof global.refreshGameMetadataCatalogCache === 'function') {
                     global.refreshGameMetadataCatalogCache({ silent: true }).catch(() => {});
                 }
@@ -115,7 +124,7 @@
         });
 
         FirebaseService.setDataLoadCallback((playerDatabase) => {
-            ensureSignedInGameContext();
+            syncSignedInGameContext({ allowDefault: false });
             console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
             loadPlayerData();
             const configNeedsSave = loadBuildingConfig();
