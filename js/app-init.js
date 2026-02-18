@@ -56,6 +56,9 @@
         FirebaseService.setAuthCallback((isSignedIn, user) => {
             if (isSignedIn) {
                 ensureSignedInGameContext();
+                if (typeof global.refreshGameMetadataCatalogCache === 'function') {
+                    global.refreshGameMetadataCatalogCache({ silent: true }).catch(() => {});
+                }
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
                 if (typeof updateUserHeaderIdentity === 'function') {

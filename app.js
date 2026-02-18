@@ -176,16 +176,32 @@ function listSelectableGames() {
     if (!Array.isArray(games)) {
         return [];
     }
+    const metadataById = new Map();
+    if (Array.isArray(gameMetadataCatalogCache)) {
+        gameMetadataCatalogCache
+            .map(normalizeGameMetadataEntry)
+            .filter(Boolean)
+            .forEach((metadata) => {
+                metadataById.set(metadata.id, metadata);
+            });
+    }
     return games
         .map((game) => {
             const id = game && typeof game.id === 'string' ? game.id.trim() : '';
             if (!id) {
                 return null;
             }
-            const name = game && typeof game.name === 'string' && game.name.trim()
+            const catalogName = game && typeof game.name === 'string' && game.name.trim()
                 ? game.name.trim()
                 : id;
-            const logo = game && typeof game.logo === 'string' ? game.logo.trim() : '';
+            const catalogLogo = game && typeof game.logo === 'string' ? game.logo.trim() : '';
+            const metadata = metadataById.get(id) || null;
+            const name = metadata && typeof metadata.name === 'string' && metadata.name.trim()
+                ? metadata.name.trim()
+                : catalogName;
+            const logo = metadata && typeof metadata.logo === 'string' && metadata.logo.trim()
+                ? metadata.logo.trim()
+                : catalogLogo;
             return { id, name, logo };
         })
         .filter(Boolean);
@@ -709,13 +725,31 @@ function renderGameMetadataSelect(games, preferredGameId) {
 }
 
 async function reloadGameMetadataCatalog(preferredGameId) {
+    const preferred = typeof preferredGameId === 'string' ? preferredGameId.trim() : '';
+    await refreshGameMetadataCatalogCache({ silent: true, preferredGameId: preferred });
+    return renderGameMetadataSelect(gameMetadataCatalogCache, preferred);
+}
+
+async function refreshGameMetadataCatalogCache(options) {
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listGameMetadata !== 'function') {
-        gameMetadataCatalogCache = [];
-        return '';
+        return gameMetadataCatalogCache;
     }
-    const games = await FirebaseService.listGameMetadata();
-    gameMetadataCatalogCache = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
-    return renderGameMetadataSelect(gameMetadataCatalogCache, preferredGameId);
+    const config = options && typeof options === 'object' ? options : {};
+    const silent = config.silent === true;
+    const preferredGameId = typeof config.preferredGameId === 'string' ? config.preferredGameId.trim() : '';
+    try {
+        const games = await FirebaseService.listGameMetadata();
+        gameMetadataCatalogCache = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+        const activeGameId = preferredGameId || getActiveGame() || '';
+        updateActiveGameBadge(activeGameId);
+        refreshGameSelectorMenuAvailability();
+        return gameMetadataCatalogCache;
+    } catch (error) {
+        if (!silent) {
+            console.warn('Failed to refresh game metadata catalog cache:', error);
+        }
+        return gameMetadataCatalogCache;
+    }
 }
 
 function fillGameMetadataForm(game) {
@@ -930,6 +964,7 @@ async function saveGameMetadata() {
 window.setActiveGame = setActiveGame;
 window.getActiveGame = getActiveGame;
 window.updateActiveGameBadge = updateActiveGameBadge;
+window.refreshGameMetadataCatalogCache = refreshGameMetadataCatalogCache;
 window.showPostAuthGameSelector = showPostAuthGameSelector;
 window.resetPostAuthGameSelectorState = resetPostAuthGameSelectorState;
 
@@ -1505,6 +1540,9 @@ function initializeApplicationUiRuntime() {
     ensureActiveGameContext();
     updateActiveGameBadge();
     refreshGameSelectorMenuAvailability();
+    if (typeof refreshGameMetadataCatalogCache === 'function') {
+        refreshGameMetadataCatalogCache({ silent: true }).catch(() => {});
+    }
 }
 
 // ============================================================
