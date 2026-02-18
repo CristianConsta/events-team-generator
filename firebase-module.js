@@ -3878,6 +3878,19 @@ const FirebaseManager = (function() {
         } catch (error) {
             if (isPermissionDeniedError(error)) {
                 console.info('Alliance data read skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
+                stopAllianceDocListener();
+                allianceData = null;
+                activeAllianceDocScope = 'game';
+                if (playerSource === 'alliance') {
+                    playerSource = 'personal';
+                }
+                emitAllianceDataUpdate();
+                return {
+                    success: true,
+                    degraded: true,
+                    playerSource: playerSource,
+                    warning: 'permission-denied',
+                };
             } else {
                 console.error('Failed to load alliance data:', error);
             }
@@ -4560,7 +4573,7 @@ const FirebaseManager = (function() {
             if (allianceData && allianceData.playerDatabase) {
                 return normalizePlayerDatabaseMap(allianceData.playerDatabase);
             }
-            return {};
+            return normalizePlayerDatabaseMap(playerDatabase);
         }
         return normalizePlayerDatabaseMap(playerDatabase);
     }
@@ -4624,7 +4637,13 @@ const FirebaseManager = (function() {
     }
     function getPlayerSource(context) {
         const gameId = getResolvedGameId('getPlayerSource', context);
-        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? playerSource : 'personal';
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return 'personal';
+        }
+        if (playerSource === 'alliance' && (!allianceData || typeof allianceData !== 'object')) {
+            return 'personal';
+        }
+        return playerSource;
     }
     function getPendingInvitations(context) {
         const gameId = getResolvedGameId('getPendingInvitations', context);
