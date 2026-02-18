@@ -1,4 +1,23 @@
 (function initFirebaseService(global) {
+    function createUtils(runtime) {
+        const host = runtime || global;
+        return {
+            manager: function manager() {
+                return typeof host.FirebaseManager !== 'undefined' ? host.FirebaseManager : null;
+            },
+            withManager: function withManager(fn, fallback) {
+                const svc = typeof host.FirebaseManager !== 'undefined' ? host.FirebaseManager : null;
+                if (!svc) {
+                    return typeof fallback === 'function' ? fallback() : fallback;
+                }
+                return fn(svc);
+            },
+            notLoadedResult: function notLoadedResult() {
+                return { success: false, error: 'Firebase not loaded' };
+            },
+        };
+    }
+
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
         MULTIGAME_ENABLED: false,
         MULTIGAME_READ_FALLBACK_ENABLED: false,
@@ -20,6 +39,8 @@
     )
         ? global.DSSharedFirebaseGatewayUtils.createUtils(global)
         : createUtils(global);
+    const withManager = utils.withManager;
+    const notLoadedResult = utils.notLoadedResult;
 
     function fallbackAuthGateway(gatewayUtils) {
         return {
@@ -655,6 +676,9 @@
         },
         deleteUserAccountAndData: async function deleteUserAccountAndData() {
             return withManager((svc) => svc.deleteUserAccountAndData(), notLoadedResult());
+        },
+        loadUserData: async function loadUserData(user) {
+            return withManager((svc) => svc.loadUserData(user), notLoadedResult());
         },
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);

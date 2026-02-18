@@ -86,6 +86,81 @@ function initLanguage() {
     });
 }
 
+const UI_MOTION_MS = Object.freeze({
+    panel: 170,
+});
+
+function clearPanelMotionTimer(element) {
+    if (!element || !element.dataset) {
+        return;
+    }
+    const timerId = Number(element.dataset.motionTimerId || 0);
+    if (timerId) {
+        clearTimeout(timerId);
+    }
+    delete element.dataset.motionTimerId;
+}
+
+function setPanelVisibility(element, shouldOpen) {
+    if (!element) {
+        return;
+    }
+    clearPanelMotionTimer(element);
+    element.style.setProperty('--panel-motion-ms', `${UI_MOTION_MS.panel}ms`);
+    if (shouldOpen) {
+        element.classList.remove('hidden');
+        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+        schedule(() => {
+            element.classList.add('ui-open');
+        });
+        return;
+    }
+    element.classList.remove('ui-open');
+    const timerId = setTimeout(() => {
+        element.classList.add('hidden');
+    }, UI_MOTION_MS.panel);
+    if (element.dataset) {
+        element.dataset.motionTimerId = String(timerId);
+    }
+}
+
+function openModalOverlay(overlay, options) {
+    if (!(overlay instanceof HTMLElement)) {
+        return;
+    }
+    if (window.DSShellModalController && typeof window.DSShellModalController.open === 'function') {
+        window.DSShellModalController.open({
+            overlay: overlay,
+            initialFocusSelector: options && typeof options.initialFocusSelector === 'string'
+                ? options.initialFocusSelector
+                : null,
+        });
+        return;
+    }
+    overlay.classList.remove('hidden');
+    const focusSelector = options && typeof options.initialFocusSelector === 'string'
+        ? options.initialFocusSelector
+        : '';
+    const focusTarget = focusSelector ? overlay.querySelector(focusSelector) : null;
+    if (focusTarget instanceof HTMLElement) {
+        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
+        schedule(() => focusTarget.focus());
+    }
+}
+
+function closeModalOverlay(overlay) {
+    if (!(overlay instanceof HTMLElement)) {
+        return false;
+    }
+    if (window.DSShellModalController && typeof window.DSShellModalController.close === 'function') {
+        return window.DSShellModalController.close({
+            overlay: overlay,
+        });
+    }
+    overlay.classList.add('hidden');
+    return true;
+}
+
 function createMissingActiveGameError() {
     const error = new Error('missing-active-game');
     error.code = 'missing-active-game';
@@ -951,6 +1026,10 @@ function bindStaticUiActions() {
     on('navConfigBtn', 'click', showConfigurationPage);
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
+    on('mobileNavGeneratorBtn', 'click', showGeneratorPage);
+    on('mobileNavConfigBtn', 'click', showConfigurationPage);
+    on('mobileNavPlayersBtn', 'click', showPlayersManagementPage);
+    on('mobileNavAllianceBtn', 'click', showAlliancePage);
     on('navGameMetadataBtn', 'click', openGameMetadataOverlay);
     on('navSettingsBtn', 'click', openSettingsModal);
     on('navSwitchGameBtn', 'click', () => {
@@ -1332,7 +1411,7 @@ function initializeApplicationUiRuntime() {
     ensureActiveGameContext();
     updateActiveGameBadge();
     refreshGameSelectorMenuAvailability();
-});
+}
 
 // ============================================================
 // INITIALIZATION CHECK
@@ -1416,13 +1495,144 @@ const EVENT_NAME_LIMIT = 30;
 const EVENT_LOGO_DATA_URL_LIMIT = 220000;
 const EVENT_MAP_DATA_URL_LIMIT = 950000;
 const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
+const THEME_STORAGE_KEY = 'ds_theme';
+const THEME_STANDARD = 'standard';
+const THEME_LAST_WAR = 'last-war';
+const SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR]);
+const SUPPORT_DISCORD_HANDLE = 'flashguru2000';
+const SUPPORT_DISCORD_URL = 'https://discord.com/users/1239126582388592667';
+const SUPPORT_REPO_ISSUES_NEW_URL = 'https://github.com/CristianConsta/events-team-generator/issues/new';
+const ASSIGNMENT_ALGO_BALANCED = 'balanced';
+const ASSIGNMENT_ALGO_AGGRESSIVE = 'aggressive';
+const ASSIGNMENT_ALGO_DEFAULT = ASSIGNMENT_ALGO_BALANCED;
+const PLAYERS_MANAGEMENT_DEFAULT_SORT = 'power-desc';
 const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
+let currentAssignmentAlgorithm = ASSIGNMENT_ALGO_DEFAULT;
+let currentPageView = 'generator';
+let currentEvent = 'desert_storm';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
 let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
 let gameMetadataCatalogCache = [];
+const appStateStore = (
+    window.DSAppStateStore
+    && typeof window.DSAppStateStore.createDefaultStore === 'function'
+)
+    ? window.DSAppStateStore.createDefaultStore({
+        navigation: {
+            currentView: currentPageView,
+        },
+        generator: {
+            assignmentAlgorithm: currentAssignmentAlgorithm,
+            teamSelections: teamSelections,
+        },
+        playersManagement: {
+            filters: {
+                searchTerm: '',
+                troopsFilter: '',
+                sortFilter: PLAYERS_MANAGEMENT_DEFAULT_SORT,
+            },
+        },
+    })
+    : null;
+const appStateContract = (
+    window.DSStateStoreContract
+    && typeof window.DSStateStoreContract.createStateStoreContract === 'function'
+    && appStateStore
+)
+    ? window.DSStateStoreContract.createStateStoreContract(appStateStore)
+    : null;
+
+function getAppRuntimeState() {
+    if (appStateContract && typeof appStateContract.getState === 'function') {
+        return appStateContract.getState();
+    }
+    return {
+        navigation: { currentView: currentPageView },
+        generator: {
+            assignmentAlgorithm: currentAssignmentAlgorithm,
+            teamSelections: teamSelections,
+        },
+        playersManagement: {
+            filters: {
+                searchTerm: '',
+                troopsFilter: '',
+                sortFilter: PLAYERS_MANAGEMENT_DEFAULT_SORT,
+            },
+        },
+    };
+}
+
+function setAppRuntimeState(patch) {
+    if (appStateContract && typeof appStateContract.setState === 'function') {
+        appStateContract.setState(patch);
+    }
+}
+
+function getCurrentPageViewState() {
+    if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectNavigationView === 'function'
+    ) {
+        return window.DSAppStateStore.selectors.selectNavigationView(getAppRuntimeState());
+    }
+    return currentPageView;
+}
+
+function setCurrentPageViewState(nextView) {
+    currentPageView = nextView;
+    setAppRuntimeState({
+        navigation: {
+            currentView: nextView,
+        },
+    });
+}
+
+function getCurrentAssignmentAlgorithmState() {
+    if (
+        window.DSAppStateStore
+        && window.DSAppStateStore.selectors
+        && typeof window.DSAppStateStore.selectors.selectAssignmentAlgorithm === 'function'
+    ) {
+        return window.DSAppStateStore.selectors.selectAssignmentAlgorithm(getAppRuntimeState());
+    }
+    return currentAssignmentAlgorithm;
+}
+
+function setCurrentAssignmentAlgorithmState(nextValue) {
+    currentAssignmentAlgorithm = nextValue;
+    setAppRuntimeState({
+        generator: {
+            assignmentAlgorithm: nextValue,
+        },
+    });
+}
+
+function syncGeneratorTeamSelectionsState() {
+    setAppRuntimeState({
+        generator: {
+            teamSelections: {
+                teamA: Array.isArray(teamSelections.teamA) ? teamSelections.teamA : [],
+                teamB: Array.isArray(teamSelections.teamB) ? teamSelections.teamB : [],
+            },
+        },
+    });
+}
+
+function syncPlayersManagementFilterState() {
+    setAppRuntimeState({
+        playersManagement: {
+            filters: {
+                searchTerm: playersManagementSearchTerm,
+                troopsFilter: playersManagementTroopsFilter,
+                sortFilter: playersManagementSortFilter,
+            },
+        },
+    });
+}
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     if (
@@ -2416,7 +2626,7 @@ function getEventIds() {
     return window.DSCoreEvents.getEventIds();
 }
 
-let currentEvent = getEventIds()[0] || 'desert_storm';
+currentEvent = getEventIds()[0] || 'desert_storm';
 
 function normalizeAssignmentAlgorithmId(value) {
     if (typeof value !== 'string') {
@@ -4919,7 +5129,15 @@ async function checkAndDisplayNotifications() {
         return;
     }
     const notifications = await FirebaseService.checkInvitations(gameplayContext);
-    const totalNotifications = Array.isArray(notifications) ? notifications.length : 0;
+    const badgeState = (
+        window.DSFeatureNotificationsCore
+        && typeof window.DSFeatureNotificationsCore.getNotificationBadgeState === 'function'
+    )
+        ? window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications)
+        : {
+            count: Array.isArray(notifications) ? notifications.length : 0,
+            hasNotifications: Array.isArray(notifications) && notifications.length > 0,
+        };
     const badge = document.getElementById('notificationBadge');
     const notificationBtn = document.getElementById('notificationBtn');
     if (badge) {
@@ -5022,7 +5240,6 @@ function getNotificationItems() {
         return [];
     }
 
-    const invitations = Array.isArray(pendingInvitations) ? pendingInvitations : [];
     return invitations.map((inv) => ({
         id: inv && inv.id ? `invite:${inv.id}` : '',
         invitationId: inv && inv.id ? inv.id : '',
@@ -5774,8 +5991,8 @@ function loadBuildingPositions() {
         return false;
     }
     const eventContext = getEventGameplayContext(currentEvent);
-    const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent, eventContext || undefined);
     const stored = FirebaseService.getBuildingPositions(currentEvent, eventContext || undefined);
+    const targetVersion = getTargetBuildingPositionsVersion();
     const targetDefaults = getResolvedDefaultBuildingPositions();
     setBuildingPositionsLocal(normalizeBuildingPositions(stored));
     if (Object.keys(getBuildingPositions()).length === 0) {
@@ -6908,18 +7125,6 @@ function assignTeamToBuildings(players, algorithm) {
         algorithmId: algorithmId,
     });
 }
-
-    if (
-        strategy === ASSIGNMENT_ALGO_AGGRESSIVE
-        && window.DSCoreAssignment
-        && typeof window.DSCoreAssignment.assignTeamToBuildingsAggressive === 'function'
-    ) {
-        return window.DSCoreAssignment.assignTeamToBuildingsAggressive(players, buildingConfig);
-    }
-
-    return window.DSCoreAssignment.assignTeamToBuildings(players, buildingConfig);
-}
-
 // ============================================================
 // DOWNLOAD MODAL
 // ============================================================

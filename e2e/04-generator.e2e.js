@@ -93,7 +93,7 @@ test.describe('Mobile workflow smoke', () => {
     await page.locator('#navPlayersBtn').click();
     await assertOnlyPageVisible(page, 'playersManagementPage');
 
-    await navigateTo(page, 'navGeneratorBtn');
+    await page.locator('#mobileNavGeneratorBtn').click();
     await assertOnlyPageVisible(page, 'generatorPage');
 
     await page.locator('#playersTableBody .team-a-btn').first().click();

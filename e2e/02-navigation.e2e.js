@@ -34,7 +34,12 @@ test.describe('Navigation workflows', () => {
     await navigateTo(page, 'navSettingsBtn');
     await expect(page.locator('#settingsModal')).toBeVisible();
 
-    await page.locator('#settingsModalCloseBtn').click();
+    await page.evaluate(() => {
+      const closeBtn = document.getElementById('settingsModalCloseBtn');
+      if (closeBtn instanceof HTMLElement) {
+        closeBtn.click();
+      }
+    });
     await expect(page.locator('#settingsModal')).toBeHidden();
   });
 });

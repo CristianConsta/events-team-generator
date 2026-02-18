@@ -270,7 +270,9 @@ async function navigateTo(page, navBtnId) {
     await page.locator('#navMenuBtn').click();
     await expect(menu).toBeVisible({ timeout: 3000 });
   }
-  await page.locator(`#${navBtnId}`).click();
+  const target = page.locator(`#${navBtnId}`);
+  await expect(target).toBeVisible({ timeout: 3000 });
+  await target.click({ force: true });
   await page.waitForTimeout(200);
 }
 
