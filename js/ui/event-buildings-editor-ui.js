@@ -21,7 +21,7 @@
         <td><input type="text" data-field="name" maxlength="50" value="${escapeAttribute(name)}"></td>
         <td data-label="${escapeAttribute(translate('buildings_table_slots'))}"><input type="number" data-field="slots" min="${minSlots}" max="${maxSlots}" value="${Number.isFinite(slots) ? Math.max(minSlots, Math.min(maxSlots, Math.round(slots))) : 0}"></td>
         <td data-label="${escapeAttribute(translate('buildings_table_priority'))}"><input type="number" data-field="priority" min="1" max="6" value="${Number.isFinite(priority) ? clampPriority(priority, 1) : 1}"></td>
-        <td><input type="checkbox" data-field="showOnMap" ${showOnMap ? 'checked' : ''} aria-label="${escapeAttribute(translate('buildings_table_on_map'))}"></td>
+        <td data-label="${escapeAttribute(translate('buildings_table_display'))}"><div class="display-toggle" data-field="showOnMap"><button type="button" class="display-toggle-btn${showOnMap ? ' active' : ''}" data-display="building">${translate('building_type_building')}</button><button type="button" class="display-toggle-btn${!showOnMap ? ' active' : ''}" data-display="team">${translate('building_type_team')}</button></div></td>
         <td><button class="clear-btn" type="button" data-action="remove-row">${translate('events_manager_remove')}</button></td>
     `;
         return row;
@@ -85,7 +85,7 @@
             const nameInput = row.querySelector('input[data-field="name"]');
             const slotsInput = row.querySelector('input[data-field="slots"]');
             const priorityInput = row.querySelector('input[data-field="priority"]');
-            const showOnMapInput = row.querySelector('input[data-field="showOnMap"]');
+            const showOnMapToggle = row.querySelector('[data-field="showOnMap"]');
             const name = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
             if (!name) {
                 continue;
@@ -98,7 +98,7 @@
 
             const slots = clampSlots(Number(slotsInput ? slotsInput.value : 0), 0);
             const priority = clampPriority(Number(priorityInput ? priorityInput.value : 1), 1);
-            const showOnMap = !showOnMapInput || showOnMapInput.checked;
+            const showOnMap = !showOnMapToggle || !!showOnMapToggle.querySelector('[data-display="building"].active');
             buildings.push({
                 name: name,
                 label: name,
