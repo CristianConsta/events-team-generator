@@ -1691,6 +1691,24 @@ const FirebaseManager = (function() {
         return code.includes('permission-denied') || message.includes('missing or insufficient permissions');
     }
 
+    function applyPermissionDeniedLoadFallbackState() {
+        stopAllianceDocListener();
+        playerDatabase = {};
+        eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
+        allianceId = null;
+        allianceName = null;
+        allianceData = null;
+        activeAllianceGameId = DEFAULT_GAME_ID;
+        playerSource = 'personal';
+        pendingInvitations = [];
+        sentInvitations = [];
+        invitationNotifications = [];
+        userProfile = normalizeUserProfile(null);
+        migrationVersion = 0;
+        migratedToGameSubcollectionsAt = null;
+        rememberLastSavedUserState();
+    }
+
     function logOptionalSharedDefaultsIssue(message, error) {
         const details = (error && (error.message || error.code)) ? (error.message || error.code) : String(error || 'unknown');
         if (isPermissionDeniedError(error)) {
@@ -2643,6 +2661,19 @@ const FirebaseManager = (function() {
                 return { success: true, data: {}, playerCount: 0 };
             }
         } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                console.warn('⚠️ Firestore rules denied user data read; continuing with local defaults for this session.');
+                applyPermissionDeniedLoadFallbackState();
+                if (onDataLoadCallback) {
+                    onDataLoadCallback(playerDatabase);
+                }
+                return {
+                    success: true,
+                    data: playerDatabase,
+                    playerCount: 0,
+                    limitedByPermissions: true,
+                };
+            }
             console.error('❌ Failed to load data:', error);
             return { success: false, error: error.message };
         }
@@ -3319,7 +3350,11 @@ const FirebaseManager = (function() {
             }
             return { success: true };
         } catch (error) {
-            console.error('Failed to load alliance data:', error);
+            if (isPermissionDeniedError(error)) {
+                console.info('Alliance data read skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
+            } else {
+                console.error('Failed to load alliance data:', error);
+            }
             return { success: false, error: error.message || String(error) };
         }
     }
@@ -3689,7 +3724,11 @@ const FirebaseManager = (function() {
             invitationNotifications = buildInvitationNotifications(pendingInvitations);
             return getInvitationNotifications({ gameId: gameId });
         } catch (error) {
-            console.error('Failed to check invitations:', error);
+            if (isPermissionDeniedError(error)) {
+                console.info('Invitation reads skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
+            } else {
+                console.error('Failed to check invitations:', error);
+            }
             pendingInvitations = [];
             sentInvitations = [];
             invitationNotifications = [];

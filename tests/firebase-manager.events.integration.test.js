@@ -11,7 +11,9 @@ function resetModule() {
 function resetGlobals() {
   delete global.window;
   delete global.document;
+  delete global.addEventListener;
   delete global.alert;
+  delete global.firebase;
   delete global.FIREBASE_CONFIG;
   delete global.FirebaseManager;
 }
@@ -182,4 +184,100 @@ test('firebase manager exposes observability counters shape', () => {
     invitationContextMismatchCount: 0,
     fallbackReadHitCount: 0,
   });
+});
+
+test('firebase manager gracefully falls back when user read is permission-denied', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  function permissionDeniedError() {
+    const error = new Error('Missing or insufficient permissions.');
+    error.code = 'permission-denied';
+    return error;
+  }
+
+  function makeDocRef() {
+    return {
+      collection: () => ({
+        doc: () => makeDocRef(),
+      }),
+      get: async () => {
+        throw permissionDeniedError();
+      },
+      set: async () => {},
+      update: async () => {},
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection: () => ({
+      doc: () => makeDocRef(),
+    }),
+    batch: () => ({
+      set() {},
+      update() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  const originalConsoleError = console.error;
+  const consoleErrors = [];
+  console.error = (...args) => {
+    consoleErrors.push(args.map((item) => String(item)).join(' '));
+  };
+
+  try {
+    require(firebaseModulePath);
+    assert.equal(global.FirebaseManager.init(), true);
+
+    const loadedPayloads = [];
+    global.FirebaseManager.setDataLoadCallback((payload) => {
+      loadedPayloads.push(payload);
+    });
+
+    const result = await global.FirebaseManager.loadUserData({
+      uid: 'qa-user',
+      email: 'qa@example.com',
+      providerData: [{ providerId: 'google.com' }],
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.limitedByPermissions, true);
+    assert.equal(result.playerCount, 0);
+    assert.equal(loadedPayloads.length, 1);
+    assert.deepEqual(loadedPayloads[0], {});
+    assert.equal(
+      consoleErrors.some((entry) => entry.includes('Failed to load data')),
+      false
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
 });
