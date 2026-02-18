@@ -1041,13 +1041,7 @@ async function handleGameMetadataLogoChange(event) {
         return;
     }
     try {
-        gameMetadataDraftLogoDataUrl = await createEventImageDataUrl(file, {
-            maxBytes: AVATAR_MAX_UPLOAD_BYTES,
-            minDimension: AVATAR_MIN_DIMENSION,
-            maxSide: 320,
-            maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
-            tooLargeMessage: t('events_manager_logo_too_large'),
-        });
+        gameMetadataDraftLogoDataUrl = await createGameMetadataLogoDataUrl(file);
         updateGameMetadataLogoPreview();
     } catch (error) {
         showMessage('gameMetadataStatus', error.message || t('events_manager_image_process_failed'), 'error');
@@ -4023,6 +4017,60 @@ async function createEventImageDataUrl(file, options) {
         return pngDataUrl;
     }
     throw new Error(t('events_manager_image_data_too_large'));
+}
+
+async function createContainedSquareImageDataUrl(sourceDataUrl, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const sideRaw = Number(opts.side);
+    const side = Number.isFinite(sideRaw) && sideRaw > 0 ? Math.round(sideRaw) : 320;
+    const maxDataUrlLength = Number(opts.maxDataUrlLength) || EVENT_LOGO_DATA_URL_LIMIT;
+    const img = await loadImageFromDataUrl(sourceDataUrl);
+    const canvas = document.createElement('canvas');
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        throw new Error(t('events_manager_image_process_failed'));
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, side, side);
+
+    const sourceWidth = Math.max(1, Number(img.width) || 1);
+    const sourceHeight = Math.max(1, Number(img.height) || 1);
+    const drawScale = Math.min(side / sourceWidth, side / sourceHeight);
+    const drawWidth = Math.max(1, Math.round(sourceWidth * drawScale));
+    const drawHeight = Math.max(1, Math.round(sourceHeight * drawScale));
+    const offsetX = Math.round((side - drawWidth) / 2);
+    const offsetY = Math.round((side - drawHeight) / 2);
+    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+    const qualities = [0.9, 0.8, 0.7, 0.6];
+    for (const quality of qualities) {
+        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+        if (jpegDataUrl.length <= maxDataUrlLength) {
+            return jpegDataUrl;
+        }
+    }
+    const pngDataUrl = canvas.toDataURL('image/png');
+    if (pngDataUrl.length <= maxDataUrlLength) {
+        return pngDataUrl;
+    }
+    throw new Error(t('events_manager_image_data_too_large'));
+}
+
+async function createGameMetadataLogoDataUrl(file) {
+    const resized = await createEventImageDataUrl(file, {
+        maxBytes: AVATAR_MAX_UPLOAD_BYTES,
+        minDimension: AVATAR_MIN_DIMENSION,
+        maxSide: 320,
+        maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
+        tooLargeMessage: t('events_manager_logo_too_large'),
+    });
+    return createContainedSquareImageDataUrl(resized, {
+        side: 320,
+        maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
+    });
 }
 
 async function handleEventLogoChange(event) {
