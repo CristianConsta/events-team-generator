@@ -151,3 +151,31 @@ Minimum error codes:
 - Deprecated signatures must be supported until `legacy-read-fallback` removal phase.
 - No UI module should directly query Firestore; all access goes through service adapter.
 
+## 13. Legacy API deprecation timeline
+
+Release markers:
+- `R0`: first release with game-scoped APIs available.
+- `R1`: dual-write active by default.
+- `R2`: legacy writes disabled by default (fallback reads still enabled).
+- `R3`: legacy read fallback removed.
+
+Signature policy:
+
+1. `R0`:
+- Introduce game-aware signatures from this contract.
+- Legacy signatures remain supported.
+
+2. `R1`:
+- Emit warning logs when legacy signatures are called.
+- CI must include at least one test suite run with game-aware signatures only.
+
+3. `R2`:
+- Legacy signatures still callable but routed through compatibility shim only.
+- New code must not add new legacy-signature call sites.
+
+4. `R3`:
+- Remove compatibility shim and legacy signatures.
+- Remove tests that assert legacy-signature behavior.
+
+Deprecation guardrail:
+- A release cannot progress from `R2` to `R3` unless migration policy thresholds are met.

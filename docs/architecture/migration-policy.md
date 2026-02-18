@@ -135,3 +135,25 @@ All must be true:
 4. fallback-read hit rate below agreed threshold
 5. product and QA signoff recorded
 
+## 9. Numeric cutover thresholds
+
+The following thresholds are mandatory for phase transitions:
+
+- Dual-write retirement (Phase 4):
+  - observation window: 14 consecutive days
+  - dual-write mismatch count: 0 mismatches in the window
+  - invitation context mismatch count: 0 mismatches in the window
+  - upload schema validation failure increase: <= 5% relative to pre-rollout baseline
+
+- Legacy read fallback retirement (Phase 5):
+  - observation window: 14 consecutive days after dual-write retirement
+  - fallback-read hit rate: < 2.0% of gameplay reads for 14 consecutive days
+  - assignment algorithm resolution failures: 0 unknown-algorithm errors for 14 consecutive days
+  - no Sev-1 or Sev-2 production incidents attributed to migration in the window
+
+## 10. Observation window definitions
+
+- A day counts only if:
+  - full smoke and regression gates passed at least once in CI
+  - no unresolved data-integrity alerts are open
+- Any breach resets the current observation window counter to day 0.
