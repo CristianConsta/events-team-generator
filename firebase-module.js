@@ -350,6 +350,8 @@ const FirebaseManager = (function() {
     const USER_GAMES_SUBCOLLECTION = 'games';
     const GAME_ALLIANCES_SUBCOLLECTION = 'alliances';
     const GAME_INVITATIONS_SUBCOLLECTION = 'invitations';
+    const GAME_PLAYERS_SUBCOLLECTION = 'players';
+    const GAME_EVENTS_SUBCOLLECTION = 'events';
     const DEFAULT_GAME_ID = 'last_war';
     const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
     const DEFAULT_PLAYER_IMPORT_SCHEMA = Object.freeze({
@@ -576,6 +578,50 @@ const FirebaseManager = (function() {
             return null;
         }
         return collectionRef.doc(normalizedInvitationId);
+    }
+
+    function getUserGamePlayersCollectionRef(userId, gameId) {
+        const gameRef = getUserGameDocRef(userId, gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(GAME_PLAYERS_SUBCOLLECTION);
+    }
+
+    function getUserGameEventsCollectionRef(userId, gameId) {
+        const gameRef = getUserGameDocRef(userId, gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
+    }
+
+    function createStableDocId(rawValue, prefix) {
+        const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
+        const base = raw
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 72);
+        let hash = 0;
+        for (let index = 0; index < raw.length; index += 1) {
+            hash = ((hash << 5) - hash) + raw.charCodeAt(index);
+            hash |= 0;
+        }
+        const hashPart = Math.abs(hash).toString(36);
+        return `${base || (prefix || 'doc')}_${hashPart}`;
+    }
+
+    function getPlayerDocId(playerName) {
+        return createStableDocId(playerName, 'player');
+    }
+
+    function getEventDocId(eventId) {
+        const normalizedEventId = normalizeEventId(eventId);
+        if (normalizedEventId) {
+            return normalizedEventId;
+        }
+        return createStableDocId(eventId, 'event');
     }
 
     function parseMigrationVersion(value) {
@@ -2667,13 +2713,20 @@ const FirebaseManager = (function() {
 
             if (resolvedRead.data) {
                 const data = resolvedRead.data;
+                const [playersSubcollectionRead, eventsSubcollectionRead] = await Promise.all([
+                    loadGameScopedPlayersFromSubcollection(user.uid, gameId),
+                    loadGameScopedEventsFromSubcollection(user.uid, gameId),
+                ]);
                 let shouldPersistLegacyDefaults = false;
-                const rawPlayerDatabase = data.playerDatabase && typeof data.playerDatabase === 'object'
-                    ? data.playerDatabase
-                    : {};
+                const rawPlayerDatabase = playersSubcollectionRead.hasData
+                    ? playersSubcollectionRead.data
+                    : (data.playerDatabase && typeof data.playerDatabase === 'object'
+                        ? data.playerDatabase
+                        : {});
                 const normalizedPlayerDatabase = normalizePlayerDatabaseMap(rawPlayerDatabase);
                 playerDatabase = normalizedPlayerDatabase;
-                let shouldPersistNormalizedPlayerDatabase = !areJsonEqual(rawPlayerDatabase, normalizedPlayerDatabase);
+                let shouldPersistNormalizedPlayerDatabase = !areJsonEqual(rawPlayerDatabase, normalizedPlayerDatabase)
+                    || !playersSubcollectionRead.hasData;
                 let shouldPersistNormalizedPlayerSource = false;
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
@@ -2703,7 +2756,9 @@ const FirebaseManager = (function() {
                 }
 
                 // Load per-event building data
-                if (data.events && typeof data.events === 'object') {
+                if (eventsSubcollectionRead.hasData) {
+                    eventData = ensureLegacyEventEntries(eventsSubcollectionRead.data);
+                } else if (data.events && typeof data.events === 'object') {
                     eventData = ensureLegacyEventEntries(normalizeEventsMap(data.events));
                 } else if (
                     Array.isArray(data.buildingConfig)
@@ -2761,6 +2816,21 @@ const FirebaseManager = (function() {
                         console.log('✅ Migrated inline event media to subcollection docs');
                     } catch (mediaErr) {
                         console.warn('⚠️ Failed to migrate inline event media:', mediaErr);
+                    }
+                }
+
+                if (!playersSubcollectionRead.hasData) {
+                    try {
+                        await persistGameScopedPlayersSubcollection(user.uid, gameId, playerDatabase);
+                    } catch (playersMigrationErr) {
+                        console.warn('⚠️ Failed to migrate players map into players subcollection:', playersMigrationErr);
+                    }
+                }
+                if (!eventsSubcollectionRead.hasData) {
+                    try {
+                        await persistGameScopedEventsSubcollection(user.uid, gameId, eventData);
+                    } catch (eventsMigrationErr) {
+                        console.warn('⚠️ Failed to migrate events map into events subcollection:', eventsMigrationErr);
                     }
                 }
 
@@ -2906,6 +2976,13 @@ const FirebaseManager = (function() {
             const primaryWriteResult = await persistGameScopedPrimaryWrite(currentState, changedFields, { gameId: gameId });
             if (!primaryWriteResult.success) {
                 throw new Error(`Primary game write failed: ${primaryWriteResult.error || 'unknown'}`);
+            }
+
+            if (changedFields.includes('playerDatabase')) {
+                await persistGameScopedPlayersSubcollection(currentUser.uid, gameId, currentState.playerDatabase);
+            }
+            if (changedFields.includes('events')) {
+                await persistGameScopedEventsSubcollection(currentUser.uid, gameId, currentState.events);
             }
 
             if (hasLegacyPayload && shouldLegacyDualWriteGame(gameId)) {
@@ -3349,6 +3426,172 @@ const FirebaseManager = (function() {
         return normalized;
     }
 
+    function createPlayerDocPayload(playerName, entry) {
+        const name = normalizeEditablePlayerName(playerName);
+        if (!name) {
+            return null;
+        }
+        const source = entry && typeof entry === 'object' ? entry : {};
+        return {
+            name: name,
+            power: normalizeEditablePlayerPower(source.power),
+            troops: normalizeEditablePlayerTroops(source.troops),
+            thp: normalizeEditablePlayerThp(source.thp),
+            lastUpdated: typeof source.lastUpdated === 'string' ? source.lastUpdated : new Date().toISOString(),
+            metadata: {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+        };
+    }
+
+    function createEventDocPayload(eventId, entry) {
+        const eid = resolveEventId(eventId);
+        const sanitized = sanitizeEventEntry(eid, entry || {}, createEmptyEventEntry({ name: getDefaultEventName(eid) }));
+        return {
+            id: eid,
+            name: sanitized.name || getDefaultEventName(eid),
+            logoDataUrl: sanitized.logoDataUrl || '',
+            mapDataUrl: sanitized.mapDataUrl || '',
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(sanitized.assignmentAlgorithmId),
+            buildingConfig: Array.isArray(sanitized.buildingConfig) ? sanitized.buildingConfig : [],
+            buildingConfigVersion: Number.isFinite(Number(sanitized.buildingConfigVersion))
+                ? Number(sanitized.buildingConfigVersion)
+                : 0,
+            buildingPositions: sanitized.buildingPositions && typeof sanitized.buildingPositions === 'object'
+                ? sanitized.buildingPositions
+                : {},
+            buildingPositionsVersion: Number.isFinite(Number(sanitized.buildingPositionsVersion))
+                ? Number(sanitized.buildingPositionsVersion)
+                : 0,
+            metadata: {
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+        };
+    }
+
+    async function loadGameScopedPlayersFromSubcollection(userId, gameId) {
+        const playersCollection = getUserGamePlayersCollectionRef(userId, gameId);
+        if (!playersCollection) {
+            return { hasData: false, data: {}, permissionDenied: false };
+        }
+        try {
+            const snapshot = await playersCollection.get();
+            if (!snapshot || snapshot.empty) {
+                return { hasData: false, data: {}, permissionDenied: false };
+            }
+            const nextDatabase = {};
+            snapshot.docs.forEach((doc) => {
+                const data = doc.data() || {};
+                const playerName = normalizeEditablePlayerName(data.name || '');
+                if (!playerName) {
+                    return;
+                }
+                nextDatabase[playerName] = {
+                    power: normalizeEditablePlayerPower(data.power),
+                    troops: normalizeEditablePlayerTroops(data.troops),
+                    thp: normalizeEditablePlayerThp(data.thp),
+                    lastUpdated: typeof data.lastUpdated === 'string' ? data.lastUpdated : new Date().toISOString(),
+                };
+            });
+            return {
+                hasData: Object.keys(nextDatabase).length > 0,
+                data: normalizePlayerDatabaseMap(nextDatabase),
+                permissionDenied: false,
+            };
+        } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                return { hasData: false, data: {}, permissionDenied: true };
+            }
+            throw error;
+        }
+    }
+
+    async function loadGameScopedEventsFromSubcollection(userId, gameId) {
+        const eventsCollection = getUserGameEventsCollectionRef(userId, gameId);
+        if (!eventsCollection) {
+            return { hasData: false, data: {}, permissionDenied: false };
+        }
+        try {
+            const snapshot = await eventsCollection.get();
+            if (!snapshot || snapshot.empty) {
+                return { hasData: false, data: {}, permissionDenied: false };
+            }
+            const nextEvents = {};
+            snapshot.docs.forEach((doc) => {
+                const data = doc.data() || {};
+                const eventId = resolveEventId(data.id || doc.id);
+                if (!eventId) {
+                    return;
+                }
+                nextEvents[eventId] = sanitizeEventEntry(eventId, data, createEmptyEventEntry({ name: getDefaultEventName(eventId) }));
+            });
+            return {
+                hasData: Object.keys(nextEvents).length > 0,
+                data: ensureLegacyEventEntries(nextEvents),
+                permissionDenied: false,
+            };
+        } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                return { hasData: false, data: {}, permissionDenied: true };
+            }
+            throw error;
+        }
+    }
+
+    async function persistGameScopedPlayersSubcollection(userId, gameId, nextDatabase) {
+        const playersCollection = getUserGamePlayersCollectionRef(userId, gameId);
+        if (!playersCollection) {
+            return { success: false, error: 'invalid-player-subcollection-context' };
+        }
+        const snapshot = await playersCollection.get();
+        const desiredDocs = new Map();
+        Object.keys(nextDatabase || {}).forEach((playerName) => {
+            const payload = createPlayerDocPayload(playerName, nextDatabase[playerName]);
+            if (!payload) {
+                return;
+            }
+            const docId = getPlayerDocId(playerName);
+            desiredDocs.set(docId, payload);
+        });
+
+        const batch = db.batch();
+        desiredDocs.forEach((payload, docId) => {
+            batch.set(playersCollection.doc(docId), payload, { merge: true });
+        });
+        snapshot.docs.forEach((doc) => {
+            if (!desiredDocs.has(doc.id)) {
+                batch.delete(doc.ref);
+            }
+        });
+        await batch.commit();
+        return { success: true };
+    }
+
+    async function persistGameScopedEventsSubcollection(userId, gameId, nextEvents) {
+        const eventsCollection = getUserGameEventsCollectionRef(userId, gameId);
+        if (!eventsCollection) {
+            return { success: false, error: 'invalid-event-subcollection-context' };
+        }
+        const snapshot = await eventsCollection.get();
+        const desiredDocs = new Map();
+        Object.keys(nextEvents || {}).forEach((eventId) => {
+            const docId = getEventDocId(eventId);
+            desiredDocs.set(docId, createEventDocPayload(eventId, nextEvents[eventId]));
+        });
+
+        const batch = db.batch();
+        desiredDocs.forEach((payload, docId) => {
+            batch.set(eventsCollection.doc(docId), payload, { merge: true });
+        });
+        snapshot.docs.forEach((doc) => {
+            if (!desiredDocs.has(doc.id)) {
+                batch.delete(doc.ref);
+            }
+        });
+        await batch.commit();
+        return { success: true };
+    }
+
     function getMutablePlayerDatabaseForSource(source) {
         if (source === 'personal') {
             return normalizePlayerDatabaseMap(playerDatabase);
@@ -3370,7 +3613,7 @@ const FirebaseManager = (function() {
             const saveResult = await saveUserData({ immediate: true }, { gameId: gameId });
             if (!saveResult.success) {
                 playerDatabase = previousDatabase;
-                return { success: false, error: error.message };
+                return { success: false, error: saveResult.error || 'save-failed' };
             }
             return { success: true };
         }
