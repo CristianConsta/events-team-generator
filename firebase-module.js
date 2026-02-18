@@ -404,6 +404,7 @@ const FirebaseManager = (function() {
     let pendingSaveContext = null;
     let saveLifecycleHandlersBound = false;
     let allianceDocUnsubscribe = null;
+    let activeUserDataLoadRequestId = 0;
 
     let globalDefaultEventPositions = {};
     let globalDefaultPositionsVersion = 0;
@@ -557,6 +558,22 @@ const FirebaseManager = (function() {
 
     function getGameAllianceDocRef(gameId, allianceDocId) {
         const collectionRef = getGameAllianceCollectionRef(gameId);
+        const normalizedAllianceDocId = typeof allianceDocId === 'string' ? allianceDocId.trim() : '';
+        if (!collectionRef || !normalizedAllianceDocId) {
+            return null;
+        }
+        return collectionRef.doc(normalizedAllianceDocId);
+    }
+
+    function getLegacyAllianceCollectionRef() {
+        if (!db) {
+            return null;
+        }
+        return db.collection('alliances');
+    }
+
+    function getLegacyAllianceDocRef(allianceDocId) {
+        const collectionRef = getLegacyAllianceCollectionRef();
         const normalizedAllianceDocId = typeof allianceDocId === 'string' ? allianceDocId.trim() : '';
         if (!collectionRef || !normalizedAllianceDocId) {
             return null;
@@ -794,14 +811,39 @@ const FirebaseManager = (function() {
 
         const gameRef = getUserGameDocRef(currentUser.uid, normalizedGameId);
         if (gameRef) {
-            const gameDoc = await gameRef.get();
+            const gameDoc = await getDocWithPermissionTolerantFallback(gameRef, { label: 'game association profile' });
             if (gameDoc.exists) {
-                const gameData = gameDoc.data() || {};
+                const gameData = gameDoc.data || {};
                 return {
                     gameId: normalizedGameId,
                     allianceId: typeof gameData.allianceId === 'string' ? gameData.allianceId : null,
                     allianceName: typeof gameData.allianceName === 'string' ? gameData.allianceName : null,
                     playerSource: gameData.playerSource === 'alliance' ? 'alliance' : 'personal',
+                };
+            }
+        }
+
+        const legacyUserRef = db.collection('users').doc(currentUser.uid);
+        const legacyUserDoc = await getDocWithPermissionTolerantFallback(legacyUserRef, { label: 'legacy association profile' });
+        if (legacyUserDoc.exists) {
+            const legacyRoot = legacyUserDoc.data && typeof legacyUserDoc.data === 'object' ? legacyUserDoc.data : {};
+            let legacyScoped = null;
+            if (
+                legacyRoot.games
+                && typeof legacyRoot.games === 'object'
+                && legacyRoot.games[normalizedGameId]
+                && typeof legacyRoot.games[normalizedGameId] === 'object'
+            ) {
+                legacyScoped = legacyRoot.games[normalizedGameId];
+            } else if (normalizedGameId === DEFAULT_GAME_ID) {
+                legacyScoped = legacyRoot;
+            }
+            if (legacyScoped) {
+                return {
+                    gameId: normalizedGameId,
+                    allianceId: typeof legacyScoped.allianceId === 'string' ? legacyScoped.allianceId : null,
+                    allianceName: typeof legacyScoped.allianceName === 'string' ? legacyScoped.allianceName : null,
+                    playerSource: legacyScoped.playerSource === 'alliance' ? 'alliance' : 'personal',
                 };
             }
         }
@@ -2305,10 +2347,14 @@ const FirebaseManager = (function() {
 
         const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
         const currentAllianceId = allianceId;
-        const requestedScope = 'game';
+        const requestedScope = options && options.scope === 'legacy' ? 'legacy' : 'game';
         const allianceRef = options && options.ref
             ? options.ref
-            : getGameAllianceDocRef(normalizedGameId, currentAllianceId);
+            : (
+                requestedScope === 'legacy'
+                    ? getLegacyAllianceDocRef(currentAllianceId)
+                    : getGameAllianceDocRef(normalizedGameId, currentAllianceId)
+            );
         if (!allianceRef) {
             return;
         }
@@ -2699,6 +2745,8 @@ const FirebaseManager = (function() {
      */
     async function loadUserData(user, context) {
         const gameId = getResolvedGameId('loadUserData', context);
+        const loadRequestId = ++activeUserDataLoadRequestId;
+        const isStaleLoad = () => loadRequestId !== activeUserDataLoadRequestId;
         try {
             console.log('Loading data for UID:', user.uid);
             activeGameplayGameId = gameId;
@@ -2715,11 +2763,17 @@ const FirebaseManager = (function() {
                 legacyData: legacyUserData,
                 allowLegacyFallback: true,
             });
+            if (isStaleLoad()) {
+                return { success: true, stale: true };
+            }
             if (resolvedRead.usedLegacyFallback) {
                 incrementObservabilityCounter('fallbackReadHitCount', 1);
                 console.log(`↩️ Using legacy user data fallback for game "${gameId}"`);
             }
             if (readDenied && !resolvedRead.data) {
+                if (isStaleLoad()) {
+                    return { success: true, stale: true };
+                }
                 console.warn('⚠️ Firestore rules denied game-scoped profile read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
                 activeGameplayGameId = gameId;
@@ -2742,6 +2796,9 @@ const FirebaseManager = (function() {
                     loadGameScopedPlayersFromSubcollection(user.uid, gameId),
                     loadGameScopedEventsFromSubcollection(user.uid, gameId),
                 ]);
+                if (isStaleLoad()) {
+                    return { success: true, stale: true };
+                }
                 let shouldPersistLegacyDefaults = false;
                 const rawPlayerDatabase = playersSubcollectionRead.hasData
                     ? playersSubcollectionRead.data
@@ -2899,6 +2956,9 @@ const FirebaseManager = (function() {
                 rememberLastSavedUserState();
 
                 if (onDataLoadCallback) {
+                    if (isStaleLoad()) {
+                        return { success: true, stale: true };
+                    }
                     onDataLoadCallback(playerDatabase);
                 }
 
@@ -2908,6 +2968,9 @@ const FirebaseManager = (function() {
                     playerCount: Object.keys(playerDatabase).length
                 };
             } else {
+                if (isStaleLoad()) {
+                    return { success: true, stale: true };
+                }
                 console.log('ℹ️ No existing data found');
                 playerDatabase = {};
                 eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
@@ -2930,6 +2993,9 @@ const FirebaseManager = (function() {
             }
         } catch (error) {
             if (isPermissionDeniedError(error)) {
+                if (isStaleLoad()) {
+                    return { success: true, stale: true };
+                }
                 console.warn('⚠️ Firestore rules denied user data read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
                 activeGameplayGameId = gameId;
@@ -3818,12 +3884,27 @@ const FirebaseManager = (function() {
             }
 
             let selectedDocRef = gameAllianceRef;
-            let selectedDoc = null;
             let selectedScope = 'game';
-            selectedDoc = await gameAllianceRef.get();
+            let selectedData = null;
 
-            if (selectedDoc && selectedDoc.exists) {
-                allianceData = selectedDoc.data() || {};
+            const gameAllianceRead = await getDocWithPermissionTolerantFallback(gameAllianceRef, { label: 'game alliance data' });
+            if (gameAllianceRead.exists) {
+                selectedScope = 'game';
+                selectedData = gameAllianceRead.data || {};
+            } else {
+                const legacyAllianceRef = getLegacyAllianceDocRef(allianceId);
+                if (legacyAllianceRef) {
+                    const legacyAllianceRead = await getDocWithPermissionTolerantFallback(legacyAllianceRef, { label: 'legacy alliance data' });
+                    if (legacyAllianceRead.exists) {
+                        selectedDocRef = legacyAllianceRef;
+                        selectedScope = 'legacy';
+                        selectedData = legacyAllianceRead.data || {};
+                    }
+                }
+            }
+
+            if (selectedData) {
+                allianceData = selectedData;
                 if (selectedScope === 'game' && normalizeGameId(allianceData.gameId) && normalizeGameId(allianceData.gameId) !== gameId) {
                     incrementObservabilityCounter('invitationContextMismatchCount', 1);
                     return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };

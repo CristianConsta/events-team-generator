@@ -1212,6 +1212,167 @@ test('loadUserData alliance reads stay game-scoped and do not hit legacy root al
   assert.equal(legacyAllianceReads, 0);
 });
 
+test('loadUserData reads legacy alliance doc when game-scoped alliance is denied', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  function permissionDeniedError() {
+    const error = new Error('Missing or insufficient permissions.');
+    error.code = 'permission-denied';
+    return error;
+  }
+
+  let authStateChanged = null;
+
+  function createSnapshot(docs) {
+    return {
+      empty: docs.length === 0,
+      docs,
+      forEach(callback) {
+        docs.forEach((doc) => callback(doc));
+      },
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/desert_ops') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {},
+          events: {},
+          allianceId: 'alliance-x',
+          allianceName: 'Alliance X',
+          playerSource: 'alliance',
+        }),
+      };
+    }
+    if (joined === 'games/desert_ops/alliances/alliance-x') {
+      throw permissionDeniedError();
+    }
+    if (joined === 'alliances/alliance-x') {
+      return {
+        exists: true,
+        data: () => ({
+          name: 'Legacy Alliance X',
+          members: {
+            'qa-user': { email: 'qa@example.com' },
+          },
+          playerDatabase: {
+            LegacyMember: { power: 25, troops: 'Tank', thp: 11 },
+          },
+        }),
+      };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return { exists: false, data: () => ({}) };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => createSnapshot([]),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {},
+      update: async () => {},
+      delete: async () => {},
+      onSnapshot(callback) {
+        callback({
+          exists: true,
+          data: () => resolveDocGet(pathParts).data(),
+        });
+        return () => {};
+      },
+      path: pathParts.join('/'),
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      delete() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+
+  const authUser = {
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  };
+  await authStateChanged(authUser);
+  const context = { gameId: 'desert_ops' };
+  const result = await global.FirebaseManager.loadUserData(authUser, context);
+
+  assert.equal(result.success, true);
+  assert.equal(
+    ['Legacy Alliance X', 'Alliance X'].includes(global.FirebaseManager.getAllianceName(context)),
+    true
+  );
+  assert.equal(global.FirebaseManager.getPlayerSource(context), 'alliance');
+  assert.ok(global.FirebaseManager.getAllianceMembers(context)['qa-user']);
+  assert.ok(global.FirebaseManager.getAlliancePlayerDatabase(context).LegacyMember);
+});
+
 test('loadUserData falls back to personal source when alliance read is permission-denied', async () => {
   global.window = global;
   global.addEventListener = () => {};
