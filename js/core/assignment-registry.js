@@ -52,12 +52,36 @@
     }
 
     function resolveAlgorithmForEvent(gameId, assignmentAlgorithmId) {
+        const selection = resolveAlgorithmSelection(gameId, assignmentAlgorithmId);
+        return selection.success ? selection.algorithm : null;
+    }
+
+    function resolveAlgorithmSelection(gameId, assignmentAlgorithmId) {
         const requestedId = normalizeAlgorithmId(assignmentAlgorithmId) || DEFAULT_ASSIGNMENT_ALGORITHM_ID;
         const gameAlgorithmIds = resolveGameAlgorithmIds(gameId);
         if (!gameAlgorithmIds.includes(requestedId)) {
-            return null;
+            return {
+                success: false,
+                error: 'unknown-assignment-algorithm',
+                algorithmId: requestedId,
+                gameId: typeof gameId === 'string' ? gameId : '',
+            };
         }
-        return getAlgorithm(requestedId);
+        const algorithm = getAlgorithm(requestedId);
+        if (!algorithm) {
+            return {
+                success: false,
+                error: 'unknown-assignment-algorithm',
+                algorithmId: requestedId,
+                gameId: typeof gameId === 'string' ? gameId : '',
+            };
+        }
+        return {
+            success: true,
+            algorithmId: requestedId,
+            gameId: typeof gameId === 'string' ? gameId : '',
+            algorithm: algorithm,
+        };
     }
 
     global.DSAssignmentRegistry = {
@@ -67,5 +91,6 @@
         listAllAlgorithms: listAllAlgorithms,
         listAlgorithmsForGame: listAlgorithmsForGame,
         resolveAlgorithmForEvent: resolveAlgorithmForEvent,
+        resolveAlgorithmSelection: resolveAlgorithmSelection,
     };
 })(window);

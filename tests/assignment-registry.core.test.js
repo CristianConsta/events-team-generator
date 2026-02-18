@@ -35,3 +35,23 @@ test('assignment registry returns null for unknown algorithm in resolveAlgorithm
   const result = global.DSAssignmentRegistry.resolveAlgorithmForEvent('last_war', 'unknown_algorithm');
   assert.equal(result, null);
 });
+
+test('assignment registry returns typed error for unknown algorithm selection', () => {
+  loadModules();
+  const result = global.DSAssignmentRegistry.resolveAlgorithmSelection('last_war', 'unknown_algorithm');
+  assert.deepEqual(result, {
+    success: false,
+    error: 'unknown-assignment-algorithm',
+    algorithmId: 'unknown_algorithm',
+    gameId: 'last_war',
+  });
+});
+
+test('assignment registry resolves default algorithm when selection is missing', () => {
+  loadModules();
+  const result = global.DSAssignmentRegistry.resolveAlgorithmSelection('last_war', '');
+  assert.equal(result.success, true);
+  assert.equal(result.algorithmId, 'balanced_round_robin');
+  assert.equal(result.gameId, 'last_war');
+  assert.equal(result.algorithm.id, 'balanced_round_robin');
+});

@@ -40,6 +40,9 @@ const FirebaseManager = (function() {
             name: typeof source.name === 'string' ? source.name : '',
             logoDataUrl: typeof source.logoDataUrl === 'string' ? source.logoDataUrl : '',
             mapDataUrl: typeof source.mapDataUrl === 'string' ? source.mapDataUrl : '',
+            assignmentAlgorithmId: typeof source.assignmentAlgorithmId === 'string'
+                ? source.assignmentAlgorithmId
+                : DEFAULT_ASSIGNMENT_ALGORITHM_ID,
             buildingConfig: null,
             buildingConfigVersion: 0,
             buildingPositions: null,
@@ -94,6 +97,7 @@ const FirebaseManager = (function() {
     const EVENT_NAME_MAX_LEN = 30;
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
+    const DEFAULT_ASSIGNMENT_ALGORITHM_ID = 'balanced_round_robin';
     const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
     const GAMES_COLLECTION = 'games';
     const USER_GAMES_SUBCOLLECTION = 'games';
@@ -795,6 +799,15 @@ const FirebaseManager = (function() {
         return normalized.length > 0 ? normalized : null;
     }
 
+    function normalizeAssignmentAlgorithmId(value, fallback) {
+        const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+        if (raw) {
+            return raw;
+        }
+        const fallbackRaw = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
+        return fallbackRaw || DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+    }
+
     function sanitizeEventEntry(eventId, payload, fallbackEntry) {
         const source = payload && typeof payload === 'object' ? payload : {};
         const fallback = fallbackEntry && typeof fallbackEntry === 'object' ? fallbackEntry : {};
@@ -803,6 +816,7 @@ const FirebaseManager = (function() {
             name: normalizeEventName(source.name, fallbackName),
             logoDataUrl: sanitizeEventImageDataUrl(source.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN),
             mapDataUrl: sanitizeEventImageDataUrl(source.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN),
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(source.assignmentAlgorithmId, fallback.assignmentAlgorithmId),
         });
 
         const normalizedConfig = normalizeBuildingConfigArray(source.buildingConfig);
@@ -880,6 +894,7 @@ const FirebaseManager = (function() {
                 name: entry && typeof entry.name === 'string' ? entry.name : '',
                 logoDataUrl: '',
                 mapDataUrl: '',
+                assignmentAlgorithmId: entry ? entry.assignmentAlgorithmId : DEFAULT_ASSIGNMENT_ALGORITHM_ID,
                 buildingConfig: entry ? entry.buildingConfig : null,
                 buildingConfigVersion: entry ? entry.buildingConfigVersion : 0,
                 buildingPositions: entry ? entry.buildingPositions : null,
@@ -2282,6 +2297,7 @@ const FirebaseManager = (function() {
             name: entry.name || getDefaultEventName(eid),
             logoDataUrl: entry.logoDataUrl || '',
             mapDataUrl: entry.mapDataUrl || '',
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(entry.assignmentAlgorithmId),
         };
     }
 
@@ -2367,6 +2383,9 @@ const FirebaseManager = (function() {
             name: Object.prototype.hasOwnProperty.call(source, 'name') ? source.name : current.name,
             logoDataUrl: Object.prototype.hasOwnProperty.call(source, 'logoDataUrl') ? source.logoDataUrl : current.logoDataUrl,
             mapDataUrl: Object.prototype.hasOwnProperty.call(source, 'mapDataUrl') ? source.mapDataUrl : current.mapDataUrl,
+            assignmentAlgorithmId: Object.prototype.hasOwnProperty.call(source, 'assignmentAlgorithmId')
+                ? source.assignmentAlgorithmId
+                : current.assignmentAlgorithmId,
             buildingConfig: current.buildingConfig,
             buildingConfigVersion: current.buildingConfigVersion,
             buildingPositions: current.buildingPositions,

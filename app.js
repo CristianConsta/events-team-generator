@@ -1434,11 +1434,40 @@ async function deleteAccountFromSettings() {
 // ============================================================
 
 const EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
+const DEFAULT_ASSIGNMENT_ALGORITHM_ID = 'balanced_round_robin';
 function getEventIds() {
     return window.DSCoreEvents.getEventIds();
 }
 
 let currentEvent = getEventIds()[0] || 'desert_storm';
+
+function normalizeAssignmentAlgorithmId(value) {
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().toLowerCase();
+}
+
+function normalizeGameId(value) {
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function resolveDefaultAssignmentAlgorithmId(gameId) {
+    const normalizedGameId = normalizeGameId(gameId);
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.listAlgorithmsForGame === 'function') {
+        const algorithms = window.DSAssignmentRegistry.listAlgorithmsForGame(normalizedGameId);
+        if (Array.isArray(algorithms) && algorithms.length > 0 && algorithms[0] && typeof algorithms[0].id === 'string') {
+            const normalized = normalizeAssignmentAlgorithmId(algorithms[0].id);
+            if (normalized) {
+                return normalized;
+            }
+        }
+    }
+    return DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+}
 
 function getActiveEvent() {
     const active = window.DSCoreEvents.getEvent(currentEvent);
@@ -1661,6 +1690,7 @@ function normalizeStoredEventsData(rawData) {
             name: typeof entry.name === 'string' ? entry.name.trim().slice(0, EVENT_NAME_LIMIT) : '',
             logoDataUrl: isImageDataUrl(entry.logoDataUrl, EVENT_LOGO_DATA_URL_LIMIT) ? entry.logoDataUrl.trim() : '',
             mapDataUrl: isImageDataUrl(entry.mapDataUrl, EVENT_MAP_DATA_URL_LIMIT) ? entry.mapDataUrl.trim() : '',
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(entry.assignmentAlgorithmId),
             buildingConfig: Array.isArray(entry.buildingConfig) ? entry.buildingConfig : null,
             buildingPositions: entry.buildingPositions && typeof entry.buildingPositions === 'object' ? entry.buildingPositions : null,
         };
@@ -1692,6 +1722,7 @@ function buildRegistryFromStorage() {
     Object.keys(storedEvents).forEach((eventId) => {
         const stored = storedEvents[eventId];
         const base = nextRegistry[eventId] || {};
+        const gameplayContext = getGameplayContext();
         const baseBuildings = Array.isArray(base.buildings) ? base.buildings : [];
         const storedBuildings = Array.isArray(stored.buildingConfig)
             ? normalizeBuildingConfig(stored.buildingConfig, stored.buildingConfig)
@@ -1705,6 +1736,9 @@ function buildRegistryFromStorage() {
             : (base.defaultPositions || {});
         const mapDataUrl = stored.mapDataUrl || '';
         const nextName = stored.name || base.name || eventId;
+        const nextAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(stored.assignmentAlgorithmId)
+            || normalizeAssignmentAlgorithmId(base.assignmentAlgorithmId)
+            || resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : '');
         const preserveTitleKey = !stored.name || !base.name || stored.name === base.name;
 
         nextRegistry[eventId] = {
@@ -1719,6 +1753,7 @@ function buildRegistryFromStorage() {
             excelPrefix: normalizeEventId(base.excelPrefix || eventId) || eventId,
             logoDataUrl: stored.logoDataUrl || '',
             mapDataUrl: mapDataUrl,
+            assignmentAlgorithmId: nextAssignmentAlgorithmId,
             buildings: buildings,
             defaultPositions: defaultPositions,
             buildingAnchors: base.buildingAnchors || {},
@@ -2077,7 +2112,7 @@ function updateEventEditorState() {
         eventNameInput.disabled = readOnly;
     }
 
-    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn', 'eventCancelEditBtn'].forEach((id) => {
+    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn', 'eventCancelEditBtn', 'eventAssignmentAlgorithmInput'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
             element.disabled = readOnly;
@@ -2286,6 +2321,60 @@ function setEditorName(value) {
     }
 }
 
+function getEventAlgorithmSelectElement() {
+    return document.getElementById('eventAssignmentAlgorithmInput');
+}
+
+function listSelectableAssignmentAlgorithmsForActiveGame() {
+    const gameplayContext = getGameplayContext();
+    const gameId = gameplayContext ? gameplayContext.gameId : '';
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.listAlgorithmsForGame === 'function') {
+        const algorithms = window.DSAssignmentRegistry.listAlgorithmsForGame(gameId);
+        if (Array.isArray(algorithms) && algorithms.length > 0) {
+            return algorithms
+                .filter((entry) => entry && typeof entry.id === 'string')
+                .map((entry) => ({
+                    id: normalizeAssignmentAlgorithmId(entry.id),
+                    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.id,
+                }))
+                .filter((entry) => !!entry.id);
+        }
+    }
+    return [{
+        id: DEFAULT_ASSIGNMENT_ALGORITHM_ID,
+        name: 'Balanced Round Robin',
+    }];
+}
+
+function renderEventAssignmentAlgorithmOptions(selectedAlgorithmId) {
+    const select = getEventAlgorithmSelectElement();
+    if (!select) {
+        return;
+    }
+    const algorithms = listSelectableAssignmentAlgorithmsForActiveGame();
+    const fallbackId = algorithms[0] ? algorithms[0].id : DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+    const selectedId = normalizeAssignmentAlgorithmId(selectedAlgorithmId) || fallbackId;
+    select.innerHTML = '';
+    algorithms.forEach((algorithm) => {
+        const option = document.createElement('option');
+        option.value = algorithm.id;
+        option.textContent = algorithm.name;
+        select.appendChild(option);
+    });
+    const hasSelected = algorithms.some((algorithm) => algorithm.id === selectedId);
+    select.value = hasSelected ? selectedId : fallbackId;
+}
+
+function getSelectedEventAssignmentAlgorithmId() {
+    const select = getEventAlgorithmSelectElement();
+    const selected = select && typeof select.value === 'string' ? normalizeAssignmentAlgorithmId(select.value) : '';
+    if (selected) {
+        return selected;
+    }
+    const algorithms = listSelectableAssignmentAlgorithmsForActiveGame();
+    return algorithms[0] ? algorithms[0].id : DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+}
+
 function applySelectedEventToEditor() {
     if (!eventEditorCurrentId) {
         eventEditorCurrentId = currentEvent;
@@ -2299,6 +2388,7 @@ function applySelectedEventToEditor() {
     eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
     eventDraftMapDataUrl = event.mapDataUrl || '';
     eventDraftMapRemoved = false;
+    renderEventAssignmentAlgorithmOptions(event.assignmentAlgorithmId);
     updateEventLogoPreview();
     updateEventMapPreview();
     renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
@@ -2337,6 +2427,7 @@ function startNewEventDraft() {
     eventEditorCurrentId = '';
     eventEditorIsEditMode = true;
     setEditorName('');
+    renderEventAssignmentAlgorithmOptions(resolveDefaultAssignmentAlgorithmId(getGameplayContext() ? getGameplayContext().gameId : ''));
     eventDraftLogoDataUrl = '';
     eventDraftMapDataUrl = '';
     eventDraftMapRemoved = false;
@@ -2506,10 +2597,13 @@ async function handleEventMapChange(event) {
     }
 }
 
-function buildEventDefinition(eventId, name, buildings) {
+function buildEventDefinition(eventId, name, buildings, assignmentAlgorithmId) {
     const existing = window.DSCoreEvents.getEvent(eventId) || {};
     const mapDataUrl = eventDraftMapDataUrl || '';
     const logoDataUrl = eventDraftLogoDataUrl || generateEventAvatarDataUrl(name, eventId);
+    const normalizedAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(assignmentAlgorithmId)
+        || normalizeAssignmentAlgorithmId(existing.assignmentAlgorithmId)
+        || resolveDefaultAssignmentAlgorithmId(getGameplayContext() ? getGameplayContext().gameId : '');
     const validNames = new Set(buildings.map((item) => item.name));
     const currentPositions = buildingPositionsMap[eventId] || (existing.defaultPositions || {});
     const normalizedPositions = window.DSCoreBuildings.normalizeBuildingPositions(currentPositions, validNames);
@@ -2524,6 +2618,7 @@ function buildEventDefinition(eventId, name, buildings) {
         excelPrefix: normalizeEventId(existing.excelPrefix || eventId) || eventId,
         logoDataUrl: logoDataUrl,
         mapDataUrl: mapDataUrl,
+        assignmentAlgorithmId: normalizedAssignmentAlgorithmId,
         buildings: buildings,
         defaultPositions: normalizedPositions,
         buildingAnchors: existing.buildingAnchors || {},
@@ -2556,7 +2651,8 @@ async function saveEventDefinition() {
     const existingIds = getEventIds();
     const eventId = eventEditorCurrentId || window.DSCoreEvents.slugifyEventId(eventName, existingIds);
     const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
-    const definition = buildEventDefinition(eventId, eventName, buildings);
+    const assignmentAlgorithmId = getSelectedEventAssignmentAlgorithmId();
+    const definition = buildEventDefinition(eventId, eventName, buildings, assignmentAlgorithmId);
     const isNewEvent = !eventEditorCurrentId;
 
     window.DSCoreEvents.upsertEvent(eventId, definition);
@@ -2576,6 +2672,7 @@ async function saveEventDefinition() {
                 name: definition.name,
                 logoDataUrl: definition.logoDataUrl,
                 mapDataUrl: definition.mapDataUrl,
+                assignmentAlgorithmId: definition.assignmentAlgorithmId,
                 buildingConfig: buildingConfigs[eventId],
                 buildingPositions: buildingPositionsMap[eventId],
             }, eventContext);
@@ -5118,6 +5215,41 @@ function updateTeamCounters() {
 // ASSIGNMENT GENERATION
 // ============================================================
 
+function resolveCurrentEventAssignmentSelection(activeGameId) {
+    const gameId = normalizeGameId(activeGameId);
+    const activeEvent = getActiveEvent();
+    const requestedAlgorithmId = normalizeAssignmentAlgorithmId(activeEvent && activeEvent.assignmentAlgorithmId);
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.resolveAlgorithmSelection === 'function') {
+        return window.DSAssignmentRegistry.resolveAlgorithmSelection(gameId, requestedAlgorithmId);
+    }
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.resolveAlgorithmForEvent === 'function') {
+        const algorithm = window.DSAssignmentRegistry.resolveAlgorithmForEvent(gameId, requestedAlgorithmId);
+        if (!algorithm) {
+            return {
+                success: false,
+                error: 'unknown-assignment-algorithm',
+                algorithmId: requestedAlgorithmId || '',
+                gameId: gameId,
+            };
+        }
+        return {
+            success: true,
+            algorithmId: normalizeAssignmentAlgorithmId(algorithm.id) || resolveDefaultAssignmentAlgorithmId(gameId),
+            gameId: gameId,
+            algorithm: algorithm,
+        };
+    }
+    return {
+        success: true,
+        algorithmId: resolveDefaultAssignmentAlgorithmId(gameId),
+        gameId: gameId,
+        algorithm: {
+            id: resolveDefaultAssignmentAlgorithmId(gameId),
+            name: 'Balanced Round Robin',
+        },
+    };
+}
+
 function generateTeamAssignments(team) {
     const activeGameId = enforceGameplayContext();
     if (!activeGameId) {
@@ -5167,7 +5299,34 @@ function generateTeamAssignments(team) {
         troops: playerDB[s.name].troops
     })).sort((a, b) => b.power - a.power);
 
-    const assignments = assignTeamToBuildings(starterPlayers);
+    const algorithmSelection = resolveCurrentEventAssignmentSelection(activeGameId);
+    if (!algorithmSelection || !algorithmSelection.success) {
+        const errorCode = algorithmSelection && algorithmSelection.error ? algorithmSelection.error : 'unknown-assignment-algorithm';
+        const algorithmId = algorithmSelection && algorithmSelection.algorithmId ? algorithmSelection.algorithmId : '';
+        const statusMessage = t('assignment_algorithm_unknown', { id: algorithmId || 'unknown' });
+        showMessage('eventsStatus', statusMessage, 'error');
+        console.error('Assignment generation failed:', {
+            error: errorCode,
+            algorithmId: algorithmId,
+            gameId: activeGameId,
+            eventId: currentEvent,
+        });
+        alert(errorCode);
+        return;
+    }
+
+    let assignments = [];
+    try {
+        assignments = assignTeamToBuildings(starterPlayers, algorithmSelection.algorithm);
+    } catch (error) {
+        const errorCode = error && error.code ? error.code : 'unknown-assignment-algorithm';
+        showMessage('eventsStatus', t('assignment_algorithm_unknown', {
+            id: (error && error.algorithmId) || algorithmSelection.algorithmId || 'unknown',
+        }), 'error');
+        console.error('Assignment execution failed:', error);
+        alert(errorCode);
+        return;
+    }
 
     // Store both assignments and substitutes
     if (team === 'A') {
@@ -5180,11 +5339,18 @@ function generateTeamAssignments(team) {
 
     openDownloadModal(team);
 
-    console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes`);
+    console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes using ${algorithmSelection.algorithmId}`);
 }
 
-function assignTeamToBuildings(players) {
-    return window.DSCoreAssignment.assignTeamToBuildings(players, getEffectiveBuildingConfig());
+function assignTeamToBuildings(players, algorithm) {
+    const algorithmId = normalizeAssignmentAlgorithmId(algorithm && algorithm.id) || DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+    if (algorithmId === 'balanced_round_robin') {
+        return window.DSCoreAssignment.assignTeamToBuildings(players, getEffectiveBuildingConfig());
+    }
+    throw Object.assign(new Error('unknown-assignment-algorithm'), {
+        code: 'unknown-assignment-algorithm',
+        algorithmId: algorithmId,
+    });
 }
 
 // Searches the next 3 available players by power for a different

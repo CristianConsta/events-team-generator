@@ -98,6 +98,23 @@ test('upsertEvent defaults to empty buildings array when none provided', () => {
   loadModule();
   const result = global.DSCoreEvents.upsertEvent('bare_event', { name: 'Bare' });
   assert.deepEqual(result.buildings, []);
+  assert.equal(result.assignmentAlgorithmId, 'balanced_round_robin');
+});
+
+test('upsertEvent normalizes assignmentAlgorithmId with fallback default', () => {
+  loadModule();
+  const withInvalid = global.DSCoreEvents.upsertEvent('algo_event', {
+    name: 'Algorithm Event',
+    assignmentAlgorithmId: '   ',
+    buildings: [],
+  });
+  assert.equal(withInvalid.assignmentAlgorithmId, 'balanced_round_robin');
+  const withExplicit = global.DSCoreEvents.upsertEvent('algo_event', {
+    name: 'Algorithm Event',
+    assignmentAlgorithmId: 'BALANCED_ROUND_ROBIN',
+    buildings: [],
+  });
+  assert.equal(withExplicit.assignmentAlgorithmId, 'balanced_round_robin');
 });
 
 test('upsertEvent updates existing event rather than creating duplicate', () => {

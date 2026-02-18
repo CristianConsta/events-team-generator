@@ -58,6 +58,7 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   });
   assert.equal(created.id, 'test_event');
   assert.equal(created.name, 'Test Event');
+  assert.equal(created.assignmentAlgorithmId, 'balanced_round_robin');
 
   global.FirebaseManager.setBuildingConfig('test_event', [{ name: 'HQ', slots: 2, priority: 1 }]);
   global.FirebaseManager.setBuildingPositions('test_event', { HQ: [20, 30] });
@@ -65,6 +66,7 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   const allEventData = global.FirebaseManager.getAllEventData();
   assert.ok(allEventData.test_event);
   assert.equal(allEventData.test_event.name, 'Test Event');
+  assert.equal(allEventData.test_event.assignmentAlgorithmId, 'balanced_round_robin');
   assert.equal(allEventData.test_event.buildingConfig.length, 1);
   assert.deepEqual(allEventData.test_event.buildingPositions.HQ, [20, 30]);
 

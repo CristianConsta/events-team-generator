@@ -1,6 +1,29 @@
 (function initEventsCore(global) {
+    const DEFAULT_ASSIGNMENT_ALGORITHM_ID = 'balanced_round_robin';
+
     function cloneDeep(value) {
         return JSON.parse(JSON.stringify(value));
+    }
+
+    function normalizeAlgorithmId(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value.trim().toLowerCase();
+    }
+
+    function resolveDefaultAssignmentAlgorithmId() {
+        if (global.DSCoreGames && typeof global.DSCoreGames.getDefaultGameId === 'function' && typeof global.DSCoreGames.getGame === 'function') {
+            const defaultGameId = global.DSCoreGames.getDefaultGameId();
+            const defaultGame = global.DSCoreGames.getGame(defaultGameId);
+            if (defaultGame && Array.isArray(defaultGame.assignmentAlgorithmIds) && defaultGame.assignmentAlgorithmIds.length > 0) {
+                const firstId = normalizeAlgorithmId(defaultGame.assignmentAlgorithmIds[0]);
+                if (firstId) {
+                    return firstId;
+                }
+            }
+        }
+        return DEFAULT_ASSIGNMENT_ALGORITHM_ID;
     }
 
     const LEGACY_EVENT_REGISTRY = {
@@ -15,6 +38,7 @@
             excelPrefix: 'desert_storm',
             logoDataUrl: '',
             mapDataUrl: '',
+            assignmentAlgorithmId: DEFAULT_ASSIGNMENT_ALGORITHM_ID,
             buildings: [
                 { name: 'Bomb Squad', priority: 1, slots: 4, label: 'Bomb Squad' },
                 { name: 'Oil Refinery 1', priority: 3, slots: 2, label: 'Oil Refinery 1' },
@@ -58,6 +82,7 @@
             excelPrefix: 'canyon_battlefield',
             logoDataUrl: '',
             mapDataUrl: '',
+            assignmentAlgorithmId: DEFAULT_ASSIGNMENT_ALGORITHM_ID,
             buildings: [
                 { name: 'Bomb Squad', priority: 1, slots: 4, label: 'Bomb Squad' },
                 { name: 'Missile Silo 1', priority: 2, slots: 2, label: 'Missile Silo 1' },
@@ -152,6 +177,8 @@
         const mapTitle = (source.mapTitle || prev.mapTitle || name).toString().trim().toUpperCase().slice(0, 50);
         const excelPrefix = normalizeEventId(source.excelPrefix || prev.excelPrefix || id || name) || 'event';
         const titleKey = source.titleKey || prev.titleKey || '';
+        const requestedAlgorithmId = normalizeAlgorithmId(source.assignmentAlgorithmId || prev.assignmentAlgorithmId);
+        const assignmentAlgorithmId = requestedAlgorithmId || resolveDefaultAssignmentAlgorithmId();
         const buildings = sanitizeBuildings(source.buildings || prev.buildings || []);
         const defaultPositions = cloneDeep(source.defaultPositions || prev.defaultPositions || {});
         const buildingAnchors = cloneDeep(source.buildingAnchors || prev.buildingAnchors || {});
@@ -164,6 +191,7 @@
             exportMapFile: exportMapFile,
             mapDataUrl: mapDataUrl || '',
             logoDataUrl: logoDataUrl || '',
+            assignmentAlgorithmId: assignmentAlgorithmId,
             mapTitle: mapTitle || name.toUpperCase(),
             excelPrefix: excelPrefix,
             buildings: buildings,

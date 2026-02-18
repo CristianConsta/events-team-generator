@@ -15,6 +15,8 @@ test('events core exposes known registry entries', () => {
   loadModule();
   assert.ok(global.DSCoreEvents.EVENT_REGISTRY.desert_storm);
   assert.ok(global.DSCoreEvents.EVENT_REGISTRY.canyon_battlefield);
+  assert.equal(global.DSCoreEvents.EVENT_REGISTRY.desert_storm.assignmentAlgorithmId, 'balanced_round_robin');
+  assert.equal(global.DSCoreEvents.EVENT_REGISTRY.canyon_battlefield.assignmentAlgorithmId, 'balanced_round_robin');
 });
 
 test('cloneEventBuildings returns deep-copied defaults', () => {
@@ -49,9 +51,20 @@ test('upsertEvent stores sanitized custom event definitions', () => {
 
   assert.equal(created.id, 'custom_event');
   assert.equal(created.name, 'My Custom Event');
+  assert.equal(created.assignmentAlgorithmId, 'balanced_round_robin');
   assert.equal(created.buildings.length, 1);
   assert.deepEqual(created.buildings[0], { name: 'Tower', label: 'Tower', slots: 2, priority: 4, showOnMap: true });
   assert.ok(global.DSCoreEvents.EVENT_REGISTRY.custom_event);
+});
+
+test('upsertEvent keeps explicit assignmentAlgorithmId when provided', () => {
+  loadModule();
+  const created = global.DSCoreEvents.upsertEvent('algo_event', {
+    name: 'Algorithm Event',
+    assignmentAlgorithmId: 'balanced_round_robin',
+    buildings: [],
+  });
+  assert.equal(created.assignmentAlgorithmId, 'balanced_round_robin');
 });
 
 test('setEventRegistry replaces runtime registry', () => {
