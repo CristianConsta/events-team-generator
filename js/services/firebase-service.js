@@ -73,6 +73,13 @@
         return getFeatureFlags(overrides)[flagName] === true;
     }
 
+    function listAvailableGamesFromCore() {
+        if (!global.DSCoreGames || typeof global.DSCoreGames.listAvailableGames !== 'function') {
+            return [];
+        }
+        return global.DSCoreGames.listAvailableGames();
+    }
+
     const FirebaseService = {
         isAvailable: function isAvailable() {
             return manager() !== null;
@@ -94,6 +101,17 @@
         },
         isFeatureFlagEnabled: function isFeatureFlagEnabledPublic(flagName, overrides) {
             return isFeatureFlagEnabled(flagName, overrides);
+        },
+        listAvailableGames: function listAvailableGames() {
+            return withManager(
+                (svc) => {
+                    if (typeof svc.listAvailableGames === 'function') {
+                        return svc.listAvailableGames();
+                    }
+                    return listAvailableGamesFromCore();
+                },
+                listAvailableGamesFromCore()
+            );
         },
         signInWithGoogle: async function signInWithGoogle() {
             return withManager((svc) => svc.signInWithGoogle(), notLoadedResult());

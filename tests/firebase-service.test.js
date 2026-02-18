@@ -37,6 +37,7 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
     MULTIGAME_GAME_SELECTOR_ENABLED: false,
   });
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_ENABLED'), false);
+  assert.deepEqual(global.FirebaseService.listAvailableGames(), []);
 });
 
 test('firebase service delegates calls to FirebaseManager', async () => {
@@ -62,6 +63,7 @@ test('firebase service delegates calls to FirebaseManager', async () => {
       MULTIGAME_DUAL_WRITE_ENABLED: true,
       MULTIGAME_GAME_SELECTOR_ENABLED: true,
     }),
+    listAvailableGames: () => ([{ id: 'last_war', name: 'Last War: Survival' }]),
   };
   loadModule();
 
@@ -88,4 +90,5 @@ test('firebase service delegates calls to FirebaseManager', async () => {
     MULTIGAME_GAME_SELECTOR_ENABLED: true,
   });
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED'), true);
+  assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
 });

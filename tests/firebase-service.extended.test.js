@@ -14,6 +14,7 @@ function loadModule() {
 test.afterEach(() => {
   delete global.FirebaseManager;
   delete global.FirebaseService;
+  delete global.DSCoreGames;
   delete require.cache[require.resolve(modulePath)];
 });
 
@@ -129,6 +130,15 @@ test('feature flag helpers return default rollout values when manager is absent'
   });
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED'), false);
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('UNKNOWN_FLAG'), false);
+});
+
+test('listAvailableGames falls back to DSCoreGames when manager is absent', () => {
+  delete global.FirebaseManager;
+  global.DSCoreGames = {
+    listAvailableGames: () => ([{ id: 'last_war', name: 'Last War: Survival' }]),
+  };
+  loadModule();
+  assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
 });
 
 // ── Delegation when FirebaseManager is present ───────────────────────────────
@@ -261,4 +271,13 @@ test('feature flag helpers delegate to manager', () => {
   loadModule();
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED'), true);
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED'), false);
+});
+
+test('listAvailableGames falls back to DSCoreGames when manager does not expose listAvailableGames', () => {
+  global.FirebaseManager = {};
+  global.DSCoreGames = {
+    listAvailableGames: () => ([{ id: 'last_war', name: 'Last War: Survival' }]),
+  };
+  loadModule();
+  assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
 });
