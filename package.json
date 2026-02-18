@@ -3,22 +3,20 @@
   "private": true,
   "description": "One-time tooling for Firebase data migration",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint \"js/shared/**/*.js\" \"js/features/**/*.js\" \"js/shell/**/*.js\" \"js/services/firebase-service.js\" \"tests/**/*.js\"",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
-    "test": "node --test tests/*.test.js",
-    "test:smoke": "node --test tests/smoke-workflows.test.js",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=js/app-init.js --test-coverage-include=js/core/*.js --test-coverage-include=js/services/firebase-service.js --test-coverage-lines=90 tests/*.test.js"
-  },
-  "devDependencies": {
-    "eslint": "^8.57.1",
-    "typescript": "^5.9.2",
-    "vite": "^7.1.5"
+    "test": "npm run test:unit",
+    "test:unit": "node --test tests/*.test.js",
+    "test:e2e": "playwright test --project=edge-desktop --project=edge-mobile",
+    "test:e2e:edge": "playwright test --project=edge-desktop",
+    "test:e2e:mobile": "playwright test --project=edge-mobile",
+    "test:e2e:headed": "playwright test --project=edge-desktop --headed",
+    "test:e2e:smoke": "playwright test --project=edge-desktop --project=edge-mobile --grep @smoke",
+    "test:e2e:regression": "playwright test --project=edge-desktop --project=edge-mobile --grep @regression"
   },
   "dependencies": {
     "@google-cloud/firestore": "^8.2.0",
     "firebase-admin": "^12.7.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
   }
 }

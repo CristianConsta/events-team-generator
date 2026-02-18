@@ -214,7 +214,43 @@ node scripts/sync_event_building_defaults.js --service-account PATH_TO_SERVICE_A
 ## Tests
 
 ```bash
-node --test tests/*.test.js
+npm test
+```
+
+Unit tests only:
+
+```bash
+npm run test:unit
+```
+
+Playwright E2E (separate from unit tests):
+
+```bash
+npm run test:e2e
+```
+
+Edge desktop only:
+
+```bash
+npm run test:e2e:edge
+```
+
+Mobile viewport emulation only:
+
+```bash
+npm run test:e2e:mobile
+```
+
+Smoke-only E2E workflows (`@smoke`):
+
+```bash
+npm run test:e2e:smoke
+```
+
+Regression workflows (`@regression`):
+
+```bash
+npm run test:e2e:regression
 ```
 
 ## Troubleshooting

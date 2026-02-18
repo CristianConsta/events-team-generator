@@ -10,7 +10,8 @@ function refreshLanguageDependentText() {
     const playerCountEl = document.getElementById('playerCount');
     if (playerCountEl && typeof allPlayers !== 'undefined') {
         if (typeof FirebaseService !== 'undefined') {
-            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource();
+            const gameplayContext = getGameplayContext();
+            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource(gameplayContext || undefined);
             const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
             playerCountEl.textContent = t('player_count_with_source', { count: allPlayers.length, source: sourceLabel });
         } else {
@@ -53,6 +54,8 @@ function onI18nApplied() {
         notificationBtn.title = t('notifications_title');
     }
     updateUserHeaderIdentity(currentAuthUser);
+    updateActiveGameBadge();
+    refreshGameSelectorMenuAvailability();
     syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
@@ -83,346 +86,687 @@ function initLanguage() {
     });
 }
 
-const UI_MOTION_MS = Object.freeze({
-    panel: 170,
-});
-const MODAL_OVERLAY_IDS = Object.freeze([
-    'settingsModal',
-    'uploadTargetModal',
-    'coordPickerOverlay',
-    'downloadModalOverlay',
-]);
-const MODAL_FOCUSABLE_SELECTOR = [
-    'a[href]',
-    'area[href]',
-    'button:not([disabled])',
-    'input:not([disabled]):not([type="hidden"])',
-    'select:not([disabled])',
-    'textarea:not([disabled])',
-    'iframe',
-    'object',
-    'embed',
-    '[tabindex]:not([tabindex="-1"])',
-    '[contenteditable="true"]',
-].join(', ');
-const modalFocusReturnMap = new WeakMap();
-const modalOpenOrder = [];
-
-function clearPanelMotionTimer(element) {
-    if (!element || !element.dataset) {
-        return;
-    }
-    const timerId = Number(element.dataset.motionTimerId || 0);
-    if (timerId) {
-        clearTimeout(timerId);
-    }
-    delete element.dataset.motionTimerId;
+function createMissingActiveGameError() {
+    const error = new Error('missing-active-game');
+    error.code = 'missing-active-game';
+    error.errorKey = 'missing-active-game';
+    return error;
 }
 
-function setPanelVisibility(element, shouldOpen) {
-    if (!element) {
-        return;
-    }
-
-    clearPanelMotionTimer(element);
-    element.style.setProperty('--panel-motion-ms', `${UI_MOTION_MS.panel}ms`);
-
-    if (shouldOpen) {
-        element.classList.remove('hidden');
-        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-        schedule(() => {
-            element.classList.add('ui-open');
-        });
-        return;
-    }
-
-    element.classList.remove('ui-open');
-    const timerId = setTimeout(() => {
-        element.classList.add('hidden');
-    }, UI_MOTION_MS.panel);
-    if (element.dataset) {
-        element.dataset.motionTimerId = String(timerId);
-    }
-}
-
-function isVisibleInteractiveElement(element) {
-    if (!(element instanceof HTMLElement)) {
-        return false;
-    }
-    if (element.hidden || element.closest('.hidden')) {
-        return false;
-    }
-    const styles = window.getComputedStyle(element);
-    return styles.display !== 'none' && styles.visibility !== 'hidden';
-}
-
-function getFocusableElements(container) {
-    if (!(container instanceof HTMLElement)) {
+function listSelectableGames() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listAvailableGames !== 'function') {
         return [];
     }
-    return Array.from(container.querySelectorAll(MODAL_FOCUSABLE_SELECTOR)).filter((element) => {
-        if (!(element instanceof HTMLElement)) {
-            return false;
-        }
-        if (element.hasAttribute('disabled') || element.getAttribute('aria-hidden') === 'true') {
-            return false;
-        }
-        return isVisibleInteractiveElement(element);
-    });
+    const games = FirebaseService.listAvailableGames();
+    if (!Array.isArray(games)) {
+        return [];
+    }
+    return games
+        .map((game) => {
+            const id = game && typeof game.id === 'string' ? game.id.trim() : '';
+            if (!id) {
+                return null;
+            }
+            const name = game && typeof game.name === 'string' && game.name.trim()
+                ? game.name.trim()
+                : id;
+            const logo = game && typeof game.logo === 'string' ? game.logo.trim() : '';
+            return { id, name, logo };
+        })
+        .filter(Boolean);
 }
 
-function rememberModalOpenOrder(overlay) {
-    if (!(overlay instanceof HTMLElement)) {
-        return;
-    }
-    const existingIndex = modalOpenOrder.indexOf(overlay);
-    if (existingIndex >= 0) {
-        modalOpenOrder.splice(existingIndex, 1);
-    }
-    modalOpenOrder.push(overlay);
-}
-
-function forgetModalOpenOrder(overlay) {
-    const existingIndex = modalOpenOrder.indexOf(overlay);
-    if (existingIndex >= 0) {
-        modalOpenOrder.splice(existingIndex, 1);
-    }
-}
-
-function getOpenModalOverlays() {
-    return MODAL_OVERLAY_IDS
-        .map((id) => document.getElementById(id))
-        .filter((overlay) => overlay instanceof HTMLElement && !overlay.classList.contains('hidden'));
-}
-
-function getTopOpenModalOverlay() {
-    for (let index = modalOpenOrder.length - 1; index >= 0; index -= 1) {
-        const overlay = modalOpenOrder[index];
-        if (overlay instanceof HTMLElement && !overlay.classList.contains('hidden')) {
-            return overlay;
-        }
-        modalOpenOrder.splice(index, 1);
-    }
-    const openOverlays = getOpenModalOverlays();
-    if (openOverlays.length === 0) {
+function getSelectableGameById(gameId) {
+    const normalizedId = typeof gameId === 'string' ? gameId.trim() : '';
+    if (!normalizedId) {
         return null;
     }
-    const fallback = openOverlays[openOverlays.length - 1];
-    rememberModalOpenOrder(fallback);
-    return fallback;
+    return listSelectableGames().find((game) => game.id === normalizedId) || null;
 }
 
-function syncBodyScrollState() {
-    if (!document.body) {
-        return;
+function resolveActiveGameName(gameId) {
+    const selectedGame = getSelectableGameById(gameId);
+    if (selectedGame && selectedGame.name) {
+        return selectedGame.name;
     }
-    const hasOpenModal = getOpenModalOverlays().length > 0;
-    if (hasOpenModal) {
-        document.body.style.overflow = 'hidden';
-    } else {
-        document.body.style.overflow = '';
+    if (!gameId) {
+        return '';
     }
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listAvailableGames !== 'function') {
+        return gameId;
+    }
+    const games = FirebaseService.listAvailableGames();
+    const match = Array.isArray(games) ? games.find((game) => game && game.id === gameId) : null;
+    if (match && typeof match.name === 'string' && match.name.trim()) {
+        return match.name.trim();
+    }
+    return gameId;
 }
 
-function openModalOverlay(overlay, options) {
-    if (!(overlay instanceof HTMLElement)) {
+function updateActiveGameBadge(forcedGameId) {
+    const badge = document.getElementById('activeGameBadge');
+    if (!badge) {
         return;
     }
-    if (window.DSShellModalController && typeof window.DSShellModalController.open === 'function') {
-        window.DSShellModalController.open({
-            overlay: overlay,
-            onBeforeOpen: () => {
-                const returnFocusEl = options && options.returnFocusEl instanceof HTMLElement
-                    ? options.returnFocusEl
-                    : document.activeElement;
-                if (returnFocusEl instanceof HTMLElement) {
-                    modalFocusReturnMap.set(overlay, returnFocusEl);
-                }
-            },
-            onAfterOpen: () => {
-                rememberModalOpenOrder(overlay);
-                syncBodyScrollState();
-                const requestedFocus = options && typeof options.initialFocusSelector === 'string'
-                    ? overlay.querySelector(options.initialFocusSelector)
-                    : null;
-                const fallbackFocus = getFocusableElements(overlay)[0] || overlay;
-                const focusTarget = requestedFocus instanceof HTMLElement && isVisibleInteractiveElement(requestedFocus)
-                    ? requestedFocus
-                    : fallbackFocus;
-                const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-                schedule(() => {
-                    if (focusTarget instanceof HTMLElement) {
-                        focusTarget.focus();
-                    }
-                });
-            },
-        });
+    const activeGameId = typeof forcedGameId === 'string' && forcedGameId.trim()
+        ? forcedGameId.trim()
+        : getActiveGame();
+    if (!activeGameId) {
+        badge.textContent = '';
+        badge.style.display = 'none';
         return;
     }
+    badge.textContent = resolveActiveGameName(activeGameId);
+    badge.style.display = 'inline-flex';
+}
 
-    const returnFocusEl = options && options.returnFocusEl instanceof HTMLElement
-        ? options.returnFocusEl
-        : document.activeElement;
-    if (returnFocusEl instanceof HTMLElement) {
-        modalFocusReturnMap.set(overlay, returnFocusEl);
+function refreshGameSelectorMenuAvailability() {
+    const switchBtn = document.getElementById('navSwitchGameBtn');
+    if (!switchBtn) {
+        return;
     }
-    overlay.classList.remove('hidden');
-    rememberModalOpenOrder(overlay);
-    syncBodyScrollState();
+    const hasGames = listSelectableGames().length > 0;
+    switchBtn.classList.toggle('hidden', !hasGames);
+    switchBtn.disabled = !hasGames;
+}
 
-    const requestedFocus = options && typeof options.initialFocusSelector === 'string'
-        ? overlay.querySelector(options.initialFocusSelector)
-        : null;
-    const fallbackFocus = getFocusableElements(overlay)[0] || overlay;
-    const focusTarget = requestedFocus instanceof HTMLElement && isVisibleInteractiveElement(requestedFocus)
-        ? requestedFocus
-        : fallbackFocus;
-    const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-    schedule(() => {
-        if (focusTarget instanceof HTMLElement) {
-            focusTarget.focus();
+function getActiveGameContext() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getActiveGame !== 'function') {
+        return { gameId: '', source: 'none' };
+    }
+    const context = FirebaseService.getActiveGame();
+    if (!context || typeof context !== 'object') {
+        return { gameId: '', source: 'none' };
+    }
+    const gameId = typeof context.gameId === 'string' ? context.gameId.trim() : '';
+    return {
+        gameId: gameId,
+        source: typeof context.source === 'string' ? context.source : 'none',
+    };
+}
+
+function getActiveGame() {
+    return getActiveGameContext().gameId;
+}
+
+function setActiveGame(gameId) {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.setActiveGame !== 'function') {
+        return { success: false, code: 'firebase-service-unavailable' };
+    }
+    const result = FirebaseService.setActiveGame(gameId);
+    if (result && result.success && result.gameId) {
+        window.__ACTIVE_GAME_ID = result.gameId;
+        updateActiveGameBadge(result.gameId);
+    }
+    return result;
+}
+
+function ensureActiveGameContext() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureActiveGame !== 'function') {
+        return '';
+    }
+    const context = FirebaseService.ensureActiveGame();
+    const gameId = context && typeof context.gameId === 'string' ? context.gameId : '';
+    window.__ACTIVE_GAME_ID = gameId;
+    updateActiveGameBadge(gameId);
+    return gameId;
+}
+
+function requireActiveGameContext() {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.requireActiveGame === 'function') {
+        return FirebaseService.requireActiveGame();
+    }
+    const gameId = getActiveGame();
+    if (!gameId) {
+        throw createMissingActiveGameError();
+    }
+    return gameId;
+}
+
+function enforceGameplayContext(statusElementId) {
+    try {
+        return requireActiveGameContext();
+    } catch (error) {
+        if (error && error.code === 'missing-active-game') {
+            const fallbackId = ensureActiveGameContext();
+            if (fallbackId) {
+                return fallbackId;
+            }
+            if (statusElementId) {
+                showMessage(statusElementId, 'Active game context is required.', 'error');
+            }
+            return '';
         }
+        throw error;
+    }
+}
+
+function getGameplayContext(statusElementId) {
+    const gameId = enforceGameplayContext(statusElementId);
+    if (!gameId) {
+        return null;
+    }
+    return { gameId: gameId };
+}
+
+function getEventGameplayContext(eventId, statusElementId) {
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return null;
+    }
+    const normalizedEventId = normalizeEventId(eventId || currentEvent);
+    if (!normalizedEventId) {
+        return gameplayContext;
+    }
+    return {
+        gameId: gameplayContext.gameId,
+        eventId: normalizedEventId,
+    };
+}
+
+let gameSelectorRequiresChoice = false;
+let postAuthSelectorShownThisSession = false;
+
+function isPostAuthGameSelectorEnabled() {
+    if (window.__APP_FEATURE_FLAGS && typeof window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === 'boolean') {
+        return window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
+    }
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.isFeatureFlagEnabled !== 'function') {
+        return false;
+    }
+    return FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED');
+}
+
+function renderGameSelectorOptions(preferredGameId) {
+    const selector = document.getElementById('gameSelectorInput');
+    if (!selector) {
+        return [];
+    }
+    const games = listSelectableGames();
+    selector.replaceChildren();
+    games.forEach((game) => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.name;
+        selector.appendChild(option);
+    });
+
+    const preferred = typeof preferredGameId === 'string' ? preferredGameId.trim() : '';
+    if (preferred && games.some((game) => game.id === preferred)) {
+        selector.value = preferred;
+    } else if (games.length > 0) {
+        selector.value = games[0].id;
+    } else {
+        selector.value = '';
+    }
+    return games;
+}
+
+function closeGameSelector(forceClose) {
+    if (gameSelectorRequiresChoice && forceClose !== true) {
+        return;
+    }
+    const overlay = document.getElementById('gameSelectorOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    gameSelectorRequiresChoice = false;
+    const statusEl = document.getElementById('gameSelectorStatus');
+    if (statusEl) {
+        statusEl.replaceChildren();
+    }
+}
+
+function openGameSelector(options) {
+    const config = options && typeof options === 'object' ? options : {};
+    const overlay = document.getElementById('gameSelectorOverlay');
+    const cancelBtn = document.getElementById('gameSelectorCancelBtn');
+    const selector = document.getElementById('gameSelectorInput');
+    if (!overlay || !cancelBtn || !selector) {
+        return;
+    }
+
+    closeNavigationMenu();
+    refreshGameSelectorMenuAvailability();
+
+    const activeGameId = getActiveGame() || ensureActiveGameContext();
+    const games = renderGameSelectorOptions(activeGameId);
+    const statusEl = document.getElementById('gameSelectorStatus');
+    if (statusEl) {
+        statusEl.replaceChildren();
+    }
+
+    gameSelectorRequiresChoice = config.requireChoice === true;
+    cancelBtn.hidden = gameSelectorRequiresChoice;
+    cancelBtn.disabled = gameSelectorRequiresChoice;
+
+    if (games.length === 0) {
+        showMessage('gameSelectorStatus', t('game_selector_no_games'), 'warning');
+    }
+
+    overlay.classList.remove('hidden');
+    selector.focus();
+}
+
+function handleGameSelectorOverlayClick(event) {
+    if (event && event.target && event.target.id === 'gameSelectorOverlay') {
+        closeGameSelector(false);
+    }
+}
+
+function normalizeFilterPanels() {
+    const troopsFilterBtn = document.getElementById('troopsFilterBtn');
+    if (troopsFilterBtn) {
+        troopsFilterBtn.classList.remove('active');
+    }
+    document.querySelectorAll('.filter-dropdown-panel').forEach((panel) => {
+        const defaultVal = panel.id === 'troopsFilterPanel' ? '' : 'power-desc';
+        panel.querySelectorAll('.filter-option').forEach((opt) => {
+            opt.classList.toggle('selected', opt.dataset.value === defaultVal);
+        });
     });
 }
 
-function closeModalOverlay(overlay) {
-    if (!(overlay instanceof HTMLElement) || overlay.classList.contains('hidden')) {
-        return false;
-    }
-    if (window.DSShellModalController && typeof window.DSShellModalController.close === 'function') {
-        return window.DSShellModalController.close({
-            overlay: overlay,
-            onAfterClose: () => {
-                forgetModalOpenOrder(overlay);
-                syncBodyScrollState();
-                const returnFocusEl = modalFocusReturnMap.get(overlay);
-                modalFocusReturnMap.delete(overlay);
-                if (returnFocusEl instanceof HTMLElement && document.contains(returnFocusEl) && isVisibleInteractiveElement(returnFocusEl)) {
-                    const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-                    schedule(() => {
-                        returnFocusEl.focus();
-                    });
-                }
-            },
-        });
-    }
+function resetTransientPlanningState(options) {
+    const config = options && typeof options === 'object' ? options : {};
+    teamSelections.teamA = [];
+    teamSelections.teamB = [];
+    assignmentsA = [];
+    assignmentsB = [];
+    substitutesA = [];
+    substitutesB = [];
+    closeDownloadModal();
 
-    overlay.classList.add('hidden');
-    forgetModalOpenOrder(overlay);
-    syncBodyScrollState();
-
-    const returnFocusEl = modalFocusReturnMap.get(overlay);
-    modalFocusReturnMap.delete(overlay);
-    if (returnFocusEl instanceof HTMLElement && document.contains(returnFocusEl) && isVisibleInteractiveElement(returnFocusEl)) {
-        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-        schedule(() => {
-            returnFocusEl.focus();
-        });
+    const searchFilterInput = document.getElementById('searchFilter');
+    if (searchFilterInput) {
+        searchFilterInput.value = '';
     }
-    return true;
+    currentTroopsFilter = '';
+    currentSortFilter = 'power-desc';
+    normalizeFilterPanels();
+
+    if (config.renderPlayersTable !== false) {
+        renderPlayersTable();
+    }
+    updateTeamCounters();
 }
 
-function isNavigationMenuOpen() {
-    const panel = document.getElementById('navMenuPanel');
-    return !!(panel && panel.classList.contains('ui-open') && !panel.classList.contains('hidden'));
-}
+function applyGameSwitch(gameId, options) {
+    const config = options && typeof options === 'object' ? options : {};
+    const statusElementId = typeof config.statusElementId === 'string' ? config.statusElementId : '';
 
-function isNotificationsPanelOpen() {
-    const panel = document.getElementById('notificationsPanel');
-    return !!(panel && panel.classList.contains('ui-open') && !panel.classList.contains('hidden'));
-}
-
-function closeOpenFilterDropdowns() {
-    const openPanels = Array.from(document.querySelectorAll('.filter-dropdown-panel.open'));
-    if (openPanels.length === 0) {
-        return false;
-    }
-    openPanels.forEach((panel) => panel.classList.remove('open'));
-    const lastPanel = openPanels[openPanels.length - 1];
-    const triggerBtn = lastPanel.closest('.filter-dropdown')?.querySelector('.filter-icon-btn');
-    if (triggerBtn instanceof HTMLElement) {
-        triggerBtn.focus();
-    }
-    return true;
-}
-
-function trapFocusWithinTopModal(event) {
-    if (!event || event.key !== 'Tab') {
-        return false;
-    }
-    const activeModal = getTopOpenModalOverlay();
-    if (!activeModal) {
-        return false;
-    }
-    const focusable = getFocusableElements(activeModal);
-    if (focusable.length === 0) {
-        event.preventDefault();
-        activeModal.focus();
-        return true;
-    }
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    const activeElement = document.activeElement;
-
-    if (event.shiftKey) {
-        if (activeElement === first || !activeModal.contains(activeElement)) {
-            event.preventDefault();
-            last.focus();
-            return true;
+    const result = setActiveGame(gameId);
+    if (!result || !result.success || !result.gameId) {
+        if (statusElementId) {
+            showMessage(statusElementId, t('game_selector_invalid'), 'error');
         }
         return false;
     }
 
-    if (activeElement === last || !activeModal.contains(activeElement)) {
-        event.preventDefault();
-        first.focus();
-        return true;
+    const shouldReload = result.changed === true || config.forceReload === true;
+    if (shouldReload) {
+        resetTransientPlanningState({ renderPlayersTable: false });
+        loadPlayerData();
+        updateAllianceHeaderDisplay();
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.loadAllianceData === 'function' && FirebaseService.isSignedIn()) {
+            Promise.resolve(FirebaseService.loadAllianceData({ gameId: result.gameId }))
+                .then(() => {
+                    if (currentPageView === 'alliance') {
+                        renderAlliancePanel();
+                        updateAllianceHeaderDisplay();
+                    }
+                })
+                .catch(() => {
+                    // Ignore transient alliance refresh errors after game switch.
+                });
+        }
     }
-    return false;
+
+    closeGameSelector(true);
+    return true;
 }
 
-function closeTopOpenModal() {
-    const activeModal = getTopOpenModalOverlay();
-    if (!activeModal) {
-        return false;
-    }
-    if (activeModal.id === 'settingsModal') {
-        closeSettingsModal();
-        return true;
-    }
-    if (activeModal.id === 'uploadTargetModal') {
-        closeUploadTargetModal();
-        return true;
-    }
-    if (activeModal.id === 'coordPickerOverlay') {
-        closeCoordinatesPicker();
-        return true;
-    }
-    if (activeModal.id === 'downloadModalOverlay') {
-        closeDownloadModal();
-        return true;
-    }
-    return closeModalOverlay(activeModal);
-}
-
-function handleGlobalKeydown(event) {
-    if (trapFocusWithinTopModal(event)) {
+function confirmGameSelectorChoice() {
+    const selector = document.getElementById('gameSelectorInput');
+    if (!selector) {
         return;
     }
-    if (!event || event.key !== 'Escape') {
+    const selectedGameId = typeof selector.value === 'string' ? selector.value.trim() : '';
+    if (!selectedGameId) {
+        showMessage('gameSelectorStatus', t('game_selector_invalid'), 'error');
         return;
     }
-    const handled =
-        closeOpenFilterDropdowns() ||
-        closeTopOpenModal() ||
-        (isNotificationsPanelOpen() && (closeNotificationsPanel(), true)) ||
-        (isNavigationMenuOpen() && (closeNavigationMenu(), true));
+    applyGameSwitch(selectedGameId, { statusElementId: 'gameSelectorStatus' });
+}
 
-    if (handled) {
-        event.preventDefault();
-        event.stopPropagation();
+function showPostAuthGameSelector() {
+    refreshGameSelectorMenuAvailability();
+    if (postAuthSelectorShownThisSession) {
+        return;
+    }
+    postAuthSelectorShownThisSession = true;
+    if (!isPostAuthGameSelectorEnabled()) {
+        return;
+    }
+    openGameSelector({ requireChoice: true });
+}
+
+function resetPostAuthGameSelectorState() {
+    postAuthSelectorShownThisSession = false;
+    closeGameSelector(true);
+}
+
+function isGameMetadataSuperAdmin(userOrUid) {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.isGameMetadataSuperAdmin === 'function') {
+        return FirebaseService.isGameMetadataSuperAdmin(userOrUid);
+    }
+    if (typeof userOrUid === 'string') {
+        return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
+    }
+    const uid = userOrUid && typeof userOrUid === 'object' && typeof userOrUid.uid === 'string'
+        ? userOrUid.uid.trim()
+        : '';
+    return uid === GAME_METADATA_SUPER_ADMIN_UID;
+}
+
+function syncGameMetadataMenuAvailability() {
+    const navGameMetadataBtn = document.getElementById('navGameMetadataBtn');
+    if (!navGameMetadataBtn) {
+        return;
+    }
+    const allowed = isGameMetadataSuperAdmin(currentAuthUser);
+    navGameMetadataBtn.classList.toggle('hidden', !allowed);
+    navGameMetadataBtn.disabled = !allowed;
+    if (!allowed) {
+        closeGameMetadataOverlay();
     }
 }
+
+function clearGameMetadataForm() {
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    const companyInput = document.getElementById('gameMetadataCompanyInput');
+    const attributesInput = document.getElementById('gameMetadataAttributesInput');
+    if (nameInput) {
+        nameInput.value = '';
+    }
+    if (logoInput) {
+        logoInput.value = '';
+    }
+    if (companyInput) {
+        companyInput.value = '';
+    }
+    if (attributesInput) {
+        attributesInput.value = '{}';
+    }
+}
+
+function clearGameMetadataStatus() {
+    const status = document.getElementById('gameMetadataStatus');
+    if (status) {
+        status.replaceChildren();
+    }
+}
+
+function setGameMetadataFormDisabled(disabled) {
+    ['gameMetadataSelect', 'gameMetadataNameInput', 'gameMetadataLogoInput', 'gameMetadataCompanyInput', 'gameMetadataAttributesInput', 'gameMetadataSaveBtn']
+        .forEach((id) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.disabled = disabled;
+            }
+        });
+}
+
+function normalizeGameMetadataEntry(entry) {
+    const source = entry && typeof entry === 'object' ? entry : {};
+    const id = typeof source.id === 'string' ? source.id.trim() : '';
+    if (!id) {
+        return null;
+    }
+    return {
+        id: id,
+        name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : id,
+        logo: typeof source.logo === 'string' ? source.logo : '',
+        company: typeof source.company === 'string' ? source.company : '',
+        attributes: source.attributes && typeof source.attributes === 'object' && !Array.isArray(source.attributes)
+            ? JSON.parse(JSON.stringify(source.attributes))
+            : {},
+    };
+}
+
+function renderGameMetadataSelect(games, preferredGameId) {
+    const select = document.getElementById('gameMetadataSelect');
+    if (!select) {
+        return '';
+    }
+    select.replaceChildren();
+    const normalizedGames = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+    normalizedGames.forEach((game) => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.name;
+        select.appendChild(option);
+    });
+
+    const preferred = typeof preferredGameId === 'string' ? preferredGameId.trim() : '';
+    if (preferred && normalizedGames.some((game) => game.id === preferred)) {
+        select.value = preferred;
+    } else if (normalizedGames.length > 0) {
+        select.value = normalizedGames[0].id;
+    } else {
+        select.value = '';
+    }
+    return select.value;
+}
+
+async function reloadGameMetadataCatalog(preferredGameId) {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listGameMetadata !== 'function') {
+        gameMetadataCatalogCache = [];
+        return '';
+    }
+    const games = await FirebaseService.listGameMetadata();
+    gameMetadataCatalogCache = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+    return renderGameMetadataSelect(gameMetadataCatalogCache, preferredGameId);
+}
+
+function fillGameMetadataForm(game) {
+    const metadata = normalizeGameMetadataEntry(game);
+    if (!metadata) {
+        clearGameMetadataForm();
+        return;
+    }
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    const companyInput = document.getElementById('gameMetadataCompanyInput');
+    const attributesInput = document.getElementById('gameMetadataAttributesInput');
+    if (nameInput) {
+        nameInput.value = metadata.name || '';
+    }
+    if (logoInput) {
+        logoInput.value = metadata.logo || '';
+    }
+    if (companyInput) {
+        companyInput.value = metadata.company || '';
+    }
+    if (attributesInput) {
+        attributesInput.value = JSON.stringify(metadata.attributes || {}, null, 2);
+    }
+}
+
+function resolveSelectedMetadataGameId() {
+    const select = document.getElementById('gameMetadataSelect');
+    if (!select || typeof select.value !== 'string') {
+        return '';
+    }
+    return select.value.trim();
+}
+
+function formatGameMetadataError(errorOrResult) {
+    if (errorOrResult && typeof errorOrResult === 'object') {
+        if (errorOrResult.errorKey) {
+            return t(errorOrResult.errorKey, errorOrResult.errorParams || {});
+        }
+        if (typeof errorOrResult.error === 'string' && errorOrResult.error.trim()) {
+            return errorOrResult.error;
+        }
+        if (typeof errorOrResult.message === 'string' && errorOrResult.message.trim()) {
+            return errorOrResult.message;
+        }
+    }
+    return String(errorOrResult || 'unknown');
+}
+
+async function loadGameMetadataForSelection(gameId) {
+    const normalizedGameId = typeof gameId === 'string' ? gameId.trim() : '';
+    if (!normalizedGameId) {
+        clearGameMetadataForm();
+        return;
+    }
+    setGameMetadataFormDisabled(true);
+    try {
+        let metadata = null;
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getGameMetadata === 'function') {
+            metadata = await FirebaseService.getGameMetadata(normalizedGameId);
+        }
+        if (!metadata) {
+            metadata = gameMetadataCatalogCache.find((game) => game && game.id === normalizedGameId) || null;
+        }
+        if (!metadata) {
+            showMessage('gameMetadataStatus', t('game_metadata_unknown_game'), 'error');
+            clearGameMetadataForm();
+            return;
+        }
+        fillGameMetadataForm(metadata);
+    } catch (error) {
+        showMessage('gameMetadataStatus', t('game_metadata_load_failed', { error: formatGameMetadataError(error) }), 'error');
+        clearGameMetadataForm();
+    } finally {
+        setGameMetadataFormDisabled(false);
+    }
+}
+
+async function openGameMetadataOverlay() {
+    closeNavigationMenu();
+    if (!isGameMetadataSuperAdmin(currentAuthUser)) {
+        alert(t('game_metadata_forbidden'));
+        return;
+    }
+    const overlay = document.getElementById('gameMetadataOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.remove('hidden');
+    clearGameMetadataStatus();
+    clearGameMetadataForm();
+
+    try {
+        showMessage('gameMetadataStatus', t('message_upload_processing'), 'processing');
+        const preferredGameId = getActiveGame() || ensureActiveGameContext() || '';
+        const selectedGameId = await reloadGameMetadataCatalog(preferredGameId);
+        clearGameMetadataStatus();
+        if (!selectedGameId) {
+            showMessage('gameMetadataStatus', t('game_selector_no_games'), 'warning');
+            return;
+        }
+        await loadGameMetadataForSelection(selectedGameId);
+    } catch (error) {
+        showMessage('gameMetadataStatus', t('game_metadata_load_failed', { error: formatGameMetadataError(error) }), 'error');
+    }
+}
+
+function closeGameMetadataOverlay() {
+    const overlay = document.getElementById('gameMetadataOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    clearGameMetadataStatus();
+}
+
+function handleGameMetadataOverlayClick(event) {
+    if (event && event.target && event.target.id === 'gameMetadataOverlay') {
+        closeGameMetadataOverlay();
+    }
+}
+
+async function handleGameMetadataSelectionChange() {
+    clearGameMetadataStatus();
+    const selectedGameId = resolveSelectedMetadataGameId();
+    await loadGameMetadataForSelection(selectedGameId);
+}
+
+function parseGameMetadataAttributes(rawValue) {
+    const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
+    if (!raw) {
+        return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(t('game_metadata_invalid_attributes'));
+    }
+    return parsed;
+}
+
+async function saveGameMetadata() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.setGameMetadata !== 'function') {
+        showMessage('gameMetadataStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+    if (!isGameMetadataSuperAdmin(currentAuthUser)) {
+        showMessage('gameMetadataStatus', t('game_metadata_forbidden'), 'error');
+        return;
+    }
+    const selectedGameId = resolveSelectedMetadataGameId();
+    if (!selectedGameId) {
+        showMessage('gameMetadataStatus', t('game_metadata_unknown_game'), 'error');
+        return;
+    }
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    const companyInput = document.getElementById('gameMetadataCompanyInput');
+    const attributesInput = document.getElementById('gameMetadataAttributesInput');
+    let attributes = {};
+    try {
+        attributes = parseGameMetadataAttributes(attributesInput ? attributesInput.value : '');
+    } catch (error) {
+        showMessage('gameMetadataStatus', t('game_metadata_invalid_attributes'), 'error');
+        return;
+    }
+
+    const payload = {
+        name: nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '',
+        logo: logoInput && typeof logoInput.value === 'string' ? logoInput.value.trim() : '',
+        company: companyInput && typeof companyInput.value === 'string' ? companyInput.value.trim() : '',
+        attributes: attributes,
+    };
+
+    setGameMetadataFormDisabled(true);
+    showMessage('gameMetadataStatus', t('message_upload_processing'), 'processing');
+    try {
+        const result = await FirebaseService.setGameMetadata(selectedGameId, payload);
+        if (!result || !result.success) {
+            showMessage('gameMetadataStatus', formatGameMetadataError(result), 'error');
+            return;
+        }
+
+        await reloadGameMetadataCatalog(selectedGameId);
+        await loadGameMetadataForSelection(selectedGameId);
+        showMessage('gameMetadataStatus', t('game_metadata_saved'), 'success');
+        updateActiveGameBadge();
+    } catch (error) {
+        showMessage('gameMetadataStatus', formatGameMetadataError(error), 'error');
+    } finally {
+        setGameMetadataFormDisabled(false);
+    }
+}
+
+window.setActiveGame = setActiveGame;
+window.getActiveGame = getActiveGame;
+window.updateActiveGameBadge = updateActiveGameBadge;
+window.showPostAuthGameSelector = showPostAuthGameSelector;
+window.resetPostAuthGameSelectorState = resetPostAuthGameSelectorState;
 
 // ============================================================
 // ONBOARDING TOUR
@@ -607,12 +951,11 @@ function bindStaticUiActions() {
     on('navConfigBtn', 'click', showConfigurationPage);
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
+    on('navGameMetadataBtn', 'click', openGameMetadataOverlay);
     on('navSettingsBtn', 'click', openSettingsModal);
-    on('navSupportBtn', 'click', showSupportPage);
-    on('mobileNavGeneratorBtn', 'click', showGeneratorPage);
-    on('mobileNavConfigBtn', 'click', showConfigurationPage);
-    on('mobileNavPlayersBtn', 'click', showPlayersManagementPage);
-    on('mobileNavAllianceBtn', 'click', showAlliancePage);
+    on('navSwitchGameBtn', 'click', () => {
+        openGameSelector({ requireChoice: false });
+    });
     on('navSignOutBtn', 'click', () => {
         closeNavigationMenu();
         handleSignOut();
@@ -659,6 +1002,19 @@ function bindStaticUiActions() {
     on('settingsDeleteBtn', 'click', deleteAccountFromSettings);
     on('settingsCancelBtn', 'click', closeSettingsModal);
     on('settingsSaveBtn', 'click', saveSettings);
+    on('gameSelectorOverlay', 'click', handleGameSelectorOverlayClick);
+    on('gameSelectorCancelBtn', 'click', () => closeGameSelector(false));
+    on('gameSelectorConfirmBtn', 'click', confirmGameSelectorChoice);
+    on('gameSelectorInput', 'change', () => {
+        const status = document.getElementById('gameSelectorStatus');
+        if (status) {
+            status.replaceChildren();
+        }
+    });
+    on('gameMetadataOverlay', 'click', handleGameMetadataOverlayClick);
+    on('gameMetadataCloseBtn', 'click', () => closeGameMetadataOverlay());
+    on('gameMetadataSelect', 'change', handleGameMetadataSelectionChange);
+    on('gameMetadataSaveBtn', 'click', saveGameMetadata);
 
     on('uploadPersonalBtn', 'click', uploadToPersonal);
     on('uploadAllianceBtn', 'click', uploadToAlliance);
@@ -950,7 +1306,13 @@ function initializeApplicationUiRuntime() {
         coordCanvas.addEventListener('pointerdown', coordCanvasClick, { passive: false });
     }
 
-    document.addEventListener('keydown', handleGlobalKeydown);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeNavigationMenu();
+            closeSettingsModal();
+            closeGameSelector(false);
+        }
+    });
 
     bindEventEditorTableActions();
     const eventNameInput = document.getElementById('eventNameInput');
@@ -967,12 +1329,10 @@ function initializeApplicationUiRuntime() {
     startNewEventDraft();
     switchEvent(currentEvent);
     updateUserHeaderIdentity(currentAuthUser);
-}
-
-// Backward-compatible fallback when shell bootstrap script is not loaded.
-if (!(window.DSAppShellBootstrap && typeof window.DSAppShellBootstrap.boot === 'function')) {
-    document.addEventListener('DOMContentLoaded', initializeApplicationUiRuntime);
-}
+    ensureActiveGameContext();
+    updateActiveGameBadge();
+    refreshGameSelectorMenuAvailability();
+});
 
 // ============================================================
 // INITIALIZATION CHECK
@@ -1056,142 +1416,13 @@ const EVENT_NAME_LIMIT = 30;
 const EVENT_LOGO_DATA_URL_LIMIT = 220000;
 const EVENT_MAP_DATA_URL_LIMIT = 950000;
 const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
-const THEME_STORAGE_KEY = 'ds_theme';
-const THEME_STANDARD = 'standard';
-const THEME_LAST_WAR = 'last-war';
-const SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR]);
-const SUPPORT_DISCORD_HANDLE = 'flashguru2000';
-const SUPPORT_DISCORD_URL = 'https://discord.com/users/1239126582388592667';
-const SUPPORT_REPO_ISSUES_NEW_URL = 'https://github.com/CristianConsta/events-team-generator/issues/new';
-const ASSIGNMENT_ALGO_BALANCED = 'balanced';
-const ASSIGNMENT_ALGO_AGGRESSIVE = 'aggressive';
-const ASSIGNMENT_ALGO_DEFAULT = ASSIGNMENT_ALGO_BALANCED;
-const PLAYERS_MANAGEMENT_DEFAULT_SORT = 'power-desc';
+const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
 let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
-let currentAssignmentAlgorithm = ASSIGNMENT_ALGO_DEFAULT;
-let currentPageView = 'generator';
-const appStateStore = (
-    window.DSAppStateStore
-    && typeof window.DSAppStateStore.createDefaultStore === 'function'
-)
-    ? window.DSAppStateStore.createDefaultStore({
-        navigation: {
-            currentView: currentPageView,
-        },
-        generator: {
-            assignmentAlgorithm: currentAssignmentAlgorithm,
-            teamSelections: teamSelections,
-        },
-        playersManagement: {
-            filters: {
-                searchTerm: '',
-                troopsFilter: '',
-                sortFilter: PLAYERS_MANAGEMENT_DEFAULT_SORT,
-            },
-        },
-    })
-    : null;
-const appStateContract = (
-    window.DSStateStoreContract
-    && typeof window.DSStateStoreContract.createStateStoreContract === 'function'
-    && appStateStore
-)
-    ? window.DSStateStoreContract.createStateStoreContract(appStateStore)
-    : null;
-
-function getAppRuntimeState() {
-    if (appStateContract && typeof appStateContract.getState === 'function') {
-        return appStateContract.getState();
-    }
-    return {
-        navigation: { currentView: currentPageView },
-        generator: {
-            assignmentAlgorithm: currentAssignmentAlgorithm,
-            teamSelections: teamSelections,
-        },
-        playersManagement: {
-            filters: {
-                searchTerm: '',
-                troopsFilter: '',
-                sortFilter: PLAYERS_MANAGEMENT_DEFAULT_SORT,
-            },
-        },
-    };
-}
-
-function setAppRuntimeState(patch) {
-    if (appStateContract && typeof appStateContract.setState === 'function') {
-        appStateContract.setState(patch);
-    }
-}
-
-function getCurrentPageViewState() {
-    if (
-        window.DSAppStateStore
-        && window.DSAppStateStore.selectors
-        && typeof window.DSAppStateStore.selectors.selectNavigationView === 'function'
-    ) {
-        return window.DSAppStateStore.selectors.selectNavigationView(getAppRuntimeState());
-    }
-    return currentPageView;
-}
-
-function setCurrentPageViewState(nextView) {
-    currentPageView = nextView;
-    setAppRuntimeState({
-        navigation: {
-            currentView: nextView,
-        },
-    });
-}
-
-function getCurrentAssignmentAlgorithmState() {
-    if (
-        window.DSAppStateStore
-        && window.DSAppStateStore.selectors
-        && typeof window.DSAppStateStore.selectors.selectAssignmentAlgorithm === 'function'
-    ) {
-        return window.DSAppStateStore.selectors.selectAssignmentAlgorithm(getAppRuntimeState());
-    }
-    return currentAssignmentAlgorithm;
-}
-
-function setCurrentAssignmentAlgorithmState(nextValue) {
-    currentAssignmentAlgorithm = nextValue;
-    setAppRuntimeState({
-        generator: {
-            assignmentAlgorithm: nextValue,
-        },
-    });
-}
-
-function syncGeneratorTeamSelectionsState() {
-    setAppRuntimeState({
-        generator: {
-            teamSelections: {
-                teamA: Array.isArray(teamSelections.teamA) ? teamSelections.teamA : [],
-                teamB: Array.isArray(teamSelections.teamB) ? teamSelections.teamB : [],
-            },
-        },
-    });
-}
-
-function syncPlayersManagementFilterState() {
-    setAppRuntimeState({
-        playersManagement: {
-            filters: {
-                searchTerm: playersManagementSearchTerm,
-                troopsFilter: playersManagementTroopsFilter,
-                sortFilter: playersManagementSortFilter,
-            },
-        },
-    });
-}
-
+let gameMetadataCatalogCache = [];
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     if (
@@ -1708,7 +1939,8 @@ function showAlliancePage() {
     Promise.resolve()
         .then(async () => {
             if (typeof FirebaseService !== 'undefined' && FirebaseService.isSignedIn()) {
-                await FirebaseService.loadAllianceData();
+                const gameplayContext = getGameplayContext();
+                await FirebaseService.loadAllianceData(gameplayContext || undefined);
             }
             await checkAndDisplayNotifications();
         })
@@ -1796,7 +2028,9 @@ function getProfileFromService() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getUserProfile) {
         return { displayName: '', nickname: '', avatarDataUrl: '', theme: getStoredThemePreference() };
     }
-    const profile = FirebaseService.getUserProfile();
+    const activeGameId = getActiveGame() || ensureActiveGameContext();
+    const profileContext = activeGameId ? { gameId: activeGameId } : undefined;
+    const profile = FirebaseService.getUserProfile(profileContext);
     if (!profile || typeof profile !== 'object') {
         return { displayName: '', nickname: '', avatarDataUrl: '', theme: getStoredThemePreference() };
     }
@@ -1862,6 +2096,7 @@ function updateUserHeaderIdentity(user) {
     const avatarInitialsEl = document.getElementById('headerAvatarInitials');
     const initialsSource = visibleLabel || getSignInDisplayName(currentAuthUser);
     applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, getAvatarInitials(initialsSource, ''));
+    syncGameMetadataMenuAvailability();
 }
 
 function openSettingsModal() {
@@ -2077,6 +2312,10 @@ async function saveSettings() {
         showMessage('settingsStatus', t('error_firebase_not_loaded'), 'error');
         return;
     }
+    const gameplayContext = getGameplayContext('settingsStatus');
+    if (!gameplayContext) {
+        return;
+    }
     const displayInput = document.getElementById('settingsDisplayNameInput');
     const nicknameInput = document.getElementById('settingsNicknameInput');
     const displayName = displayInput && typeof displayInput.value === 'string'
@@ -2095,11 +2334,10 @@ async function saveSettings() {
             displayName: displayName,
             nickname: nickname,
             avatarDataUrl: settingsDraftAvatarDataUrl || '',
-            theme: selectedTheme,
-        });
+        }, gameplayContext);
     }
 
-    const result = await FirebaseService.saveUserData();
+    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
     if (result && result.success) {
         settingsDraftTheme = selectedTheme;
         applyPlatformTheme(selectedTheme);
@@ -2173,11 +2411,40 @@ async function deleteAccountFromSettings() {
 // ============================================================
 
 const EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
+const DEFAULT_ASSIGNMENT_ALGORITHM_ID = 'balanced_round_robin';
 function getEventIds() {
     return window.DSCoreEvents.getEventIds();
 }
 
 let currentEvent = getEventIds()[0] || 'desert_storm';
+
+function normalizeAssignmentAlgorithmId(value) {
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().toLowerCase();
+}
+
+function normalizeGameId(value) {
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function resolveDefaultAssignmentAlgorithmId(gameId) {
+    const normalizedGameId = normalizeGameId(gameId);
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.listAlgorithmsForGame === 'function') {
+        const algorithms = window.DSAssignmentRegistry.listAlgorithmsForGame(normalizedGameId);
+        if (Array.isArray(algorithms) && algorithms.length > 0 && algorithms[0] && typeof algorithms[0].id === 'string') {
+            const normalized = normalizeAssignmentAlgorithmId(algorithms[0].id);
+            if (normalized) {
+                return normalized;
+            }
+        }
+    }
+    return DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+}
 
 function getActiveEvent() {
     const active = window.DSCoreEvents.getEvent(currentEvent);
@@ -2438,6 +2705,7 @@ function normalizeStoredEventsData(rawData) {
             name: typeof entry.name === 'string' ? entry.name.trim().slice(0, EVENT_NAME_LIMIT) : '',
             logoDataUrl: isImageDataUrl(entry.logoDataUrl, EVENT_LOGO_DATA_URL_LIMIT) ? entry.logoDataUrl.trim() : '',
             mapDataUrl: isImageDataUrl(entry.mapDataUrl, EVENT_MAP_DATA_URL_LIMIT) ? entry.mapDataUrl.trim() : '',
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(entry.assignmentAlgorithmId),
             buildingConfig: Array.isArray(entry.buildingConfig) ? entry.buildingConfig : null,
             buildingPositions: entry.buildingPositions && typeof entry.buildingPositions === 'object' ? entry.buildingPositions : null,
         };
@@ -2455,13 +2723,21 @@ function buildRegistryFromStorage() {
         nextRegistry[eventId] = { ...legacyRegistry[eventId] };
     });
 
-    const storedEvents = (typeof FirebaseService !== 'undefined' && FirebaseService.getAllEventData)
-        ? normalizeStoredEventsData(FirebaseService.getAllEventData())
-        : {};
+    const storedEvents = (() => {
+        if (typeof FirebaseService === 'undefined' || !FirebaseService.getAllEventData) {
+            return {};
+        }
+        const gameplayContext = getGameplayContext();
+        if (!gameplayContext) {
+            return {};
+        }
+        return normalizeStoredEventsData(FirebaseService.getAllEventData(gameplayContext));
+    })();
 
     Object.keys(storedEvents).forEach((eventId) => {
         const stored = storedEvents[eventId];
         const base = nextRegistry[eventId] || {};
+        const gameplayContext = getGameplayContext();
         const baseBuildings = Array.isArray(base.buildings) ? base.buildings : [];
         const storedBuildings = Array.isArray(stored.buildingConfig)
             ? normalizeBuildingConfig(stored.buildingConfig, stored.buildingConfig)
@@ -2475,6 +2751,9 @@ function buildRegistryFromStorage() {
             : (base.defaultPositions || {});
         const mapDataUrl = stored.mapDataUrl || '';
         const nextName = stored.name || base.name || eventId;
+        const nextAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(stored.assignmentAlgorithmId)
+            || normalizeAssignmentAlgorithmId(base.assignmentAlgorithmId)
+            || resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : '');
         const preserveTitleKey = !stored.name || !base.name || stored.name === base.name;
 
         nextRegistry[eventId] = {
@@ -2489,6 +2768,7 @@ function buildRegistryFromStorage() {
             excelPrefix: normalizeEventId(base.excelPrefix || eventId) || eventId,
             logoDataUrl: stored.logoDataUrl || '',
             mapDataUrl: mapDataUrl,
+            assignmentAlgorithmId: nextAssignmentAlgorithmId,
             buildings: buildings,
             defaultPositions: defaultPositions,
             buildingAnchors: base.buildingAnchors || {},
@@ -2602,6 +2882,10 @@ const MAX_BUILDING_SLOTS_TOTAL = 20;
 const MIN_BUILDING_SLOTS = 0;
 
 function switchEvent(eventId) {
+    const activeGameId = enforceGameplayContext();
+    if (!activeGameId) {
+        return;
+    }
     const targetEventId = normalizeEventId(eventId);
     if (!targetEventId || !window.DSCoreEvents.getEvent(targetEventId)) return;
     if (targetEventId === currentEvent) {
@@ -2817,7 +3101,7 @@ function updateEventEditorState() {
         eventNameInput.disabled = readOnly;
     }
 
-    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn', 'eventCancelEditBtn'].forEach((id) => {
+    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn', 'eventCancelEditBtn', 'eventAssignmentAlgorithmInput'].forEach((id) => {
         const element = document.getElementById(id);
         if (element) {
             element.disabled = readOnly;
@@ -3028,6 +3312,60 @@ function setEditorName(value) {
     }
 }
 
+function getEventAlgorithmSelectElement() {
+    return document.getElementById('eventAssignmentAlgorithmInput');
+}
+
+function listSelectableAssignmentAlgorithmsForActiveGame() {
+    const gameplayContext = getGameplayContext();
+    const gameId = gameplayContext ? gameplayContext.gameId : '';
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.listAlgorithmsForGame === 'function') {
+        const algorithms = window.DSAssignmentRegistry.listAlgorithmsForGame(gameId);
+        if (Array.isArray(algorithms) && algorithms.length > 0) {
+            return algorithms
+                .filter((entry) => entry && typeof entry.id === 'string')
+                .map((entry) => ({
+                    id: normalizeAssignmentAlgorithmId(entry.id),
+                    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.id,
+                }))
+                .filter((entry) => !!entry.id);
+        }
+    }
+    return [{
+        id: DEFAULT_ASSIGNMENT_ALGORITHM_ID,
+        name: 'Balanced Round Robin',
+    }];
+}
+
+function renderEventAssignmentAlgorithmOptions(selectedAlgorithmId) {
+    const select = getEventAlgorithmSelectElement();
+    if (!select) {
+        return;
+    }
+    const algorithms = listSelectableAssignmentAlgorithmsForActiveGame();
+    const fallbackId = algorithms[0] ? algorithms[0].id : DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+    const selectedId = normalizeAssignmentAlgorithmId(selectedAlgorithmId) || fallbackId;
+    select.innerHTML = '';
+    algorithms.forEach((algorithm) => {
+        const option = document.createElement('option');
+        option.value = algorithm.id;
+        option.textContent = algorithm.name;
+        select.appendChild(option);
+    });
+    const hasSelected = algorithms.some((algorithm) => algorithm.id === selectedId);
+    select.value = hasSelected ? selectedId : fallbackId;
+}
+
+function getSelectedEventAssignmentAlgorithmId() {
+    const select = getEventAlgorithmSelectElement();
+    const selected = select && typeof select.value === 'string' ? normalizeAssignmentAlgorithmId(select.value) : '';
+    if (selected) {
+        return selected;
+    }
+    const algorithms = listSelectableAssignmentAlgorithmsForActiveGame();
+    return algorithms[0] ? algorithms[0].id : DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+}
+
 function applySelectedEventToEditor() {
     if (!eventEditorCurrentId) {
         eventEditorCurrentId = currentEvent;
@@ -3041,6 +3379,7 @@ function applySelectedEventToEditor() {
     eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
     eventDraftMapDataUrl = event.mapDataUrl || '';
     eventDraftMapRemoved = false;
+    renderEventAssignmentAlgorithmOptions(event.assignmentAlgorithmId);
     updateEventLogoPreview();
     updateEventMapPreview();
     renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
@@ -3079,6 +3418,7 @@ function startNewEventDraft() {
     eventEditorCurrentId = '';
     eventEditorIsEditMode = true;
     setEditorName('');
+    renderEventAssignmentAlgorithmOptions(resolveDefaultAssignmentAlgorithmId(getGameplayContext() ? getGameplayContext().gameId : ''));
     eventDraftLogoDataUrl = '';
     eventDraftMapDataUrl = '';
     eventDraftMapRemoved = false;
@@ -3248,10 +3588,13 @@ async function handleEventMapChange(event) {
     }
 }
 
-function buildEventDefinition(eventId, name, buildings) {
+function buildEventDefinition(eventId, name, buildings, assignmentAlgorithmId) {
     const existing = window.DSCoreEvents.getEvent(eventId) || {};
     const mapDataUrl = eventDraftMapDataUrl || '';
     const logoDataUrl = eventDraftLogoDataUrl || generateEventAvatarDataUrl(name, eventId);
+    const normalizedAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(assignmentAlgorithmId)
+        || normalizeAssignmentAlgorithmId(existing.assignmentAlgorithmId)
+        || resolveDefaultAssignmentAlgorithmId(getGameplayContext() ? getGameplayContext().gameId : '');
     const validNames = new Set(buildings.map((item) => item.name));
     const currentPositions = buildingPositionsMap[eventId] || (existing.defaultPositions || {});
     const normalizedPositions = window.DSCoreBuildings.normalizeBuildingPositions(currentPositions, validNames);
@@ -3266,6 +3609,7 @@ function buildEventDefinition(eventId, name, buildings) {
         excelPrefix: normalizeEventId(existing.excelPrefix || eventId) || eventId,
         logoDataUrl: logoDataUrl,
         mapDataUrl: mapDataUrl,
+        assignmentAlgorithmId: normalizedAssignmentAlgorithmId,
         buildings: buildings,
         defaultPositions: normalizedPositions,
         buildingAnchors: existing.buildingAnchors || {},
@@ -3273,6 +3617,10 @@ function buildEventDefinition(eventId, name, buildings) {
 }
 
 async function saveEventDefinition() {
+    const gameplayContext = getGameplayContext('eventsStatus');
+    if (!gameplayContext) {
+        return;
+    }
     if (!eventEditorIsEditMode) {
         showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
         return;
@@ -3293,7 +3641,9 @@ async function saveEventDefinition() {
 
     const existingIds = getEventIds();
     const eventId = eventEditorCurrentId || window.DSCoreEvents.slugifyEventId(eventName, existingIds);
-    const definition = buildEventDefinition(eventId, eventName, buildings);
+    const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
+    const assignmentAlgorithmId = getSelectedEventAssignmentAlgorithmId();
+    const definition = buildEventDefinition(eventId, eventName, buildings, assignmentAlgorithmId);
     const isNewEvent = !eventEditorCurrentId;
 
     window.DSCoreEvents.upsertEvent(eventId, definition);
@@ -3313,15 +3663,16 @@ async function saveEventDefinition() {
                 name: definition.name,
                 logoDataUrl: definition.logoDataUrl,
                 mapDataUrl: definition.mapDataUrl,
+                assignmentAlgorithmId: definition.assignmentAlgorithmId,
                 buildingConfig: buildingConfigs[eventId],
                 buildingPositions: buildingPositionsMap[eventId],
-            });
+            }, eventContext);
         }
-        FirebaseService.setBuildingConfig(eventId, buildingConfigs[eventId]);
-        FirebaseService.setBuildingConfigVersion(eventId, getTargetBuildingConfigVersion());
-        FirebaseService.setBuildingPositions(eventId, buildingPositionsMap[eventId]);
-        FirebaseService.setBuildingPositionsVersion(eventId, getTargetBuildingPositionsVersion());
-        const saveResult = await FirebaseService.saveUserData();
+        FirebaseService.setBuildingConfig(eventId, buildingConfigs[eventId], eventContext);
+        FirebaseService.setBuildingConfigVersion(eventId, getTargetBuildingConfigVersion(), eventContext);
+        FirebaseService.setBuildingPositions(eventId, buildingPositionsMap[eventId], eventContext);
+        FirebaseService.setBuildingPositionsVersion(eventId, getTargetBuildingPositionsVersion(), eventContext);
+        const saveResult = await FirebaseService.saveUserData(undefined, gameplayContext);
         if (!saveResult || !saveResult.success) {
             showMessage('eventsStatus', t('events_manager_save_failed', { error: (saveResult && saveResult.error) || 'unknown' }), 'error');
             return;
@@ -3348,6 +3699,10 @@ async function saveEventDefinition() {
 }
 
 async function deleteSelectedEvent() {
+    const gameplayContext = getGameplayContext('eventsStatus');
+    if (!gameplayContext) {
+        return;
+    }
     if (!eventEditorIsEditMode) {
         showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
         return;
@@ -3365,6 +3720,7 @@ async function deleteSelectedEvent() {
     }
 
     const eventId = eventEditorCurrentId;
+    const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
     const removed = window.DSCoreEvents.removeEvent(eventId);
     if (!removed) {
         showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
@@ -3377,8 +3733,8 @@ async function deleteSelectedEvent() {
     delete coordMapWarningShown[eventId];
 
     if (typeof FirebaseService !== 'undefined' && FirebaseService.removeEvent) {
-        FirebaseService.removeEvent(eventId);
-        const result = await FirebaseService.saveUserData();
+        FirebaseService.removeEvent(eventId, eventContext);
+        const result = await FirebaseService.saveUserData(undefined, gameplayContext);
         if (!result || !result.success) {
             showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
             return;
@@ -3614,7 +3970,8 @@ function getPlayersManagementActiveSource() {
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getPlayerSource !== 'function') {
         return 'personal';
     }
-    return FirebaseService.getPlayerSource() === 'alliance' ? 'alliance' : 'personal';
+    const gameplayContext = getGameplayContext();
+    return FirebaseService.getPlayerSource(gameplayContext || undefined) === 'alliance' ? 'alliance' : 'personal';
 }
 
 async function refreshPlayersDataAfterMutation(source) {
@@ -3642,15 +3999,19 @@ function getPlayersDatabaseBySource(source) {
     if (typeof FirebaseService === 'undefined') {
         return {};
     }
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return {};
+    }
     if (source === 'alliance') {
         if (typeof FirebaseService.getAlliancePlayerDatabase === 'function') {
-            const allianceDb = FirebaseService.getAlliancePlayerDatabase();
+            const allianceDb = FirebaseService.getAlliancePlayerDatabase(gameplayContext);
             return allianceDb && typeof allianceDb === 'object' ? allianceDb : {};
         }
         return {};
     }
     if (typeof FirebaseService.getPlayerDatabase === 'function') {
-        const personalDb = FirebaseService.getPlayerDatabase();
+        const personalDb = FirebaseService.getPlayerDatabase(gameplayContext);
         return personalDb && typeof personalDb === 'object' ? personalDb : {};
     }
     return {};
@@ -3846,7 +4207,8 @@ function renderPlayersManagementSourceControls() {
         return;
     }
 
-    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext();
+    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
     if (!hasAlliance) {
         controls.classList.add('hidden');
         return;
@@ -4012,6 +4374,10 @@ async function handlePlayersManagementAddPlayer() {
     const thpInput = document.getElementById('playersMgmtNewThp');
     const troopsSelect = document.getElementById('playersMgmtNewTroops');
     const source = getPlayersManagementActiveSource();
+    const gameplayContext = getGameplayContext('playersMgmtStatus');
+    if (!gameplayContext) {
+        return;
+    }
     const payload = {
         name: nameInput ? nameInput.value : '',
         power: powerInput ? powerInput.value : 0,
@@ -4019,7 +4385,7 @@ async function handlePlayersManagementAddPlayer() {
         troops: troopsSelect ? troopsSelect.value : 'Unknown',
     };
 
-    const result = await FirebaseService.upsertPlayerEntry(source, '', payload);
+    const result = await FirebaseService.upsertPlayerEntry(source, '', payload, gameplayContext);
     if (result && result.success) {
         playersManagementEditingName = '';
         showMessage('playersMgmtStatus', t('players_list_added'), 'success');
@@ -4059,6 +4425,10 @@ async function handlePlayersManagementTableAction(event) {
     const action = button.getAttribute('data-pm-action');
     const originalName = button.getAttribute('data-player') || '';
     const source = getPlayersManagementActiveSource();
+    const gameplayContext = getGameplayContext('playersMgmtStatus');
+    if (!gameplayContext) {
+        return;
+    }
     if (!action || !originalName) {
         return;
     }
@@ -4090,7 +4460,7 @@ async function handlePlayersManagementTableAction(event) {
             thp: thpInput ? thpInput.value : 0,
             troops: troopsSelect ? troopsSelect.value : 'Unknown',
         };
-        const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload);
+        const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload, gameplayContext);
         if (result && result.success) {
             playersManagementEditingName = '';
             showMessage('playersMgmtStatus', t('players_list_saved'), 'success');
@@ -4110,7 +4480,7 @@ async function handlePlayersManagementTableAction(event) {
         if (!confirm(t('players_list_delete_confirm', { name: originalName }))) {
             return;
         }
-        const result = await FirebaseService.removePlayerEntry(source, originalName);
+        const result = await FirebaseService.removePlayerEntry(source, originalName, gameplayContext);
         if (result && result.success) {
             playersManagementEditingName = '';
             const returnToPlayersPage = getCurrentPageViewState() === 'players';
@@ -4130,6 +4500,49 @@ async function handlePlayersManagementTableAction(event) {
 // TEMPLATE GENERATION
 // ============================================================
 
+function getActivePlayerImportSchema() {
+    const defaultSchema = {
+        templateFileName: 'player_database_template.xlsx',
+        sheetName: 'Players',
+        headerRowIndex: 9,
+        columns: [
+            { key: 'name', header: 'Player Name', required: true },
+            { key: 'power', header: 'E1 Total Power(M)', required: true },
+            { key: 'troops', header: 'E1 Troops', required: true },
+        ],
+    };
+    const gameplayContext = getGameplayContext();
+    const gameId = gameplayContext ? gameplayContext.gameId : '';
+    if (window.DSCoreGames && typeof window.DSCoreGames.getGame === 'function') {
+        const game = window.DSCoreGames.getGame(gameId);
+        if (game && game.playerImportSchema && typeof game.playerImportSchema === 'object') {
+            const schema = game.playerImportSchema;
+            const columns = Array.isArray(schema.columns) && schema.columns.length > 0
+                ? schema.columns
+                    .map((column) => ({
+                        key: typeof column.key === 'string' ? column.key.trim() : '',
+                        header: typeof column.header === 'string' ? column.header.trim() : '',
+                        required: column.required !== false,
+                    }))
+                    .filter((column) => column.key && column.header)
+                : defaultSchema.columns;
+            return {
+                templateFileName: typeof schema.templateFileName === 'string' && schema.templateFileName.trim()
+                    ? schema.templateFileName.trim()
+                    : defaultSchema.templateFileName,
+                sheetName: typeof schema.sheetName === 'string' && schema.sheetName.trim()
+                    ? schema.sheetName.trim()
+                    : defaultSchema.sheetName,
+                headerRowIndex: Number.isFinite(Number(schema.headerRowIndex)) && Number(schema.headerRowIndex) >= 0
+                    ? Math.floor(Number(schema.headerRowIndex))
+                    : defaultSchema.headerRowIndex,
+                columns: columns.length > 0 ? columns : defaultSchema.columns,
+            };
+        }
+    }
+    return defaultSchema;
+}
+
 async function downloadPlayerTemplate() {
     try {
         await ensureXLSXLoaded();
@@ -4140,6 +4553,11 @@ async function downloadPlayerTemplate() {
     }
 
     const wb = XLSX.utils.book_new();
+    const schema = getActivePlayerImportSchema();
+    const headerRowIndex = Number.isFinite(Number(schema.headerRowIndex)) ? Math.max(0, Math.floor(Number(schema.headerRowIndex))) : 9;
+    const headers = Array.isArray(schema.columns) && schema.columns.length > 0
+        ? schema.columns.map((column) => column.header)
+        : [t('template_header_player_name'), t('template_header_power'), t('template_header_troops')];
     
     const instructions = [
         [t('template_title')],
@@ -4150,25 +4568,43 @@ async function downloadPlayerTemplate() {
         [t('template_step3')],
         ['THP (Total Hero Power): numeric value (e.g., 120.5). Leave empty to default to 0.'],
         [t('template_step4')],
-        [t('template_step5')],
-        [''],
-        [t('template_header_player_name'), t('template_header_power'), t('template_header_troops'), 'THP']
+        [t('template_step5')]
     ];
+    while (instructions.length < headerRowIndex) {
+        instructions.push(['']);
+    }
+    instructions.push(headers);
     
+    const exampleValueByKey = {
+        name: 'Player1',
+        power: 65.0,
+        troops: 'Tank',
+    };
+    const createExampleRow = (overrides) => schema.columns.map((column) => {
+        if (!column || !column.key) {
+            return '';
+        }
+        if (overrides && Object.prototype.hasOwnProperty.call(overrides, column.key)) {
+            return overrides[column.key];
+        }
+        return Object.prototype.hasOwnProperty.call(exampleValueByKey, column.key) ? exampleValueByKey[column.key] : '';
+    });
     const examples = [
-        ['Player1', 65.0, 'Tank', 120.5],
-        ['Player2', 68.0, 'Aero', 98.2],
-        ['Player3', 64.0, 'Missile', 0],
-        ['', '', '', ''],
-        ['', '', '', '']
+        createExampleRow({ name: 'Player1', power: 65.0, troops: 'Tank' }),
+        createExampleRow({ name: 'Player2', power: 68.0, troops: 'Aero' }),
+        createExampleRow({ name: 'Player3', power: 64.0, troops: 'Missile' }),
+        createExampleRow({}),
+        createExampleRow({}),
     ];
     
     const data = [...instructions, ...examples];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 15}, {wch: 22}];
+    ws['!cols'] = headers.map((header) => ({
+        wch: Math.max(15, String(header || '').length + 4),
+    }));
     
-    XLSX.utils.book_append_sheet(wb, ws, t('template_sheet_name'));
-    XLSX.writeFile(wb, 'player_database_template.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, schema.sheetName || t('template_sheet_name'));
+    XLSX.writeFile(wb, schema.templateFileName || 'player_database_template.xlsx');
     
     showMessage('uploadMessage', t('message_template_downloaded'), 'success');
 }
@@ -4194,15 +4630,23 @@ function renderAlliancePanel() {
     if (!content) {
         return;
     }
+    const gameplayContext = getGameplayContext();
     const hasAllianceMembership = !!(typeof FirebaseService !== 'undefined'
         && FirebaseService.getAllianceId
-        && FirebaseService.getAllianceId());
+        && gameplayContext
+        && FirebaseService.getAllianceId(gameplayContext));
     if (window.DSAlliancePanelUI && typeof window.DSAlliancePanelUI.renderAlliancePanel === 'function') {
         window.DSAlliancePanelUI.renderAlliancePanel({
             contentElement: content,
             hasAllianceMembership: hasAllianceMembership,
-            getAllianceMembers: () => FirebaseService.getAllianceMembers(),
-            getAllianceName: () => FirebaseService.getAllianceName(),
+            getAllianceMembers: () => {
+                const ctx = getGameplayContext();
+                return ctx ? FirebaseService.getAllianceMembers(ctx) : {};
+            },
+            getAllianceName: () => {
+                const ctx = getGameplayContext();
+                return ctx ? FirebaseService.getAllianceName(ctx) : null;
+            },
             getPendingInvitations: getPendingInvitationsList,
             getSentInvitations: getSentInvitationsList,
             getInvitationSenderDisplay: getInvitationSenderDisplay,
@@ -4278,7 +4722,11 @@ function getPendingInvitationsList() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getPendingInvitations) {
         return [];
     }
-    const invitations = FirebaseService.getPendingInvitations();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return [];
+    }
+    const invitations = FirebaseService.getPendingInvitations(gameplayContext);
     return Array.isArray(invitations) ? invitations : [];
 }
 
@@ -4286,7 +4734,11 @@ function getSentInvitationsList() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getSentInvitations) {
         return [];
     }
-    const invitations = FirebaseService.getSentInvitations();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return [];
+    }
+    const invitations = FirebaseService.getSentInvitations(gameplayContext);
     return Array.isArray(invitations) ? invitations : [];
 }
 
@@ -4359,7 +4811,11 @@ async function handleCreateAlliance() {
     }
 
     showMessage('allianceCreateStatus', t('message_upload_processing'), 'processing');
-    const result = await FirebaseService.createAlliance(name);
+    const gameplayContext = getGameplayContext('allianceCreateStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.createAlliance(name, gameplayContext);
 
     if (result.success) {
         showMessage('allianceCreateStatus', t('alliance_created'), 'success');
@@ -4377,7 +4833,11 @@ async function handleSendInvitation() {
         return;
     }
 
-    const result = await FirebaseService.sendInvitation(email);
+    const gameplayContext = getGameplayContext('inviteStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.sendInvitation(email, gameplayContext);
     if (result.success) {
         showMessage('inviteStatus', t('alliance_invite_sent_in_app'), 'success');
         document.getElementById('inviteEmail').value = '';
@@ -4392,7 +4852,11 @@ async function handleSendInvitation() {
 async function handleLeaveAlliance() {
     if (!confirm(t('alliance_confirm_leave'))) return;
 
-    const result = await FirebaseService.leaveAlliance();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.leaveAlliance(gameplayContext);
     if (result.success) {
         renderAlliancePanel();
         updateAllianceHeaderDisplay();
@@ -4401,11 +4865,15 @@ async function handleLeaveAlliance() {
 }
 
 async function switchPlayerSource(source, statusElementId) {
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext));
     if (source === 'alliance' && !hasAlliance) {
         return;
     }
-    await FirebaseService.setPlayerSource(source);
+    await FirebaseService.setPlayerSource(source, gameplayContext);
     loadPlayerData();
     renderAlliancePanel();
     const sourceLabels = {
@@ -4420,8 +4888,9 @@ async function switchPlayerSource(source, statusElementId) {
 
 function updateAllianceHeaderDisplay() {
     if (typeof FirebaseService === 'undefined') return;
-    const aid = FirebaseService.getAllianceId();
-    const aName = FirebaseService.getAllianceName();
+    const gameplayContext = getGameplayContext();
+    const aid = gameplayContext ? FirebaseService.getAllianceId(gameplayContext) : null;
+    const aName = gameplayContext ? FirebaseService.getAllianceName(gameplayContext) : null;
     const display = document.getElementById('allianceDisplay');
     const createBtn = document.getElementById('allianceCreateBtn');
 
@@ -4445,17 +4914,12 @@ let notificationPollInterval = null;
 
 async function checkAndDisplayNotifications() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.isSignedIn()) return;
-
-    const notifications = await FirebaseService.checkInvitations();
-    const badgeState = (
-        window.DSFeatureNotificationsCore
-        && typeof window.DSFeatureNotificationsCore.getNotificationBadgeState === 'function'
-    )
-        ? window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications)
-        : {
-            count: Array.isArray(notifications) ? notifications.length : 0,
-            hasNotifications: Array.isArray(notifications) && notifications.length > 0,
-        };
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const notifications = await FirebaseService.checkInvitations(gameplayContext);
+    const totalNotifications = Array.isArray(notifications) ? notifications.length : 0;
     const badge = document.getElementById('notificationBadge');
     const notificationBtn = document.getElementById('notificationBtn');
     if (badge) {
@@ -4544,26 +5008,18 @@ function getNotificationItems() {
     if (typeof FirebaseService === 'undefined') {
         return [];
     }
-
-    const invitationNotifications = FirebaseService.getInvitationNotifications
-        ? FirebaseService.getInvitationNotifications()
-        : null;
-    const pendingInvitations = FirebaseService.getPendingInvitations
-        ? FirebaseService.getPendingInvitations()
-        : [];
-
-    if (
-        window.DSFeatureNotificationsCore
-        && typeof window.DSFeatureNotificationsCore.normalizeNotificationItems === 'function'
-    ) {
-        return window.DSFeatureNotificationsCore.normalizeNotificationItems({
-            invitationNotifications: invitationNotifications,
-            pendingInvitations: pendingInvitations,
-        });
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return [];
+    }
+    if (FirebaseService.getInvitationNotifications) {
+        const items = FirebaseService.getInvitationNotifications(gameplayContext);
+        return Array.isArray(items) ? items : [];
     }
 
-    if (Array.isArray(invitationNotifications)) {
-        return invitationNotifications;
+    const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations(gameplayContext) : [];
+    if (!Array.isArray(invitations)) {
+        return [];
     }
 
     const invitations = Array.isArray(pendingInvitations) ? pendingInvitations : [];
@@ -4653,9 +5109,13 @@ function openAllianceInvitesFromNotification(invitationId) {
 }
 
 async function handleAcceptInvitation(invitationId, statusElementId) {
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
     const invitation = getPendingInvitationsList().find((item) => item && item.id === invitationId);
     const currentAllianceId = typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId
-        ? FirebaseService.getAllianceId()
+        ? FirebaseService.getAllianceId(gameplayContext)
         : null;
     if (currentAllianceId && invitation && invitation.allianceId && currentAllianceId !== invitation.allianceId) {
         showMessage(statusElementId || 'allianceInvitesStatus', t('alliance_error_already_in_alliance'), 'error');
@@ -4668,7 +5128,7 @@ async function handleAcceptInvitation(invitationId, statusElementId) {
         return;
     }
 
-    const result = await FirebaseService.acceptInvitation(invitationId);
+    const result = await FirebaseService.acceptInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -4681,7 +5141,11 @@ async function handleAcceptInvitation(invitationId, statusElementId) {
 }
 
 async function handleRejectInvitation(invitationId, statusElementId) {
-    const result = await FirebaseService.rejectInvitation(invitationId);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.rejectInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -4693,7 +5157,11 @@ async function handleRejectInvitation(invitationId, statusElementId) {
 }
 
 async function handleRevokeInvitation(invitationId, statusElementId) {
-    const result = await FirebaseService.revokeInvitation(invitationId);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.revokeInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -4705,7 +5173,11 @@ async function handleRevokeInvitation(invitationId, statusElementId) {
 }
 
 async function handleResendInvitation(invitationId, statusElementId) {
-    const result = await FirebaseService.resendInvitation(invitationId);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.resendInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -4723,6 +5195,10 @@ async function handleResendInvitation(invitationId, statusElementId) {
 let pendingUploadFile = null;
 
 async function uploadPlayerData() {
+    const activeGameId = enforceGameplayContext('uploadMessage');
+    if (!activeGameId) {
+        return;
+    }
     if (typeof FirebaseService === 'undefined') {
         showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
         return;
@@ -4742,7 +5218,8 @@ async function uploadPlayerData() {
         return;
     }
 
-    if (FirebaseService.getAllianceId()) {
+    const gameplayContext = getGameplayContext('uploadMessage');
+    if (FirebaseService.getAllianceId(gameplayContext || undefined)) {
         pendingUploadFile = file;
         openUploadTargetModal();
     } else {
@@ -4765,7 +5242,8 @@ function openUploadTargetModal() {
     if (!modal) {
         return;
     }
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext();
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
     const personalBtn = document.getElementById('uploadPersonalBtn');
     const allianceBtn = document.getElementById('uploadAllianceBtn');
     const bothBtn = document.getElementById('uploadBothBtn');
@@ -4793,6 +5271,21 @@ async function uploadToBoth() {
     if (file) await performUpload(file, 'both');
 }
 
+function getUploadErrorMessage(resultOrError) {
+    if (resultOrError && typeof resultOrError === 'object') {
+        if (resultOrError.errorKey) {
+            return t(resultOrError.errorKey, resultOrError.errorParams || {});
+        }
+        if (typeof resultOrError.error === 'string' && resultOrError.error) {
+            return resultOrError.error;
+        }
+        if (typeof resultOrError.message === 'string' && resultOrError.message) {
+            return resultOrError.message;
+        }
+    }
+    return String(resultOrError || 'unknown');
+}
+
 async function performUpload(file, target) {
     try {
         await ensureXLSXLoaded();
@@ -4803,6 +5296,10 @@ async function performUpload(file, target) {
     }
 
     showMessage('uploadMessage', t('message_upload_processing'), 'processing');
+    const gameplayContext = getGameplayContext('uploadMessage');
+    if (!gameplayContext) {
+        return;
+    }
 
     try {
         if (target === 'both') {
@@ -4812,15 +5309,15 @@ async function performUpload(file, target) {
             let allianceError = '';
 
             try {
-                personalResult = await FirebaseService.uploadPlayerDatabase(file);
+                personalResult = await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
             } catch (error) {
-                personalError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
+                personalError = getUploadErrorMessage(error);
             }
 
             try {
-                allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file);
+                allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext);
             } catch (error) {
-                allianceError = error && (error.error || error.message) ? (error.error || error.message) : String(error || '');
+                allianceError = getUploadErrorMessage(error);
             }
 
             const personalOk = !!(personalResult && personalResult.success);
@@ -4832,14 +5329,14 @@ async function performUpload(file, target) {
             }
 
             if (personalOk || allianceOk) {
-                const personalStatus = personalOk ? t('success_generic') : t('message_upload_failed', { error: personalError || (personalResult && personalResult.error) || 'unknown' });
-                const allianceStatus = allianceOk ? t('success_generic') : t('message_upload_failed', { error: allianceError || (allianceResult && allianceResult.error) || 'unknown' });
+                const personalStatus = personalOk ? t('success_generic') : t('message_upload_failed', { error: personalError || getUploadErrorMessage(personalResult) });
+                const allianceStatus = allianceOk ? t('success_generic') : t('message_upload_failed', { error: allianceError || getUploadErrorMessage(allianceResult) });
                 showMessage('uploadMessage', `${t('upload_target_personal')}: ${personalStatus} | ${t('upload_target_alliance')}: ${allianceStatus}`, 'warning');
                 loadPlayerData();
                 return;
             }
 
-            const mergedError = [personalError || (personalResult && personalResult.error), allianceError || (allianceResult && allianceResult.error)]
+            const mergedError = [personalError || getUploadErrorMessage(personalResult), allianceError || getUploadErrorMessage(allianceResult)]
                 .filter(Boolean)
                 .join(' | ');
             showMessage('uploadMessage', t('message_upload_failed', { error: mergedError || 'unknown' }), 'error');
@@ -4847,17 +5344,17 @@ async function performUpload(file, target) {
         }
 
         const result = target === 'alliance'
-            ? await FirebaseService.uploadAlliancePlayerDatabase(file)
-            : await FirebaseService.uploadPlayerDatabase(file);
+            ? await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext)
+            : await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
 
         if (!result || !result.success) {
-            showMessage('uploadMessage', t('message_upload_failed', { error: result && result.error ? result.error : 'unknown' }), 'error');
+            showMessage('uploadMessage', t('message_upload_failed', { error: getUploadErrorMessage(result) }), 'error');
             return;
         }
         showMessage('uploadMessage', result.message, 'success');
         loadPlayerData();
     } catch (error) {
-        showMessage('uploadMessage', t('message_upload_failed', { error: error.error || error.message }), 'error');
+        showMessage('uploadMessage', t('message_upload_failed', { error: getUploadErrorMessage(error) }), 'error');
     }
 }
 
@@ -4867,8 +5364,12 @@ function syncPlayersFromActiveDatabase(options) {
     }
 
     const config = options && typeof options === 'object' ? options : {};
-    const playerDB = FirebaseService.getActivePlayerDatabase();
-    const source = FirebaseService.getPlayerSource();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
+    const source = FirebaseService.getPlayerSource(gameplayContext);
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
     const count = playerDB && typeof playerDB === 'object' ? Object.keys(playerDB).length : 0;
 
@@ -4904,7 +5405,8 @@ function handleAllianceDataRealtimeUpdate() {
         renderAlliancePanel();
     }
 
-    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource() : 'personal';
+    const gameplayContext = getGameplayContext();
+    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || undefined) : 'personal';
     if (source === 'alliance') {
         syncPlayersFromActiveDatabase({ renderGeneratorViews: true });
     } else {
@@ -4916,6 +5418,11 @@ function handleAllianceDataRealtimeUpdate() {
 }
 
 function loadPlayerData() {
+    const gameplayContext = getGameplayContext('uploadMessage');
+    if (!gameplayContext) {
+        console.error('missing-active-game');
+        return;
+    }
     if (typeof FirebaseService === 'undefined') {
         console.error('FirebaseService not available');
         return;
@@ -4931,9 +5438,9 @@ function loadPlayerData() {
     }
     updateEventEditorState();
     
-    const playerDB = FirebaseService.getActivePlayerDatabase();
+    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
     const count = Object.keys(playerDB).length;
-    const source = FirebaseService.getPlayerSource();
+    const source = FirebaseService.getPlayerSource(gameplayContext);
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
     renderSelectionSourceControls();
 
@@ -4988,14 +5495,15 @@ function renderSelectionSourceControls() {
         return;
     }
 
-    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext();
+    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
     if (!hasAlliance) {
         controls.classList.add('hidden');
         return;
     }
     controls.classList.remove('hidden');
 
-    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource() : 'personal';
+    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || undefined) : 'personal';
     const personalActive = source !== 'alliance';
     const allianceActive = source === 'alliance';
     personalBtn.classList.toggle('secondary', !personalActive);
@@ -5206,7 +5714,8 @@ function loadBuildingConfig() {
         renderBuildingsTable();
         return;
     }
-    const stored = FirebaseService.getBuildingConfig(currentEvent);
+    const eventContext = getEventGameplayContext(currentEvent);
+    const stored = FirebaseService.getBuildingConfig(currentEvent, eventContext || undefined);
     const defaultConfig = getResolvedDefaultBuildingConfig();
     const targetVersion = getTargetBuildingConfigVersion();
     const shouldResetToDefaults = !Array.isArray(stored) || stored.length === 0;
@@ -5251,8 +5760,8 @@ function loadBuildingConfig() {
     });
 
     if (needsSave) {
-        FirebaseService.setBuildingConfig(currentEvent, config);
-        FirebaseService.setBuildingConfigVersion(currentEvent, targetVersion);
+        FirebaseService.setBuildingConfig(currentEvent, config, eventContext || undefined);
+        FirebaseService.setBuildingConfigVersion(currentEvent, targetVersion, eventContext || undefined);
     }
 
     renderBuildingsTable();
@@ -5264,13 +5773,15 @@ function loadBuildingPositions() {
         setBuildingPositionsLocal({});
         return false;
     }
-    const stored = FirebaseService.getBuildingPositions(currentEvent);
+    const eventContext = getEventGameplayContext(currentEvent);
+    const storedVersion = FirebaseService.getBuildingPositionsVersion(currentEvent, eventContext || undefined);
+    const stored = FirebaseService.getBuildingPositions(currentEvent, eventContext || undefined);
     const targetDefaults = getResolvedDefaultBuildingPositions();
     setBuildingPositionsLocal(normalizeBuildingPositions(stored));
     if (Object.keys(getBuildingPositions()).length === 0) {
         setBuildingPositionsLocal(targetDefaults);
-        FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-        FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion());
+        FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions(), eventContext || undefined);
+        FirebaseService.setBuildingPositionsVersion(currentEvent, targetVersion, eventContext || undefined);
         return true;
     }
     return false;
@@ -5370,10 +5881,15 @@ async function saveBuildingConfig() {
         showMessage('buildingsStatus', t('buildings_changes_not_saved'), 'error');
         return;
     }
+    const gameplayContext = getGameplayContext('buildingsStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const eventContext = { gameId: gameplayContext.gameId, eventId: normalizeEventId(currentEvent) };
 
-    FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig());
-    FirebaseService.setBuildingConfigVersion(currentEvent, getTargetBuildingConfigVersion());
-    const result = await FirebaseService.saveUserData();
+    FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig(), eventContext);
+    FirebaseService.setBuildingConfigVersion(currentEvent, getTargetBuildingConfigVersion(), eventContext);
+    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
     if (result.success) {
         showMessage('buildingsStatus', t('buildings_saved'), 'success');
     } else {
@@ -5775,9 +6291,14 @@ async function saveBuildingPositions() {
         showMessage('coordStatus', t('coord_changes_not_saved'), 'error');
         return;
     }
-    FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions());
-    FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion());
-    const result = await FirebaseService.saveUserData();
+    const gameplayContext = getGameplayContext('coordStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const eventContext = { gameId: gameplayContext.gameId, eventId: normalizeEventId(currentEvent) };
+    FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions(), eventContext);
+    FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion(), eventContext);
+    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
     if (result.success) {
         showMessage('coordStatus', t('coord_saved'), 'success');
     } else {
@@ -6086,34 +6607,7 @@ function clearPlayerSelection(playerName) {
 
 function clearAllSelections() {
     if (confirm(t('confirm_clear_all'))) {
-        if (
-            window.DSFeatureGeneratorTeamSelection
-            && typeof window.DSFeatureGeneratorTeamSelection.clearAllSelections === 'function'
-        ) {
-            const cleared = window.DSFeatureGeneratorTeamSelection.clearAllSelections();
-            teamSelections.teamA = Array.isArray(cleared.teamA) ? cleared.teamA : [];
-            teamSelections.teamB = Array.isArray(cleared.teamB) ? cleared.teamB : [];
-        } else {
-            teamSelections.teamA = [];
-            teamSelections.teamB = [];
-        }
-        assignmentsA = [];
-        assignmentsB = [];
-        substitutesA = [];
-        substitutesB = [];
-        closeDownloadModal();
-        document.getElementById('searchFilter').value = '';
-        currentTroopsFilter = '';
-        currentSortFilter = 'power-desc';
-        document.getElementById('troopsFilterBtn').classList.remove('active');
-        document.querySelectorAll('.filter-dropdown-panel').forEach(panel => {
-            const defaultVal = panel.id === 'troopsFilterPanel' ? '' : 'power-desc';
-            panel.querySelectorAll('.filter-option').forEach(opt => {
-                opt.classList.toggle('selected', opt.dataset.value === defaultVal);
-            });
-        });
-        updateTeamCounters();
-        renderPlayersTable();
+        resetTransientPlanningState({ renderPlayersTable: true });
     }
 }
 
@@ -6265,7 +6759,47 @@ function updateTeamCounters() {
 // ASSIGNMENT GENERATION
 // ============================================================
 
+function resolveCurrentEventAssignmentSelection(activeGameId) {
+    const gameId = normalizeGameId(activeGameId);
+    const activeEvent = getActiveEvent();
+    const requestedAlgorithmId = normalizeAssignmentAlgorithmId(activeEvent && activeEvent.assignmentAlgorithmId);
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.resolveAlgorithmSelection === 'function') {
+        return window.DSAssignmentRegistry.resolveAlgorithmSelection(gameId, requestedAlgorithmId);
+    }
+    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.resolveAlgorithmForEvent === 'function') {
+        const algorithm = window.DSAssignmentRegistry.resolveAlgorithmForEvent(gameId, requestedAlgorithmId);
+        if (!algorithm) {
+            return {
+                success: false,
+                error: 'unknown-assignment-algorithm',
+                algorithmId: requestedAlgorithmId || '',
+                gameId: gameId,
+            };
+        }
+        return {
+            success: true,
+            algorithmId: normalizeAssignmentAlgorithmId(algorithm.id) || resolveDefaultAssignmentAlgorithmId(gameId),
+            gameId: gameId,
+            algorithm: algorithm,
+        };
+    }
+    return {
+        success: true,
+        algorithmId: resolveDefaultAssignmentAlgorithmId(gameId),
+        gameId: gameId,
+        algorithm: {
+            id: resolveDefaultAssignmentAlgorithmId(gameId),
+            name: 'Balanced Round Robin',
+        },
+    };
+}
+
 function generateTeamAssignments(team) {
+    const activeGameId = enforceGameplayContext();
+    if (!activeGameId) {
+        alert('missing-active-game');
+        return;
+    }
     if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;
@@ -6291,7 +6825,11 @@ function generateTeamAssignments(team) {
         return;
     }
 
-    const playerDB = FirebaseService.getActivePlayerDatabase();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
 
     const assignmentCore = window.DSCoreGeneratorAssignment;
     const prepared = assignmentCore && typeof assignmentCore.preparePlayersForAssignment === 'function'
@@ -6317,7 +6855,34 @@ function generateTeamAssignments(team) {
     const starterPlayers = prepared.starters;
     const substitutePlayers = prepared.substitutes;
 
-    const assignments = assignTeamToBuildings(starterPlayers);
+    const algorithmSelection = resolveCurrentEventAssignmentSelection(activeGameId);
+    if (!algorithmSelection || !algorithmSelection.success) {
+        const errorCode = algorithmSelection && algorithmSelection.error ? algorithmSelection.error : 'unknown-assignment-algorithm';
+        const algorithmId = algorithmSelection && algorithmSelection.algorithmId ? algorithmSelection.algorithmId : '';
+        const statusMessage = t('assignment_algorithm_unknown', { id: algorithmId || 'unknown' });
+        showMessage('eventsStatus', statusMessage, 'error');
+        console.error('Assignment generation failed:', {
+            error: errorCode,
+            algorithmId: algorithmId,
+            gameId: activeGameId,
+            eventId: currentEvent,
+        });
+        alert(errorCode);
+        return;
+    }
+
+    let assignments = [];
+    try {
+        assignments = assignTeamToBuildings(starterPlayers, algorithmSelection.algorithm);
+    } catch (error) {
+        const errorCode = error && error.code ? error.code : 'unknown-assignment-algorithm';
+        showMessage('eventsStatus', t('assignment_algorithm_unknown', {
+            id: (error && error.algorithmId) || algorithmSelection.algorithmId || 'unknown',
+        }), 'error');
+        console.error('Assignment execution failed:', error);
+        alert(errorCode);
+        return;
+    }
 
     // Store both assignments and substitutes
     if (team === 'A') {
@@ -6330,12 +6895,19 @@ function generateTeamAssignments(team) {
 
     openDownloadModal(team);
 
-    console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes`);
+    console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes using ${algorithmSelection.algorithmId}`);
 }
 
-function assignTeamToBuildings(players) {
-    const strategy = normalizeAssignmentAlgorithm(getCurrentAssignmentAlgorithmState());
-    const buildingConfig = getEffectiveBuildingConfig();
+function assignTeamToBuildings(players, algorithm) {
+    const algorithmId = normalizeAssignmentAlgorithmId(algorithm && algorithm.id) || DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+    if (algorithmId === 'balanced_round_robin') {
+        return window.DSCoreAssignment.assignTeamToBuildings(players, getEffectiveBuildingConfig());
+    }
+    throw Object.assign(new Error('unknown-assignment-algorithm'), {
+        code: 'unknown-assignment-algorithm',
+        algorithmId: algorithmId,
+    });
+}
 
     if (
         strategy === ASSIGNMENT_ALGO_AGGRESSIVE
@@ -6670,8 +7242,9 @@ async function generateMap(team, assignments, statusId) {
         const teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
         const teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
         const teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
-        const activePlayerDB = (typeof FirebaseService !== 'undefined' && FirebaseService.getActivePlayerDatabase)
-            ? FirebaseService.getActivePlayerDatabase()
+        const gameplayContext = getGameplayContext();
+        const activePlayerDB = (typeof FirebaseService !== 'undefined' && FirebaseService.getActivePlayerDatabase && gameplayContext)
+            ? FirebaseService.getActivePlayerDatabase(gameplayContext)
             : {};
 
         const mappedAssignments = {};

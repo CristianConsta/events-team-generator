@@ -58,6 +58,7 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   });
   assert.equal(created.id, 'test_event');
   assert.equal(created.name, 'Test Event');
+  assert.equal(created.assignmentAlgorithmId, 'balanced_round_robin');
 
   global.FirebaseManager.setBuildingConfig('test_event', [{ name: 'HQ', slots: 2, priority: 1 }]);
   global.FirebaseManager.setBuildingPositions('test_event', { HQ: [20, 30] });
@@ -65,9 +66,120 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   const allEventData = global.FirebaseManager.getAllEventData();
   assert.ok(allEventData.test_event);
   assert.equal(allEventData.test_event.name, 'Test Event');
+  assert.equal(allEventData.test_event.assignmentAlgorithmId, 'balanced_round_robin');
   assert.equal(allEventData.test_event.buildingConfig.length, 1);
   assert.deepEqual(allEventData.test_event.buildingPositions.HQ, [20, 30]);
 
   assert.equal(global.FirebaseManager.removeEvent('test_event'), true);
   assert.equal(global.FirebaseManager.removeEvent('desert_storm'), false);
+});
+
+test('firebase manager resolves game-scoped read payload with fallback gated by flag state', () => {
+  global.window = global;
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  require(firebaseModulePath);
+
+  const legacyOnlyFallbackDisabled = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: null,
+    legacyData: { playerDatabase: { Alice: { power: 1 } } },
+  });
+  assert.equal(legacyOnlyFallbackDisabled.source, 'none');
+  assert.equal(legacyOnlyFallbackDisabled.usedLegacyFallback, false);
+  assert.equal(legacyOnlyFallbackDisabled.data, null);
+
+  const legacyOnlyFallbackEnabled = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: null,
+    legacyData: { playerDatabase: { Alice: { power: 1 } } },
+    allowLegacyFallback: true,
+  });
+  assert.equal(legacyOnlyFallbackEnabled.source, 'legacy-fallback');
+  assert.equal(legacyOnlyFallbackEnabled.usedLegacyFallback, true);
+  assert.ok(legacyOnlyFallbackEnabled.data.playerDatabase.Alice);
+
+  const mixed = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: { playerDatabase: { Bob: { power: 2 } } },
+    legacyData: { playerDatabase: { Alice: { power: 1 } } },
+  });
+  assert.equal(mixed.source, 'game');
+  assert.equal(mixed.usedLegacyFallback, false);
+  assert.ok(mixed.data.playerDatabase.Bob);
+
+  const nativeOnly = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: { playerDatabase: { Cara: { power: 3 } } },
+    legacyData: null,
+  });
+  assert.equal(nativeOnly.source, 'game');
+  assert.equal(nativeOnly.usedLegacyFallback, false);
+  assert.ok(nativeOnly.data.playerDatabase.Cara);
+});
+
+test('firebase manager resolves gameplay context with optional gameId signatures', () => {
+  global.window = global;
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  require(firebaseModulePath);
+
+  const explicit = global.FirebaseManager.resolveGameplayContext('getPlayerDatabase', { gameId: 'last_war' });
+  assert.deepEqual(explicit, { gameId: 'last_war', explicit: true });
+
+  const legacy = global.FirebaseManager.resolveGameplayContext('getPlayerDatabase');
+  assert.deepEqual(legacy, { gameId: 'last_war', explicit: false });
+});
+
+test('firebase manager exposes observability counters shape', () => {
+  global.window = global;
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  require(firebaseModulePath);
+
+  const counters = global.FirebaseManager.getObservabilityCounters();
+  assert.deepEqual(counters, {
+    dualWriteMismatchCount: 0,
+    invitationContextMismatchCount: 0,
+    fallbackReadHitCount: 0,
+  });
+  global.FirebaseManager.resetObservabilityCounters();
+  assert.deepEqual(global.FirebaseManager.getObservabilityCounters(), {
+    dualWriteMismatchCount: 0,
+    invitationContextMismatchCount: 0,
+    fallbackReadHitCount: 0,
+  });
 });

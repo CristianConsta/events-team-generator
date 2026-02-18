@@ -40,6 +40,9 @@ const FirebaseManager = (function() {
             name: typeof source.name === 'string' ? source.name : '',
             logoDataUrl: typeof source.logoDataUrl === 'string' ? source.logoDataUrl : '',
             mapDataUrl: typeof source.mapDataUrl === 'string' ? source.mapDataUrl : '',
+            assignmentAlgorithmId: typeof source.assignmentAlgorithmId === 'string'
+                ? source.assignmentAlgorithmId
+                : DEFAULT_ASSIGNMENT_ALGORITHM_ID,
             buildingConfig: null,
             buildingConfigVersion: 0,
             buildingPositions: null,
@@ -340,7 +343,33 @@ const FirebaseManager = (function() {
     const EVENT_NAME_MAX_LEN = 30;
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
+    const DEFAULT_ASSIGNMENT_ALGORITHM_ID = 'balanced_round_robin';
     const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
+    const GAMES_COLLECTION = 'games';
+    const USER_GAMES_SUBCOLLECTION = 'games';
+    const GAME_ALLIANCES_SUBCOLLECTION = 'alliances';
+    const GAME_INVITATIONS_SUBCOLLECTION = 'invitations';
+    const DEFAULT_GAME_ID = 'last_war';
+    const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
+    const DEFAULT_PLAYER_IMPORT_SCHEMA = Object.freeze({
+        id: 'last_war_players_v1',
+        templateFileName: 'player_database_template.xlsx',
+        sheetName: 'Players',
+        headerRowIndex: 9,
+        columns: Object.freeze([
+            Object.freeze({ key: 'name', header: 'Player Name', required: true }),
+            Object.freeze({ key: 'power', header: 'E1 Total Power(M)', required: true }),
+            Object.freeze({ key: 'troops', header: 'E1 Troops', required: true }),
+        ]),
+    });
+    const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
+    const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
+        MULTIGAME_ENABLED: false,
+        MULTIGAME_READ_FALLBACK_ENABLED: false,
+        MULTIGAME_DUAL_WRITE_ENABLED: false,
+        MULTIGAME_GAME_SELECTOR_ENABLED: false,
+    });
+    const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
 
     // Private variables
     let auth = null;
@@ -356,7 +385,8 @@ const FirebaseManager = (function() {
     let pendingInvitations = [];
     let sentInvitations = [];
     let invitationNotifications = [];
-    let userProfile = { displayName: '', nickname: '', avatarDataUrl: '', theme: 'standard' };
+    let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
+    let activeAllianceGameId = DEFAULT_GAME_ID;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
     let onAllianceDataCallback = null;
@@ -372,6 +402,69 @@ const FirebaseManager = (function() {
     let globalDefaultPositionsVersion = 0;
     let globalDefaultEventBuildingConfig = {};
     let globalDefaultBuildingConfigVersion = 0;
+    let migrationVersion = 0;
+    let migratedToGameSubcollectionsAt = null;
+    const observabilityCounters = {
+        dualWriteMismatchCount: 0,
+        invitationContextMismatchCount: 0,
+        fallbackReadHitCount: 0,
+    };
+
+    function normalizeFeatureFlagValue(value, fallbackValue) {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+        if (typeof value === 'number') {
+            return value !== 0;
+        }
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (!normalized) {
+                return fallbackValue;
+            }
+            if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') {
+                return true;
+            }
+            if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'off') {
+                return false;
+            }
+        }
+        return fallbackValue;
+    }
+
+    function readRuntimeFeatureFlagOverrides() {
+        if (typeof window === 'undefined' || !window || typeof window !== 'object') {
+            return {};
+        }
+        const runtimeFlags = window.__MULTIGAME_FLAGS;
+        if (!runtimeFlags || typeof runtimeFlags !== 'object') {
+            return {};
+        }
+        return runtimeFlags;
+    }
+
+    function resolveFeatureFlags(overrides) {
+        const runtimeOverrides = readRuntimeFeatureFlagOverrides();
+        const scopedOverrides = overrides && typeof overrides === 'object' ? overrides : {};
+        const mergedFlags = {
+            ...runtimeOverrides,
+            ...scopedOverrides,
+        };
+        const resolvedFlags = {};
+        MULTIGAME_FLAG_KEYS.forEach((flagName) => {
+            const fallbackValue = MULTIGAME_FLAG_DEFAULTS[flagName];
+            resolvedFlags[flagName] = normalizeFeatureFlagValue(mergedFlags[flagName], fallbackValue);
+        });
+        return resolvedFlags;
+    }
+
+    function isFeatureFlagEnabled(flagName, overrides) {
+        if (!Object.prototype.hasOwnProperty.call(MULTIGAME_FLAG_DEFAULTS, flagName)) {
+            return false;
+        }
+        const resolvedFlags = resolveFeatureFlags(overrides);
+        return resolvedFlags[flagName] === true;
+    }
 
     function emptyGlobalEventPositions(payload) {
         const source = payload && typeof payload === 'object' ? payload : {};
@@ -418,6 +511,263 @@ const FirebaseManager = (function() {
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '_')
             .replace(/^_+|_+$/g, '');
+    }
+
+    function normalizeGameId(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function getUserGameDocRef(userId, gameId) {
+        if (!db || !userId) {
+            return null;
+        }
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        return db.collection('users').doc(userId).collection(USER_GAMES_SUBCOLLECTION).doc(normalizedGameId);
+    }
+
+    function getGameDocRef(gameId) {
+        if (!db) {
+            return null;
+        }
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        return db.collection(GAMES_COLLECTION).doc(normalizedGameId);
+    }
+
+    function getGameAllianceCollectionRef(gameId) {
+        const gameRef = getGameDocRef(gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(GAME_ALLIANCES_SUBCOLLECTION);
+    }
+
+    function getGameAllianceDocRef(gameId, allianceDocId) {
+        const collectionRef = getGameAllianceCollectionRef(gameId);
+        const normalizedAllianceDocId = typeof allianceDocId === 'string' ? allianceDocId.trim() : '';
+        if (!collectionRef || !normalizedAllianceDocId) {
+            return null;
+        }
+        return collectionRef.doc(normalizedAllianceDocId);
+    }
+
+    function getGameInvitationCollectionRef(gameId) {
+        const gameRef = getGameDocRef(gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(GAME_INVITATIONS_SUBCOLLECTION);
+    }
+
+    function getGameInvitationDocRef(gameId, invitationId) {
+        const collectionRef = getGameInvitationCollectionRef(gameId);
+        const normalizedInvitationId = typeof invitationId === 'string' ? invitationId.trim() : '';
+        if (!collectionRef || !normalizedInvitationId) {
+            return null;
+        }
+        return collectionRef.doc(normalizedInvitationId);
+    }
+
+    function parseMigrationVersion(value) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+        }
+        return Math.floor(parsed);
+    }
+
+    function updateMigrationMarkersFromUserData(data) {
+        const source = data && typeof data === 'object' ? data : {};
+        migrationVersion = parseMigrationVersion(source.migrationVersion);
+        migratedToGameSubcollectionsAt = source.migratedToGameSubcollectionsAt || null;
+    }
+
+    function resolveGameScopedReadPayload(options) {
+        const source = options && typeof options === 'object' ? options : {};
+        const normalizedGameId = normalizeGameId(source.gameId) || DEFAULT_GAME_ID;
+        const allowLegacyFallback = source.allowLegacyFallback === true;
+        const gameData = source.gameData && typeof source.gameData === 'object' ? source.gameData : null;
+        const legacyData = source.legacyData && typeof source.legacyData === 'object' ? source.legacyData : null;
+
+        if (gameData) {
+            return {
+                gameId: normalizedGameId,
+                source: 'game',
+                usedLegacyFallback: false,
+                data: gameData,
+            };
+        }
+        if (allowLegacyFallback && normalizedGameId === DEFAULT_GAME_ID && legacyData) {
+            return {
+                gameId: normalizedGameId,
+                source: 'legacy-fallback',
+                usedLegacyFallback: true,
+                data: legacyData,
+            };
+        }
+        return {
+            gameId: normalizedGameId,
+            source: 'none',
+            usedLegacyFallback: false,
+            data: null,
+        };
+    }
+
+    function incrementObservabilityCounter(counterKey, amount) {
+        if (!Object.prototype.hasOwnProperty.call(observabilityCounters, counterKey)) {
+            return;
+        }
+        const delta = Number(amount);
+        const increment = Number.isFinite(delta) && delta > 0 ? Math.floor(delta) : 1;
+        observabilityCounters[counterKey] += increment;
+    }
+
+    function getObservabilityCounters() {
+        return {
+            dualWriteMismatchCount: Number(observabilityCounters.dualWriteMismatchCount) || 0,
+            invitationContextMismatchCount: Number(observabilityCounters.invitationContextMismatchCount) || 0,
+            fallbackReadHitCount: Number(observabilityCounters.fallbackReadHitCount) || 0,
+        };
+    }
+
+    function resetObservabilityCounters() {
+        observabilityCounters.dualWriteMismatchCount = 0;
+        observabilityCounters.invitationContextMismatchCount = 0;
+        observabilityCounters.fallbackReadHitCount = 0;
+    }
+
+    function normalizeGameContextInput(context) {
+        if (typeof context === 'string') {
+            return normalizeGameId(context);
+        }
+        if (context && typeof context === 'object' && typeof context.gameId === 'string') {
+            return normalizeGameId(context.gameId);
+        }
+        return '';
+    }
+
+    function resolveGameplayContext(methodName, context) {
+        const explicitGameId = normalizeGameContextInput(context);
+        if (explicitGameId) {
+            return { gameId: explicitGameId, explicit: true };
+        }
+        return { gameId: DEFAULT_GAME_ID, explicit: false };
+    }
+
+    function getResolvedGameId(methodName, context) {
+        const gameplayContext = resolveGameplayContext(methodName, context);
+        return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+    }
+
+    function resetAllianceRuntimeState() {
+        allianceId = null;
+        allianceName = null;
+        allianceData = null;
+        pendingInvitations = [];
+        sentInvitations = [];
+        invitationNotifications = [];
+    }
+
+    async function resolveUserGameAssociationState(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (!currentUser || !db) {
+            return {
+                gameId: normalizedGameId,
+                allianceId: null,
+                allianceName: null,
+                playerSource: 'personal',
+            };
+        }
+
+        const gameRef = getUserGameDocRef(currentUser.uid, normalizedGameId);
+        if (gameRef) {
+            const gameDoc = await gameRef.get();
+            if (gameDoc.exists) {
+                const gameData = gameDoc.data() || {};
+                return {
+                    gameId: normalizedGameId,
+                    allianceId: typeof gameData.allianceId === 'string' ? gameData.allianceId : null,
+                    allianceName: typeof gameData.allianceName === 'string' ? gameData.allianceName : null,
+                    playerSource: gameData.playerSource === 'alliance' ? 'alliance' : 'personal',
+                };
+            }
+        }
+
+        const allowLegacyFallback = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
+        if (allowLegacyFallback && normalizedGameId === DEFAULT_GAME_ID) {
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            const legacy = userDoc.exists ? (userDoc.data() || {}) : {};
+            return {
+                gameId: normalizedGameId,
+                allianceId: typeof legacy.allianceId === 'string' ? legacy.allianceId : null,
+                allianceName: typeof legacy.allianceName === 'string' ? legacy.allianceName : null,
+                playerSource: legacy.playerSource === 'alliance' ? 'alliance' : 'personal',
+            };
+        }
+
+        return {
+            gameId: normalizedGameId,
+            allianceId: null,
+            allianceName: null,
+            playerSource: 'personal',
+        };
+    }
+
+    async function setActiveAllianceGameContext(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (activeAllianceGameId === normalizedGameId) {
+            return;
+        }
+        stopAllianceDocListener();
+        resetAllianceRuntimeState();
+        activeAllianceGameId = normalizedGameId;
+        const state = await resolveUserGameAssociationState(normalizedGameId);
+        allianceId = state.allianceId || null;
+        allianceName = state.allianceName || null;
+        playerSource = state.playerSource === 'alliance' ? 'alliance' : 'personal';
+    }
+
+    async function persistUserGameAssociationState(gameId, overrides) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (!currentUser || !db) {
+            return;
+        }
+        const source = overrides && typeof overrides === 'object' ? overrides : {};
+        const nextAllianceId = Object.prototype.hasOwnProperty.call(source, 'allianceId')
+            ? (source.allianceId || null)
+            : (allianceId || null);
+        const nextAllianceName = Object.prototype.hasOwnProperty.call(source, 'allianceName')
+            ? (source.allianceName || null)
+            : (allianceName || null);
+        const nextPlayerSource = Object.prototype.hasOwnProperty.call(source, 'playerSource')
+            ? (source.playerSource === 'alliance' ? 'alliance' : 'personal')
+            : (playerSource === 'alliance' ? 'alliance' : 'personal');
+
+        const gameRef = getUserGameDocRef(currentUser.uid, normalizedGameId);
+        if (gameRef) {
+            await gameRef.set({
+                allianceId: nextAllianceId,
+                allianceName: nextAllianceName,
+                playerSource: nextPlayerSource,
+                metadata: {
+                    lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+                },
+            }, { merge: true });
+        }
+
+        if (normalizedGameId === DEFAULT_GAME_ID) {
+            await db.collection('users').doc(currentUser.uid).set({
+                allianceId: nextAllianceId,
+                allianceName: nextAllianceName,
+                playerSource: nextPlayerSource,
+            }, { merge: true });
+        }
     }
 
     function normalizeEventName(value, fallback) {
@@ -765,6 +1115,292 @@ const FirebaseManager = (function() {
         return normalized.length > 0 ? normalized : null;
     }
 
+    function clonePlayerImportSchema(schema) {
+        return JSON.parse(JSON.stringify(schema && typeof schema === 'object' ? schema : DEFAULT_PLAYER_IMPORT_SCHEMA));
+    }
+
+    function normalizePlayerImportSchema(schema) {
+        const source = schema && typeof schema === 'object' ? schema : DEFAULT_PLAYER_IMPORT_SCHEMA;
+        const sheetName = typeof source.sheetName === 'string' && source.sheetName.trim()
+            ? source.sheetName.trim()
+            : DEFAULT_PLAYER_IMPORT_SCHEMA.sheetName;
+        const templateFileName = typeof source.templateFileName === 'string' && source.templateFileName.trim()
+            ? source.templateFileName.trim()
+            : DEFAULT_PLAYER_IMPORT_SCHEMA.templateFileName;
+        const headerRowIndexRaw = Number(source.headerRowIndex);
+        const headerRowIndex = Number.isFinite(headerRowIndexRaw) && headerRowIndexRaw >= 0
+            ? Math.floor(headerRowIndexRaw)
+            : DEFAULT_PLAYER_IMPORT_SCHEMA.headerRowIndex;
+        const columns = Array.isArray(source.columns) && source.columns.length > 0
+            ? source.columns
+                .map((column) => {
+                    const key = typeof column.key === 'string' ? column.key.trim() : '';
+                    const header = typeof column.header === 'string' ? column.header.trim() : '';
+                    if (!key || !header) {
+                        return null;
+                    }
+                    return {
+                        key: key,
+                        header: header,
+                        required: column.required !== false,
+                    };
+                })
+                .filter(Boolean)
+            : clonePlayerImportSchema(DEFAULT_PLAYER_IMPORT_SCHEMA).columns;
+        return {
+            id: typeof source.id === 'string' && source.id.trim() ? source.id.trim() : DEFAULT_PLAYER_IMPORT_SCHEMA.id,
+            templateFileName: templateFileName,
+            sheetName: sheetName,
+            headerRowIndex: headerRowIndex,
+            columns: columns,
+        };
+    }
+
+    function getPlayerImportSchema(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (typeof window !== 'undefined' && window.DSCoreGames && typeof window.DSCoreGames.getGame === 'function') {
+            const game = window.DSCoreGames.getGame(normalizedGameId);
+            if (game && game.playerImportSchema && typeof game.playerImportSchema === 'object') {
+                return normalizePlayerImportSchema(game.playerImportSchema);
+            }
+        }
+        return normalizePlayerImportSchema(DEFAULT_PLAYER_IMPORT_SCHEMA);
+    }
+
+    function resolvePlayerImportColumnMap(schema) {
+        const normalizedSchema = normalizePlayerImportSchema(schema);
+        const map = {};
+        normalizedSchema.columns.forEach((column) => {
+            map[column.key] = column;
+        });
+        return {
+            schema: normalizedSchema,
+            nameColumn: map.name || { key: 'name', header: 'Player Name', required: true },
+            powerColumn: map.power || { key: 'power', header: 'E1 Total Power(M)', required: false },
+            troopsColumn: map.troops || { key: 'troops', header: 'E1 Troops', required: false },
+            requiredColumns: normalizedSchema.columns.filter((column) => column.required !== false),
+        };
+    }
+
+    function parseWorkbookPlayers(workbook, schema) {
+        const columnMap = resolvePlayerImportColumnMap(schema);
+        const normalizedSchema = columnMap.schema;
+        const sheet = workbook && workbook.Sheets ? workbook.Sheets[normalizedSchema.sheetName] : null;
+        if (!sheet) {
+            return {
+                success: false,
+                errorKey: 'players_upload_schema_mismatch',
+                error: 'players_upload_schema_mismatch',
+                errorParams: {
+                    sheet: normalizedSchema.sheetName,
+                    columns: columnMap.requiredColumns.map((column) => column.header).join(', '),
+                },
+            };
+        }
+
+        const headerRows = XLSX.utils.sheet_to_json(sheet, {
+            header: 1,
+            range: normalizedSchema.headerRowIndex,
+            blankrows: false,
+        });
+        const headerRow = Array.isArray(headerRows) && Array.isArray(headerRows[0]) ? headerRows[0] : [];
+        const normalizedHeaders = new Set(headerRow
+            .map((header) => (typeof header === 'string' ? header.trim() : ''))
+            .filter(Boolean));
+        const missingRequiredHeaders = columnMap.requiredColumns
+            .map((column) => column.header)
+            .filter((header) => !normalizedHeaders.has(header));
+        if (missingRequiredHeaders.length > 0) {
+            return {
+                success: false,
+                errorKey: 'players_upload_schema_mismatch',
+                error: 'players_upload_schema_mismatch',
+                errorParams: {
+                    sheet: normalizedSchema.sheetName,
+                    columns: missingRequiredHeaders.join(', '),
+                },
+            };
+        }
+
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+            range: normalizedSchema.headerRowIndex,
+        });
+        const nextDatabase = {};
+        const skippedPlayers = [];
+        let skippedCount = 0;
+        const nowIso = new Date().toISOString();
+
+        rows.forEach((row) => {
+            const name = normalizeEditablePlayerName(row[columnMap.nameColumn.header]);
+            const power = row[columnMap.powerColumn.header];
+            const troops = row[columnMap.troopsColumn.header];
+            if (name) {
+                nextDatabase[name] = {
+                    power: normalizeEditablePlayerPower(power),
+                    troops: normalizeEditablePlayerTroops(troops),
+                    lastUpdated: nowIso,
+                };
+            } else {
+                skippedCount += 1;
+                skippedPlayers.push(`Row with no name (power: ${power || 'none'}, troops: ${troops || 'none'})`);
+            }
+        });
+
+        return {
+            success: true,
+            nextDatabase: nextDatabase,
+            skippedCount: skippedCount,
+            skippedPlayers: skippedPlayers,
+        };
+    }
+
+    function isGameMetadataSuperAdmin(userOrUid) {
+        if (typeof userOrUid === 'string') {
+            return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
+        }
+        return !!(userOrUid && typeof userOrUid === 'object' && typeof userOrUid.uid === 'string' && userOrUid.uid.trim() === GAME_METADATA_SUPER_ADMIN_UID);
+    }
+
+    function getCatalogGames() {
+        if (typeof window !== 'undefined' && window.DSCoreGames && typeof window.DSCoreGames.listAvailableGames === 'function') {
+            const games = window.DSCoreGames.listAvailableGames();
+            if (Array.isArray(games)) {
+                return games.map((game) => JSON.parse(JSON.stringify(game)));
+            }
+        }
+        return [{
+            id: DEFAULT_GAME_ID,
+            name: 'Last War: Survival',
+            logo: '',
+            company: '',
+            attributes: {},
+        }];
+    }
+
+    function sanitizeGameMetadataPayload(payload, baseGame) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const base = baseGame && typeof baseGame === 'object' ? baseGame : {};
+        const nameValue = Object.prototype.hasOwnProperty.call(source, 'name') ? source.name : base.name;
+        const logoValue = Object.prototype.hasOwnProperty.call(source, 'logo') ? source.logo : base.logo;
+        const companyValue = Object.prototype.hasOwnProperty.call(source, 'company') ? source.company : base.company;
+        const attributesValue = Object.prototype.hasOwnProperty.call(source, 'attributes') ? source.attributes : (base.attributes || {});
+        return {
+            name: typeof nameValue === 'string' ? nameValue.trim().slice(0, 80) : '',
+            logo: typeof logoValue === 'string' ? logoValue.trim().slice(0, MAX_EVENT_LOGO_DATA_URL_LEN) : '',
+            company: typeof companyValue === 'string' ? companyValue.trim().slice(0, 80) : '',
+            attributes: attributesValue && typeof attributesValue === 'object' && !Array.isArray(attributesValue)
+                ? JSON.parse(JSON.stringify(attributesValue))
+                : {},
+        };
+    }
+
+    async function listGameMetadata() {
+        const catalogGames = getCatalogGames();
+        const byId = new Map();
+        catalogGames.forEach((game) => {
+            const id = normalizeGameId(game.id);
+            if (!id) {
+                return;
+            }
+            byId.set(id, {
+                id: id,
+                name: typeof game.name === 'string' ? game.name : id,
+                logo: typeof game.logo === 'string' ? game.logo : '',
+                company: typeof game.company === 'string' ? game.company : '',
+                attributes: game.attributes && typeof game.attributes === 'object' && !Array.isArray(game.attributes)
+                    ? JSON.parse(JSON.stringify(game.attributes))
+                    : {},
+            });
+        });
+
+        if (db) {
+            try {
+                const snapshot = await db.collection(GAMES_COLLECTION).get();
+                snapshot.docs.forEach((doc) => {
+                    const gameId = normalizeGameId(doc.id);
+                    if (!gameId || !byId.has(gameId)) {
+                        return;
+                    }
+                    const current = byId.get(gameId);
+                    const data = doc.data() || {};
+                    const merged = sanitizeGameMetadataPayload(data, current);
+                    byId.set(gameId, {
+                        ...current,
+                        ...merged,
+                    });
+                });
+            } catch (error) {
+                console.warn('Failed to read game metadata overrides:', error);
+            }
+        }
+
+        return Array.from(byId.values());
+    }
+
+    async function getGameMetadata(gameId) {
+        const normalizedGameId = normalizeGameId(gameId);
+        if (!normalizedGameId) {
+            return null;
+        }
+        const games = await listGameMetadata();
+        return games.find((game) => game.id === normalizedGameId) || null;
+    }
+
+    async function setGameMetadata(gameId, payload) {
+        if (!currentUser) {
+            return { success: false, errorKey: 'game_metadata_forbidden', error: 'game_metadata_forbidden' };
+        }
+        if (!isGameMetadataSuperAdmin(currentUser)) {
+            return { success: false, errorKey: 'game_metadata_forbidden', error: 'game_metadata_forbidden' };
+        }
+        const normalizedGameId = normalizeGameId(gameId);
+        if (!normalizedGameId) {
+            return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
+        }
+        const baseGame = getCatalogGames().find((game) => normalizeGameId(game.id) === normalizedGameId);
+        if (!baseGame) {
+            return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
+        }
+        const sanitized = sanitizeGameMetadataPayload(payload, baseGame);
+        try {
+            const gameDocRef = getGameDocRef(normalizedGameId);
+            if (!gameDocRef) {
+                return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
+            }
+            await gameDocRef.set({
+                name: sanitized.name,
+                logo: sanitized.logo,
+                company: sanitized.company,
+                attributes: sanitized.attributes,
+                metadata: {
+                    updatedBy: currentUser.uid,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                },
+            }, { merge: true });
+            return {
+                success: true,
+                game: {
+                    id: normalizedGameId,
+                    name: sanitized.name,
+                    logo: sanitized.logo,
+                    company: sanitized.company,
+                    attributes: sanitized.attributes,
+                },
+            };
+        } catch (error) {
+            return { success: false, error: error.message || String(error) };
+        }
+    }
+
+    function normalizeAssignmentAlgorithmId(value, fallback) {
+        const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
+        if (raw) {
+            return raw;
+        }
+        const fallbackRaw = typeof fallback === 'string' ? fallback.trim().toLowerCase() : '';
+        return fallbackRaw || DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+    }
+
     function sanitizeEventEntry(eventId, payload, fallbackEntry) {
         const source = payload && typeof payload === 'object' ? payload : {};
         const fallback = fallbackEntry && typeof fallbackEntry === 'object' ? fallbackEntry : {};
@@ -773,6 +1409,7 @@ const FirebaseManager = (function() {
             name: normalizeEventName(source.name, fallbackName),
             logoDataUrl: sanitizeEventImageDataUrl(source.logoDataUrl, MAX_EVENT_LOGO_DATA_URL_LEN),
             mapDataUrl: sanitizeEventImageDataUrl(source.mapDataUrl, MAX_EVENT_MAP_DATA_URL_LEN),
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(source.assignmentAlgorithmId, fallback.assignmentAlgorithmId),
         });
 
         const normalizedConfig = normalizeBuildingConfigArray(source.buildingConfig);
@@ -850,6 +1487,7 @@ const FirebaseManager = (function() {
                 name: entry && typeof entry.name === 'string' ? entry.name : '',
                 logoDataUrl: '',
                 mapDataUrl: '',
+                assignmentAlgorithmId: entry ? entry.assignmentAlgorithmId : DEFAULT_ASSIGNMENT_ALGORITHM_ID,
                 buildingConfig: entry ? entry.buildingConfig : null,
                 buildingConfigVersion: entry ? entry.buildingConfigVersion : 0,
                 buildingPositions: entry ? entry.buildingPositions : null,
@@ -1240,6 +1878,62 @@ const FirebaseManager = (function() {
         };
     }
 
+    function isDualWriteEnabled() {
+        return isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED');
+    }
+
+    function buildGameScopedUserPayload(currentState, changedFields) {
+        const state = currentState && typeof currentState === 'object' ? currentState : getCurrentPersistedUserState();
+        const changed = Array.isArray(changedFields) ? changedFields : [];
+        const payload = {};
+
+        if (changed.includes('playerDatabase')) {
+            payload.playerDatabase = state.playerDatabase || {};
+        }
+        if (changed.includes('events')) {
+            payload.events = state.events || {};
+        }
+        if (changed.includes('userProfile')) {
+            payload.userProfile = state.userProfile || normalizeUserProfile(null);
+        }
+
+        payload.playerSource = playerSource || 'personal';
+        payload.allianceId = allianceId || null;
+        payload.allianceName = allianceName || null;
+
+        payload.metadata = {
+            totalPlayers: state.playerDatabase ? Object.keys(state.playerDatabase).length : 0,
+            lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+
+        return payload;
+    }
+
+    async function persistGameScopedDualWrite(currentState, changedFields) {
+        if (!currentUser || !isDualWriteEnabled()) {
+            return { success: true, skipped: true };
+        }
+        const gameRef = getUserGameDocRef(currentUser.uid, DEFAULT_GAME_ID);
+        if (!gameRef) {
+            return { success: false, error: 'Unable to resolve game document reference' };
+        }
+
+        const payload = buildGameScopedUserPayload(currentState, changedFields);
+        try {
+            await gameRef.set(payload, { merge: true });
+            await db.collection('users').doc(currentUser.uid).set({
+                migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
+                migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
+                lastActiveGameId: DEFAULT_GAME_ID,
+            }, { merge: true });
+            migrationVersion = Math.max(migrationVersion, GAME_SUBCOLLECTION_MIGRATION_VERSION);
+            migratedToGameSubcollectionsAt = new Date().toISOString();
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message || String(error) };
+        }
+    }
+
     function rememberLastSavedUserState(state) {
         const source = state && typeof state === 'object' ? state : getCurrentPersistedUserState();
         lastSavedUserState = cloneJson(source);
@@ -1340,11 +2034,13 @@ const FirebaseManager = (function() {
             }
         } else {
             console.log('ℹ️ User signed out');
+            stopAllianceDocListener();
             playerDatabase = {};
             eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
             allianceId = null;
             allianceName = null;
             allianceData = null;
+            activeAllianceGameId = DEFAULT_GAME_ID;
             playerSource = 'personal';
             pendingInvitations = [];
             sentInvitations = [];
@@ -1352,6 +2048,8 @@ const FirebaseManager = (function() {
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+            migrationVersion = 0;
+            migratedToGameSubcollectionsAt = null;
             resetSaveState();
 
             if (onAuthCallback) {
@@ -1391,15 +2089,20 @@ const FirebaseManager = (function() {
         allianceDocUnsubscribe = null;
     }
 
-    function startAllianceDocListener() {
+    function startAllianceDocListener(gameId) {
         stopAllianceDocListener();
         if (!db || !currentUser || !allianceId) {
             return;
         }
 
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
         const currentAllianceId = allianceId;
-        allianceDocUnsubscribe = db.collection('alliances').doc(currentAllianceId).onSnapshot((doc) => {
-            if (!currentUser || allianceId !== currentAllianceId) {
+        const allianceRef = getGameAllianceDocRef(normalizedGameId, currentAllianceId);
+        if (!allianceRef) {
+            return;
+        }
+        allianceDocUnsubscribe = allianceRef.onSnapshot((doc) => {
+            if (!currentUser || allianceId !== currentAllianceId || activeAllianceGameId !== normalizedGameId) {
                 return;
             }
 
@@ -1411,6 +2114,13 @@ const FirebaseManager = (function() {
                     playerSource = 'personal';
                 }
                 stopAllianceDocListener();
+                persistUserGameAssociationState(normalizedGameId, {
+                    allianceId: null,
+                    allianceName: null,
+                    playerSource: 'personal',
+                }).catch((error) => {
+                    console.warn('Failed to persist alliance reset after doc removal:', error);
+                });
                 emitAllianceDataUpdate();
                 return;
             }
@@ -1424,6 +2134,13 @@ const FirebaseManager = (function() {
                     playerSource = 'personal';
                 }
                 stopAllianceDocListener();
+                persistUserGameAssociationState(normalizedGameId, {
+                    allianceId: null,
+                    allianceName: null,
+                    playerSource: 'personal',
+                }).catch((error) => {
+                    console.warn('Failed to persist alliance reset after membership loss:', error);
+                });
                 emitAllianceDataUpdate();
                 return;
             }
@@ -1585,17 +2302,36 @@ const FirebaseManager = (function() {
         if (!db) {
             return [];
         }
+        const addRefsFromSnapshot = (snapshot) => {
+            snapshot.docs.forEach((doc) => refMap.set(doc.ref.path, doc.ref));
+        };
+        const safeQuery = async (fn) => {
+            try {
+                const snapshot = await fn();
+                addRefsFromSnapshot(snapshot);
+            } catch (error) {
+                console.warn('Invitation cleanup query skipped:', error.message || error);
+            }
+        };
         if (uid) {
-            const byInviter = await db.collection('invitations')
+            await safeQuery(() => db.collection('invitations')
                 .where('invitedBy', '==', uid)
-                .get();
-            byInviter.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+                .get());
+            if (typeof db.collectionGroup === 'function') {
+                await safeQuery(() => db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
+                    .where('invitedBy', '==', uid)
+                    .get());
+            }
         }
         if (emailLower) {
-            const byInvitee = await db.collection('invitations')
+            await safeQuery(() => db.collection('invitations')
                 .where('invitedEmail', '==', emailLower)
-                .get();
-            byInvitee.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+                .get());
+            if (typeof db.collectionGroup === 'function') {
+                await safeQuery(() => db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
+                    .where('invitedEmail', '==', emailLower)
+                    .get());
+            }
         }
         return Array.from(refMap.values());
     }
@@ -1605,7 +2341,8 @@ const FirebaseManager = (function() {
             return;
         }
         try {
-            const allianceRef = db.collection('alliances').doc(allianceId);
+            const allianceRef = getGameAllianceDocRef(activeAllianceGameId, allianceId)
+                || db.collection('alliances').doc(allianceId);
             const snap = await allianceRef.get();
             if (!snap.exists) {
                 return;
@@ -1673,6 +2410,7 @@ const FirebaseManager = (function() {
         allianceId = null;
         allianceName = null;
         allianceData = null;
+        activeAllianceGameId = DEFAULT_GAME_ID;
         playerSource = 'personal';
         pendingInvitations = [];
         sentInvitations = [];
@@ -1680,6 +2418,8 @@ const FirebaseManager = (function() {
         userProfile = normalizeUserProfile(null);
         setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
         setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+        migrationVersion = 0;
+        migratedToGameSubcollectionsAt = null;
         resetSaveState();
 
         try {
@@ -1733,11 +2473,28 @@ const FirebaseManager = (function() {
     async function loadUserData(user) {
         try {
             console.log('Loading data for UID:', user.uid);
-            const docRef = db.collection('users').doc(user.uid);
-            const doc = await docRef.get();
-            
-            if (doc.exists) {
-                const data = doc.data();
+            const userDocRef = db.collection('users').doc(user.uid);
+            const gameDocRef = getUserGameDocRef(user.uid, DEFAULT_GAME_ID);
+            const [legacyDoc, gameDoc] = await Promise.all([
+                userDocRef.get(),
+                gameDocRef ? gameDocRef.get() : Promise.resolve({ exists: false, data: () => ({}) })
+            ]);
+
+            const legacyData = legacyDoc.exists ? (legacyDoc.data() || {}) : null;
+            const gameScopedData = gameDoc && gameDoc.exists ? (gameDoc.data() || {}) : null;
+            updateMigrationMarkersFromUserData(legacyData);
+            const resolvedRead = resolveGameScopedReadPayload({
+                gameId: DEFAULT_GAME_ID,
+                gameData: gameScopedData,
+                legacyData: legacyData,
+                allowLegacyFallback: isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED'),
+            });
+            if (resolvedRead.usedLegacyFallback) {
+                incrementObservabilityCounter('fallbackReadHitCount', 1);
+            }
+
+            if (resolvedRead.data) {
+                const data = resolvedRead.data;
                 let shouldPersistLegacyDefaults = false;
                 const rawPlayerDatabase = data.playerDatabase && typeof data.playerDatabase === 'object'
                     ? data.playerDatabase
@@ -1747,8 +2504,26 @@ const FirebaseManager = (function() {
                 let shouldPersistNormalizedPlayerDatabase = !areJsonEqual(rawPlayerDatabase, normalizedPlayerDatabase);
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
+                activeAllianceGameId = DEFAULT_GAME_ID;
                 playerSource = data.playerSource || 'personal';
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
+
+                if (
+                    resolvedRead.source === 'game'
+                    && (migrationVersion < GAME_SUBCOLLECTION_MIGRATION_VERSION || !migratedToGameSubcollectionsAt)
+                ) {
+                    try {
+                        await userDocRef.set({
+                            migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
+                            migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastActiveGameId: DEFAULT_GAME_ID,
+                        }, { merge: true });
+                        migrationVersion = GAME_SUBCOLLECTION_MIGRATION_VERSION;
+                        migratedToGameSubcollectionsAt = new Date().toISOString();
+                    } catch (markerErr) {
+                        console.warn('⚠️ Failed to persist game-subcollection migration markers:', markerErr);
+                    }
+                }
 
                 // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
@@ -1771,11 +2546,10 @@ const FirebaseManager = (function() {
                     // Save migrated data and remove old top-level fields
                     try {
                         const batch = db.batch();
-                        const userRef = db.collection('users').doc(user.uid);
-                        batch.set(userRef, {
+                        batch.set(userDocRef, {
                             events: buildEventsWithoutMedia(eventData)
                         }, { merge: true });
-                        batch.update(userRef, {
+                        batch.update(userDocRef, {
                             buildingConfig: firebase.firestore.FieldValue.delete(),
                             buildingConfigVersion: firebase.firestore.FieldValue.delete(),
                             buildingPositions: firebase.firestore.FieldValue.delete(),
@@ -1811,7 +2585,7 @@ const FirebaseManager = (function() {
 
                 if (shouldPersistLegacyDefaults) {
                     try {
-                        await db.collection('users').doc(user.uid).set({
+                        await userDocRef.set({
                             events: buildEventsWithoutMedia(eventData),
                         }, { merge: true });
                         console.log('✅ Bootstrap default events saved for user');
@@ -1853,8 +2627,17 @@ const FirebaseManager = (function() {
                 eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
                 allianceId = null;
                 allianceName = null;
+                activeAllianceGameId = DEFAULT_GAME_ID;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
+                migrationVersion = 0;
+                migratedToGameSubcollectionsAt = null;
+                await loadGlobalDefaultBuildingPositions();
+                await loadGlobalDefaultBuildingConfig();
+                applyGlobalDefaultBuildingConfigToEventData({
+                    eventIds: LEGACY_EVENT_IDS,
+                    overwriteExisting: true,
+                });
                 await checkInvitations();
                 rememberLastSavedUserState();
                 return { success: true, data: {}, playerCount: 0 };
@@ -1914,11 +2697,12 @@ const FirebaseManager = (function() {
         try {
             console.log(`💾 Saving data (${changedFields.join(', ')})...`);
             if (hasDocPayload) {
-                const mergeFieldKeys = Object.keys(payload);
-                await db.collection('users').doc(currentUser.uid).set(
-                    payload,
-                    mergeFieldKeys.length > 0 ? { mergeFields: mergeFieldKeys } : { merge: true }
-                );
+                await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
+                const dualWriteResult = await persistGameScopedDualWrite(currentState, changedFields);
+                if (!dualWriteResult.success) {
+                    incrementObservabilityCounter('dualWriteMismatchCount', 1);
+                    throw new Error(`Dual-write failed: ${dualWriteResult.error || 'unknown'}`);
+                }
             }
             if (mediaChanged) {
                 const previousMedia = lastSavedUserState && lastSavedUserState.eventMedia ? lastSavedUserState.eventMedia : {};
@@ -1975,7 +2759,9 @@ const FirebaseManager = (function() {
     /**
      * Upload player database from Excel
      */
-    async function uploadPlayerDatabase(file) {
+    async function uploadPlayerDatabase(file, context) {
+        const gameId = getResolvedGameId('uploadPlayerDatabase', context);
+        const importSchema = getPlayerImportSchema(gameId);
         return new Promise((resolve, reject) => {
             if (!file || file.size > MAX_UPLOAD_BYTES) {
                 reject({ success: false, error: 'File too large (max 5MB)' });
@@ -1988,42 +2774,15 @@ const FirebaseManager = (function() {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    
-                    // Check if Players sheet exists
-                    if (!workbook.Sheets['Players']) {
-                        reject({ success: false, error: 'Excel file must contain a "Players" sheet' });
+
+                    const parsed = parseWorkbookPlayers(workbook, importSchema);
+                    if (!parsed.success) {
+                        reject(parsed);
                         return;
                     }
-                    
-                    const sheet = workbook.Sheets['Players'];
-                    // Headers at row 10, so start reading from row 10 (0-indexed = 9)
-                    const players = XLSX.utils.sheet_to_json(sheet, {range: 9});
-                    
-                    const nextDatabase = {};
-                    let skippedCount = 0;
-                    const skippedPlayers = [];
-                    const nowIso = new Date().toISOString();
-                    
-                    players.forEach(row => {
-                        const name = normalizeEditablePlayerName(row['Player Name']);
-                        const power = getPlayerRowPowerValue(row);
-                        const troops = row['E1 Troops'];
-                        const thp = row['Total Hero Power'] ?? row['THP'];
-                        
-                        // Only require name (power and troops are optional)
-                        if (name) {
-                            nextDatabase[name] = {
-                                power: normalizeEditablePlayerPower(power), // Default to 0 if power missing
-                                troops: normalizeEditablePlayerTroops(troops), // Default to 'Unknown' if troops missing
-                                thp: normalizeEditablePlayerThp(thp), // Default to 0 if THP missing
-                                lastUpdated: nowIso,
-                            };
-                        } else {
-                            // Track skipped players (only if name is missing)
-                            skippedCount++;
-                            skippedPlayers.push(`Row with no name (power: ${power || 'none'}, troops: ${troops || 'none'})`);
-                        }
-                    });
+                    const nextDatabase = parsed.nextDatabase;
+                    const skippedCount = parsed.skippedCount;
+                    const skippedPlayers = parsed.skippedPlayers;
 
                     const addedCount = Object.keys(nextDatabase).length;
                     if (addedCount > MAX_PLAYER_DATABASE_SIZE) {
@@ -2040,7 +2799,7 @@ const FirebaseManager = (function() {
                     playerDatabase = nextDatabase;
                     
                     // Save to Firestore
-                    const saveResult = await saveUserData();
+                    const saveResult = await saveUserData(undefined, { gameId: gameId });
                     
                     if (saveResult.success) {
                         console.log(`✅ Uploaded ${addedCount} players`);
@@ -2118,6 +2877,7 @@ const FirebaseManager = (function() {
             name: entry.name || getDefaultEventName(eid),
             logoDataUrl: entry.logoDataUrl || '',
             mapDataUrl: entry.mapDataUrl || '',
+            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(entry.assignmentAlgorithmId),
         };
     }
 
@@ -2203,6 +2963,9 @@ const FirebaseManager = (function() {
             name: Object.prototype.hasOwnProperty.call(source, 'name') ? source.name : current.name,
             logoDataUrl: Object.prototype.hasOwnProperty.call(source, 'logoDataUrl') ? source.logoDataUrl : current.logoDataUrl,
             mapDataUrl: Object.prototype.hasOwnProperty.call(source, 'mapDataUrl') ? source.mapDataUrl : current.mapDataUrl,
+            assignmentAlgorithmId: Object.prototype.hasOwnProperty.call(source, 'assignmentAlgorithmId')
+                ? source.assignmentAlgorithmId
+                : current.assignmentAlgorithmId,
             buildingConfig: current.buildingConfig,
             buildingConfigVersion: current.buildingConfigVersion,
             buildingPositions: current.buildingPositions,
@@ -2305,23 +3068,13 @@ const FirebaseManager = (function() {
         return null;
     }
 
-    async function persistPlayerDatabaseForSource(source, nextDatabase) {
+    async function persistPlayerDatabaseForSource(source, nextDatabase, context) {
+        const gameId = getResolvedGameId('persistPlayerDatabaseForSource', context);
         if (source === 'personal') {
             const previousDatabase = playerDatabase;
             playerDatabase = nextDatabase;
-            try {
-                await db.collection('users').doc(currentUser.uid).set({
-                    playerDatabase: nextDatabase,
-                    metadata: {
-                        email: currentUser.email || null,
-                        emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
-                        totalPlayers: Object.keys(nextDatabase).length,
-                        lastUpload: new Date().toISOString(),
-                        lastModified: firebase.firestore.FieldValue.serverTimestamp(),
-                    },
-                }, { mergeFields: ['playerDatabase', 'metadata'] });
-                rememberLastSavedUserState();
-            } catch (error) {
+            const saveResult = await saveUserData({ immediate: true }, { gameId: gameId });
+            if (!saveResult.success) {
                 playerDatabase = previousDatabase;
                 return { success: false, error: error.message };
             }
@@ -2332,7 +3085,11 @@ const FirebaseManager = (function() {
             if (!currentUser || !allianceId) {
                 return { success: false, errorKey: 'players_list_error_no_alliance' };
             }
-            await db.collection('alliances').doc(allianceId).set({
+            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            await allianceRef.set({
                 playerDatabase: nextDatabase,
                 metadata: {
                     totalPlayers: Object.keys(nextDatabase).length,
@@ -2355,7 +3112,7 @@ const FirebaseManager = (function() {
         return { success: false, errorKey: 'players_list_error_invalid_source' };
     }
 
-    async function upsertPlayerEntry(source, originalName, nextPlayer) {
+    async function upsertPlayerEntry(source, originalName, nextPlayer, context) {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
@@ -2412,7 +3169,7 @@ const FirebaseManager = (function() {
             lastUpdated: nowIso,
         };
 
-        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase);
+        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context);
         if (!persistResult.success) {
             return persistResult;
         }
@@ -2420,7 +3177,7 @@ const FirebaseManager = (function() {
         return { success: true, name: nextName, source: normalizedSource };
     }
 
-    async function removePlayerEntry(source, playerName) {
+    async function removePlayerEntry(source, playerName, context) {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
@@ -2447,7 +3204,7 @@ const FirebaseManager = (function() {
         }
 
         delete nextDatabase[normalizedName];
-        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase);
+        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context);
         if (!persistResult.success) {
             return persistResult;
         }
@@ -2459,11 +3216,13 @@ const FirebaseManager = (function() {
     // ALLIANCE FUNCTIONS
     // ============================================================
 
-    async function createAlliance(name) {
+    async function createAlliance(name, context) {
         if (!currentUser) return { success: false, error: 'Not signed in' };
         if (!name || name.length > 40) return { success: false, error: 'Name must be 1-40 characters' };
+        const gameId = getResolvedGameId('createAlliance', context);
 
         try {
+            await setActiveAllianceGameContext(gameId);
             const members = {};
             members[currentUser.uid] = {
                 email: currentUser.email,
@@ -2471,7 +3230,12 @@ const FirebaseManager = (function() {
                 role: 'member'
             };
 
-            const docRef = await db.collection('alliances').add({
+            const allianceCollection = getGameAllianceCollectionRef(gameId);
+            if (!allianceCollection) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            const docRef = await allianceCollection.add({
+                gameId: gameId,
                 name: name,
                 createdBy: currentUser.uid,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2487,19 +3251,22 @@ const FirebaseManager = (function() {
             const id = docRef.id;
             allianceId = id;
             allianceName = name;
-            await db.collection('users').doc(currentUser.uid).set({
+            activeAllianceGameId = gameId;
+            await persistUserGameAssociationState(gameId, {
                 allianceId: id,
-                allianceName: name
-            }, { merge: true });
+                allianceName: name,
+            });
 
-            await loadAllianceData();
+            await loadAllianceData({ gameId: gameId });
             return { success: true, allianceId: id };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function loadAllianceData() {
+    async function loadAllianceData(context) {
+        const gameId = getResolvedGameId('loadAllianceData', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) {
             stopAllianceDocListener();
             allianceData = null;
@@ -2507,32 +3274,34 @@ const FirebaseManager = (function() {
             return;
         }
         try {
-            const doc = await db.collection('alliances').doc(allianceId).get();
+            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            const doc = await allianceRef.get();
             if (doc.exists) {
-                const loadedAllianceData = doc.data() || {};
-                allianceData = {
-                    ...loadedAllianceData,
-                    playerDatabase: normalizePlayerDatabaseMap(
-                        loadedAllianceData.playerDatabase && typeof loadedAllianceData.playerDatabase === 'object'
-                            ? loadedAllianceData.playerDatabase
-                            : {}
-                    ),
-                };
+                allianceData = doc.data();
+                if (normalizeGameId(allianceData.gameId) && normalizeGameId(allianceData.gameId) !== gameId) {
+                    incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                    return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+                }
                 if (!allianceData.members || !allianceData.members[currentUser.uid]) {
                     stopAllianceDocListener();
                     allianceId = null;
                     allianceName = null;
                     allianceData = null;
                     playerSource = 'personal';
-                    await db.collection('users').doc(currentUser.uid).set({
-                        allianceId: null, allianceName: null, playerSource: 'personal'
-                    }, { merge: true });
+                    await persistUserGameAssociationState(gameId, {
+                        allianceId: null,
+                        allianceName: null,
+                        playerSource: 'personal',
+                    });
                     emitAllianceDataUpdate();
                 } else {
                     if (typeof allianceData.name === 'string' && allianceData.name.trim()) {
                         allianceName = allianceData.name.trim();
                     }
-                    startAllianceDocListener();
+                    startAllianceDocListener(gameId);
                     emitAllianceDataUpdate();
                 }
             } else {
@@ -2541,22 +3310,32 @@ const FirebaseManager = (function() {
                 allianceName = null;
                 allianceData = null;
                 playerSource = 'personal';
-                await db.collection('users').doc(currentUser.uid).set({
-                    allianceId: null, allianceName: null, playerSource: 'personal'
-                }, { merge: true });
+                await persistUserGameAssociationState(gameId, {
+                    allianceId: null,
+                    allianceName: null,
+                    playerSource: 'personal',
+                });
                 emitAllianceDataUpdate();
             }
+            return { success: true };
         } catch (error) {
             console.error('Failed to load alliance data:', error);
+            return { success: false, error: error.message || String(error) };
         }
     }
 
-    async function leaveAlliance() {
+    async function leaveAlliance(context) {
+        const gameId = getResolvedGameId('leaveAlliance', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         try {
             const memberPath = `members.${currentUser.uid}`;
-            await db.collection('alliances').doc(allianceId).update({
+            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            await allianceRef.update({
                 [memberPath]: firebase.firestore.FieldValue.delete()
             });
 
@@ -2566,9 +3345,11 @@ const FirebaseManager = (function() {
             allianceData = null;
             playerSource = 'personal';
 
-            await db.collection('users').doc(currentUser.uid).set({
-                allianceId: null, allianceName: null, playerSource: 'personal'
-            }, { merge: true });
+            await persistUserGameAssociationState(gameId, {
+                allianceId: null,
+                allianceName: null,
+                playerSource: 'personal',
+            });
 
             emitAllianceDataUpdate();
             return { success: true };
@@ -2643,6 +3424,7 @@ const FirebaseManager = (function() {
 
         return {
             id: doc && typeof doc.id === 'string' ? doc.id : '',
+            gameId: typeof data.gameId === 'string' ? normalizeGameId(data.gameId) : '',
             allianceId: typeof data.allianceId === 'string' ? data.allianceId : '',
             allianceName: typeof data.allianceName === 'string' ? data.allianceName : '',
             invitedEmail: typeof data.invitedEmail === 'string' ? data.invitedEmail : '',
@@ -2661,6 +3443,18 @@ const FirebaseManager = (function() {
             updatedAt: data.updatedAt || null,
             _ref: doc && doc.ref ? doc.ref : null,
         };
+    }
+
+    function isInvitationContextMismatch(invitation, expectedGameId) {
+        if (!invitation || typeof invitation !== 'object') {
+            return false;
+        }
+        const targetGameId = normalizeGameId(expectedGameId) || DEFAULT_GAME_ID;
+        const invitationGameId = normalizeGameId(invitation.gameId);
+        if (!invitationGameId) {
+            return true;
+        }
+        return invitationGameId !== targetGameId;
     }
 
     function stripInvitationPrivateFields(invitation) {
@@ -2685,6 +3479,7 @@ const FirebaseManager = (function() {
 
             const basePayload = {
                 invitationId: invitationId,
+                gameId: invitation.gameId || '',
                 allianceId: invitation.allianceId || '',
                 allianceName: invitation.allianceName || '',
                 invitedEmail: invitation.invitedEmail || '',
@@ -2779,7 +3574,9 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function sendInvitation(email) {
+    async function sendInvitation(email, context) {
+        const gameId = getResolvedGameId('sendInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         const normalizedEmail = email.trim().toLowerCase();
@@ -2796,7 +3593,11 @@ const FirebaseManager = (function() {
         }
 
         try {
-            const existing = await db.collection('invitations')
+            const invitationCollection = getGameInvitationCollectionRef(gameId);
+            if (!invitationCollection) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
+            const existing = await invitationCollection
                 .where('allianceId', '==', allianceId)
                 .where('invitedEmail', '==', normalizedEmail)
                 .where('status', '==', 'pending')
@@ -2806,7 +3607,8 @@ const FirebaseManager = (function() {
                 return { success: false, errorKey: 'alliance_invite_pending_exists' };
             }
 
-            const inviteRef = await db.collection('invitations').add({
+            const inviteRef = await invitationCollection.add({
+                gameId: gameId,
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
@@ -2825,14 +3627,16 @@ const FirebaseManager = (function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return { success: true, invitationId: inviteRef.id };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function checkInvitations() {
+    async function checkInvitations(context) {
+        const gameId = getResolvedGameId('checkInvitations', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !currentUser.email) {
             pendingInvitations = [];
             sentInvitations = [];
@@ -2841,12 +3645,16 @@ const FirebaseManager = (function() {
         }
 
         try {
+            const invitationCollection = getGameInvitationCollectionRef(gameId);
+            if (!invitationCollection) {
+                return [];
+            }
             const normalizedEmail = currentUser.email.toLowerCase();
-            const pendingReceivedPromise = db.collection('invitations')
+            const pendingReceivedPromise = invitationCollection
                 .where('invitedEmail', '==', normalizedEmail)
                 .where('status', '==', 'pending')
                 .get();
-            const pendingSentPromise = db.collection('invitations')
+            const pendingSentPromise = invitationCollection
                 .where('invitedBy', '==', currentUser.uid)
                 .get();
 
@@ -2855,17 +3663,31 @@ const FirebaseManager = (function() {
             pendingInvitations = receivedSnapshot.docs
                 .map((doc) => normalizeInvitationRecord(doc))
                 .filter((invite) => invite.status === 'pending')
+                .filter((invite) => {
+                    if (isInvitationContextMismatch(invite, gameId)) {
+                        incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                        return false;
+                    }
+                    return true;
+                })
                 .sort(sortInvitationsNewestFirst);
             await markPendingInvitationReminders(pendingInvitations);
 
             sentInvitations = sentSnapshot.docs
                 .map((doc) => normalizeInvitationRecord(doc))
                 .filter((invite) => invite.status === 'pending')
+                .filter((invite) => {
+                    if (isInvitationContextMismatch(invite, gameId)) {
+                        incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                        return false;
+                    }
+                    return true;
+                })
                 .filter((invite) => !allianceId || invite.allianceId === allianceId)
                 .sort(sortInvitationsNewestFirst);
 
             invitationNotifications = buildInvitationNotifications(pendingInvitations);
-            return getInvitationNotifications();
+            return getInvitationNotifications({ gameId: gameId });
         } catch (error) {
             console.error('Failed to check invitations:', error);
             pendingInvitations = [];
@@ -2875,15 +3697,25 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function acceptInvitation(invitationId) {
+    async function acceptInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('acceptInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
-            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
+            const invDoc = await invitationRef.get();
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
 
             const inv = invDoc.data();
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+            if (isInvitationContextMismatch(inv, gameId)) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
             const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
             const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
             if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
@@ -2891,11 +3723,15 @@ const FirebaseManager = (function() {
             }
 
             if (allianceId) {
-                await leaveAlliance();
+                await leaveAlliance({ gameId: gameId });
             }
 
             const memberPath = `members.${currentUser.uid}`;
-            await db.collection('alliances').doc(inv.allianceId).update({
+            const allianceRef = getGameAllianceDocRef(gameId, inv.allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            await allianceRef.update({
                 [memberPath]: {
                     email: currentUser.email,
                     joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2903,7 +3739,7 @@ const FirebaseManager = (function() {
                 }
             });
 
-            await db.collection('invitations').doc(invitationId).update({
+            await invitationRef.update({
                 status: 'accepted',
                 respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2911,51 +3747,67 @@ const FirebaseManager = (function() {
 
             allianceId = inv.allianceId;
             allianceName = inv.allianceName;
-            await db.collection('users').doc(currentUser.uid).set({
+            activeAllianceGameId = gameId;
+            await persistUserGameAssociationState(gameId, {
                 allianceId: inv.allianceId,
                 allianceName: inv.allianceName
-            }, { merge: true });
+            });
 
-            await loadAllianceData();
-            await checkInvitations();
+            await loadAllianceData({ gameId: gameId });
+            await checkInvitations({ gameId: gameId });
             return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function rejectInvitation(invitationId) {
+    async function rejectInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('rejectInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
-            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
+            const invDoc = await invitationRef.get();
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
             const inv = invDoc.data() || {};
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+            if (isInvitationContextMismatch(inv, gameId)) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
             const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
             const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
             if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
                 return { success: false, error: 'Invitation does not belong to this user' };
             }
 
-            await db.collection('invitations').doc(invitationId).update({
+            await invitationRef.update({
                 status: 'rejected',
                 respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return { success: true };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function revokeInvitation(invitationId) {
+    async function revokeInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('revokeInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         try {
-            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
             const invitationDoc = await invitationRef.get();
             if (!invitationDoc.exists) {
                 return { success: false, errorKey: 'alliance_invite_not_found' };
@@ -2964,6 +3816,10 @@ const FirebaseManager = (function() {
             const invitation = invitationDoc.data() || {};
             if (invitation.status !== 'pending') {
                 return { success: false, errorKey: 'alliance_invite_not_pending' };
+            }
+            if (isInvitationContextMismatch(invitation, gameId)) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, errorKey: 'invalid-invitation-context', error: 'invalid-invitation-context' };
             }
             if (invitation.invitedBy !== currentUser.uid) {
                 return { success: false, errorKey: 'alliance_invite_not_owner' };
@@ -2979,18 +3835,23 @@ const FirebaseManager = (function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return { success: true };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function resendInvitation(invitationId) {
+    async function resendInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('resendInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         try {
-            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
             const invitationDoc = await invitationRef.get();
             if (!invitationDoc.exists) {
                 return { success: false, errorKey: 'alliance_invite_not_found' };
@@ -2999,6 +3860,10 @@ const FirebaseManager = (function() {
             const invitation = invitationDoc.data() || {};
             if (invitation.status !== 'pending') {
                 return { success: false, errorKey: 'alliance_invite_not_pending' };
+            }
+            if (isInvitationContextMismatch(invitation, gameId)) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, errorKey: 'invalid-invitation-context', error: 'invalid-invitation-context' };
             }
             if (invitation.invitedBy !== currentUser.uid) {
                 return { success: false, errorKey: 'alliance_invite_not_owner' };
@@ -3029,7 +3894,7 @@ const FirebaseManager = (function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return {
                 success: true,
                 resendCount: nextResendCount,
@@ -3041,7 +3906,10 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function uploadAlliancePlayerDatabase(file) {
+    async function uploadAlliancePlayerDatabase(file, context) {
+        const gameId = getResolvedGameId('uploadAlliancePlayerDatabase', context);
+        await setActiveAllianceGameContext(gameId);
+        const importSchema = getPlayerImportSchema(gameId);
         if (!currentUser || !allianceId) {
             return Promise.reject({ success: false, error: 'Not in an alliance' });
         }
@@ -3057,29 +3925,14 @@ const FirebaseManager = (function() {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-
-                    if (!workbook.Sheets['Players']) {
-                        reject({ success: false, error: 'Excel file must contain a "Players" sheet' });
+                    const parsed = parseWorkbookPlayers(workbook, importSchema);
+                    if (!parsed.success) {
+                        reject(parsed);
                         return;
                     }
-
-                    const sheet = workbook.Sheets['Players'];
-                    const players = XLSX.utils.sheet_to_json(sheet, { range: 9 });
-
-                    const alliancePlayerDB = {};
-                    const nowIso = new Date().toISOString();
-
-                    players.forEach(row => {
-                        const name = normalizeEditablePlayerName(row['Player Name']);
-                        if (name) {
-                            alliancePlayerDB[name] = {
-                                power: normalizeEditablePlayerPower(getPlayerRowPowerValue(row)),
-                                troops: normalizeEditablePlayerTroops(row['E1 Troops']),
-                                thp: normalizeEditablePlayerThp(row['Total Hero Power'] ?? row['THP']),
-                                lastUpdated: nowIso,
-                                updatedBy: currentUser.uid
-                            };
-                        }
+                    const alliancePlayerDB = parsed.nextDatabase;
+                    Object.keys(alliancePlayerDB).forEach((name) => {
+                        alliancePlayerDB[name].updatedBy = currentUser.uid;
                     });
 
                     const addedCount = Object.keys(alliancePlayerDB).length;
@@ -3093,7 +3946,12 @@ const FirebaseManager = (function() {
                         return;
                     }
 
-                    await db.collection('alliances').doc(allianceId).set({
+                    const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+                    if (!allianceRef) {
+                        reject({ success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' });
+                        return;
+                    }
+                    await allianceRef.set({
                         playerDatabase: alliancePlayerDB,
                         metadata: {
                             totalPlayers: addedCount,
@@ -3120,11 +3978,19 @@ const FirebaseManager = (function() {
         });
     }
 
-    function getAlliancePlayerDatabase() {
-        return normalizePlayerDatabaseMap(allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {});
+    function getAlliancePlayerDatabase(context) {
+        const gameId = getResolvedGameId('getAlliancePlayerDatabase', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return {};
+        }
+        return allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {};
     }
 
-    function getActivePlayerDatabase() {
+    function getActivePlayerDatabase(context) {
+        const gameId = getResolvedGameId('getActivePlayerDatabase', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return playerDatabase;
+        }
         if (playerSource === 'alliance' && allianceData && allianceData.playerDatabase) {
             return normalizePlayerDatabaseMap(allianceData.playerDatabase);
         }
@@ -3140,25 +4006,69 @@ const FirebaseManager = (function() {
         return getUserProfile();
     }
 
-    async function setPlayerSource(source) {
+    async function setPlayerSource(source, context) {
+        const gameId = getResolvedGameId('setPlayerSource', context);
+        await setActiveAllianceGameContext(gameId);
         if (source !== 'personal' && source !== 'alliance') return;
         playerSource = source;
         if (currentUser) {
-            await db.collection('users').doc(currentUser.uid).set({
-                playerSource: source
-            }, { merge: true });
+            await persistUserGameAssociationState(gameId, {
+                playerSource: source,
+            });
         }
     }
 
-    function getAllianceId() { return allianceId; }
-    function getAllianceName() { return allianceName; }
-    function getAllianceData() { return allianceData; }
-    function getPlayerSource() { return playerSource; }
-    function getPendingInvitations() { return pendingInvitations.map(stripInvitationPrivateFields); }
-    function getSentInvitations() { return sentInvitations.map(stripInvitationPrivateFields); }
-    function getInvitationNotifications() { return invitationNotifications.map(stripInvitationPrivateFields); }
-    function getAllianceMembers() {
+    function getAllianceId(context) {
+        const gameId = getResolvedGameId('getAllianceId', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? allianceId : null;
+    }
+    function getAllianceName(context) {
+        const gameId = getResolvedGameId('getAllianceName', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? allianceName : null;
+    }
+    function getAllianceData(context) {
+        const gameId = getResolvedGameId('getAllianceData', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? allianceData : null;
+    }
+    function getPlayerSource(context) {
+        const gameId = getResolvedGameId('getPlayerSource', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? playerSource : 'personal';
+    }
+    function getPendingInvitations(context) {
+        const gameId = getResolvedGameId('getPendingInvitations', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return [];
+        }
+        return pendingInvitations.map(stripInvitationPrivateFields);
+    }
+    function getSentInvitations(context) {
+        const gameId = getResolvedGameId('getSentInvitations', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return [];
+        }
+        return sentInvitations.map(stripInvitationPrivateFields);
+    }
+    function getInvitationNotifications(context) {
+        const gameId = getResolvedGameId('getInvitationNotifications', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return [];
+        }
+        return invitationNotifications.map(stripInvitationPrivateFields);
+    }
+    function getAllianceMembers(context) {
+        const gameId = getResolvedGameId('getAllianceMembers', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return {};
+        }
         return allianceData && allianceData.members ? allianceData.members : {};
+    }
+
+    function getMigrationVersion() {
+        return migrationVersion;
+    }
+
+    function getMigratedToGameSubcollectionsAt() {
+        return migratedToGameSubcollectionsAt;
     }
 
     // ============================================================
@@ -3370,6 +4280,8 @@ const FirebaseManager = (function() {
         setAuthCallback: setAuthCallback,
         setDataLoadCallback: setDataLoadCallback,
         setAllianceDataCallback: setAllianceDataCallback,
+        getFeatureFlags: resolveFeatureFlags,
+        isFeatureFlagEnabled: isFeatureFlagEnabled,
         
         // Authentication
         signInWithGoogle: signInWithGoogle,
@@ -3383,29 +4295,86 @@ const FirebaseManager = (function() {
         
         // Database operations
         loadUserData: loadUserData,
-        saveUserData: saveUserData,
-        uploadPlayerDatabase: uploadPlayerDatabase,
-        getPlayerDatabase: getPlayerDatabase,
+        saveUserData: function saveUserDataGameAware(options, context) {
+            resolveGameplayContext('saveUserData', context);
+            return saveUserData(options);
+        },
+        uploadPlayerDatabase: function uploadPlayerDatabaseGameAware(file, context) {
+            const gameContext = resolveGameplayContext('uploadPlayerDatabase', context);
+            return uploadPlayerDatabase(file, gameContext);
+        },
+        getPlayerDatabase: function getPlayerDatabaseGameAware(context) {
+            resolveGameplayContext('getPlayerDatabase', context);
+            return getPlayerDatabase();
+        },
         getPlayerCount: getPlayerCount,
         getPlayer: getPlayer,
-        upsertPlayerEntry: upsertPlayerEntry,
-        removePlayerEntry: removePlayerEntry,
-        getAllEventData: getAllEventData,
-        getEventIds: getEventIds,
-        getEventMeta: getEventMeta,
-        upsertEvent: upsertEvent,
-        removeEvent: removeEvent,
-        setEventMetadata: setEventMetadata,
+        upsertPlayerEntry: function upsertPlayerEntryGameAware(source, originalName, nextPlayer, context) {
+            const gameContext = resolveGameplayContext('upsertPlayerEntry', context);
+            return upsertPlayerEntry(source, originalName, nextPlayer, gameContext);
+        },
+        removePlayerEntry: function removePlayerEntryGameAware(source, playerName, context) {
+            const gameContext = resolveGameplayContext('removePlayerEntry', context);
+            return removePlayerEntry(source, playerName, gameContext);
+        },
+        getAllEventData: function getAllEventDataGameAware(context) {
+            resolveGameplayContext('getAllEventData', context);
+            return getAllEventData();
+        },
+        getEventIds: function getEventIdsGameAware(context) {
+            resolveGameplayContext('getEventIds', context);
+            return getEventIds();
+        },
+        getEventMeta: function getEventMetaGameAware(eventId, context) {
+            resolveGameplayContext('getEventMeta', context);
+            return getEventMeta(eventId);
+        },
+        upsertEvent: function upsertEventGameAware(eventId, payload, context) {
+            resolveGameplayContext('upsertEvent', context);
+            return upsertEvent(eventId, payload);
+        },
+        removeEvent: function removeEventGameAware(eventId, context) {
+            resolveGameplayContext('removeEvent', context);
+            return removeEvent(eventId);
+        },
+        setEventMetadata: function setEventMetadataGameAware(eventId, metadata, context) {
+            resolveGameplayContext('setEventMetadata', context);
+            return setEventMetadata(eventId, metadata);
+        },
 
         // Building config
-        getBuildingConfig: getBuildingConfig,
-        setBuildingConfig: setBuildingConfig,
-        getBuildingConfigVersion: getBuildingConfigVersion,
-        setBuildingConfigVersion: setBuildingConfigVersion,
-        getBuildingPositions: getBuildingPositions,
-        setBuildingPositions: setBuildingPositions,
-        getBuildingPositionsVersion: getBuildingPositionsVersion,
-        setBuildingPositionsVersion: setBuildingPositionsVersion,
+        getBuildingConfig: function getBuildingConfigGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingConfig', context);
+            return getBuildingConfig(eventId);
+        },
+        setBuildingConfig: function setBuildingConfigGameAware(eventId, config, context) {
+            resolveGameplayContext('setBuildingConfig', context);
+            return setBuildingConfig(eventId, config);
+        },
+        getBuildingConfigVersion: function getBuildingConfigVersionGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingConfigVersion', context);
+            return getBuildingConfigVersion(eventId);
+        },
+        setBuildingConfigVersion: function setBuildingConfigVersionGameAware(eventId, version, context) {
+            resolveGameplayContext('setBuildingConfigVersion', context);
+            return setBuildingConfigVersion(eventId, version);
+        },
+        getBuildingPositions: function getBuildingPositionsGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingPositions', context);
+            return getBuildingPositions(eventId);
+        },
+        setBuildingPositions: function setBuildingPositionsGameAware(eventId, positions, context) {
+            resolveGameplayContext('setBuildingPositions', context);
+            return setBuildingPositions(eventId, positions);
+        },
+        getBuildingPositionsVersion: function getBuildingPositionsVersionGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingPositionsVersion', context);
+            return getBuildingPositionsVersion(eventId);
+        },
+        setBuildingPositionsVersion: function setBuildingPositionsVersionGameAware(eventId, version, context) {
+            resolveGameplayContext('setBuildingPositionsVersion', context);
+            return setBuildingPositionsVersion(eventId, version);
+        },
         getGlobalDefaultBuildingConfig: getGlobalDefaultBuildingConfig,
         getGlobalDefaultBuildingConfigVersion: getGlobalDefaultBuildingConfigVersion,
         getGlobalDefaultBuildingPositions: getGlobalDefaultBuildingPositions,
@@ -3419,30 +4388,111 @@ const FirebaseManager = (function() {
         generatePlayerDatabaseTemplate: generatePlayerDatabaseTemplate,
         generateTeamRosterTemplate: generateTeamRosterTemplate,
 
+        // Game metadata admin
+        isGameMetadataSuperAdmin: isGameMetadataSuperAdmin,
+        listGameMetadata: listGameMetadata,
+        getGameMetadata: getGameMetadata,
+        setGameMetadata: setGameMetadata,
+
         // Alliance
-        createAlliance: createAlliance,
-        leaveAlliance: leaveAlliance,
-        loadAllianceData: loadAllianceData,
-        sendInvitation: sendInvitation,
-        checkInvitations: checkInvitations,
-        acceptInvitation: acceptInvitation,
-        rejectInvitation: rejectInvitation,
-        revokeInvitation: revokeInvitation,
-        resendInvitation: resendInvitation,
-        uploadAlliancePlayerDatabase: uploadAlliancePlayerDatabase,
-        getAlliancePlayerDatabase: getAlliancePlayerDatabase,
-        getActivePlayerDatabase: getActivePlayerDatabase,
-        getUserProfile: getUserProfile,
-        setUserProfile: setUserProfile,
-        setPlayerSource: setPlayerSource,
-        getAllianceId: getAllianceId,
-        getAllianceName: getAllianceName,
-        getAllianceData: getAllianceData,
-        getPlayerSource: getPlayerSource,
-        getPendingInvitations: getPendingInvitations,
-        getSentInvitations: getSentInvitations,
-        getInvitationNotifications: getInvitationNotifications,
-        getAllianceMembers: getAllianceMembers
+        createAlliance: function createAllianceGameAware(name, context) {
+            const gameContext = resolveGameplayContext('createAlliance', context);
+            return createAlliance(name, gameContext);
+        },
+        leaveAlliance: function leaveAllianceGameAware(context) {
+            const gameContext = resolveGameplayContext('leaveAlliance', context);
+            return leaveAlliance(gameContext);
+        },
+        loadAllianceData: function loadAllianceDataGameAware(context) {
+            const gameContext = resolveGameplayContext('loadAllianceData', context);
+            return loadAllianceData(gameContext);
+        },
+        sendInvitation: function sendInvitationGameAware(email, context) {
+            const gameContext = resolveGameplayContext('sendInvitation', context);
+            return sendInvitation(email, gameContext);
+        },
+        checkInvitations: function checkInvitationsGameAware(context) {
+            const gameContext = resolveGameplayContext('checkInvitations', context);
+            return checkInvitations(gameContext);
+        },
+        acceptInvitation: function acceptInvitationGameAware(invitationId, context) {
+            const gameContext = resolveGameplayContext('acceptInvitation', context);
+            return acceptInvitation(invitationId, gameContext);
+        },
+        rejectInvitation: function rejectInvitationGameAware(invitationId, context) {
+            const gameContext = resolveGameplayContext('rejectInvitation', context);
+            return rejectInvitation(invitationId, gameContext);
+        },
+        revokeInvitation: function revokeInvitationGameAware(invitationId, context) {
+            const gameContext = resolveGameplayContext('revokeInvitation', context);
+            return revokeInvitation(invitationId, gameContext);
+        },
+        resendInvitation: function resendInvitationGameAware(invitationId, context) {
+            const gameContext = resolveGameplayContext('resendInvitation', context);
+            return resendInvitation(invitationId, gameContext);
+        },
+        uploadAlliancePlayerDatabase: function uploadAlliancePlayerDatabaseGameAware(file, context) {
+            const gameContext = resolveGameplayContext('uploadAlliancePlayerDatabase', context);
+            return uploadAlliancePlayerDatabase(file, gameContext);
+        },
+        getAlliancePlayerDatabase: function getAlliancePlayerDatabaseGameAware(context) {
+            const gameContext = resolveGameplayContext('getAlliancePlayerDatabase', context);
+            return getAlliancePlayerDatabase(gameContext);
+        },
+        getActivePlayerDatabase: function getActivePlayerDatabaseGameAware(context) {
+            const gameContext = resolveGameplayContext('getActivePlayerDatabase', context);
+            return getActivePlayerDatabase(gameContext);
+        },
+        getUserProfile: function getUserProfileGameAware(context) {
+            resolveGameplayContext('getUserProfile', context);
+            return getUserProfile();
+        },
+        setUserProfile: function setUserProfileGameAware(profile, context) {
+            resolveGameplayContext('setUserProfile', context);
+            return setUserProfile(profile);
+        },
+        setPlayerSource: function setPlayerSourceGameAware(source, context) {
+            const gameContext = resolveGameplayContext('setPlayerSource', context);
+            return setPlayerSource(source, gameContext);
+        },
+        getAllianceId: function getAllianceIdGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceId', context);
+            return getAllianceId(gameContext);
+        },
+        getAllianceName: function getAllianceNameGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceName', context);
+            return getAllianceName(gameContext);
+        },
+        getAllianceData: function getAllianceDataGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceData', context);
+            return getAllianceData(gameContext);
+        },
+        getPlayerSource: function getPlayerSourceGameAware(context) {
+            const gameContext = resolveGameplayContext('getPlayerSource', context);
+            return getPlayerSource(gameContext);
+        },
+        getPendingInvitations: function getPendingInvitationsGameAware(context) {
+            const gameContext = resolveGameplayContext('getPendingInvitations', context);
+            return getPendingInvitations(gameContext);
+        },
+        getSentInvitations: function getSentInvitationsGameAware(context) {
+            const gameContext = resolveGameplayContext('getSentInvitations', context);
+            return getSentInvitations(gameContext);
+        },
+        getInvitationNotifications: function getInvitationNotificationsGameAware(context) {
+            const gameContext = resolveGameplayContext('getInvitationNotifications', context);
+            return getInvitationNotifications(gameContext);
+        },
+        getAllianceMembers: function getAllianceMembersGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceMembers', context);
+            return getAllianceMembers(gameContext);
+        },
+        getMigrationVersion: getMigrationVersion,
+        getMigratedToGameSubcollectionsAt: getMigratedToGameSubcollectionsAt,
+        resolveGameScopedReadPayload: resolveGameScopedReadPayload,
+        resolveGameplayContext: resolveGameplayContext,
+        getObservabilityCounters: getObservabilityCounters,
+        resetObservabilityCounters: resetObservabilityCounters
     };
     
 })();
