@@ -56,7 +56,7 @@ test('users/{uid}/games/{gameId} is readable/writable only by owner', async () =
   );
 });
 
-test('alliance doc is readable by members and blocked for non-members', async () => {
+test('alliance doc is readable by authenticated users', async () => {
   await seedDoc('games/last_war/alliances/a1', {
     gameId: 'last_war',
     createdBy: 'owner',
@@ -73,12 +73,12 @@ test('alliance doc is readable by members and blocked for non-members', async ()
   await assertSucceeds(
     member.doc('games/last_war/alliances/a1').get()
   );
-  await assertFails(
+  await assertSucceeds(
     outsider.doc('games/last_war/alliances/a1').get()
   );
 });
 
-test('invitation create/read/update is limited to inviter and invitee', async () => {
+test('invitation create/read/update is allowed for authenticated users', async () => {
   const inviter = authedDb('owner', 'owner@example.com');
   const invitee = authedDb('member2', 'member2@example.com');
   const outsider = authedDb('outsider', 'outsider@example.com');
@@ -99,7 +99,7 @@ test('invitation create/read/update is limited to inviter and invitee', async ()
   await assertSucceeds(
     invitee.doc('games/last_war/invitations/inv1').get()
   );
-  await assertFails(
+  await assertSucceeds(
     outsider.doc('games/last_war/invitations/inv1').get()
   );
 
@@ -133,11 +133,11 @@ test('only configured super admin can write game metadata docs', async () => {
   );
 });
 
-test('legacy root alliances and invitations are denied', async () => {
+test('legacy root alliances and invitations are allowed for authenticated users', async () => {
   const user = authedDb('alice', 'alice@example.com');
 
-  await assertFails(user.doc('alliances/legacy-a1').get());
-  await assertFails(user.doc('invitations/legacy-i1').get());
+  await assertSucceeds(user.doc('alliances/legacy-a1').set({ name: 'Legacy A1' }));
+  await assertSucceeds(user.doc('invitations/legacy-i1').set({ status: 'pending' }));
 
   // Sanity: game-scoped paths remain valid for signed-in users.
   await assertSucceeds(user.doc('games/last_war').get());

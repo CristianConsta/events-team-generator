@@ -67,6 +67,15 @@ Web app for building event teams, assigning players to buildings, and exporting 
 3. In `Settings -> Pages`, set source to `GitHub Actions`.
 4. Push to `main`.
 
+## Firestore Rules Auto-Deploy
+
+`.github/workflows/firestore-rules.yml` deploys `firestore.rules` automatically when `firestore.rules` (or `firebase.json`) changes on `main`.
+
+1. In GitHub, go to `Settings -> Secrets and variables -> Actions`.
+2. Add secret `FIREBASE_PROJECT_ID` with your Firebase project id.
+3. Add secret `FIREBASE_SERVICE_ACCOUNT` with full JSON content of a Firebase Admin service account key.
+4. Push a commit that changes `firestore.rules`.
+
 ## Project Layout
 
 ```text
