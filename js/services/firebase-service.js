@@ -1,4 +1,12 @@
 (function initFirebaseService(global) {
+    const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
+        MULTIGAME_ENABLED: false,
+        MULTIGAME_READ_FALLBACK_ENABLED: true,
+        MULTIGAME_DUAL_WRITE_ENABLED: false,
+        MULTIGAME_GAME_SELECTOR_ENABLED: false,
+    });
+    const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
+
     function manager() {
         return typeof global.FirebaseManager !== 'undefined' ? global.FirebaseManager : null;
     }
@@ -13,6 +21,56 @@
 
     function notLoadedResult() {
         return { success: false, error: 'Firebase not loaded' };
+    }
+
+    function normalizeFeatureFlagValue(value, fallbackValue) {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+        if (typeof value === 'number') {
+            return value !== 0;
+        }
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') {
+                return true;
+            }
+            if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'off') {
+                return false;
+            }
+        }
+        return fallbackValue;
+    }
+
+    function resolveLocalFeatureFlags(overrides) {
+        const scopedOverrides = overrides && typeof overrides === 'object' ? overrides : {};
+        const resolved = {};
+        MULTIGAME_FLAG_KEYS.forEach((flagName) => {
+            resolved[flagName] = normalizeFeatureFlagValue(
+                scopedOverrides[flagName],
+                MULTIGAME_FLAG_DEFAULTS[flagName]
+            );
+        });
+        return resolved;
+    }
+
+    function getFeatureFlags(overrides) {
+        return withManager(
+            (svc) => {
+                if (typeof svc.getFeatureFlags === 'function') {
+                    return svc.getFeatureFlags(overrides);
+                }
+                return resolveLocalFeatureFlags(overrides);
+            },
+            resolveLocalFeatureFlags(overrides)
+        );
+    }
+
+    function isFeatureFlagEnabled(flagName, overrides) {
+        if (!Object.prototype.hasOwnProperty.call(MULTIGAME_FLAG_DEFAULTS, flagName)) {
+            return false;
+        }
+        return getFeatureFlags(overrides)[flagName] === true;
     }
 
     const FirebaseService = {
@@ -30,6 +88,12 @@
         },
         setAllianceDataCallback: function setAllianceDataCallback(callback) {
             return withManager((svc) => svc.setAllianceDataCallback(callback), null);
+        },
+        getFeatureFlags: function getFeatureFlagsPublic(overrides) {
+            return getFeatureFlags(overrides);
+        },
+        isFeatureFlagEnabled: function isFeatureFlagEnabledPublic(flagName, overrides) {
+            return isFeatureFlagEnabled(flagName, overrides);
         },
         signInWithGoogle: async function signInWithGoogle() {
             return withManager((svc) => svc.signInWithGoogle(), notLoadedResult());

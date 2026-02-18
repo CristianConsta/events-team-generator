@@ -1,4 +1,15 @@
 (function initApplication(global) {
+    function resolveStartupFeatureFlags() {
+        if (!global.FirebaseService || typeof global.FirebaseService.getFeatureFlags !== 'function') {
+            return {};
+        }
+        return global.FirebaseService.getFeatureFlags();
+    }
+
+    function cacheStartupFeatureFlags() {
+        global.__APP_FEATURE_FLAGS = resolveStartupFeatureFlags();
+    }
+
     function renderMissingFirebaseError() {
         setTimeout(() => {
             const loginScreen = document.getElementById('loginScreen');
@@ -26,6 +37,8 @@
             renderMissingFirebaseError();
             return;
         }
+
+        cacheStartupFeatureFlags();
 
         FirebaseService.setAuthCallback((isSignedIn, user) => {
             if (isSignedIn) {

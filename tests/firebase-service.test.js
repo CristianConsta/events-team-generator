@@ -30,6 +30,13 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfigVersion(), 0);
   assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingPositions('desert_storm'), {});
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 0);
+  assert.deepEqual(global.FirebaseService.getFeatureFlags(), {
+    MULTIGAME_ENABLED: false,
+    MULTIGAME_READ_FALLBACK_ENABLED: true,
+    MULTIGAME_DUAL_WRITE_ENABLED: false,
+    MULTIGAME_GAME_SELECTOR_ENABLED: false,
+  });
+  assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_ENABLED'), false);
 });
 
 test('firebase service delegates calls to FirebaseManager', async () => {
@@ -49,6 +56,12 @@ test('firebase service delegates calls to FirebaseManager', async () => {
     getGlobalDefaultBuildingConfigVersion: () => 456,
     getGlobalDefaultBuildingPositions: () => ({ 'Info Center': [100, 200] }),
     getGlobalDefaultBuildingPositionsVersion: () => 123,
+    getFeatureFlags: () => ({
+      MULTIGAME_ENABLED: true,
+      MULTIGAME_READ_FALLBACK_ENABLED: false,
+      MULTIGAME_DUAL_WRITE_ENABLED: true,
+      MULTIGAME_GAME_SELECTOR_ENABLED: true,
+    }),
   };
   loadModule();
 
@@ -68,4 +81,11 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingConfigVersion(), 456);
   assert.deepEqual(global.FirebaseService.getGlobalDefaultBuildingPositions('desert_storm'), { 'Info Center': [100, 200] });
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 123);
+  assert.deepEqual(global.FirebaseService.getFeatureFlags(), {
+    MULTIGAME_ENABLED: true,
+    MULTIGAME_READ_FALLBACK_ENABLED: false,
+    MULTIGAME_DUAL_WRITE_ENABLED: true,
+    MULTIGAME_GAME_SELECTOR_ENABLED: true,
+  });
+  assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED'), true);
 });

@@ -26,6 +26,7 @@ function resetGlobals() {
   delete global.updateUserHeaderIdentity;
   delete global.handleAllianceDataRealtimeUpdate;
   delete global.t;
+  delete global.__APP_FEATURE_FLAGS;
 }
 
 test.afterEach(() => {
@@ -99,6 +100,30 @@ test('app-init calls updateGenerateEventLabels exactly once on load', () => {
 
   require(appInitPath);
   assert.equal(calls.filter((c) => c === 'updateGenerateEventLabels').length, 1);
+});
+
+test('app-init caches startup feature flags when available', () => {
+  buildEnv();
+  global.FirebaseService = {
+    isAvailable: () => true,
+    getFeatureFlags: () => ({
+      MULTIGAME_ENABLED: true,
+      MULTIGAME_READ_FALLBACK_ENABLED: true,
+      MULTIGAME_DUAL_WRITE_ENABLED: false,
+      MULTIGAME_GAME_SELECTOR_ENABLED: true,
+    }),
+    setAuthCallback:         () => {},
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  assert.deepEqual(global.__APP_FEATURE_FLAGS, {
+    MULTIGAME_ENABLED: true,
+    MULTIGAME_READ_FALLBACK_ENABLED: true,
+    MULTIGAME_DUAL_WRITE_ENABLED: false,
+    MULTIGAME_GAME_SELECTOR_ENABLED: true,
+  });
 });
 
 // ── Auth callback — signed-in path ────────────────────────────────────────────

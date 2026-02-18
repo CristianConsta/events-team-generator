@@ -118,6 +118,19 @@ test('callback setters return null when manager is absent', () => {
   assert.equal(global.FirebaseService.setAllianceDataCallback(() => {}), null);
 });
 
+test('feature flag helpers return default rollout values when manager is absent', () => {
+  delete global.FirebaseManager;
+  loadModule();
+  assert.deepEqual(global.FirebaseService.getFeatureFlags(), {
+    MULTIGAME_ENABLED: false,
+    MULTIGAME_READ_FALLBACK_ENABLED: true,
+    MULTIGAME_DUAL_WRITE_ENABLED: false,
+    MULTIGAME_GAME_SELECTOR_ENABLED: false,
+  });
+  assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED'), false);
+  assert.equal(global.FirebaseService.isFeatureFlagEnabled('UNKNOWN_FLAG'), false);
+});
+
 // ── Delegation when FirebaseManager is present ───────────────────────────────
 
 test('isAvailable returns true when FirebaseManager exists', () => {
@@ -234,4 +247,18 @@ test('setDataLoadCallback delegates to manager', () => {
   const cb = () => {};
   global.FirebaseService.setDataLoadCallback(cb);
   assert.equal(registeredCb, cb);
+});
+
+test('feature flag helpers delegate to manager', () => {
+  global.FirebaseManager = {
+    getFeatureFlags: () => ({
+      MULTIGAME_ENABLED: true,
+      MULTIGAME_READ_FALLBACK_ENABLED: true,
+      MULTIGAME_DUAL_WRITE_ENABLED: true,
+      MULTIGAME_GAME_SELECTOR_ENABLED: false,
+    }),
+  };
+  loadModule();
+  assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED'), true);
+  assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED'), false);
 });
