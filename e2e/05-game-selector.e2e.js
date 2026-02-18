@@ -21,7 +21,7 @@ test.describe('Game selector workflows', () => {
     await page.locator('#passwordInput').fill('secret123');
     await page.locator('#loginForm button[type="submit"]').click();
 
-    await waitForMainApp(page);
+    await waitForMainApp(page, { dismissGameSelector: false });
     await expect(page.locator('#gameSelectorOverlay')).toBeVisible();
     await page.locator('#gameSelectorList .game-selector-option[data-game-id="desert_ops"]').click();
 
@@ -35,7 +35,7 @@ test.describe('Game selector workflows', () => {
       games: MULTIGAME_GAMES,
     });
     await loadApp(page);
-    await waitForMainApp(page);
+    await waitForMainApp(page, { dismissGameSelector: false });
 
     await page.locator('#playersTableBody .team-a-btn').first().click();
     await expect(page.locator('#teamAStarterCount')).not.toHaveText('0');

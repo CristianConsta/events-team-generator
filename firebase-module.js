@@ -372,6 +372,7 @@ const FirebaseManager = (function() {
         MULTIGAME_READ_FALLBACK_ENABLED: false,
         MULTIGAME_DUAL_WRITE_ENABLED: false,
         MULTIGAME_GAME_SELECTOR_ENABLED: false,
+        MULTIGAME_STRICT_MODE: false,
     });
     const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
 
@@ -405,6 +406,8 @@ const FirebaseManager = (function() {
     let saveLifecycleHandlersBound = false;
     let allianceDocUnsubscribe = null;
     let activeUserDataLoadRequestId = 0;
+    let activeAllianceLoadRequestId = 0;
+    let activeInvitationLoadRequestId = 0;
 
     let globalDefaultEventPositions = {};
     let globalDefaultPositionsVersion = 0;
@@ -472,6 +475,23 @@ const FirebaseManager = (function() {
         }
         const resolvedFlags = resolveFeatureFlags(overrides);
         return resolvedFlags[flagName] === true;
+    }
+
+    function isStrictModeEnabled(overrides) {
+        return isFeatureFlagEnabled('MULTIGAME_STRICT_MODE', overrides);
+    }
+
+    function isLegacyFallbackAllowed(overrides) {
+        return !isStrictModeEnabled(overrides);
+    }
+
+    function createStrictModeError(message, details) {
+        const err = new Error(typeof message === 'string' && message ? message : 'Strict mode blocked legacy fallback');
+        err.code = 'strict-mode-blocked';
+        if (details && typeof details === 'object') {
+            err.details = details;
+        }
+        return err;
     }
 
     function emptyGlobalEventPositions(payload) {
@@ -800,6 +820,7 @@ const FirebaseManager = (function() {
 
     async function resolveUserGameAssociationState(gameId) {
         const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        const allowLegacyFallback = isLegacyFallbackAllowed();
         if (!currentUser || !db) {
             return {
                 gameId: normalizedGameId,
@@ -821,6 +842,15 @@ const FirebaseManager = (function() {
                     playerSource: gameData.playerSource === 'alliance' ? 'alliance' : 'personal',
                 };
             }
+        }
+
+        if (!allowLegacyFallback) {
+            return {
+                gameId: normalizedGameId,
+                allianceId: null,
+                allianceName: null,
+                playerSource: 'personal',
+            };
         }
 
         const legacyUserRef = db.collection('users').doc(currentUser.uid);
@@ -1469,6 +1499,7 @@ const FirebaseManager = (function() {
 
     async function listGameMetadata() {
         const catalogGames = getCatalogGames();
+        const strictMode = isStrictModeEnabled();
         const byId = new Map();
         catalogGames.forEach((game) => {
             const id = normalizeGameId(game.id);
@@ -1498,14 +1529,16 @@ const FirebaseManager = (function() {
             } catch (error) {
                 console.warn('Failed to read game metadata overrides:', error);
             }
-            try {
-                const configDocRef = db.collection(GLOBAL_COORDS_COLLECTION).doc(GAME_METADATA_OVERRIDES_DOC_ID);
-                const configDoc = await getDocWithPermissionTolerantFallback(configDocRef, { label: 'game metadata overrides' });
-                if (configDoc.exists && configDoc.data && typeof configDoc.data.games === 'object') {
-                    mergeGameMetadataOverridesIntoMap(byId, configDoc.data.games);
+            if (!strictMode) {
+                try {
+                    const configDocRef = db.collection(GLOBAL_COORDS_COLLECTION).doc(GAME_METADATA_OVERRIDES_DOC_ID);
+                    const configDoc = await getDocWithPermissionTolerantFallback(configDocRef, { label: 'game metadata overrides' });
+                    if (configDoc.exists && configDoc.data && typeof configDoc.data.games === 'object') {
+                        mergeGameMetadataOverridesIntoMap(byId, configDoc.data.games);
+                    }
+                } catch (error) {
+                    console.warn('Failed to read game metadata overrides from app config:', error);
                 }
-            } catch (error) {
-                console.warn('Failed to read game metadata overrides from app config:', error);
             }
         }
 
@@ -1537,6 +1570,7 @@ const FirebaseManager = (function() {
             return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
         }
         const sanitized = sanitizeGameMetadataPayload(payload, baseGame);
+        const strictMode = isStrictModeEnabled();
         try {
             const gameDocRef = getGameDocRef(normalizedGameId);
             if (!gameDocRef) {
@@ -1561,15 +1595,23 @@ const FirebaseManager = (function() {
                 if (!isPermissionDeniedError(primaryError)) {
                     throw primaryError;
                 }
+                if (strictMode) {
+                    throw createStrictModeError(
+                        'Strict mode blocked game metadata fallback write. Check rules for games/{gameId}.',
+                        { gameId: normalizedGameId, operation: 'setGameMetadata.primary' }
+                    );
+                }
             }
 
-            try {
-                await setGameMetadataConfigOverride(normalizedGameId, sanitized);
-            } catch (fallbackError) {
-                if (!primaryWriteSucceeded) {
-                    throw fallbackError;
+            if (!strictMode) {
+                try {
+                    await setGameMetadataConfigOverride(normalizedGameId, sanitized);
+                } catch (fallbackError) {
+                    if (!primaryWriteSucceeded) {
+                        throw fallbackError;
+                    }
+                    console.warn('Failed to mirror game metadata to app config override:', fallbackError);
                 }
-                console.warn('Failed to mirror game metadata to app config override:', fallbackError);
             }
 
             return {
@@ -2347,7 +2389,8 @@ const FirebaseManager = (function() {
 
         const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
         const currentAllianceId = allianceId;
-        const requestedScope = options && options.scope === 'legacy' ? 'legacy' : 'game';
+        const requestedScopeRaw = options && options.scope === 'legacy' ? 'legacy' : 'game';
+        const requestedScope = (requestedScopeRaw === 'legacy' && isLegacyFallbackAllowed()) ? 'legacy' : 'game';
         const allianceRef = options && options.ref
             ? options.ref
             : (
@@ -2569,6 +2612,7 @@ const FirebaseManager = (function() {
 
     async function collectInvitationRefs(uid, emailLower) {
         const refMap = new Map();
+        const strictMode = isStrictModeEnabled();
         if (!db) {
             return [];
         }
@@ -2584,9 +2628,11 @@ const FirebaseManager = (function() {
             }
         };
         if (uid) {
-            await safeQuery(() => db.collection('invitations')
-                .where('invitedBy', '==', uid)
-                .get());
+            if (!strictMode) {
+                await safeQuery(() => db.collection('invitations')
+                    .where('invitedBy', '==', uid)
+                    .get());
+            }
             if (typeof db.collectionGroup === 'function') {
                 await safeQuery(() => db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
                     .where('invitedBy', '==', uid)
@@ -2594,9 +2640,11 @@ const FirebaseManager = (function() {
             }
         }
         if (emailLower) {
-            await safeQuery(() => db.collection('invitations')
-                .where('invitedEmail', '==', emailLower)
-                .get());
+            if (!strictMode) {
+                await safeQuery(() => db.collection('invitations')
+                    .where('invitedEmail', '==', emailLower)
+                    .get());
+            }
             if (typeof db.collectionGroup === 'function') {
                 await safeQuery(() => db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
                     .where('invitedEmail', '==', emailLower)
@@ -2745,6 +2793,7 @@ const FirebaseManager = (function() {
      */
     async function loadUserData(user, context) {
         const gameId = getResolvedGameId('loadUserData', context);
+        const strictMode = isStrictModeEnabled(context);
         const loadRequestId = ++activeUserDataLoadRequestId;
         const isStaleLoad = () => loadRequestId !== activeUserDataLoadRequestId;
         try {
@@ -2761,7 +2810,7 @@ const FirebaseManager = (function() {
                 gameId: gameId,
                 gameData: gameScopedData,
                 legacyData: legacyUserData,
-                allowLegacyFallback: true,
+                allowLegacyFallback: isLegacyFallbackAllowed(context),
             });
             if (isStaleLoad()) {
                 return { success: true, stale: true };
@@ -2773,6 +2822,16 @@ const FirebaseManager = (function() {
             if (readDenied && !resolvedRead.data) {
                 if (isStaleLoad()) {
                     return { success: true, stale: true };
+                }
+                if (strictMode) {
+                    const strictErrorMessage = `MULTIGAME_STRICT_MODE: game-scoped profile unavailable for users/${user.uid}/games/${gameId}`;
+                    console.error(`❌ ${strictErrorMessage}`);
+                    return {
+                        success: false,
+                        strictMode: true,
+                        errorKey: 'strict_mode_game_profile_unavailable',
+                        error: strictErrorMessage,
+                    };
                 }
                 console.warn('⚠️ Firestore rules denied game-scoped profile read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
@@ -2995,6 +3054,16 @@ const FirebaseManager = (function() {
             if (isPermissionDeniedError(error)) {
                 if (isStaleLoad()) {
                     return { success: true, stale: true };
+                }
+                if (strictMode) {
+                    const strictErrorMessage = `MULTIGAME_STRICT_MODE: permission denied while loading users/${user.uid}/games/${gameId}`;
+                    console.error(`❌ ${strictErrorMessage}`);
+                    return {
+                        success: false,
+                        strictMode: true,
+                        errorKey: 'strict_mode_game_profile_permission_denied',
+                        error: strictErrorMessage,
+                    };
                 }
                 console.warn('⚠️ Firestore rules denied user data read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
@@ -3869,7 +3938,13 @@ const FirebaseManager = (function() {
 
     async function loadAllianceData(context) {
         const gameId = getResolvedGameId('loadAllianceData', context);
+        const strictMode = isStrictModeEnabled(context);
+        const loadRequestId = ++activeAllianceLoadRequestId;
+        const isStaleLoad = () => loadRequestId !== activeAllianceLoadRequestId;
         await setActiveAllianceGameContext(gameId);
+        if (isStaleLoad()) {
+            return { success: true, stale: true };
+        }
         if (!currentUser || !allianceId) {
             stopAllianceDocListener();
             allianceData = null;
@@ -3886,21 +3961,40 @@ const FirebaseManager = (function() {
             let selectedDocRef = gameAllianceRef;
             let selectedScope = 'game';
             let selectedData = null;
+            let gameAlliancePermissionDenied = false;
 
             const gameAllianceRead = await getDocWithPermissionTolerantFallback(gameAllianceRef, { label: 'game alliance data' });
+            gameAlliancePermissionDenied = gameAllianceRead.permissionDenied === true;
+            if (isStaleLoad()) {
+                return { success: true, stale: true };
+            }
             if (gameAllianceRead.exists) {
                 selectedScope = 'game';
                 selectedData = gameAllianceRead.data || {};
-            } else {
+            } else if (isLegacyFallbackAllowed(context)) {
                 const legacyAllianceRef = getLegacyAllianceDocRef(allianceId);
                 if (legacyAllianceRef) {
                     const legacyAllianceRead = await getDocWithPermissionTolerantFallback(legacyAllianceRef, { label: 'legacy alliance data' });
+                    if (isStaleLoad()) {
+                        return { success: true, stale: true };
+                    }
                     if (legacyAllianceRead.exists) {
                         selectedDocRef = legacyAllianceRef;
                         selectedScope = 'legacy';
                         selectedData = legacyAllianceRead.data || {};
                     }
                 }
+            }
+
+            if (strictMode && gameAlliancePermissionDenied) {
+                const strictErrorMessage = `MULTIGAME_STRICT_MODE: alliance doc unavailable at games/${gameId}/alliances/${allianceId}`;
+                console.error(`❌ ${strictErrorMessage}`);
+                return {
+                    success: false,
+                    strictMode: true,
+                    errorKey: 'strict_mode_alliance_unavailable',
+                    error: strictErrorMessage,
+                };
             }
 
             if (selectedData) {
@@ -3958,6 +4052,16 @@ const FirebaseManager = (function() {
             return { success: true };
         } catch (error) {
             if (isPermissionDeniedError(error)) {
+                if (strictMode) {
+                    const strictErrorMessage = `MULTIGAME_STRICT_MODE: permission denied while loading alliance data for game "${gameId}"`;
+                    console.error(`❌ ${strictErrorMessage}`);
+                    return {
+                        success: false,
+                        strictMode: true,
+                        errorKey: 'strict_mode_alliance_permission_denied',
+                        error: strictErrorMessage,
+                    };
+                }
                 console.info('Alliance data read skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
                 stopAllianceDocListener();
                 allianceData = null;
@@ -4291,7 +4395,13 @@ const FirebaseManager = (function() {
 
     async function checkInvitations(context) {
         const gameId = getResolvedGameId('checkInvitations', context);
+        const strictMode = isStrictModeEnabled(context);
+        const loadRequestId = ++activeInvitationLoadRequestId;
+        const isStaleLoad = () => loadRequestId !== activeInvitationLoadRequestId;
         await setActiveAllianceGameContext(gameId);
+        if (isStaleLoad()) {
+            return [];
+        }
         if (!currentUser || !currentUser.email) {
             pendingInvitations = [];
             sentInvitations = [];
@@ -4314,6 +4424,9 @@ const FirebaseManager = (function() {
                 .get();
 
             const [receivedSnapshot, sentSnapshot] = await Promise.all([pendingReceivedPromise, pendingSentPromise]);
+            if (isStaleLoad()) {
+                return [];
+            }
 
             pendingInvitations = receivedSnapshot.docs
                 .map((doc) => normalizeInvitationRecord(doc))
@@ -4327,6 +4440,9 @@ const FirebaseManager = (function() {
                 })
                 .sort(sortInvitationsNewestFirst);
             await markPendingInvitationReminders(pendingInvitations);
+            if (isStaleLoad()) {
+                return [];
+            }
 
             sentInvitations = sentSnapshot.docs
                 .map((doc) => normalizeInvitationRecord(doc))
@@ -4345,6 +4461,14 @@ const FirebaseManager = (function() {
             return getInvitationNotifications({ gameId: gameId });
         } catch (error) {
             if (isPermissionDeniedError(error)) {
+                if (strictMode) {
+                    const strictErrorMessage = `MULTIGAME_STRICT_MODE: permission denied while reading invitations for game "${gameId}"`;
+                    console.error(`❌ ${strictErrorMessage}`);
+                    pendingInvitations = [];
+                    sentInvitations = [];
+                    invitationNotifications = [];
+                    return [];
+                }
                 console.info('Invitation reads skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
             } else {
                 console.error('Failed to check invitations:', error);
@@ -4678,6 +4802,7 @@ const FirebaseManager = (function() {
 
     async function setPlayerSource(source, context) {
         const gameId = getResolvedGameId('setPlayerSource', context);
+        const strictMode = isStrictModeEnabled(context);
         await setActiveAllianceGameContext(gameId);
         if (source !== 'personal' && source !== 'alliance') {
             return { success: false, error: 'Invalid player source' };
@@ -4687,6 +4812,7 @@ const FirebaseManager = (function() {
             return { success: false, error: 'Not in an alliance' };
         }
 
+        const previousSource = playerSource;
         playerSource = source;
         if (currentUser) {
             try {
@@ -4695,8 +4821,24 @@ const FirebaseManager = (function() {
                 });
             } catch (error) {
                 if (isPermissionDeniedError(error)) {
+                    playerSource = previousSource;
+                    if (strictMode) {
+                        const strictErrorMessage = `MULTIGAME_STRICT_MODE: unable to persist users/${currentUser.uid}/games/${gameId}.playerSource`;
+                        console.error(`❌ ${strictErrorMessage}`);
+                        return {
+                            success: false,
+                            strictMode: true,
+                            errorKey: 'strict_mode_player_source_unsynced',
+                            error: strictErrorMessage,
+                        };
+                    }
                     console.warn('Player source switched locally; Firestore persistence denied by rules.');
-                    return { success: true, persisted: false, warning: 'permission-denied' };
+                    return {
+                        success: true,
+                        persisted: false,
+                        warning: 'permission-denied',
+                        warningMessage: 'Source changed locally, but cloud sync was denied by Firestore rules.',
+                    };
                 }
                 throw error;
             }

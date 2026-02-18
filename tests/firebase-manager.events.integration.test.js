@@ -1510,3 +1510,124 @@ test('loadUserData falls back to personal source when alliance read is permissio
   const activePlayers = global.FirebaseManager.getActivePlayerDatabase(context);
   assert.equal(Object.prototype.hasOwnProperty.call(activePlayers, 'PersonalA'), true);
 });
+
+test('loadUserData strict mode blocks legacy fallback when game-scoped profile is denied', async () => {
+  global.window = global;
+  global.window.__MULTIGAME_FLAGS = { MULTIGAME_STRICT_MODE: true };
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  function permissionDeniedError() {
+    const error = new Error('Missing or insufficient permissions.');
+    error.code = 'permission-denied';
+    return error;
+  }
+
+  let authStateChanged = null;
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => ({ empty: true, docs: [] }),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/desert_ops') {
+      throw permissionDeniedError();
+    }
+    if (joined === 'users/qa-user') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {
+            LegacyPlayer: { power: 999, troops: 'Tank' },
+          },
+          playerSource: 'personal',
+        }),
+      };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {},
+      update: async () => {},
+      delete: async () => {},
+      path: pathParts.join('/'),
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      delete() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+
+  const authUser = {
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  };
+  await authStateChanged(authUser);
+  const result = await global.FirebaseManager.loadUserData(authUser, { gameId: 'desert_ops' });
+
+  assert.equal(result.success, false);
+  assert.equal(result.strictMode, true);
+  assert.equal(result.errorKey, 'strict_mode_game_profile_unavailable');
+});

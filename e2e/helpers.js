@@ -254,10 +254,21 @@ async function injectMockFirebase(page, options) {
 /**
  * Wait for the app to finish auth and show the main app container.
  */
-async function waitForMainApp(page) {
+async function waitForMainApp(page, options) {
+  const opts = Object.assign({ dismissGameSelector: true }, options || {});
   await expect(page.locator('#mainApp')).toBeVisible({ timeout: 8000 });
   // Wait for players table or generator page to appear
   await page.waitForTimeout(400);
+  if (opts.dismissGameSelector) {
+    const selectorOverlay = page.locator('#gameSelectorOverlay');
+    if (await selectorOverlay.isVisible().catch(() => false)) {
+      const firstGameRow = page.locator('#gameSelectorList .game-selector-option').first();
+      if (await firstGameRow.isVisible().catch(() => false)) {
+        await firstGameRow.click({ force: true });
+        await expect(selectorOverlay).toBeHidden({ timeout: 3000 });
+      }
+    }
+  }
 }
 
 /**

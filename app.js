@@ -5393,7 +5393,9 @@ async function switchPlayerSource(source, statusElementId) {
         ? sourceLabels[source]
         : source;
     if (switchResult && switchResult.persisted === false) {
-        showMessage(statusElementId || 'playerSourceStatus', `${t('alliance_source_switched', { source: sourceLabel })} (not synced)`, 'warning');
+        const fallbackMessage = switchResult.warningMessage
+            || 'Player source changed locally, but cloud sync is blocked by Firestore rules.';
+        showMessage(statusElementId || 'playerSourceStatus', fallbackMessage, 'warning');
         return;
     }
     showMessage(statusElementId || 'playerSourceStatus', t('alliance_source_switched', { source: sourceLabel }), 'success');
