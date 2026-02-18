@@ -141,6 +141,30 @@ test('listAvailableGames falls back to DSCoreGames when manager is absent', () =
   assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
 });
 
+test('ensureActiveGame uses default game id from catalog', () => {
+  delete global.FirebaseManager;
+  global.DSCoreGames = {
+    getDefaultGameId: () => 'last_war',
+    listAvailableGames: () => ([{ id: 'last_war', name: 'Last War: Survival' }]),
+  };
+  loadModule();
+  assert.deepEqual(global.FirebaseService.ensureActiveGame(), { gameId: 'last_war', source: 'default' });
+  assert.equal(global.FirebaseService.requireActiveGame(), 'last_war');
+});
+
+test('setActiveGame rejects unknown game id when catalog is available', () => {
+  delete global.FirebaseManager;
+  global.DSCoreGames = {
+    listAvailableGames: () => ([{ id: 'last_war', name: 'Last War: Survival' }]),
+  };
+  loadModule();
+  assert.deepEqual(global.FirebaseService.setActiveGame('unknown_game'), {
+    success: false,
+    code: 'unknown-game-id',
+    error: 'Unknown game id',
+  });
+});
+
 // ── Delegation when FirebaseManager is present ───────────────────────────────
 
 test('isAvailable returns true when FirebaseManager exists', () => {
@@ -280,4 +304,14 @@ test('listAvailableGames falls back to DSCoreGames when manager does not expose 
   };
   loadModule();
   assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
+});
+
+test('signOut clears active game context', async () => {
+  global.FirebaseManager = {
+    signOut: async () => ({ success: true }),
+  };
+  loadModule();
+  assert.deepEqual(global.FirebaseService.setActiveGame('last_war'), { success: true, gameId: 'last_war', changed: true });
+  await global.FirebaseService.signOut();
+  assert.deepEqual(global.FirebaseService.getActiveGame(), { gameId: '', source: 'none' });
 });

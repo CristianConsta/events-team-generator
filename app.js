@@ -52,6 +52,7 @@ function onI18nApplied() {
         notificationBtn.title = t('notifications_title');
     }
     updateUserHeaderIdentity(currentAuthUser);
+    updateActiveGameBadge();
     syncNavigationMenuState();
     const coordOverlay = document.getElementById('coordPickerOverlay');
     if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
@@ -81,6 +82,117 @@ function initLanguage() {
         },
     });
 }
+
+function createMissingActiveGameError() {
+    const error = new Error('missing-active-game');
+    error.code = 'missing-active-game';
+    error.errorKey = 'missing-active-game';
+    return error;
+}
+
+function resolveActiveGameName(gameId) {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listAvailableGames !== 'function') {
+        return gameId;
+    }
+    const games = FirebaseService.listAvailableGames();
+    const match = Array.isArray(games) ? games.find((game) => game && game.id === gameId) : null;
+    if (match && typeof match.name === 'string' && match.name.trim()) {
+        return match.name.trim();
+    }
+    return gameId;
+}
+
+function updateActiveGameBadge(forcedGameId) {
+    const badge = document.getElementById('activeGameBadge');
+    if (!badge) {
+        return;
+    }
+    const activeGameId = typeof forcedGameId === 'string' && forcedGameId.trim()
+        ? forcedGameId.trim()
+        : getActiveGame();
+    if (!activeGameId) {
+        badge.textContent = '';
+        badge.style.display = 'none';
+        return;
+    }
+    badge.textContent = resolveActiveGameName(activeGameId);
+    badge.style.display = 'inline-flex';
+}
+
+function getActiveGameContext() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getActiveGame !== 'function') {
+        return { gameId: '', source: 'none' };
+    }
+    const context = FirebaseService.getActiveGame();
+    if (!context || typeof context !== 'object') {
+        return { gameId: '', source: 'none' };
+    }
+    const gameId = typeof context.gameId === 'string' ? context.gameId.trim() : '';
+    return {
+        gameId: gameId,
+        source: typeof context.source === 'string' ? context.source : 'none',
+    };
+}
+
+function getActiveGame() {
+    return getActiveGameContext().gameId;
+}
+
+function setActiveGame(gameId) {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.setActiveGame !== 'function') {
+        return { success: false, code: 'firebase-service-unavailable' };
+    }
+    const result = FirebaseService.setActiveGame(gameId);
+    if (result && result.success && result.gameId) {
+        window.__ACTIVE_GAME_ID = result.gameId;
+        updateActiveGameBadge(result.gameId);
+    }
+    return result;
+}
+
+function ensureActiveGameContext() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.ensureActiveGame !== 'function') {
+        return '';
+    }
+    const context = FirebaseService.ensureActiveGame();
+    const gameId = context && typeof context.gameId === 'string' ? context.gameId : '';
+    window.__ACTIVE_GAME_ID = gameId;
+    updateActiveGameBadge(gameId);
+    return gameId;
+}
+
+function requireActiveGameContext() {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.requireActiveGame === 'function') {
+        return FirebaseService.requireActiveGame();
+    }
+    const gameId = getActiveGame();
+    if (!gameId) {
+        throw createMissingActiveGameError();
+    }
+    return gameId;
+}
+
+function enforceGameplayContext(statusElementId) {
+    try {
+        return requireActiveGameContext();
+    } catch (error) {
+        if (error && error.code === 'missing-active-game') {
+            const fallbackId = ensureActiveGameContext();
+            if (fallbackId) {
+                return fallbackId;
+            }
+            if (statusElementId) {
+                showMessage(statusElementId, 'Active game context is required.', 'error');
+            }
+            return '';
+        }
+        throw error;
+    }
+}
+
+window.setActiveGame = setActiveGame;
+window.getActiveGame = getActiveGame;
+window.updateActiveGameBadge = updateActiveGameBadge;
 
 // ============================================================
 // ONBOARDING TOUR
@@ -399,6 +511,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startNewEventDraft();
     switchEvent(currentEvent);
     updateUserHeaderIdentity(currentAuthUser);
+    ensureActiveGameContext();
+    updateActiveGameBadge();
 });
 
 // ============================================================
@@ -1448,6 +1562,10 @@ const MAX_BUILDING_SLOTS_TOTAL = 20;
 const MIN_BUILDING_SLOTS = 0;
 
 function switchEvent(eventId) {
+    const activeGameId = enforceGameplayContext();
+    if (!activeGameId) {
+        return;
+    }
     const targetEventId = normalizeEventId(eventId);
     if (!targetEventId || !window.DSCoreEvents.getEvent(targetEventId)) return;
     if (targetEventId === currentEvent) {
@@ -2117,6 +2235,10 @@ function buildEventDefinition(eventId, name, buildings) {
 }
 
 async function saveEventDefinition() {
+    const activeGameId = enforceGameplayContext('eventsStatus');
+    if (!activeGameId) {
+        return;
+    }
     if (!eventEditorIsEditMode) {
         showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
         return;
@@ -3339,6 +3461,10 @@ async function handleResendInvitation(invitationId, statusElementId) {
 let pendingUploadFile = null;
 
 async function uploadPlayerData() {
+    const activeGameId = enforceGameplayContext('uploadMessage');
+    if (!activeGameId) {
+        return;
+    }
     if (typeof FirebaseService === 'undefined') {
         showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
         return;
@@ -3531,6 +3657,11 @@ function handleAllianceDataRealtimeUpdate() {
 }
 
 function loadPlayerData() {
+    const activeGameId = enforceGameplayContext('uploadMessage');
+    if (!activeGameId) {
+        console.error('missing-active-game');
+        return;
+    }
     if (typeof FirebaseService === 'undefined') {
         console.error('FirebaseService not available');
         return;
@@ -4610,6 +4741,11 @@ function updateTeamCounters() {
 // ============================================================
 
 function generateTeamAssignments(team) {
+    const activeGameId = enforceGameplayContext();
+    if (!activeGameId) {
+        alert('missing-active-game');
+        return;
+    }
     if (typeof FirebaseService === 'undefined') {
         alert(t('error_firebase_not_loaded'));
         return;

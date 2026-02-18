@@ -24,9 +24,11 @@ function resetGlobals() {
   delete global.loadBuildingConfig;
   delete global.loadBuildingPositions;
   delete global.updateUserHeaderIdentity;
+  delete global.updateActiveGameBadge;
   delete global.handleAllianceDataRealtimeUpdate;
   delete global.t;
   delete global.__APP_FEATURE_FLAGS;
+  delete global.__ACTIVE_GAME_ID;
 }
 
 test.afterEach(() => {
@@ -64,6 +66,7 @@ function buildEnv(overrides) {
   global.loadBuildingConfig          = () => false;
   global.loadBuildingPositions       = () => false;
   global.updateUserHeaderIdentity    = overrides.updateUserHeaderIdentity || (() => {});
+  global.updateActiveGameBadge       = overrides.updateActiveGameBadge || (() => {});
 
   return { loginScreen, mainApp };
 }
@@ -184,6 +187,28 @@ test('auth callback calls startNotificationPolling on sign-in', () => {
   assert.ok(calls.includes('start'));
 });
 
+test('auth callback ensures active game context on sign-in', () => {
+  buildEnv();
+  let authCb;
+  let ensureCalls = 0;
+  global.FirebaseService = {
+    isAvailable: () => true,
+    ensureActiveGame: () => {
+      ensureCalls += 1;
+      return { gameId: 'last_war', source: 'default' };
+    },
+    setAuthCallback:         (cb) => { authCb = cb; },
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  authCb(true, { email: 'user@example.com' });
+
+  assert.equal(ensureCalls, 1);
+  assert.equal(global.__ACTIVE_GAME_ID, 'last_war');
+});
+
 // ── Auth callback — signed-out path ──────────────────────────────────────────
 
 test('auth callback shows loginScreen and hides mainApp on sign-out', () => {
@@ -242,6 +267,26 @@ test('auth callback calls stopNotificationPolling on sign-out', () => {
   authCb(false, null);
 
   assert.ok(calls.includes('stop'));
+});
+
+test('auth callback clears active game context on sign-out', () => {
+  buildEnv();
+  let authCb;
+  let clearCalls = 0;
+  global.FirebaseService = {
+    isAvailable: () => true,
+    clearActiveGame: () => { clearCalls += 1; },
+    setAuthCallback:         (cb) => { authCb = cb; },
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  global.__ACTIVE_GAME_ID = 'last_war';
+  authCb(false, null);
+
+  assert.equal(clearCalls, 1);
+  assert.equal(global.__ACTIVE_GAME_ID, '');
 });
 
 // ── Data load callback ────────────────────────────────────────────────────────

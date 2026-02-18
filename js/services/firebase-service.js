@@ -6,6 +6,8 @@
         MULTIGAME_GAME_SELECTOR_ENABLED: false,
     });
     const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
+    const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
+    let activeGameIdCache = '';
 
     function manager() {
         return typeof global.FirebaseManager !== 'undefined' ? global.FirebaseManager : null;
@@ -80,6 +82,132 @@
         return global.DSCoreGames.listAvailableGames();
     }
 
+    function normalizeGameId(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function listKnownGameIds() {
+        return listAvailableGamesFromCore()
+            .map((game) => normalizeGameId(game && game.id))
+            .filter(Boolean);
+    }
+
+    function resolveDefaultGameId() {
+        if (global.DSCoreGames && typeof global.DSCoreGames.getDefaultGameId === 'function') {
+            const explicitDefault = normalizeGameId(global.DSCoreGames.getDefaultGameId());
+            if (explicitDefault) {
+                return explicitDefault;
+            }
+        }
+        const knownGameIds = listKnownGameIds();
+        if (knownGameIds.length > 0) {
+            return knownGameIds[0];
+        }
+        return 'last_war';
+    }
+
+    function readStoredActiveGameId() {
+        if (!global.localStorage || typeof global.localStorage.getItem !== 'function') {
+            return '';
+        }
+        try {
+            return normalizeGameId(global.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function writeStoredActiveGameId(gameId) {
+        if (!global.localStorage || typeof global.localStorage.setItem !== 'function') {
+            return;
+        }
+        try {
+            global.localStorage.setItem(ACTIVE_GAME_STORAGE_KEY, gameId);
+        } catch (error) {
+            // Best effort only.
+        }
+    }
+
+    function removeStoredActiveGameId() {
+        if (!global.localStorage || typeof global.localStorage.removeItem !== 'function') {
+            return;
+        }
+        try {
+            global.localStorage.removeItem(ACTIVE_GAME_STORAGE_KEY);
+        } catch (error) {
+            // Best effort only.
+        }
+    }
+
+    function setActiveGame(gameId) {
+        const normalizedId = normalizeGameId(gameId);
+        if (!normalizedId) {
+            return { success: false, code: 'invalid-game-id', error: 'Invalid game id' };
+        }
+
+        const knownGameIds = listKnownGameIds();
+        if (knownGameIds.length > 0 && !knownGameIds.includes(normalizedId)) {
+            return { success: false, code: 'unknown-game-id', error: 'Unknown game id' };
+        }
+
+        const changed = activeGameIdCache !== normalizedId;
+        activeGameIdCache = normalizedId;
+        writeStoredActiveGameId(normalizedId);
+        return { success: true, gameId: normalizedId, changed: changed };
+    }
+
+    function getActiveGame() {
+        if (activeGameIdCache) {
+            return { gameId: activeGameIdCache, source: 'memory' };
+        }
+        const storedId = readStoredActiveGameId();
+        if (storedId) {
+            activeGameIdCache = storedId;
+            return { gameId: storedId, source: 'storage' };
+        }
+        return { gameId: '', source: 'none' };
+    }
+
+    function clearActiveGame() {
+        activeGameIdCache = '';
+        removeStoredActiveGameId();
+    }
+
+    function ensureActiveGame() {
+        const current = getActiveGame();
+        if (current.gameId) {
+            return current;
+        }
+        const defaultGameId = resolveDefaultGameId();
+        const setResult = setActiveGame(defaultGameId);
+        if (!setResult.success) {
+            return { gameId: '', source: 'none' };
+        }
+        return { gameId: setResult.gameId, source: 'default' };
+    }
+
+    function createMissingActiveGameError() {
+        const error = new Error('missing-active-game');
+        error.code = 'missing-active-game';
+        error.errorKey = 'missing-active-game';
+        return error;
+    }
+
+    function requireActiveGame() {
+        const context = getActiveGame();
+        if (!context.gameId) {
+            throw createMissingActiveGameError();
+        }
+        return context.gameId;
+    }
+
     const FirebaseService = {
         isAvailable: function isAvailable() {
             return manager() !== null;
@@ -113,6 +241,21 @@
                 listAvailableGamesFromCore()
             );
         },
+        getActiveGame: function getActiveGamePublic() {
+            return getActiveGame();
+        },
+        setActiveGame: function setActiveGamePublic(gameId) {
+            return setActiveGame(gameId);
+        },
+        clearActiveGame: function clearActiveGamePublic() {
+            return clearActiveGame();
+        },
+        ensureActiveGame: function ensureActiveGamePublic() {
+            return ensureActiveGame();
+        },
+        requireActiveGame: function requireActiveGamePublic() {
+            return requireActiveGame();
+        },
         signInWithGoogle: async function signInWithGoogle() {
             return withManager((svc) => svc.signInWithGoogle(), notLoadedResult());
         },
@@ -126,6 +269,7 @@
             return withManager((svc) => svc.resetPassword(email), notLoadedResult());
         },
         signOut: async function signOut() {
+            clearActiveGame();
             return withManager((svc) => svc.signOut(), notLoadedResult());
         },
         deleteUserAccountAndData: async function deleteUserAccountAndData() {

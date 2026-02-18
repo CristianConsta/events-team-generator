@@ -10,6 +10,19 @@
         global.__APP_FEATURE_FLAGS = resolveStartupFeatureFlags();
     }
 
+    function ensureSignedInGameContext() {
+        if (!global.FirebaseService || typeof global.FirebaseService.ensureActiveGame !== 'function') {
+            return '';
+        }
+        const context = global.FirebaseService.ensureActiveGame();
+        const activeGameId = context && typeof context.gameId === 'string' ? context.gameId : '';
+        global.__ACTIVE_GAME_ID = activeGameId;
+        if (activeGameId && typeof global.updateActiveGameBadge === 'function') {
+            global.updateActiveGameBadge(activeGameId);
+        }
+        return activeGameId;
+    }
+
     function renderMissingFirebaseError() {
         setTimeout(() => {
             const loginScreen = document.getElementById('loginScreen');
@@ -42,6 +55,7 @@
 
         FirebaseService.setAuthCallback((isSignedIn, user) => {
             if (isSignedIn) {
+                ensureSignedInGameContext();
                 document.getElementById('loginScreen').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
                 if (typeof updateUserHeaderIdentity === 'function') {
@@ -53,6 +67,13 @@
             } else {
                 document.getElementById('loginScreen').style.display = 'block';
                 document.getElementById('mainApp').style.display = 'none';
+                global.__ACTIVE_GAME_ID = '';
+                if (global.FirebaseService && typeof global.FirebaseService.clearActiveGame === 'function') {
+                    global.FirebaseService.clearActiveGame();
+                }
+                if (typeof global.updateActiveGameBadge === 'function') {
+                    global.updateActiveGameBadge('');
+                }
                 if (typeof updateUserHeaderIdentity === 'function') {
                     updateUserHeaderIdentity(null);
                 }
@@ -61,6 +82,7 @@
         });
 
         FirebaseService.setDataLoadCallback((playerDatabase) => {
+            ensureSignedInGameContext();
             console.log('Player database loaded:', Object.keys(playerDatabase).length, 'players');
             loadPlayerData();
             const configNeedsSave = loadBuildingConfig();
