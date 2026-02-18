@@ -704,6 +704,46 @@ const FirebaseManager = (function() {
         return null;
     }
 
+    function getNonEmptyPlayerDatabaseMap(source) {
+        if (!source || typeof source !== 'object') {
+            return null;
+        }
+        const map = source.playerDatabase;
+        if (!map || typeof map !== 'object') {
+            return null;
+        }
+        return Object.keys(map).length > 0 ? map : null;
+    }
+
+    function extractLegacyPlayerDatabaseFallback(legacyData, gameId) {
+        const source = legacyData && typeof legacyData === 'object' ? legacyData : null;
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (!source) {
+            return {};
+        }
+
+        const mappedGameData = source.games
+            && typeof source.games === 'object'
+            && source.games[normalizedGameId]
+            && typeof source.games[normalizedGameId] === 'object'
+            ? source.games[normalizedGameId]
+            : null;
+
+        const mappedPlayers = getNonEmptyPlayerDatabaseMap(mappedGameData);
+        if (mappedPlayers) {
+            return mappedPlayers;
+        }
+
+        if (normalizedGameId === DEFAULT_GAME_ID) {
+            const rootPlayers = getNonEmptyPlayerDatabaseMap(source);
+            if (rootPlayers) {
+                return rootPlayers;
+            }
+        }
+
+        return {};
+    }
+
     function resolveGameScopedReadPayload(options) {
         const source = options && typeof options === 'object' ? options : {};
         const normalizedGameId = normalizeGameId(source.gameId) || DEFAULT_GAME_ID;
@@ -2859,11 +2899,23 @@ const FirebaseManager = (function() {
                     return { success: true, stale: true };
                 }
                 let shouldPersistLegacyDefaults = false;
-                const rawPlayerDatabase = playersSubcollectionRead.hasData
+                let rawPlayerDatabase = playersSubcollectionRead.hasData
                     ? playersSubcollectionRead.data
                     : (data.playerDatabase && typeof data.playerDatabase === 'object'
                         ? data.playerDatabase
                         : {});
+                if (!playersSubcollectionRead.hasData) {
+                    const gameScopedPlayerCount = rawPlayerDatabase && typeof rawPlayerDatabase === 'object'
+                        ? Object.keys(rawPlayerDatabase).length
+                        : 0;
+                    if (gameScopedPlayerCount === 0 && isLegacyFallbackAllowed(context)) {
+                        const legacyPlayerFallback = extractLegacyPlayerDatabaseFallback(legacyUserData, gameId);
+                        if (legacyPlayerFallback && typeof legacyPlayerFallback === 'object' && Object.keys(legacyPlayerFallback).length > 0) {
+                            rawPlayerDatabase = legacyPlayerFallback;
+                            console.log(`↩️ Recovered player database from legacy payload for game "${gameId}"`);
+                        }
+                    }
+                }
                 const normalizedPlayerDatabase = normalizePlayerDatabaseMap(rawPlayerDatabase);
                 playerDatabase = normalizedPlayerDatabase;
                 let shouldPersistNormalizedPlayerDatabase = !areJsonEqual(rawPlayerDatabase, normalizedPlayerDatabase)

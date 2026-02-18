@@ -78,7 +78,10 @@ function normalizeGameId(value) {
 }
 
 function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value || {}));
+  if (typeof value === 'undefined') {
+    return undefined;
+  }
+  return JSON.parse(JSON.stringify(value));
 }
 
 function createStableDocId(rawValue, prefix) {
@@ -95,6 +98,39 @@ function createStableDocId(rawValue, prefix) {
   }
   const suffix = Math.abs(hash).toString(16).slice(0, 8);
   return `${base}_${suffix || '0'}`;
+}
+
+function isNonEmptyObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+}
+
+function mergeGamePayloads(existingPayload, incomingPayload) {
+  const existing = existingPayload && typeof existingPayload === 'object' ? cloneJson(existingPayload) : {};
+  const incoming = incomingPayload && typeof incomingPayload === 'object' ? incomingPayload : {};
+  const merged = { ...existing };
+
+  Object.keys(incoming).forEach((field) => {
+    const next = incoming[field];
+    const current = merged[field];
+
+    // Prevent empty nested maps from overriding populated legacy payload.
+    if ((field === 'playerDatabase' || field === 'events') && isNonEmptyObject(current) && !isNonEmptyObject(next)) {
+      return;
+    }
+
+    if (
+      (next === null || typeof next === 'undefined' || next === '')
+      && typeof current !== 'undefined'
+      && current !== null
+      && current !== ''
+    ) {
+      return;
+    }
+
+    merged[field] = cloneJson(next);
+  });
+
+  return merged;
 }
 
 function extractGamePayloadsFromUserDoc(userData, defaultGameId) {
@@ -120,10 +156,7 @@ function extractGamePayloadsFromUserDoc(userData, defaultGameId) {
         return;
       }
       const existing = payloads.get(normalizedGameId) || {};
-      payloads.set(normalizedGameId, {
-        ...existing,
-        ...cloneJson(gamePayload),
-      });
+      payloads.set(normalizedGameId, mergeGamePayloads(existing, gamePayload));
     });
   }
 
@@ -381,6 +414,8 @@ module.exports = {
   normalizeGameId,
   createStableDocId,
   extractGamePayloadsFromUserDoc,
+  mergeGamePayloads,
+  isNonEmptyObject,
   splitEventMedia,
   buildGameDocPatch,
   runMigration,

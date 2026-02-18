@@ -16,6 +16,7 @@ function resetGlobals() {
   delete global.firebase;
   delete global.FIREBASE_CONFIG;
   delete global.FirebaseManager;
+  delete global.__MULTIGAME_FLAGS;
 }
 
 test.afterEach(() => {
@@ -1630,4 +1631,160 @@ test('loadUserData strict mode blocks legacy fallback when game-scoped profile i
   assert.equal(result.success, false);
   assert.equal(result.strictMode, true);
   assert.equal(result.errorKey, 'strict_mode_game_profile_unavailable');
+});
+
+test('loadUserData recovers players from legacy root when game player map and subcollection are empty', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  let authStateChanged = null;
+
+  function createSnapshot(docs) {
+    return {
+      empty: docs.length === 0,
+      docs,
+      forEach(callback) {
+        docs.forEach((doc) => callback(doc));
+      },
+      size: docs.length,
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/last_war') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {},
+          events: {},
+          playerSource: 'personal',
+        }),
+      };
+    }
+    if (joined === 'users/qa-user') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {
+            LegacyRootOnly: { name: 'LegacyRootOnly', power: 222, troops: 'Tank', thp: 5 },
+          },
+          playerSource: 'personal',
+        }),
+      };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return { exists: false, data: () => ({}) };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function resolveCollectionGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/last_war/players') {
+      return createSnapshot([]);
+    }
+    if (joined === 'users/qa-user/games/last_war/events') {
+      return createSnapshot([]);
+    }
+    if (joined === 'users/qa-user/games/last_war/event_media') {
+      return createSnapshot([]);
+    }
+    return createSnapshot([]);
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      orderBy() {
+        return this;
+      },
+      startAfter() {
+        return this;
+      },
+      get: async () => resolveCollectionGet(pathParts),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {},
+      update: async () => {},
+      delete: async () => {},
+      path: pathParts.join('/'),
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      delete() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+
+  const authUser = {
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  };
+  await authStateChanged(authUser);
+  const context = { gameId: 'last_war' };
+  const result = await global.FirebaseManager.loadUserData(authUser, context);
+
+  assert.equal(result.success, true);
+  const players = global.FirebaseManager.getPlayerDatabase(context);
+  assert.equal(Object.prototype.hasOwnProperty.call(players, 'LegacyRootOnly'), true);
 });

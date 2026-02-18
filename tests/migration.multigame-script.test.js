@@ -29,6 +29,22 @@ test('extractGamePayloadsFromUserDoc merges root legacy payload and games map', 
   assert.equal(payloads.get('desert_ops').allianceId, 'a1');
 });
 
+test('extractGamePayloadsFromUserDoc preserves non-empty root playerDatabase when games map has empty playerDatabase', () => {
+  const payloads = migrationScript.extractGamePayloadsFromUserDoc({
+    playerDatabase: { RootOnly: { power: 123 } },
+    games: {
+      last_war: {
+        playerDatabase: {},
+        playerSource: 'alliance',
+      },
+    },
+  }, 'last_war');
+
+  assert.equal(payloads.has('last_war'), true);
+  assert.equal(Object.keys(payloads.get('last_war').playerDatabase).length, 1);
+  assert.equal(payloads.get('last_war').playerSource, 'alliance');
+});
+
 test('splitEventMedia moves logo/map blobs into dedicated event_media payload', () => {
   const result = migrationScript.splitEventMedia({
     desert_storm: {
