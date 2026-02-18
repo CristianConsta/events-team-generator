@@ -281,3 +281,144 @@ test('firebase manager gracefully falls back when user read is permission-denied
     console.error = originalConsoleError;
   }
 });
+
+test('firebase manager keeps legacy data when game doc read is denied', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  function permissionDeniedError() {
+    const error = new Error('Missing or insufficient permissions.');
+    error.code = 'permission-denied';
+    return error;
+  }
+
+  const legacyPayload = {
+    playerDatabase: {
+      Alpha: {
+        name: 'Alpha',
+        power: 123,
+        troops: 'Tank',
+      },
+    },
+    events: {
+      desert_storm: {
+        name: 'Desert Storm',
+        buildingConfig: [{ name: 'Bomb Squad', slots: 1, priority: 1 }],
+        buildingPositions: {},
+      },
+    },
+    allianceId: null,
+    allianceName: null,
+    playerSource: 'personal',
+  };
+
+  function createSnapshot() {
+    return {
+      empty: true,
+      docs: [],
+      forEach() {},
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user') {
+      return {
+        exists: true,
+        data: () => legacyPayload,
+      };
+    }
+    if (joined === 'users/qa-user/games/last_war') {
+      throw permissionDeniedError();
+    }
+    return {
+      exists: false,
+      data: () => ({}),
+    };
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => createSnapshot(),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {},
+      update: async () => {},
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+
+  const loadedPayloads = [];
+  global.FirebaseManager.setDataLoadCallback((payload) => {
+    loadedPayloads.push(payload);
+  });
+
+  const result = await global.FirebaseManager.loadUserData({
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    providerData: [{ providerId: 'google.com' }],
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.playerCount, 1);
+  assert.equal(result.limitedByPermissions, undefined);
+  assert.equal(loadedPayloads.length, 1);
+  assert.ok(loadedPayloads[0].Alpha);
+  assert.equal(loadedPayloads[0].Alpha.name, 'Alpha');
+});

@@ -1709,6 +1709,36 @@ const FirebaseManager = (function() {
         rememberLastSavedUserState();
     }
 
+    async function getDocWithPermissionTolerantFallback(ref, options) {
+        const config = options && typeof options === 'object' ? options : {};
+        const label = typeof config.label === 'string' && config.label ? config.label : 'document';
+        if (!ref || typeof ref.get !== 'function') {
+            return {
+                exists: false,
+                data: null,
+                permissionDenied: false,
+            };
+        }
+        try {
+            const doc = await ref.get();
+            return {
+                exists: !!(doc && doc.exists),
+                data: doc && doc.exists ? (doc.data() || {}) : null,
+                permissionDenied: false,
+            };
+        } catch (error) {
+            if (isPermissionDeniedError(error)) {
+                console.warn(`⚠️ Firestore rules denied ${label} read; continuing with available scopes.`);
+                return {
+                    exists: false,
+                    data: null,
+                    permissionDenied: true,
+                };
+            }
+            throw error;
+        }
+    }
+
     function logOptionalSharedDefaultsIssue(message, error) {
         const details = (error && (error.message || error.code)) ? (error.message || error.code) : String(error || 'unknown');
         if (isPermissionDeniedError(error)) {
@@ -2493,22 +2523,40 @@ const FirebaseManager = (function() {
             console.log('Loading data for UID:', user.uid);
             const userDocRef = db.collection('users').doc(user.uid);
             const gameDocRef = getUserGameDocRef(user.uid, DEFAULT_GAME_ID);
-            const [legacyDoc, gameDoc] = await Promise.all([
-                userDocRef.get(),
-                gameDocRef ? gameDocRef.get() : Promise.resolve({ exists: false, data: () => ({}) })
+            const [legacyRead, gameRead] = await Promise.all([
+                getDocWithPermissionTolerantFallback(userDocRef, { label: 'legacy user profile' }),
+                getDocWithPermissionTolerantFallback(gameDocRef, { label: 'game-scoped profile' }),
             ]);
-
-            const legacyData = legacyDoc.exists ? (legacyDoc.data() || {}) : null;
-            const gameScopedData = gameDoc && gameDoc.exists ? (gameDoc.data() || {}) : null;
+            const legacyData = legacyRead.exists ? legacyRead.data : null;
+            const gameScopedData = gameRead.exists ? gameRead.data : null;
+            const fallbackFeatureEnabled = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
+            const forcedLegacyFallback = !fallbackFeatureEnabled && !!legacyData && !gameScopedData;
+            const bothReadsDenied = legacyRead.permissionDenied && gameRead.permissionDenied;
+            if (bothReadsDenied) {
+                console.warn('⚠️ Firestore rules denied all profile reads; continuing with local defaults for this session.');
+                applyPermissionDeniedLoadFallbackState();
+                if (onDataLoadCallback) {
+                    onDataLoadCallback(playerDatabase);
+                }
+                return {
+                    success: true,
+                    data: playerDatabase,
+                    playerCount: 0,
+                    limitedByPermissions: true,
+                };
+            }
             updateMigrationMarkersFromUserData(legacyData);
             const resolvedRead = resolveGameScopedReadPayload({
                 gameId: DEFAULT_GAME_ID,
                 gameData: gameScopedData,
                 legacyData: legacyData,
-                allowLegacyFallback: isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED'),
+                allowLegacyFallback: fallbackFeatureEnabled || forcedLegacyFallback || gameRead.permissionDenied,
             });
             if (resolvedRead.usedLegacyFallback) {
                 incrementObservabilityCounter('fallbackReadHitCount', 1);
+                if (forcedLegacyFallback || gameRead.permissionDenied) {
+                    console.warn('⚠️ Using legacy profile data because game-scoped profile is unavailable.');
+                }
             }
 
             if (resolvedRead.data) {
