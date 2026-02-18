@@ -83,8 +83,8 @@
             isSignedIn: function isSignedIn() {
                 return gatewayUtils.withManager((svc) => svc.isSignedIn(), false);
             },
-            loadUserData: async function loadUserData(user) {
-                return gatewayUtils.withManager((svc) => svc.loadUserData(user), gatewayUtils.notLoadedResult());
+            loadUserData: async function loadUserData(user, context) {
+                return gatewayUtils.withManager((svc) => svc.loadUserData(user, context), gatewayUtils.notLoadedResult());
             },
             saveUserData: async function saveUserData(options) {
                 return gatewayUtils.withManager((svc) => svc.saveUserData(options), gatewayUtils.notLoadedResult());
@@ -677,8 +677,9 @@
         deleteUserAccountAndData: async function deleteUserAccountAndData() {
             return withManager((svc) => svc.deleteUserAccountAndData(), notLoadedResult());
         },
-        loadUserData: async function loadUserData(user) {
-            return withManager((svc) => svc.loadUserData(user), notLoadedResult());
+        loadUserData: async function loadUserData(user, context) {
+            const gameContext = resolveGameplayContext('loadUserData', context);
+            return withManager((svc) => svc.loadUserData(user, gameContext), notLoadedResult());
         },
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);

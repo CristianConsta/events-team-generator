@@ -422,3 +422,281 @@ test('firebase manager keeps legacy data when game doc read is denied', async ()
   assert.ok(loadedPayloads[0].Alpha);
   assert.equal(loadedPayloads[0].Alpha.name, 'Alpha');
 });
+
+test('game metadata save falls back to app_config when games write is permission-denied', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  function permissionDeniedError() {
+    const error = new Error('Missing or insufficient permissions.');
+    error.code = 'permission-denied';
+    return error;
+  }
+
+  const setCalls = [];
+  let authStateChanged = null;
+
+  function createSnapshot() {
+    return {
+      empty: true,
+      docs: [],
+      forEach() {},
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/2z2BdO8aVsUovqQWWL9WCRMdV933') {
+      return {
+        exists: false,
+        data: () => ({}),
+      };
+    }
+    if (joined === 'users/2z2BdO8aVsUovqQWWL9WCRMdV933/games/last_war') {
+      return {
+        exists: false,
+        data: () => ({}),
+      };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return {
+        exists: false,
+        data: () => ({}),
+      };
+    }
+    if (joined === 'app_config/game_metadata_overrides') {
+      return {
+        exists: true,
+        data: () => ({ games: {} }),
+      };
+    }
+    return {
+      exists: false,
+      data: () => ({}),
+    };
+  }
+
+  function resolveDocSet(pathParts, payload, options) {
+    const joined = pathParts.join('/');
+    setCalls.push({ path: joined, payload, options });
+    if (joined === 'games/last_war') {
+      throw permissionDeniedError();
+    }
+    return undefined;
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => createSnapshot(),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async (payload, options) => resolveDocSet(pathParts, payload, options),
+      update: async () => {},
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+  await authStateChanged({
+    uid: '2z2BdO8aVsUovqQWWL9WCRMdV933',
+    email: 'super-admin@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  });
+
+  const result = await global.FirebaseManager.setGameMetadata('last_war', {
+    name: 'Last War QA',
+    logo: 'data:image/png;base64,AAAA',
+    company: 'QA Labs',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.game.id, 'last_war');
+  assert.equal(result.game.name, 'Last War QA');
+  assert.equal(
+    setCalls.some((entry) => entry.path === 'games/last_war'),
+    true
+  );
+  assert.equal(
+    setCalls.some((entry) => entry.path === 'app_config/game_metadata_overrides'),
+    true
+  );
+});
+
+test('game metadata list reads app_config overrides when games collection read is denied', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+  global.DSCoreGames = {
+    listAvailableGames: () => ([
+      { id: 'last_war', name: 'Last War: Survival', logo: '', company: '' },
+    ]),
+  };
+
+  function permissionDeniedError() {
+    const error = new Error('Missing or insufficient permissions.');
+    error.code = 'permission-denied';
+    return error;
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => {
+        const joined = pathParts.join('/');
+        if (joined === 'games') {
+          throw permissionDeniedError();
+        }
+        return {
+          empty: true,
+          docs: [],
+          forEach() {},
+        };
+      },
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => {
+        const joined = pathParts.join('/');
+        if (joined === 'app_config/game_metadata_overrides') {
+          return {
+            exists: true,
+            data: () => ({
+              games: {
+                last_war: {
+                  name: 'Last War Override',
+                  logo: 'data:image/png;base64,BBBB',
+                  company: 'Override Inc',
+                },
+              },
+            }),
+          };
+        }
+        return {
+          exists: false,
+          data: () => ({}),
+        };
+      },
+      set: async () => {},
+      update: async () => {},
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged() {},
+  };
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+
+  const games = await global.FirebaseManager.listGameMetadata();
+  assert.equal(Array.isArray(games), true);
+  assert.equal(games.length, 1);
+  assert.equal(games[0].id, 'last_war');
+  assert.equal(games[0].name, 'Last War Override');
+  assert.equal(games[0].company, 'Override Inc');
+  assert.equal(games[0].logo, 'data:image/png;base64,BBBB');
+});

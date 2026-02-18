@@ -340,6 +340,7 @@ const FirebaseManager = (function() {
     const GLOBAL_COORDS_COLLECTION = 'app_config';
     const GLOBAL_COORDS_DOC_ID = 'default_event_positions';
     const GLOBAL_BUILDING_CONFIG_DOC_ID = 'default_event_building_config';
+    const GAME_METADATA_OVERRIDES_DOC_ID = 'game_metadata_overrides';
     const EVENT_NAME_MAX_LEN = 30;
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
@@ -386,6 +387,7 @@ const FirebaseManager = (function() {
     let sentInvitations = [];
     let invitationNotifications = [];
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
+    let activeGameplayGameId = DEFAULT_GAME_ID;
     let activeAllianceGameId = DEFAULT_GAME_ID;
     let activeAllianceDocScope = 'game';
     let onAuthCallback = null;
@@ -396,6 +398,7 @@ const FirebaseManager = (function() {
     let saveDebounceTimer = null;
     let pendingSavePromise = null;
     let pendingSaveResolve = null;
+    let pendingSaveContext = null;
     let saveLifecycleHandlersBound = false;
     let allianceDocUnsubscribe = null;
 
@@ -664,6 +667,11 @@ const FirebaseManager = (function() {
     function getResolvedGameId(methodName, context) {
         const gameplayContext = resolveGameplayContext(methodName, context);
         return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+    }
+
+    function isActiveGameplayGameId(gameId) {
+        const targetGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        return (normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID) === targetGameId;
     }
 
     function resetAllianceRuntimeState() {
@@ -1291,6 +1299,54 @@ const FirebaseManager = (function() {
         };
     }
 
+    function mergeGameMetadataOverridesIntoMap(byId, overrides) {
+        if (!(byId instanceof Map) || !overrides || typeof overrides !== 'object') {
+            return;
+        }
+        Object.keys(overrides).forEach((rawGameId) => {
+            const gameId = normalizeGameId(rawGameId);
+            if (!gameId || !byId.has(gameId)) {
+                return;
+            }
+            const current = byId.get(gameId);
+            const merged = sanitizeGameMetadataPayload(overrides[rawGameId], current);
+            byId.set(gameId, {
+                ...current,
+                ...merged,
+            });
+        });
+    }
+
+    function createGameMetadataWritePayload(normalizedGameId, sanitized) {
+        return {
+            games: {
+                [normalizedGameId]: {
+                    name: sanitized.name,
+                    logo: sanitized.logo,
+                    company: sanitized.company,
+                    metadata: {
+                        updatedBy: currentUser.uid,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    },
+                },
+            },
+            metadata: {
+                updatedBy: currentUser.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+        };
+    }
+
+    async function setGameMetadataConfigOverride(normalizedGameId, sanitized) {
+        if (!db) {
+            throw new Error('Firestore not initialized');
+        }
+        await db.collection(GLOBAL_COORDS_COLLECTION).doc(GAME_METADATA_OVERRIDES_DOC_ID).set(
+            createGameMetadataWritePayload(normalizedGameId, sanitized),
+            { merge: true }
+        );
+    }
+
     async function listGameMetadata() {
         const catalogGames = getCatalogGames();
         const byId = new Map();
@@ -1310,21 +1366,26 @@ const FirebaseManager = (function() {
         if (db) {
             try {
                 const snapshot = await db.collection(GAMES_COLLECTION).get();
+                const collectionOverrides = {};
                 snapshot.docs.forEach((doc) => {
                     const gameId = normalizeGameId(doc.id);
-                    if (!gameId || !byId.has(gameId)) {
+                    if (!gameId) {
                         return;
                     }
-                    const current = byId.get(gameId);
-                    const data = doc.data() || {};
-                    const merged = sanitizeGameMetadataPayload(data, current);
-                    byId.set(gameId, {
-                        ...current,
-                        ...merged,
-                    });
+                    collectionOverrides[gameId] = doc.data() || {};
                 });
+                mergeGameMetadataOverridesIntoMap(byId, collectionOverrides);
             } catch (error) {
                 console.warn('Failed to read game metadata overrides:', error);
+            }
+            try {
+                const configDocRef = db.collection(GLOBAL_COORDS_COLLECTION).doc(GAME_METADATA_OVERRIDES_DOC_ID);
+                const configDoc = await getDocWithPermissionTolerantFallback(configDocRef, { label: 'game metadata overrides' });
+                if (configDoc.exists && configDoc.data && typeof configDoc.data.games === 'object') {
+                    mergeGameMetadataOverridesIntoMap(byId, configDoc.data.games);
+                }
+            } catch (error) {
+                console.warn('Failed to read game metadata overrides from app config:', error);
             }
         }
 
@@ -1361,7 +1422,7 @@ const FirebaseManager = (function() {
             if (!gameDocRef) {
                 return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
             }
-            await gameDocRef.set({
+            const primaryPayload = {
                 name: sanitized.name,
                 logo: sanitized.logo,
                 company: sanitized.company,
@@ -1370,7 +1431,27 @@ const FirebaseManager = (function() {
                     updatedBy: currentUser.uid,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 },
-            }, { mergeFields: ['name', 'logo', 'company', 'attributes', 'metadata'] });
+            };
+            const primaryOptions = { mergeFields: ['name', 'logo', 'company', 'attributes', 'metadata'] };
+            let primaryWriteSucceeded = false;
+            try {
+                await gameDocRef.set(primaryPayload, primaryOptions);
+                primaryWriteSucceeded = true;
+            } catch (primaryError) {
+                if (!isPermissionDeniedError(primaryError)) {
+                    throw primaryError;
+                }
+            }
+
+            try {
+                await setGameMetadataConfigOverride(normalizedGameId, sanitized);
+            } catch (fallbackError) {
+                if (!primaryWriteSucceeded) {
+                    throw fallbackError;
+                }
+                console.warn('Failed to mirror game metadata to app config override:', fallbackError);
+            }
+
             return {
                 success: true,
                 game: {
@@ -1691,6 +1772,7 @@ const FirebaseManager = (function() {
         allianceId = null;
         allianceName = null;
         allianceData = null;
+        activeGameplayGameId = DEFAULT_GAME_ID;
         activeAllianceGameId = DEFAULT_GAME_ID;
         playerSource = 'personal';
         pendingInvitations = [];
@@ -1950,11 +2032,12 @@ const FirebaseManager = (function() {
         return payload;
     }
 
-    async function persistGameScopedDualWrite(currentState, changedFields) {
+    async function persistGameScopedDualWrite(currentState, changedFields, context) {
         if (!currentUser || !isDualWriteEnabled()) {
             return { success: true, skipped: true };
         }
-        const gameRef = getUserGameDocRef(currentUser.uid, DEFAULT_GAME_ID);
+        const gameId = getResolvedGameId('persistGameScopedDualWrite', context);
+        const gameRef = getUserGameDocRef(currentUser.uid, gameId);
         if (!gameRef) {
             return { success: false, error: 'Unable to resolve game document reference' };
         }
@@ -1965,7 +2048,7 @@ const FirebaseManager = (function() {
             await db.collection('users').doc(currentUser.uid).set({
                 migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
                 migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
-                lastActiveGameId: DEFAULT_GAME_ID,
+                lastActiveGameId: gameId,
             }, { merge: true });
             migrationVersion = Math.max(migrationVersion, GAME_SUBCOLLECTION_MIGRATION_VERSION);
             migratedToGameSubcollectionsAt = new Date().toISOString();
@@ -1990,6 +2073,7 @@ const FirebaseManager = (function() {
         }
         pendingSavePromise = null;
         pendingSaveResolve = null;
+        pendingSaveContext = null;
     }
 
     function resetSaveState() {
@@ -2068,7 +2152,7 @@ const FirebaseManager = (function() {
 
             console.log('✅ User signed in:', user.email);
             resetSaveState();
-            loadUserData(user);
+            loadUserData(user, { gameId: DEFAULT_GAME_ID });
             
             if (onAuthCallback) {
                 onAuthCallback(true, user);
@@ -2081,6 +2165,7 @@ const FirebaseManager = (function() {
             allianceId = null;
             allianceName = null;
             allianceData = null;
+            activeGameplayGameId = DEFAULT_GAME_ID;
             activeAllianceGameId = DEFAULT_GAME_ID;
             playerSource = 'personal';
             pendingInvitations = [];
@@ -2469,6 +2554,7 @@ const FirebaseManager = (function() {
         allianceId = null;
         allianceName = null;
         allianceData = null;
+        activeGameplayGameId = DEFAULT_GAME_ID;
         activeAllianceGameId = DEFAULT_GAME_ID;
         playerSource = 'personal';
         pendingInvitations = [];
@@ -2529,11 +2615,13 @@ const FirebaseManager = (function() {
     /**
      * Load user data from Firestore
      */
-    async function loadUserData(user) {
+    async function loadUserData(user, context) {
+        const gameId = getResolvedGameId('loadUserData', context);
         try {
             console.log('Loading data for UID:', user.uid);
+            activeGameplayGameId = gameId;
             const userDocRef = db.collection('users').doc(user.uid);
-            const gameDocRef = getUserGameDocRef(user.uid, DEFAULT_GAME_ID);
+            const gameDocRef = getUserGameDocRef(user.uid, gameId);
             const [legacyRead, gameRead] = await Promise.all([
                 getDocWithPermissionTolerantFallback(userDocRef, { label: 'legacy user profile' }),
                 getDocWithPermissionTolerantFallback(gameDocRef, { label: 'game-scoped profile' }),
@@ -2558,7 +2646,7 @@ const FirebaseManager = (function() {
             }
             updateMigrationMarkersFromUserData(legacyData);
             const resolvedRead = resolveGameScopedReadPayload({
-                gameId: DEFAULT_GAME_ID,
+                gameId: gameId,
                 gameData: gameScopedData,
                 legacyData: legacyData,
                 allowLegacyFallback: fallbackFeatureEnabled || forcedLegacyFallback || gameRead.permissionDenied,
@@ -2582,7 +2670,7 @@ const FirebaseManager = (function() {
                 let shouldPersistNormalizedPlayerSource = false;
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
-                activeAllianceGameId = DEFAULT_GAME_ID;
+                activeAllianceGameId = gameId;
                 playerSource = data.playerSource === 'alliance' ? 'alliance' : 'personal';
                 if (playerSource === 'alliance' && !allianceId) {
                     playerSource = 'personal';
@@ -2598,7 +2686,7 @@ const FirebaseManager = (function() {
                         await userDocRef.set({
                             migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
                             migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
-                            lastActiveGameId: DEFAULT_GAME_ID,
+                            lastActiveGameId: gameId,
                         }, { merge: true });
                         migrationVersion = GAME_SUBCOLLECTION_MIGRATION_VERSION;
                         migratedToGameSubcollectionsAt = new Date().toISOString();
@@ -2699,9 +2787,9 @@ const FirebaseManager = (function() {
                 console.log(`✅ Loaded ${Object.keys(playerDatabase).length} players`);
 
                 if (allianceId) {
-                    await loadAllianceData();
+                    await loadAllianceData({ gameId: gameId });
                 }
-                await checkInvitations();
+                await checkInvitations({ gameId: gameId });
                 rememberLastSavedUserState();
 
                 if (onDataLoadCallback) {
@@ -2719,7 +2807,7 @@ const FirebaseManager = (function() {
                 eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
                 allianceId = null;
                 allianceName = null;
-                activeAllianceGameId = DEFAULT_GAME_ID;
+                activeAllianceGameId = gameId;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
                 migrationVersion = 0;
@@ -2730,7 +2818,7 @@ const FirebaseManager = (function() {
                     eventIds: LEGACY_EVENT_IDS,
                     overwriteExisting: true,
                 });
-                await checkInvitations();
+                await checkInvitations({ gameId: gameId });
                 rememberLastSavedUserState();
                 return { success: true, data: {}, playerCount: 0 };
             }
@@ -2756,10 +2844,11 @@ const FirebaseManager = (function() {
     /**
      * Save user data to Firestore
      */
-    async function persistChangedUserData() {
+    async function persistChangedUserData(context) {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
+        const gameId = getResolvedGameId('persistChangedUserData', context);
 
         const currentState = getCurrentPersistedUserState();
         const payload = {};
@@ -2803,7 +2892,7 @@ const FirebaseManager = (function() {
             console.log(`💾 Saving data (${changedFields.join(', ')})...`);
             if (hasDocPayload) {
                 await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
-                const dualWriteResult = await persistGameScopedDualWrite(currentState, changedFields);
+                const dualWriteResult = await persistGameScopedDualWrite(currentState, changedFields, { gameId: gameId });
                 if (!dualWriteResult.success) {
                     incrementObservabilityCounter('dualWriteMismatchCount', 1);
                     throw new Error(`Dual-write failed: ${dualWriteResult.error || 'unknown'}`);
@@ -2827,25 +2916,47 @@ const FirebaseManager = (function() {
         }
         saveDebounceTimer = null;
         const resolve = pendingSaveResolve;
+        const context = pendingSaveContext;
         pendingSaveResolve = null;
-        const result = await persistChangedUserData();
+        pendingSaveContext = null;
+        const result = await persistChangedUserData(context);
         pendingSavePromise = null;
         if (typeof resolve === 'function') {
             resolve(result);
         }
     }
 
-    async function saveUserData(options) {
+    async function saveUserData(options, context) {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
 
+        const gameContext = resolveGameplayContext('saveUserData', context);
         const immediate = !!(options && options.immediate === true);
 
         if (!pendingSavePromise) {
             pendingSavePromise = new Promise((resolve) => {
                 pendingSaveResolve = resolve;
             });
+            pendingSaveContext = gameContext;
+        } else if (
+            gameContext
+            && pendingSaveContext
+            && pendingSaveContext.gameId
+            && gameContext.gameId
+            && pendingSaveContext.gameId !== gameContext.gameId
+        ) {
+            if (saveDebounceTimer) {
+                clearTimeout(saveDebounceTimer);
+                saveDebounceTimer = null;
+            }
+            await flushQueuedSave();
+            pendingSavePromise = new Promise((resolve) => {
+                pendingSaveResolve = resolve;
+            });
+            pendingSaveContext = gameContext;
+        } else {
+            pendingSaveContext = gameContext;
         }
 
         if (immediate) {
@@ -2944,7 +3055,11 @@ const FirebaseManager = (function() {
     /**
      * Get player database
      */
-    function getPlayerDatabase() {
+    function getPlayerDatabase(context) {
+        const gameId = getResolvedGameId('getPlayerDatabase', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return {};
+        }
         return normalizePlayerDatabaseMap(playerDatabase);
     }
 
@@ -2963,15 +3078,27 @@ const FirebaseManager = (function() {
         return eid;
     }
 
-    function getAllEventData() {
+    function getAllEventData(context) {
+        const gameId = getResolvedGameId('getAllEventData', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return {};
+        }
         return JSON.parse(JSON.stringify(eventData));
     }
 
-    function getEventIds() {
+    function getEventIds(context) {
+        const gameId = getResolvedGameId('getEventIds', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return [];
+        }
         return Object.keys(eventData);
     }
 
-    function getEventMeta(eventId) {
+    function getEventMeta(eventId, context) {
+        const gameId = getResolvedGameId('getEventMeta', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return null;
+        }
         const eid = resolveEventId(eventId);
         const entry = eventData[eid];
         if (!entry) {
@@ -2986,15 +3113,23 @@ const FirebaseManager = (function() {
         };
     }
 
-    function upsertEvent(eventId, payload) {
+    function upsertEvent(eventId, payload, context) {
+        const gameId = getResolvedGameId('upsertEvent', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return null;
+        }
         const requestedId = resolveEventId(eventId || (payload && payload.id) || (payload && payload.name));
         const existing = eventData[requestedId] || createEmptyEventEntry({ name: getDefaultEventName(requestedId) });
         const sanitized = sanitizeEventEntry(requestedId, payload || {}, existing);
         eventData[requestedId] = sanitized;
-        return getEventMeta(requestedId);
+        return getEventMeta(requestedId, { gameId: gameId });
     }
 
-    function removeEvent(eventId) {
+    function removeEvent(eventId, context) {
+        const gameId = getResolvedGameId('removeEvent', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return false;
+        }
         const eid = resolveEventId(eventId);
         if (LEGACY_EVENT_IDS.includes(eid)) {
             return false;
@@ -3009,7 +3144,11 @@ const FirebaseManager = (function() {
     /**
      * Get building configuration for an event
      */
-    function getBuildingConfig(eventId) {
+    function getBuildingConfig(eventId, context) {
+        const gameId = getResolvedGameId('getBuildingConfig', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return null;
+        }
         const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingConfig : null;
     }
@@ -3017,17 +3156,29 @@ const FirebaseManager = (function() {
     /**
      * Set building configuration for an event
      */
-    function setBuildingConfig(eventId, config) {
+    function setBuildingConfig(eventId, config, context) {
+        const gameId = getResolvedGameId('setBuildingConfig', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return;
+        }
         const eid = ensureEventEntry(eventId);
         eventData[eid].buildingConfig = normalizeBuildingConfigArray(config);
     }
 
-    function getBuildingConfigVersion(eventId) {
+    function getBuildingConfigVersion(eventId, context) {
+        const gameId = getResolvedGameId('getBuildingConfigVersion', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return 0;
+        }
         const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingConfigVersion : 0;
     }
 
-    function setBuildingConfigVersion(eventId, version) {
+    function setBuildingConfigVersion(eventId, version, context) {
+        const gameId = getResolvedGameId('setBuildingConfigVersion', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return;
+        }
         const eid = ensureEventEntry(eventId);
         const numeric = Number(version);
         eventData[eid].buildingConfigVersion = Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
@@ -3036,7 +3187,11 @@ const FirebaseManager = (function() {
     /**
      * Get building positions for an event
      */
-    function getBuildingPositions(eventId) {
+    function getBuildingPositions(eventId, context) {
+        const gameId = getResolvedGameId('getBuildingPositions', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return null;
+        }
         const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingPositions : null;
     }
@@ -3044,23 +3199,39 @@ const FirebaseManager = (function() {
     /**
      * Set building positions for an event
      */
-    function setBuildingPositions(eventId, positions) {
+    function setBuildingPositions(eventId, positions, context) {
+        const gameId = getResolvedGameId('setBuildingPositions', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return;
+        }
         const eid = ensureEventEntry(eventId);
         eventData[eid].buildingPositions = normalizePositionsMap(positions);
     }
 
-    function getBuildingPositionsVersion(eventId) {
+    function getBuildingPositionsVersion(eventId, context) {
+        const gameId = getResolvedGameId('getBuildingPositionsVersion', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return 0;
+        }
         const eid = ensureEventEntry(eventId);
         return eventData[eid] ? eventData[eid].buildingPositionsVersion : 0;
     }
 
-    function setBuildingPositionsVersion(eventId, version) {
+    function setBuildingPositionsVersion(eventId, version, context) {
+        const gameId = getResolvedGameId('setBuildingPositionsVersion', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return;
+        }
         const eid = ensureEventEntry(eventId);
         const numeric = Number(version);
         eventData[eid].buildingPositionsVersion = Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : 0;
     }
 
-    function setEventMetadata(eventId, metadata) {
+    function setEventMetadata(eventId, metadata, context) {
+        const gameId = getResolvedGameId('setEventMetadata', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return null;
+        }
         const eid = ensureEventEntry(eventId, metadata);
         const source = metadata && typeof metadata === 'object' ? metadata : {};
         const current = eventData[eid] || createEmptyEventEntry({ name: getDefaultEventName(eid) });
@@ -3076,7 +3247,7 @@ const FirebaseManager = (function() {
             buildingPositions: current.buildingPositions,
             buildingPositionsVersion: current.buildingPositionsVersion,
         }, current);
-        return getEventMeta(eid);
+        return getEventMeta(eid, { gameId: gameId });
     }
 
     /**
@@ -4154,8 +4325,8 @@ const FirebaseManager = (function() {
 
     function getActivePlayerDatabase(context) {
         const gameId = getResolvedGameId('getActivePlayerDatabase', context);
-        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
-            return playerDatabase;
+        if (!isActiveGameplayGameId(gameId)) {
+            return {};
         }
         if (playerSource === 'alliance') {
             if (allianceData && allianceData.playerDatabase) {
@@ -4166,13 +4337,21 @@ const FirebaseManager = (function() {
         return normalizePlayerDatabaseMap(playerDatabase);
     }
 
-    function getUserProfile() {
+    function getUserProfile(context) {
+        const gameId = getResolvedGameId('getUserProfile', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return normalizeUserProfile(null);
+        }
         return normalizeUserProfile(userProfile);
     }
 
-    function setUserProfile(profile) {
+    function setUserProfile(profile, context) {
+        const gameId = getResolvedGameId('setUserProfile', context);
+        if (!isActiveGameplayGameId(gameId)) {
+            return getUserProfile({ gameId: gameId });
+        }
         userProfile = normalizeUserProfile(profile);
-        return getUserProfile();
+        return getUserProfile({ gameId: gameId });
     }
 
     async function setPlayerSource(source, context) {
@@ -4344,7 +4523,9 @@ const FirebaseManager = (function() {
                     }
                     
                     playerDatabase = restored;
-                    const saveResult = await saveUserData();
+                    const saveResult = await saveUserData(undefined, {
+                        gameId: normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID,
+                    });
                     
                     if (saveResult.success) {
                         console.log(`✅ Restored ${restoredCount} players`);
@@ -4479,18 +4660,21 @@ const FirebaseManager = (function() {
         isSignedIn: isSignedIn,
         
         // Database operations
-        loadUserData: loadUserData,
+        loadUserData: function loadUserDataGameAware(user, context) {
+            const gameContext = resolveGameplayContext('loadUserData', context);
+            return loadUserData(user, gameContext);
+        },
         saveUserData: function saveUserDataGameAware(options, context) {
-            resolveGameplayContext('saveUserData', context);
-            return saveUserData(options);
+            const gameContext = resolveGameplayContext('saveUserData', context);
+            return saveUserData(options, gameContext);
         },
         uploadPlayerDatabase: function uploadPlayerDatabaseGameAware(file, context) {
             const gameContext = resolveGameplayContext('uploadPlayerDatabase', context);
             return uploadPlayerDatabase(file, gameContext);
         },
         getPlayerDatabase: function getPlayerDatabaseGameAware(context) {
-            resolveGameplayContext('getPlayerDatabase', context);
-            return getPlayerDatabase();
+            const gameContext = resolveGameplayContext('getPlayerDatabase', context);
+            return getPlayerDatabase(gameContext);
         },
         getPlayerCount: getPlayerCount,
         getPlayer: getPlayer,
@@ -4503,62 +4687,62 @@ const FirebaseManager = (function() {
             return removePlayerEntry(source, playerName, gameContext);
         },
         getAllEventData: function getAllEventDataGameAware(context) {
-            resolveGameplayContext('getAllEventData', context);
-            return getAllEventData();
+            const gameContext = resolveGameplayContext('getAllEventData', context);
+            return getAllEventData(gameContext);
         },
         getEventIds: function getEventIdsGameAware(context) {
-            resolveGameplayContext('getEventIds', context);
-            return getEventIds();
+            const gameContext = resolveGameplayContext('getEventIds', context);
+            return getEventIds(gameContext);
         },
         getEventMeta: function getEventMetaGameAware(eventId, context) {
-            resolveGameplayContext('getEventMeta', context);
-            return getEventMeta(eventId);
+            const gameContext = resolveGameplayContext('getEventMeta', context);
+            return getEventMeta(eventId, gameContext);
         },
         upsertEvent: function upsertEventGameAware(eventId, payload, context) {
-            resolveGameplayContext('upsertEvent', context);
-            return upsertEvent(eventId, payload);
+            const gameContext = resolveGameplayContext('upsertEvent', context);
+            return upsertEvent(eventId, payload, gameContext);
         },
         removeEvent: function removeEventGameAware(eventId, context) {
-            resolveGameplayContext('removeEvent', context);
-            return removeEvent(eventId);
+            const gameContext = resolveGameplayContext('removeEvent', context);
+            return removeEvent(eventId, gameContext);
         },
         setEventMetadata: function setEventMetadataGameAware(eventId, metadata, context) {
-            resolveGameplayContext('setEventMetadata', context);
-            return setEventMetadata(eventId, metadata);
+            const gameContext = resolveGameplayContext('setEventMetadata', context);
+            return setEventMetadata(eventId, metadata, gameContext);
         },
 
         // Building config
         getBuildingConfig: function getBuildingConfigGameAware(eventId, context) {
-            resolveGameplayContext('getBuildingConfig', context);
-            return getBuildingConfig(eventId);
+            const gameContext = resolveGameplayContext('getBuildingConfig', context);
+            return getBuildingConfig(eventId, gameContext);
         },
         setBuildingConfig: function setBuildingConfigGameAware(eventId, config, context) {
-            resolveGameplayContext('setBuildingConfig', context);
-            return setBuildingConfig(eventId, config);
+            const gameContext = resolveGameplayContext('setBuildingConfig', context);
+            return setBuildingConfig(eventId, config, gameContext);
         },
         getBuildingConfigVersion: function getBuildingConfigVersionGameAware(eventId, context) {
-            resolveGameplayContext('getBuildingConfigVersion', context);
-            return getBuildingConfigVersion(eventId);
+            const gameContext = resolveGameplayContext('getBuildingConfigVersion', context);
+            return getBuildingConfigVersion(eventId, gameContext);
         },
         setBuildingConfigVersion: function setBuildingConfigVersionGameAware(eventId, version, context) {
-            resolveGameplayContext('setBuildingConfigVersion', context);
-            return setBuildingConfigVersion(eventId, version);
+            const gameContext = resolveGameplayContext('setBuildingConfigVersion', context);
+            return setBuildingConfigVersion(eventId, version, gameContext);
         },
         getBuildingPositions: function getBuildingPositionsGameAware(eventId, context) {
-            resolveGameplayContext('getBuildingPositions', context);
-            return getBuildingPositions(eventId);
+            const gameContext = resolveGameplayContext('getBuildingPositions', context);
+            return getBuildingPositions(eventId, gameContext);
         },
         setBuildingPositions: function setBuildingPositionsGameAware(eventId, positions, context) {
-            resolveGameplayContext('setBuildingPositions', context);
-            return setBuildingPositions(eventId, positions);
+            const gameContext = resolveGameplayContext('setBuildingPositions', context);
+            return setBuildingPositions(eventId, positions, gameContext);
         },
         getBuildingPositionsVersion: function getBuildingPositionsVersionGameAware(eventId, context) {
-            resolveGameplayContext('getBuildingPositionsVersion', context);
-            return getBuildingPositionsVersion(eventId);
+            const gameContext = resolveGameplayContext('getBuildingPositionsVersion', context);
+            return getBuildingPositionsVersion(eventId, gameContext);
         },
         setBuildingPositionsVersion: function setBuildingPositionsVersionGameAware(eventId, version, context) {
-            resolveGameplayContext('setBuildingPositionsVersion', context);
-            return setBuildingPositionsVersion(eventId, version);
+            const gameContext = resolveGameplayContext('setBuildingPositionsVersion', context);
+            return setBuildingPositionsVersion(eventId, version, gameContext);
         },
         getGlobalDefaultBuildingConfig: getGlobalDefaultBuildingConfig,
         getGlobalDefaultBuildingConfigVersion: getGlobalDefaultBuildingConfigVersion,
@@ -4629,12 +4813,12 @@ const FirebaseManager = (function() {
             return getActivePlayerDatabase(gameContext);
         },
         getUserProfile: function getUserProfileGameAware(context) {
-            resolveGameplayContext('getUserProfile', context);
-            return getUserProfile();
+            const gameContext = resolveGameplayContext('getUserProfile', context);
+            return getUserProfile(gameContext);
         },
         setUserProfile: function setUserProfileGameAware(profile, context) {
-            resolveGameplayContext('setUserProfile', context);
-            return setUserProfile(profile);
+            const gameContext = resolveGameplayContext('setUserProfile', context);
+            return setUserProfile(profile, gameContext);
         },
         setPlayerSource: function setPlayerSourceGameAware(source, context) {
             const gameContext = resolveGameplayContext('setPlayerSource', context);

@@ -4276,7 +4276,7 @@ async function refreshPlayersDataAfterMutation(source) {
     ) {
         const user = FirebaseService.getCurrentUser();
         if (user && user.uid) {
-            await FirebaseService.loadUserData(user);
+            await FirebaseService.loadUserData(user, gameplayContext || undefined);
         }
     }
 
