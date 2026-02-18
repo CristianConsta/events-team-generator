@@ -596,6 +596,14 @@ const FirebaseManager = (function() {
         return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
     }
 
+    function getUserGameEventMediaCollectionRef(userId, gameId) {
+        const gameRef = getUserGameDocRef(userId, gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(EVENT_MEDIA_SUBCOLLECTION);
+    }
+
     function createStableDocId(rawValue, prefix) {
         const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
         const base = raw
@@ -641,9 +649,7 @@ const FirebaseManager = (function() {
     function resolveGameScopedReadPayload(options) {
         const source = options && typeof options === 'object' ? options : {};
         const normalizedGameId = normalizeGameId(source.gameId) || DEFAULT_GAME_ID;
-        const allowLegacyFallback = source.allowLegacyFallback === true;
         const gameData = source.gameData && typeof source.gameData === 'object' ? source.gameData : null;
-        const legacyData = source.legacyData && typeof source.legacyData === 'object' ? source.legacyData : null;
 
         if (gameData) {
             return {
@@ -651,14 +657,6 @@ const FirebaseManager = (function() {
                 source: 'game',
                 usedLegacyFallback: false,
                 data: gameData,
-            };
-        }
-        if (allowLegacyFallback && normalizedGameId === DEFAULT_GAME_ID && legacyData) {
-            return {
-                gameId: normalizedGameId,
-                source: 'legacy-fallback',
-                usedLegacyFallback: true,
-                data: legacyData,
             };
         }
         return {
@@ -755,18 +753,6 @@ const FirebaseManager = (function() {
             }
         }
 
-        const allowLegacyFallback = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
-        if (allowLegacyFallback && normalizedGameId === DEFAULT_GAME_ID) {
-            const userDoc = await db.collection('users').doc(currentUser.uid).get();
-            const legacy = userDoc.exists ? (userDoc.data() || {}) : {};
-            return {
-                gameId: normalizedGameId,
-                allianceId: typeof legacy.allianceId === 'string' ? legacy.allianceId : null,
-                allianceName: typeof legacy.allianceName === 'string' ? legacy.allianceName : null,
-                playerSource: legacy.playerSource === 'alliance' ? 'alliance' : 'personal',
-            };
-        }
-
         return {
             gameId: normalizedGameId,
             allianceId: null,
@@ -817,13 +803,6 @@ const FirebaseManager = (function() {
             }, { merge: true });
         }
 
-        if (normalizedGameId === DEFAULT_GAME_ID) {
-            await db.collection('users').doc(currentUser.uid).set({
-                allianceId: nextAllianceId,
-                allianceName: nextAllianceName,
-                playerSource: nextPlayerSource,
-            }, { merge: true });
-        }
     }
 
     function normalizeEventName(value, fallback) {
@@ -1635,12 +1614,16 @@ const FirebaseManager = (function() {
         });
     }
 
-    async function loadEventMediaForUser(uid) {
+    async function loadEventMediaForUser(uid, gameId) {
         if (!db || !uid) {
             return {};
         }
+        const eventMediaCollection = getUserGameEventMediaCollectionRef(uid, gameId);
+        if (!eventMediaCollection) {
+            return {};
+        }
         try {
-            const snapshot = await db.collection('users').doc(uid).collection(EVENT_MEDIA_SUBCOLLECTION).get();
+            const snapshot = await eventMediaCollection.get();
             const media = {};
             snapshot.forEach((doc) => {
                 const eventId = normalizeEventId(doc.id);
@@ -1662,8 +1645,12 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function saveEventMediaDiff(uid, previousMediaMap, nextMediaMap) {
+    async function saveEventMediaDiff(uid, gameId, previousMediaMap, nextMediaMap) {
         if (!db || !uid) {
+            return;
+        }
+        const eventMediaCollection = getUserGameEventMediaCollectionRef(uid, gameId);
+        if (!eventMediaCollection) {
             return;
         }
         const previous = previousMediaMap && typeof previousMediaMap === 'object' ? previousMediaMap : {};
@@ -1688,7 +1675,7 @@ const FirebaseManager = (function() {
             if (prevLogo === nextLogo && prevMap === nextMap) {
                 return;
             }
-            const ref = db.collection('users').doc(uid).collection(EVENT_MEDIA_SUBCOLLECTION).doc(eventId);
+            const ref = eventMediaCollection.doc(eventId);
             if (!nextLogo && !nextMap) {
                 batch.delete(ref);
             } else {
@@ -2047,10 +2034,6 @@ const FirebaseManager = (function() {
         };
     }
 
-    function isDualWriteEnabled() {
-        return isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED');
-    }
-
     function buildGameScopedUserPayload(currentState, changedFields) {
         const state = currentState && typeof currentState === 'object' ? currentState : getCurrentPersistedUserState();
         const changed = Array.isArray(changedFields) ? changedFields : [];
@@ -2102,11 +2085,6 @@ const FirebaseManager = (function() {
         } catch (error) {
             return { success: false, error: error.message || String(error) };
         }
-    }
-
-    function shouldLegacyDualWriteGame(gameId) {
-        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
-        return normalizedGameId === DEFAULT_GAME_ID && isDualWriteEnabled();
     }
 
     function rememberLastSavedUserState(state) {
@@ -2274,12 +2252,10 @@ const FirebaseManager = (function() {
 
         const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
         const currentAllianceId = allianceId;
-        const requestedScope = options && options.scope === 'legacy' ? 'legacy' : 'game';
+        const requestedScope = 'game';
         const allianceRef = options && options.ref
             ? options.ref
-            : (requestedScope === 'legacy' && normalizedGameId === DEFAULT_GAME_ID
-                ? db.collection('alliances').doc(currentAllianceId)
-                : getGameAllianceDocRef(normalizedGameId, currentAllianceId));
+            : getGameAllianceDocRef(normalizedGameId, currentAllianceId);
         if (!allianceRef) {
             return;
         }
@@ -2536,8 +2512,10 @@ const FirebaseManager = (function() {
             return;
         }
         try {
-            const allianceRef = getGameAllianceDocRef(activeAllianceGameId, allianceId)
-                || db.collection('alliances').doc(allianceId);
+            const allianceRef = getGameAllianceDocRef(activeAllianceGameId, allianceId);
+            if (!allianceRef) {
+                return;
+            }
             const snap = await allianceRef.get();
             if (!snap.exists) {
                 return;
@@ -2673,17 +2651,11 @@ const FirebaseManager = (function() {
             activeGameplayGameId = gameId;
             const userDocRef = db.collection('users').doc(user.uid);
             const gameDocRef = getUserGameDocRef(user.uid, gameId);
-            const [legacyRead, gameRead] = await Promise.all([
-                getDocWithPermissionTolerantFallback(userDocRef, { label: 'legacy user profile' }),
-                getDocWithPermissionTolerantFallback(gameDocRef, { label: 'game-scoped profile' }),
-            ]);
-            const legacyData = legacyRead.exists ? legacyRead.data : null;
+            const gameRead = await getDocWithPermissionTolerantFallback(gameDocRef, { label: 'game-scoped profile' });
             const gameScopedData = gameRead.exists ? gameRead.data : null;
-            const fallbackFeatureEnabled = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
-            const forcedLegacyFallback = !fallbackFeatureEnabled && !!legacyData && !gameScopedData;
-            const bothReadsDenied = legacyRead.permissionDenied && gameRead.permissionDenied;
-            if (bothReadsDenied) {
-                console.warn('⚠️ Firestore rules denied all profile reads; continuing with local defaults for this session.');
+            const readDenied = gameRead.permissionDenied;
+            if (readDenied) {
+                console.warn('⚠️ Firestore rules denied game-scoped profile read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
                 activeGameplayGameId = gameId;
                 activeAllianceGameId = gameId;
@@ -2697,19 +2669,11 @@ const FirebaseManager = (function() {
                     limitedByPermissions: true,
                 };
             }
-            updateMigrationMarkersFromUserData(legacyData);
+            updateMigrationMarkersFromUserData(gameScopedData);
             const resolvedRead = resolveGameScopedReadPayload({
                 gameId: gameId,
                 gameData: gameScopedData,
-                legacyData: legacyData,
-                allowLegacyFallback: fallbackFeatureEnabled || forcedLegacyFallback || gameRead.permissionDenied,
             });
-            if (resolvedRead.usedLegacyFallback) {
-                incrementObservabilityCounter('fallbackReadHitCount', 1);
-                if (forcedLegacyFallback || gameRead.permissionDenied) {
-                    console.warn('⚠️ Using legacy profile data because game-scoped profile is unavailable.');
-                }
-            }
 
             if (resolvedRead.data) {
                 const data = resolvedRead.data;
@@ -2804,7 +2768,7 @@ const FirebaseManager = (function() {
                 }
 
                 const inlineMedia = getEventMediaMap(eventData);
-                const storedMedia = await loadEventMediaForUser(user.uid);
+                const storedMedia = await loadEventMediaForUser(user.uid, gameId);
                 const mergedMedia = Object.assign({}, inlineMedia, storedMedia);
                 eventData = buildEventsWithoutMedia(eventData);
                 applyEventMediaToEvents(mergedMedia);
@@ -2812,7 +2776,7 @@ const FirebaseManager = (function() {
                 if (Object.keys(inlineMedia).length > 0) {
                     shouldPersistLegacyDefaults = true;
                     try {
-                        await saveEventMediaDiff(user.uid, storedMedia, mergedMedia);
+                        await saveEventMediaDiff(user.uid, gameId, storedMedia, mergedMedia);
                         console.log('✅ Migrated inline event media to subcollection docs');
                     } catch (mediaErr) {
                         console.warn('⚠️ Failed to migrate inline event media:', mediaErr);
@@ -2934,15 +2898,12 @@ const FirebaseManager = (function() {
         const gameId = getResolvedGameId('persistChangedUserData', context);
 
         const currentState = getCurrentPersistedUserState();
-        const payload = {};
         const changedFields = [];
 
         if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.playerDatabase, currentState.playerDatabase)) {
-            payload.playerDatabase = currentState.playerDatabase;
             changedFields.push('playerDatabase');
         }
         if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.events, currentState.events)) {
-            payload.events = currentState.events;
             changedFields.push('events');
         }
         const mediaChanged = !lastSavedUserState || !areJsonEqual(lastSavedUserState.eventMedia, currentState.eventMedia);
@@ -2950,25 +2911,11 @@ const FirebaseManager = (function() {
             changedFields.push('eventMedia');
         }
         if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.userProfile, currentState.userProfile)) {
-            payload.userProfile = currentState.userProfile;
             changedFields.push('userProfile');
         }
 
-        const hasLegacyPayload = Object.keys(payload).length > 0;
-        if (!hasLegacyPayload && !mediaChanged) {
+        if (changedFields.length === 0 && !mediaChanged) {
             return { success: true, skipped: true };
-        }
-
-        if (hasLegacyPayload) {
-            payload.metadata = {
-                email: currentUser.email || null,
-                emailLower: currentUser.email ? currentUser.email.toLowerCase() : null,
-                totalPlayers: Object.keys(currentState.playerDatabase).length,
-                lastModified: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            if (changedFields.includes('playerDatabase')) {
-                payload.metadata.lastUpload = new Date().toISOString();
-            }
         }
 
         try {
@@ -2985,17 +2932,9 @@ const FirebaseManager = (function() {
                 await persistGameScopedEventsSubcollection(currentUser.uid, gameId, currentState.events);
             }
 
-            if (hasLegacyPayload && shouldLegacyDualWriteGame(gameId)) {
-                try {
-                    await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
-                } catch (legacyWriteError) {
-                    incrementObservabilityCounter('dualWriteMismatchCount', 1);
-                    throw new Error(`Legacy dual-write failed: ${legacyWriteError.message || legacyWriteError}`);
-                }
-            }
             if (mediaChanged) {
                 const previousMedia = lastSavedUserState && lastSavedUserState.eventMedia ? lastSavedUserState.eventMedia : {};
-                await saveEventMediaDiff(currentUser.uid, previousMedia, currentState.eventMedia);
+                await saveEventMediaDiff(currentUser.uid, gameId, previousMedia, currentState.eventMedia);
             }
             rememberLastSavedUserState(currentState);
             return { success: true, changedFields };
@@ -3820,40 +3759,7 @@ const FirebaseManager = (function() {
             let selectedDocRef = gameAllianceRef;
             let selectedDoc = null;
             let selectedScope = 'game';
-            let gameDocReadPermissionDenied = false;
-
-            try {
-                selectedDoc = await gameAllianceRef.get();
-            } catch (error) {
-                if (isPermissionDeniedError(error)) {
-                    gameDocReadPermissionDenied = true;
-                } else {
-                    throw error;
-                }
-            }
-
-            const fallbackFeatureEnabled = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
-            const shouldTryLegacyFallback = gameId === DEFAULT_GAME_ID
-                && (fallbackFeatureEnabled || gameDocReadPermissionDenied || !selectedDoc || !selectedDoc.exists);
-            if (shouldTryLegacyFallback) {
-                const legacyAllianceRef = db.collection('alliances').doc(allianceId);
-                try {
-                    const legacyDoc = await legacyAllianceRef.get();
-                    if (legacyDoc.exists) {
-                        selectedDoc = legacyDoc;
-                        selectedDocRef = legacyAllianceRef;
-                        selectedScope = 'legacy';
-                        incrementObservabilityCounter('fallbackReadHitCount', 1);
-                        if (!fallbackFeatureEnabled) {
-                            console.warn('⚠️ Using legacy alliance doc fallback for default game.');
-                        }
-                    }
-                } catch (legacyError) {
-                    if (!isPermissionDeniedError(legacyError)) {
-                        throw legacyError;
-                    }
-                }
-            }
+            selectedDoc = await gameAllianceRef.get();
 
             if (selectedDoc && selectedDoc.exists) {
                 allianceData = selectedDoc.data() || {};

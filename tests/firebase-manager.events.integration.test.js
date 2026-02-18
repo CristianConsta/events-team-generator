@@ -108,9 +108,9 @@ test('firebase manager resolves game-scoped read payload with fallback gated by 
     legacyData: { playerDatabase: { Alice: { power: 1 } } },
     allowLegacyFallback: true,
   });
-  assert.equal(legacyOnlyFallbackEnabled.source, 'legacy-fallback');
-  assert.equal(legacyOnlyFallbackEnabled.usedLegacyFallback, true);
-  assert.ok(legacyOnlyFallbackEnabled.data.playerDatabase.Alice);
+  assert.equal(legacyOnlyFallbackEnabled.source, 'none');
+  assert.equal(legacyOnlyFallbackEnabled.usedLegacyFallback, false);
+  assert.equal(legacyOnlyFallbackEnabled.data, null);
 
   const mixed = global.FirebaseManager.resolveGameScopedReadPayload({
     gameId: 'last_war',
@@ -282,7 +282,7 @@ test('firebase manager gracefully falls back when user read is permission-denied
   }
 });
 
-test('firebase manager keeps legacy data when game doc read is denied', async () => {
+test('firebase manager keeps local defaults when game doc read is denied', async () => {
   global.window = global;
   global.addEventListener = () => {};
   global.alert = () => {};
@@ -304,26 +304,6 @@ test('firebase manager keeps legacy data when game doc read is denied', async ()
     return error;
   }
 
-  const legacyPayload = {
-    playerDatabase: {
-      Alpha: {
-        name: 'Alpha',
-        power: 123,
-        troops: 'Tank',
-      },
-    },
-    events: {
-      desert_storm: {
-        name: 'Desert Storm',
-        buildingConfig: [{ name: 'Bomb Squad', slots: 1, priority: 1 }],
-        buildingPositions: {},
-      },
-    },
-    allianceId: null,
-    allianceName: null,
-    playerSource: 'personal',
-  };
-
   function createSnapshot() {
     return {
       empty: true,
@@ -334,12 +314,6 @@ test('firebase manager keeps legacy data when game doc read is denied', async ()
 
   function resolveDocGet(pathParts) {
     const joined = pathParts.join('/');
-    if (joined === 'users/qa-user') {
-      return {
-        exists: true,
-        data: () => legacyPayload,
-      };
-    }
     if (joined === 'users/qa-user/games/last_war') {
       throw permissionDeniedError();
     }
@@ -416,11 +390,10 @@ test('firebase manager keeps legacy data when game doc read is denied', async ()
   });
 
   assert.equal(result.success, true);
-  assert.equal(result.playerCount, 1);
-  assert.equal(result.limitedByPermissions, undefined);
+  assert.equal(result.playerCount, 0);
+  assert.equal(result.limitedByPermissions, true);
   assert.equal(loadedPayloads.length, 1);
-  assert.ok(loadedPayloads[0].Alpha);
-  assert.equal(loadedPayloads[0].Alpha.name, 'Alpha');
+  assert.deepEqual(loadedPayloads[0], {});
 });
 
 test('game metadata save falls back to app_config when games write is permission-denied', async () => {
@@ -1031,6 +1004,8 @@ test('saveUserData persists players and events into game subcollections for sele
 
   global.FirebaseManager.upsertEvent('desert_storm', {
     name: 'SubDoc Event',
+    logoDataUrl: 'data:image/png;base64,AAAA',
+    mapDataUrl: 'data:image/png;base64,BBBB',
     assignmentAlgorithmId: 'balanced_round_robin',
     buildingConfig: [{ name: 'HQ', slots: 1, priority: 1 }],
     buildingPositions: { HQ: [10, 20] },
@@ -1048,4 +1023,177 @@ test('saveUserData persists players and events into game subcollections for sele
     combinedPaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/events/')),
     true
   );
+  assert.equal(
+    combinedPaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/event_media/')),
+    true
+  );
+});
+
+test('loadUserData alliance reads stay game-scoped and do not hit legacy root alliance path', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  let authStateChanged = null;
+  let legacyAllianceReads = 0;
+
+  function createSnapshot(docs) {
+    return {
+      empty: docs.length === 0,
+      docs,
+      forEach(callback) {
+        docs.forEach((doc) => callback(doc));
+      },
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/desert_ops') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {},
+          events: {},
+          allianceId: 'alliance-x',
+          allianceName: 'Alliance X',
+          playerSource: 'alliance',
+        }),
+      };
+    }
+    if (joined === 'games/desert_ops/alliances/alliance-x') {
+      return {
+        exists: true,
+        data: () => ({
+          gameId: 'desert_ops',
+          name: 'Alliance X',
+          members: {
+            'qa-user': { email: 'qa@example.com' },
+          },
+          playerDatabase: {},
+        }),
+      };
+    }
+    if (joined === 'alliances/alliance-x') {
+      legacyAllianceReads += 1;
+      return {
+        exists: true,
+        data: () => ({
+          name: 'Legacy Alliance',
+          members: {
+            'qa-user': { email: 'qa@example.com' },
+          },
+          playerDatabase: {},
+        }),
+      };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return { exists: false, data: () => ({}) };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function resolveCollectionGet() {
+    return createSnapshot([]);
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => resolveCollectionGet(pathParts),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {},
+      update: async () => {},
+      delete: async () => {},
+      onSnapshot(callback) {
+        callback({
+          exists: true,
+          data: () => ({
+            gameId: 'desert_ops',
+            name: 'Alliance X',
+            members: {
+              'qa-user': { email: 'qa@example.com' },
+            },
+            playerDatabase: {},
+          }),
+        });
+        return () => {};
+      },
+      path: pathParts.join('/'),
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      delete() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+
+  const authUser = {
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  };
+  await authStateChanged(authUser);
+  const result = await global.FirebaseManager.loadUserData(authUser, { gameId: 'desert_ops' });
+
+  assert.equal(result.success, true);
+  assert.equal(legacyAllianceReads, 0);
 });
