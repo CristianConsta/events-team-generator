@@ -78,3 +78,45 @@ A good plan in this repo must:
 - Be test-first where feasible
 - Include both automated and user-path validation
 - Be specific enough that another agent can implement without re-planning
+
+## Session guardrails (must include in plans)
+
+1. Repository targeting and branch baseline
+- Start every plan with explicit repo/branch baseline checks:
+  - `git remote -v`
+  - `git rev-parse --abbrev-ref HEAD`
+  - `git rev-parse HEAD`
+  - `git fetch origin` + compare local `main` vs `origin/main`
+- Never mix actions across different local repos/worktrees in one execution plan.
+
+2. Canonical multigame data model (source of truth)
+- Personal scoped data:
+  - `users/{uid}/games/{gameId}`: `playerSource`, `allianceId`, `allianceName`, `userProfile`, `metadata`
+  - `users/{uid}/games/{gameId}/players/*`
+  - `users/{uid}/games/{gameId}/events/*`
+  - `users/{uid}/games/{gameId}/event_media/*`
+- Shared alliance scoped data:
+  - `games/{gameId}/alliances/{allianceId}`
+  - `games/{gameId}/invitations/{invitationId}`
+- Super admin for game metadata updates: UID `2z2BdO8aVsUovqQWWL9WCRMdV933`.
+
+3. Migration sequencing
+- Always plan as: `rules update -> dry-run migration -> apply migration -> post-verify -> cutover`.
+- Migration must cover all legacy event paths:
+  - root `users/{uid}.events`
+  - root legacy building fields (`buildingConfig`, `buildingPositions`, versions)
+  - `users/{uid}/event_media/*`
+- Require generated migration report artifacts in `docs/architecture/`.
+
+4. Cutover policy
+- Include `MULTIGAME_STRICT_MODE` rollout plan:
+  - OFF during migration/verification
+  - ON only after integrity checks pass
+- In strict mode, no legacy fallback reads/writes are allowed.
+
+5. Phase completion gates
+- Every phase must include:
+  - exact files touched
+  - exact test commands
+  - Firestore integrity checks (counts/path presence)
+  - rollback note

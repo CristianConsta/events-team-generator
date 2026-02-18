@@ -74,3 +74,32 @@ Do not approve if any of these are missing:
 - Clear phased rollout
 - Test strategy for both legacy and target behavior
 - Explicit ownership of each change area
+
+## Session guardrails (required for approval)
+
+1. Repo and release hygiene
+- Require proof of active repo and remote before approval (`git remote -v`, branch, HEAD).
+- Reject plans that do not define how local `main` is aligned to `origin/main` before publish.
+
+2. Data architecture invariants
+- Approve only if gameplay data is game-scoped:
+  - `users/{uid}/games/{gameId}` + `players/events/event_media` subcollections.
+- Approve only if alliance/invitation data is game-scoped:
+  - `games/{gameId}/alliances/*`, `games/{gameId}/invitations/*`.
+- Approve only if game metadata write access is limited to super admin UID `2z2BdO8aVsUovqQWWL9WCRMdV933`.
+
+3. Rules-first enforcement
+- Firestore rules changes must be phase 1 and validated in emulator tests before runtime or migration phases.
+- Reject if permissions for game-scoped reads/writes are not explicitly mapped.
+
+4. Migration completeness
+- Reject any migration that does not explicitly cover:
+  - legacy root player/events payloads
+  - legacy root building fields into event docs
+  - legacy `users/{uid}/event_media/*` into game-scoped `event_media`
+  - legacy alliance/invitation collections into `games/{gameId}` namespace
+- Require idempotency + dry-run + apply + report + verification queries.
+
+5. Strict-mode cutover discipline
+- `MULTIGAME_STRICT_MODE` cannot be enabled until post-migration integrity checks pass.
+- Require explicit go/no-go checklist and rollback sequence.

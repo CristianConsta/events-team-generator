@@ -51,3 +51,36 @@ Do not approve if any of these are missing:
 - backward compatibility strategy for API/data changes
 - rollback strategy for migration phases
 - clear file/module touchpoints per phase
+
+## Session guardrails (implementation discipline)
+
+1. Baseline check before coding
+- Confirm repo/branch/remote/HEAD before any change.
+- Refuse implementation if target repo is ambiguous.
+
+2. Multigame contract enforcement
+- Persist all gameplay operations by `gameId`:
+  - players -> `users/{uid}/games/{gameId}/players/*`
+  - events -> `users/{uid}/games/{gameId}/events/*`
+  - event media -> `users/{uid}/games/{gameId}/event_media/*`
+  - user game state -> `users/{uid}/games/{gameId}`
+- Alliance/invitations must use `games/{gameId}/...` collections.
+
+3. No silent fallback in final state
+- Keep fallback behavior only behind `MULTIGAME_STRICT_MODE` OFF.
+- In strict mode, emit explicit actionable errors; do not silently degrade with "(not synced)" behavior.
+
+4. Migration run protocol
+- Always execute in this order:
+  - migration dry-run
+  - migration apply
+  - verification script/queries confirming counts and path presence
+- Validate event migration includes legacy root event media + building fields.
+
+5. Commit boundaries
+- Commit separately for:
+  - rules/tests
+  - migration script/tests
+  - runtime cutover
+  - UI updates
+- Include rollback note in each commit message/PR description.

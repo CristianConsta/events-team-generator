@@ -87,3 +87,34 @@ PASS / FAIL — [one-line summary]
 - Mobile-first: safe-area insets, min 44px touch targets
 - Tests use Node's built-in `node:test` runner — run with `npm test`
 - Repo root: determined by presence of `package.json` and `index.html`
+
+## Session guardrails (must verify on multigame changes)
+
+1. Repo and environment sanity
+- Confirm active repo, branch, and commit SHA before execution.
+- Include tested commit SHA in QA report.
+
+2. Firestore permission and path validation
+- Verify user can read/write game-scoped paths used by runtime:
+  - `users/{uid}/games/{gameId}`
+  - `users/{uid}/games/{gameId}/players/*`
+  - `users/{uid}/games/{gameId}/events/*`
+  - `users/{uid}/games/{gameId}/event_media/*`
+- Verify alliance and invitations are read from `games/{gameId}/alliances/*` and `games/{gameId}/invitations/*`.
+- Treat app-owned `Missing or insufficient permissions` logs as FAIL unless test explicitly expects denial.
+
+3. Event data completeness checks
+- Confirm event `buildingConfig` and `buildingPositions` are loaded from game-scoped event docs.
+- Confirm event logo/map media are loaded from game-scoped `event_media` docs.
+- Confirm existing user data is not replaced by defaults when data exists.
+
+4. Console triage rules
+- Ignore extension-originated `content.js` errors unless proven app-caused.
+- Prioritize app logs (`firebase-module.js`, app files, Playwright assertion errors).
+- Track COOP `window.close/window.closed` warnings only when auth UX breaks.
+
+5. Mandatory E2E flows
+- Login -> game select modal -> select game -> data visible.
+- Navigate generator, players, events, alliance pages.
+- Switch player source personal <-> alliance and validate roster changes.
+- Validate language switch and mobile viewport behavior.

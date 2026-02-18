@@ -47,6 +47,31 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 - If UI behavior changed, run relevant Playwright tests in `e2e/*.e2e.js`.
 - Confirm no regression in required page IDs and control hooks used by tests.
 
+## Session guardrails (UI behavior that must be preserved)
+
+1. Game selection flow
+- After login/sign-up, require explicit game selection modal.
+- Do not auto-select `last_war` when multiple games exist.
+- Keep modal mobile-friendly and row-based (logo/avatar + game name).
+
+2. Header contract
+- Maintain header order: game logo/avatar, user avatar + name/nickname, alliance, notifications.
+- Show game logo/avatar in header (not game name text as primary token).
+- If no game logo exists, render deterministic fallback avatar.
+
+3. Game metadata admin behavior
+- Game logo upload UX must match event image constraints (supported image types/size handling).
+- Remove meaningless free-form attributes JSON UI.
+- Do not expose metadata editing controls for non-super-admin users.
+
+4. Data-source UX safety
+- Never show misleading "not synced" message in authorized normal flow.
+- If strict mode blocks persistence, show explicit actionable error.
+
+5. i18n and responsive stability
+- All added text must be translated across all supported locales.
+- Preserve mobile safe-area behavior and existing nav/footer layout on small screens.
+
 ## Quick patterns
 
 Add translated text in markup:

@@ -4,6 +4,7 @@ const admin = require('firebase-admin');
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_GAME_ID = 'last_war';
+const DEFAULT_LEGACY_EVENT_ID = 'desert_storm';
 const MIGRATION_VERSION = 2;
 const USER_GAMES_SUBCOLLECTION = 'games';
 
@@ -77,6 +78,17 @@ function normalizeGameId(value) {
     .replace(/^_+|_+$/g, '');
 }
 
+function normalizeEventId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function cloneJson(value) {
   if (typeof value === 'undefined') {
     return undefined;
@@ -102,6 +114,57 @@ function createStableDocId(rawValue, prefix) {
 
 function isNonEmptyObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0;
+}
+
+function normalizeBuildingConfigArray(config) {
+  if (!Array.isArray(config)) {
+    return null;
+  }
+  const normalized = [];
+  config.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    const name = typeof item.name === 'string' ? item.name.trim() : '';
+    if (!name) {
+      return;
+    }
+    const next = { name };
+    if (typeof item.label === 'string' && item.label.trim()) {
+      next.label = item.label.trim();
+    }
+    const slots = Number(item.slots);
+    if (Number.isFinite(slots)) {
+      next.slots = Math.round(slots);
+    }
+    const priority = Number(item.priority);
+    if (Number.isFinite(priority)) {
+      next.priority = Math.round(priority);
+    }
+    if (typeof item.showOnMap === 'boolean') {
+      next.showOnMap = item.showOnMap;
+    }
+    normalized.push(next);
+  });
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizePositionsMap(positions) {
+  const source = positions && typeof positions === 'object' ? positions : {};
+  const normalized = {};
+  Object.keys(source).forEach((name) => {
+    const coords = source[name];
+    if (!Array.isArray(coords) || coords.length !== 2) {
+      return;
+    }
+    const x = Number(coords[0]);
+    const y = Number(coords[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
+    normalized[name] = [Math.round(x), Math.round(y)];
+  });
+  return normalized;
 }
 
 function mergeGamePayloads(existingPayload, incomingPayload) {
@@ -139,7 +202,19 @@ function extractGamePayloadsFromUserDoc(userData, defaultGameId) {
   const source = userData && typeof userData === 'object' ? userData : {};
 
   const rootLegacyPayload = {};
-  ['playerDatabase', 'events', 'userProfile', 'playerSource', 'allianceId', 'allianceName', 'metadata'].forEach((field) => {
+  [
+    'playerDatabase',
+    'events',
+    'userProfile',
+    'playerSource',
+    'allianceId',
+    'allianceName',
+    'metadata',
+    'buildingConfig',
+    'buildingConfigVersion',
+    'buildingPositions',
+    'buildingPositionsVersion',
+  ].forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(source, field)) {
       rootLegacyPayload[field] = source[field];
     }
@@ -161,6 +236,50 @@ function extractGamePayloadsFromUserDoc(userData, defaultGameId) {
   }
 
   return payloads;
+}
+
+function applyLegacyBuildingFieldsToEvents(eventsMap, payload, eventId) {
+  const normalizedEventId = normalizeEventId(eventId) || DEFAULT_LEGACY_EVENT_ID;
+  const sourceEvents = eventsMap && typeof eventsMap === 'object' ? cloneJson(eventsMap) : {};
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const existing = sourceEvents[normalizedEventId] && typeof sourceEvents[normalizedEventId] === 'object'
+    ? sourceEvents[normalizedEventId]
+    : {};
+  const next = { ...existing };
+
+  const legacyConfig = normalizeBuildingConfigArray(source.buildingConfig);
+  if (Array.isArray(legacyConfig) && (!Array.isArray(next.buildingConfig) || next.buildingConfig.length === 0)) {
+    next.buildingConfig = legacyConfig;
+  }
+  const legacyConfigVersion = Number(source.buildingConfigVersion);
+  if (
+    Number.isFinite(legacyConfigVersion)
+    && legacyConfigVersion > 0
+    && !Number.isFinite(Number(next.buildingConfigVersion))
+  ) {
+    next.buildingConfigVersion = Math.round(legacyConfigVersion);
+  }
+
+  const legacyPositions = normalizePositionsMap(source.buildingPositions);
+  if (
+    Object.keys(legacyPositions).length > 0
+    && (!next.buildingPositions || Object.keys(next.buildingPositions).length === 0)
+  ) {
+    next.buildingPositions = legacyPositions;
+  }
+  const legacyPositionsVersion = Number(source.buildingPositionsVersion);
+  if (
+    Number.isFinite(legacyPositionsVersion)
+    && legacyPositionsVersion > 0
+    && !Number.isFinite(Number(next.buildingPositionsVersion))
+  ) {
+    next.buildingPositionsVersion = Math.round(legacyPositionsVersion);
+  }
+
+  if (Object.keys(next).length > 0) {
+    sourceEvents[normalizedEventId] = next;
+  }
+  return sourceEvents;
 }
 
 function splitEventMedia(eventsMap) {
@@ -185,6 +304,37 @@ function splitEventMedia(eventsMap) {
   return { events, eventMedia };
 }
 
+function normalizeLegacyEventMediaMap(mediaMap) {
+  const source = mediaMap && typeof mediaMap === 'object' ? mediaMap : {};
+  const normalized = {};
+  Object.keys(source).forEach((rawId) => {
+    const eventId = normalizeEventId(rawId);
+    if (!eventId) {
+      return;
+    }
+    const entry = source[rawId];
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const logoDataUrl = typeof entry.logoDataUrl === 'string' ? entry.logoDataUrl : '';
+    const mapDataUrl = typeof entry.mapDataUrl === 'string' ? entry.mapDataUrl : '';
+    if (!logoDataUrl && !mapDataUrl) {
+      return;
+    }
+    normalized[eventId] = { logoDataUrl, mapDataUrl };
+  });
+  return normalized;
+}
+
+function mergeEventMediaMaps(baseMedia, overlayMedia) {
+  const base = baseMedia && typeof baseMedia === 'object' ? cloneJson(baseMedia) : {};
+  const overlay = overlayMedia && typeof overlayMedia === 'object' ? overlayMedia : {};
+  Object.keys(overlay).forEach((eventId) => {
+    base[eventId] = cloneJson(overlay[eventId]);
+  });
+  return base;
+}
+
 function buildGameDocPatch(payload) {
   const source = payload && typeof payload === 'object' ? payload : {};
   const patch = {};
@@ -205,21 +355,48 @@ function buildGameDocPatch(payload) {
   return patch;
 }
 
-async function migrateUserGame(db, userRef, gameId, payload, apply, report) {
+async function migrateLegacyUserEventMedia(userRef) {
+  const snapshot = await userRef.collection('event_media').get();
+  const media = {};
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const eventId = normalizeEventId(doc.id);
+    if (!eventId) {
+      return;
+    }
+    const logoDataUrl = typeof data.logoDataUrl === 'string' ? data.logoDataUrl : '';
+    const mapDataUrl = typeof data.mapDataUrl === 'string' ? data.mapDataUrl : '';
+    if (!logoDataUrl && !mapDataUrl) {
+      return;
+    }
+    media[eventId] = { logoDataUrl, mapDataUrl };
+  });
+  return {
+    scanned: snapshot.size,
+    media: normalizeLegacyEventMediaMap(media),
+  };
+}
+
+async function migrateUserGame(db, userRef, gameId, payload, apply, report, options) {
   const gameRef = userRef.collection(USER_GAMES_SUBCOLLECTION).doc(gameId);
   const gamePatch = buildGameDocPatch(payload);
   const playersMap = payload && payload.playerDatabase && typeof payload.playerDatabase === 'object'
     ? payload.playerDatabase
     : {};
-  const eventsMap = payload && payload.events && typeof payload.events === 'object'
+  const rawEventsMap = payload && payload.events && typeof payload.events === 'object'
     ? payload.events
     : {};
+  const eventsMap = applyLegacyBuildingFieldsToEvents(rawEventsMap, payload, DEFAULT_LEGACY_EVENT_ID);
   const split = splitEventMedia(eventsMap);
+  const legacyEventMediaMap = options && options.legacyEventMediaMap && typeof options.legacyEventMediaMap === 'object'
+    ? options.legacyEventMediaMap
+    : {};
+  const mergedEventMedia = mergeEventMediaMaps(split.eventMedia, legacyEventMediaMap);
 
   report.gameDocsPrepared += 1;
   report.playersPrepared += Object.keys(playersMap).length;
   report.eventsPrepared += Object.keys(split.events).length;
-  report.eventMediaPrepared += Object.keys(split.eventMedia).length;
+  report.eventMediaPrepared += Object.keys(mergedEventMedia).length;
 
   if (!apply) {
     return;
@@ -238,7 +415,7 @@ async function migrateUserGame(db, userRef, gameId, payload, apply, report) {
     await gameRef.collection('events').doc(String(eventId)).set(cloneJson(eventData || {}), { merge: true });
   }
 
-  const mediaEntries = Object.entries(split.eventMedia);
+  const mediaEntries = Object.entries(mergedEventMedia);
   for (const [eventId, mediaData] of mediaEntries) {
     await gameRef.collection('event_media').doc(String(eventId)).set(cloneJson(mediaData || {}), { merge: true });
   }
@@ -290,6 +467,8 @@ async function runMigration(db, args) {
     playersPrepared: 0,
     eventsPrepared: 0,
     eventMediaPrepared: 0,
+    legacyUserEventMediaScanned: 0,
+    legacyUserEventMediaPrepared: 0,
     legacyAlliancesScanned: 0,
     legacyInvitationsScanned: 0,
     legacyAlliancesPrepared: 0,
@@ -322,6 +501,14 @@ async function runMigration(db, args) {
       report.usersScanned += 1;
       const userData = userDoc.data() || {};
       const gamePayloads = extractGamePayloadsFromUserDoc(userData, args.defaultGameId);
+      const legacyUserEventMediaResult = await migrateLegacyUserEventMedia(userDoc.ref);
+      report.legacyUserEventMediaScanned += legacyUserEventMediaResult.scanned;
+      report.legacyUserEventMediaPrepared += Object.keys(legacyUserEventMediaResult.media).length;
+
+      if (gamePayloads.size === 0 && Object.keys(legacyUserEventMediaResult.media).length > 0) {
+        gamePayloads.set(report.defaultGameId, {});
+      }
+
       if (gamePayloads.size === 0) {
         continue;
       }
@@ -330,7 +517,9 @@ async function runMigration(db, args) {
       const migratedGameIds = [];
       for (const [gameId, payload] of gamePayloads.entries()) {
         migratedGameIds.push(gameId);
-        await migrateUserGame(db, userDoc.ref, gameId, payload, args.apply, report);
+        await migrateUserGame(db, userDoc.ref, gameId, payload, args.apply, report, {
+          legacyEventMediaMap: gameId === report.defaultGameId ? legacyUserEventMediaResult.media : {},
+        });
       }
 
       if (args.apply && migratedGameIds.length > 0) {
@@ -416,6 +605,9 @@ module.exports = {
   extractGamePayloadsFromUserDoc,
   mergeGamePayloads,
   isNonEmptyObject,
+  applyLegacyBuildingFieldsToEvents,
+  normalizeLegacyEventMediaMap,
+  mergeEventMediaMaps,
   splitEventMedia,
   buildGameDocPatch,
   runMigration,

@@ -61,6 +61,31 @@ test('splitEventMedia moves logo/map blobs into dedicated event_media payload', 
   assert.equal(result.eventMedia.desert_storm.mapDataUrl.length > 0, true);
 });
 
+test('applyLegacyBuildingFieldsToEvents promotes root legacy building fields into desert_storm event', () => {
+  const result = migrationScript.applyLegacyBuildingFieldsToEvents({}, {
+    buildingConfig: [{ name: 'Legacy HQ', slots: 1, priority: 2 }],
+    buildingConfigVersion: 3,
+    buildingPositions: { 'Legacy HQ': [10, 20] },
+    buildingPositionsVersion: 4,
+  }, 'desert_storm');
+
+  assert.equal(Array.isArray(result.desert_storm.buildingConfig), true);
+  assert.equal(result.desert_storm.buildingConfig[0].name, 'Legacy HQ');
+  assert.equal(result.desert_storm.buildingConfigVersion, 3);
+  assert.deepEqual(result.desert_storm.buildingPositions['Legacy HQ'], [10, 20]);
+  assert.equal(result.desert_storm.buildingPositionsVersion, 4);
+});
+
+test('mergeEventMediaMaps overlays legacy media onto split media payload', () => {
+  const merged = migrationScript.mergeEventMediaMaps(
+    { desert_storm: { logoDataUrl: 'data:image/png;base64,AAA', mapDataUrl: '' } },
+    { canyon_battlefield: { logoDataUrl: '', mapDataUrl: 'data:image/png;base64,BBB' } }
+  );
+  assert.equal(Object.keys(merged).length, 2);
+  assert.equal(merged.desert_storm.logoDataUrl.length > 0, true);
+  assert.equal(merged.canyon_battlefield.mapDataUrl.length > 0, true);
+});
+
 test('buildGameDocPatch always stamps migration metadata and keeps association fields', () => {
   const patch = migrationScript.buildGameDocPatch({
     playerSource: 'alliance',

@@ -1,0 +1,21 @@
+{
+  "startedAt": "2026-02-18T22:07:45.732Z",
+  "mode": "dry-run",
+  "defaultGameId": "last_war",
+  "usersScanned": 4,
+  "usersWithLegacyPayload": 4,
+  "gameDocsPrepared": 4,
+  "playersPrepared": 200,
+  "eventsPrepared": 8,
+  "eventMediaPrepared": 0,
+  "legacyAlliancesScanned": 1,
+  "legacyInvitationsScanned": 2,
+  "legacyAlliancesPrepared": 1,
+  "legacyInvitationsPrepared": 2,
+  "rollbackNotes": [
+    "Rollback path: keep strict mode OFF, redeploy previous firestore.rules, and stop dual-write/cutover clients.",
+    "No destructive deletes are performed by this migration script.",
+    "Data copied into game-scoped paths is idempotent (merge writes)."
+  ],
+  "completedAt": "2026-02-18T22:07:47.522Z"
+}
