@@ -322,6 +322,28 @@
                 null
             );
         },
+        getObservabilityCounters: function getObservabilityCounters() {
+            return withManager(
+                (svc) => (typeof svc.getObservabilityCounters === 'function'
+                    ? svc.getObservabilityCounters()
+                    : {
+                        dualWriteMismatchCount: 0,
+                        invitationContextMismatchCount: 0,
+                        fallbackReadHitCount: 0,
+                    }),
+                {
+                    dualWriteMismatchCount: 0,
+                    invitationContextMismatchCount: 0,
+                    fallbackReadHitCount: 0,
+                }
+            );
+        },
+        resetObservabilityCounters: function resetObservabilityCounters() {
+            return withManager(
+                (svc) => (typeof svc.resetObservabilityCounters === 'function' ? svc.resetObservabilityCounters() : false),
+                false
+            );
+        },
         signInWithGoogle: async function signInWithGoogle() {
             return withManager((svc) => svc.signInWithGoogle(), notLoadedResult());
         },

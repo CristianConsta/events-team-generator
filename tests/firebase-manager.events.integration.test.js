@@ -140,3 +140,34 @@ test('firebase manager resolves gameplay context with optional gameId signatures
   const legacy = global.FirebaseManager.resolveGameplayContext('getPlayerDatabase');
   assert.deepEqual(legacy, { gameId: 'last_war', explicit: false });
 });
+
+test('firebase manager exposes observability counters shape', () => {
+  global.window = global;
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  require(firebaseModulePath);
+
+  const counters = global.FirebaseManager.getObservabilityCounters();
+  assert.deepEqual(counters, {
+    dualWriteMismatchCount: 0,
+    invitationContextMismatchCount: 0,
+    fallbackReadHitCount: 0,
+  });
+  global.FirebaseManager.resetObservabilityCounters();
+  assert.deepEqual(global.FirebaseManager.getObservabilityCounters(), {
+    dualWriteMismatchCount: 0,
+    invitationContextMismatchCount: 0,
+    fallbackReadHitCount: 0,
+  });
+});

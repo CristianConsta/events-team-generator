@@ -138,6 +138,11 @@ const FirebaseManager = (function() {
     let globalDefaultBuildingConfigVersion = 0;
     let migrationVersion = 0;
     let migratedToGameSubcollectionsAt = null;
+    const observabilityCounters = {
+        dualWriteMismatchCount: 0,
+        invitationContextMismatchCount: 0,
+        fallbackReadHitCount: 0,
+    };
 
     function normalizeFeatureFlagValue(value, fallbackValue) {
         if (typeof value === 'boolean') {
@@ -303,6 +308,29 @@ const FirebaseManager = (function() {
             usedLegacyFallback: false,
             data: null,
         };
+    }
+
+    function incrementObservabilityCounter(counterKey, amount) {
+        if (!Object.prototype.hasOwnProperty.call(observabilityCounters, counterKey)) {
+            return;
+        }
+        const delta = Number(amount);
+        const increment = Number.isFinite(delta) && delta > 0 ? Math.floor(delta) : 1;
+        observabilityCounters[counterKey] += increment;
+    }
+
+    function getObservabilityCounters() {
+        return {
+            dualWriteMismatchCount: Number(observabilityCounters.dualWriteMismatchCount) || 0,
+            invitationContextMismatchCount: Number(observabilityCounters.invitationContextMismatchCount) || 0,
+            fallbackReadHitCount: Number(observabilityCounters.fallbackReadHitCount) || 0,
+        };
+    }
+
+    function resetObservabilityCounters() {
+        observabilityCounters.dualWriteMismatchCount = 0;
+        observabilityCounters.invitationContextMismatchCount = 0;
+        observabilityCounters.fallbackReadHitCount = 0;
     }
 
     const legacyGameSignatureWarnings = new Set();
@@ -1646,6 +1674,9 @@ const FirebaseManager = (function() {
                 gameData: gameScopedData,
                 legacyData: legacyData,
             });
+            if (resolvedRead.usedLegacyFallback) {
+                incrementObservabilityCounter('fallbackReadHitCount', 1);
+            }
 
             if (resolvedRead.data) {
                 const data = resolvedRead.data;
@@ -1852,6 +1883,7 @@ const FirebaseManager = (function() {
                 await db.collection('users').doc(currentUser.uid).set(payload, { merge: true });
                 const dualWriteResult = await persistGameScopedDualWrite(currentState, changedFields);
                 if (!dualWriteResult.success) {
+                    incrementObservabilityCounter('dualWriteMismatchCount', 1);
                     throw new Error(`Dual-write failed: ${dualWriteResult.error || 'unknown'}`);
                 }
             }
@@ -2508,6 +2540,7 @@ const FirebaseManager = (function() {
 
         return {
             id: doc && typeof doc.id === 'string' ? doc.id : '',
+            gameId: typeof data.gameId === 'string' ? normalizeGameId(data.gameId) : '',
             allianceId: typeof data.allianceId === 'string' ? data.allianceId : '',
             allianceName: typeof data.allianceName === 'string' ? data.allianceName : '',
             invitedEmail: typeof data.invitedEmail === 'string' ? data.invitedEmail : '',
@@ -2526,6 +2559,17 @@ const FirebaseManager = (function() {
             updatedAt: data.updatedAt || null,
             _ref: doc && doc.ref ? doc.ref : null,
         };
+    }
+
+    function isInvitationContextMismatch(invitation) {
+        if (!invitation || typeof invitation !== 'object') {
+            return false;
+        }
+        const invitationGameId = normalizeGameId(invitation.gameId);
+        if (!invitationGameId) {
+            return false;
+        }
+        return invitationGameId !== DEFAULT_GAME_ID;
     }
 
     function stripInvitationPrivateFields(invitation) {
@@ -2672,6 +2716,7 @@ const FirebaseManager = (function() {
             }
 
             const inviteRef = await db.collection('invitations').add({
+                gameId: DEFAULT_GAME_ID,
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
@@ -2720,12 +2765,26 @@ const FirebaseManager = (function() {
             pendingInvitations = receivedSnapshot.docs
                 .map((doc) => normalizeInvitationRecord(doc))
                 .filter((invite) => invite.status === 'pending')
+                .filter((invite) => {
+                    if (isInvitationContextMismatch(invite)) {
+                        incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                        return false;
+                    }
+                    return true;
+                })
                 .sort(sortInvitationsNewestFirst);
             await markPendingInvitationReminders(pendingInvitations);
 
             sentInvitations = sentSnapshot.docs
                 .map((doc) => normalizeInvitationRecord(doc))
                 .filter((invite) => invite.status === 'pending')
+                .filter((invite) => {
+                    if (isInvitationContextMismatch(invite)) {
+                        incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                        return false;
+                    }
+                    return true;
+                })
                 .filter((invite) => !allianceId || invite.allianceId === allianceId)
                 .sort(sortInvitationsNewestFirst);
 
@@ -2749,6 +2808,10 @@ const FirebaseManager = (function() {
 
             const inv = invDoc.data();
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+            if (normalizeGameId(inv.gameId) && normalizeGameId(inv.gameId) !== DEFAULT_GAME_ID) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, error: 'Invitation game context mismatch' };
+            }
             const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
             const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
             if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
@@ -2797,6 +2860,10 @@ const FirebaseManager = (function() {
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
             const inv = invDoc.data() || {};
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
+            if (normalizeGameId(inv.gameId) && normalizeGameId(inv.gameId) !== DEFAULT_GAME_ID) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, error: 'Invitation game context mismatch' };
+            }
             const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
             const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
             if (!invitedEmail || !userEmail || invitedEmail !== userEmail) {
@@ -2829,6 +2896,10 @@ const FirebaseManager = (function() {
             const invitation = invitationDoc.data() || {};
             if (invitation.status !== 'pending') {
                 return { success: false, errorKey: 'alliance_invite_not_pending' };
+            }
+            if (normalizeGameId(invitation.gameId) && normalizeGameId(invitation.gameId) !== DEFAULT_GAME_ID) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, errorKey: 'alliance_invite_not_owner' };
             }
             if (invitation.invitedBy !== currentUser.uid) {
                 return { success: false, errorKey: 'alliance_invite_not_owner' };
@@ -2864,6 +2935,10 @@ const FirebaseManager = (function() {
             const invitation = invitationDoc.data() || {};
             if (invitation.status !== 'pending') {
                 return { success: false, errorKey: 'alliance_invite_not_pending' };
+            }
+            if (normalizeGameId(invitation.gameId) && normalizeGameId(invitation.gameId) !== DEFAULT_GAME_ID) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return { success: false, errorKey: 'alliance_invite_not_owner' };
             }
             if (invitation.invitedBy !== currentUser.uid) {
                 return { success: false, errorKey: 'alliance_invite_not_owner' };
@@ -3424,7 +3499,9 @@ const FirebaseManager = (function() {
         getMigrationVersion: getMigrationVersion,
         getMigratedToGameSubcollectionsAt: getMigratedToGameSubcollectionsAt,
         resolveGameScopedReadPayload: resolveGameScopedReadPayload,
-        resolveGameplayContext: resolveGameplayContext
+        resolveGameplayContext: resolveGameplayContext,
+        getObservabilityCounters: getObservabilityCounters,
+        resetObservabilityCounters: resetObservabilityCounters
     };
     
 })();
