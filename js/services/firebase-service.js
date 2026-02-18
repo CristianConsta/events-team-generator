@@ -256,6 +256,18 @@
         requireActiveGame: function requireActiveGamePublic() {
             return requireActiveGame();
         },
+        getMigrationVersion: function getMigrationVersion() {
+            return withManager(
+                (svc) => (typeof svc.getMigrationVersion === 'function' ? svc.getMigrationVersion() : 0),
+                0
+            );
+        },
+        getMigratedToGameSubcollectionsAt: function getMigratedToGameSubcollectionsAt() {
+            return withManager(
+                (svc) => (typeof svc.getMigratedToGameSubcollectionsAt === 'function' ? svc.getMigratedToGameSubcollectionsAt() : null),
+                null
+            );
+        },
         signInWithGoogle: async function signInWithGoogle() {
             return withManager((svc) => svc.signInWithGoogle(), notLoadedResult());
         },

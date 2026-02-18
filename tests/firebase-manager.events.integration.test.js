@@ -71,3 +71,48 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   assert.equal(global.FirebaseManager.removeEvent('test_event'), true);
   assert.equal(global.FirebaseManager.removeEvent('desert_storm'), false);
 });
+
+test('firebase manager resolves game-scoped read payload with last_war legacy fallback', () => {
+  global.window = global;
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  require(firebaseModulePath);
+
+  const legacyOnly = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: null,
+    legacyData: { playerDatabase: { Alice: { power: 1 } } },
+  });
+  assert.equal(legacyOnly.source, 'legacy-fallback');
+  assert.equal(legacyOnly.usedLegacyFallback, true);
+  assert.ok(legacyOnly.data.playerDatabase.Alice);
+
+  const mixed = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: { playerDatabase: { Bob: { power: 2 } } },
+    legacyData: { playerDatabase: { Alice: { power: 1 } } },
+  });
+  assert.equal(mixed.source, 'game');
+  assert.equal(mixed.usedLegacyFallback, false);
+  assert.ok(mixed.data.playerDatabase.Bob);
+
+  const nativeOnly = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'last_war',
+    gameData: { playerDatabase: { Cara: { power: 3 } } },
+    legacyData: null,
+  });
+  assert.equal(nativeOnly.source, 'game');
+  assert.equal(nativeOnly.usedLegacyFallback, false);
+  assert.ok(nativeOnly.data.playerDatabase.Cara);
+});

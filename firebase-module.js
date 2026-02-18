@@ -95,6 +95,9 @@ const FirebaseManager = (function() {
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
     const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
+    const USER_GAMES_SUBCOLLECTION = 'games';
+    const DEFAULT_GAME_ID = 'last_war';
+    const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
         MULTIGAME_ENABLED: false,
         MULTIGAME_READ_FALLBACK_ENABLED: true,
@@ -133,6 +136,8 @@ const FirebaseManager = (function() {
     let globalDefaultPositionsVersion = 0;
     let globalDefaultEventBuildingConfig = {};
     let globalDefaultBuildingConfigVersion = 0;
+    let migrationVersion = 0;
+    let migratedToGameSubcollectionsAt = null;
 
     function normalizeFeatureFlagValue(value, fallbackValue) {
         if (typeof value === 'boolean') {
@@ -235,6 +240,69 @@ const FirebaseManager = (function() {
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '_')
             .replace(/^_+|_+$/g, '');
+    }
+
+    function normalizeGameId(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
+
+    function getUserGameDocRef(userId, gameId) {
+        if (!db || !userId) {
+            return null;
+        }
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        return db.collection('users').doc(userId).collection(USER_GAMES_SUBCOLLECTION).doc(normalizedGameId);
+    }
+
+    function parseMigrationVersion(value) {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+        }
+        return Math.floor(parsed);
+    }
+
+    function updateMigrationMarkersFromUserData(data) {
+        const source = data && typeof data === 'object' ? data : {};
+        migrationVersion = parseMigrationVersion(source.migrationVersion);
+        migratedToGameSubcollectionsAt = source.migratedToGameSubcollectionsAt || null;
+    }
+
+    function resolveGameScopedReadPayload(options) {
+        const source = options && typeof options === 'object' ? options : {};
+        const normalizedGameId = normalizeGameId(source.gameId) || DEFAULT_GAME_ID;
+        const gameData = source.gameData && typeof source.gameData === 'object' ? source.gameData : null;
+        const legacyData = source.legacyData && typeof source.legacyData === 'object' ? source.legacyData : null;
+
+        if (gameData) {
+            return {
+                gameId: normalizedGameId,
+                source: 'game',
+                usedLegacyFallback: false,
+                data: gameData,
+            };
+        }
+        if (normalizedGameId === DEFAULT_GAME_ID && legacyData) {
+            return {
+                gameId: normalizedGameId,
+                source: 'legacy-fallback',
+                usedLegacyFallback: true,
+                data: legacyData,
+            };
+        }
+        return {
+            gameId: normalizedGameId,
+            source: 'none',
+            usedLegacyFallback: false,
+            data: null,
+        };
     }
 
     function normalizeEventName(value, fallback) {
@@ -1100,6 +1168,8 @@ const FirebaseManager = (function() {
             userProfile = normalizeUserProfile(null);
             setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
             setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+            migrationVersion = 0;
+            migratedToGameSubcollectionsAt = null;
             resetSaveState();
 
             if (onAuthCallback) {
@@ -1421,6 +1491,8 @@ const FirebaseManager = (function() {
         userProfile = normalizeUserProfile(null);
         setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
         setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+        migrationVersion = 0;
+        migratedToGameSubcollectionsAt = null;
         resetSaveState();
 
         try {
@@ -1474,17 +1546,47 @@ const FirebaseManager = (function() {
     async function loadUserData(user) {
         try {
             console.log('Loading data for UID:', user.uid);
-            const docRef = db.collection('users').doc(user.uid);
-            const doc = await docRef.get();
-            
-            if (doc.exists) {
-                const data = doc.data();
+            const userDocRef = db.collection('users').doc(user.uid);
+            const gameDocRef = getUserGameDocRef(user.uid, DEFAULT_GAME_ID);
+            const [legacyDoc, gameDoc] = await Promise.all([
+                userDocRef.get(),
+                gameDocRef ? gameDocRef.get() : Promise.resolve({ exists: false, data: () => ({}) })
+            ]);
+
+            const legacyData = legacyDoc.exists ? (legacyDoc.data() || {}) : null;
+            const gameScopedData = gameDoc && gameDoc.exists ? (gameDoc.data() || {}) : null;
+            updateMigrationMarkersFromUserData(legacyData);
+            const resolvedRead = resolveGameScopedReadPayload({
+                gameId: DEFAULT_GAME_ID,
+                gameData: gameScopedData,
+                legacyData: legacyData,
+            });
+
+            if (resolvedRead.data) {
+                const data = resolvedRead.data;
                 let shouldPersistLegacyDefaults = false;
                 playerDatabase = data.playerDatabase || {};
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 playerSource = data.playerSource || 'personal';
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
+
+                if (
+                    resolvedRead.source === 'game'
+                    && (migrationVersion < GAME_SUBCOLLECTION_MIGRATION_VERSION || !migratedToGameSubcollectionsAt)
+                ) {
+                    try {
+                        await userDocRef.set({
+                            migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
+                            migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
+                            lastActiveGameId: DEFAULT_GAME_ID,
+                        }, { merge: true });
+                        migrationVersion = GAME_SUBCOLLECTION_MIGRATION_VERSION;
+                        migratedToGameSubcollectionsAt = new Date().toISOString();
+                    } catch (markerErr) {
+                        console.warn('⚠️ Failed to persist game-subcollection migration markers:', markerErr);
+                    }
+                }
 
                 // Load per-event building data
                 if (data.events && typeof data.events === 'object') {
@@ -1510,11 +1612,10 @@ const FirebaseManager = (function() {
                     // Save migrated data and remove old top-level fields
                     try {
                         const batch = db.batch();
-                        const userRef = db.collection('users').doc(user.uid);
-                        batch.set(userRef, {
+                        batch.set(userDocRef, {
                             events: buildEventsWithoutMedia(eventData)
                         }, { merge: true });
-                        batch.update(userRef, {
+                        batch.update(userDocRef, {
                             buildingConfig: firebase.firestore.FieldValue.delete(),
                             buildingConfigVersion: firebase.firestore.FieldValue.delete(),
                             buildingPositions: firebase.firestore.FieldValue.delete(),
@@ -1550,7 +1651,7 @@ const FirebaseManager = (function() {
 
                 if (shouldPersistLegacyDefaults) {
                     try {
-                        await db.collection('users').doc(user.uid).set({
+                        await userDocRef.set({
                             events: buildEventsWithoutMedia(eventData),
                         }, { merge: true });
                         console.log('✅ Legacy default events enforced for user');
@@ -1596,6 +1697,8 @@ const FirebaseManager = (function() {
                 allianceName = null;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
+                migrationVersion = 0;
+                migratedToGameSubcollectionsAt = null;
                 await loadGlobalDefaultBuildingPositions();
                 await loadGlobalDefaultBuildingConfig();
                 applyGlobalDefaultBuildingConfigToEventData({
@@ -2833,6 +2936,14 @@ const FirebaseManager = (function() {
         return allianceData && allianceData.members ? allianceData.members : {};
     }
 
+    function getMigrationVersion() {
+        return migrationVersion;
+    }
+
+    function getMigratedToGameSubcollectionsAt() {
+        return migratedToGameSubcollectionsAt;
+    }
+
     // ============================================================
     // BACKUP & RESTORE FUNCTIONS
     // ============================================================
@@ -3113,7 +3224,10 @@ const FirebaseManager = (function() {
         getPendingInvitations: getPendingInvitations,
         getSentInvitations: getSentInvitations,
         getInvitationNotifications: getInvitationNotifications,
-        getAllianceMembers: getAllianceMembers
+        getAllianceMembers: getAllianceMembers,
+        getMigrationVersion: getMigrationVersion,
+        getMigratedToGameSubcollectionsAt: getMigratedToGameSubcollectionsAt,
+        resolveGameScopedReadPayload: resolveGameScopedReadPayload
     };
     
 })();
