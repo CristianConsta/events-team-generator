@@ -647,10 +647,34 @@ const FirebaseManager = (function() {
         migratedToGameSubcollectionsAt = source.migratedToGameSubcollectionsAt || null;
     }
 
+    function extractLegacyGameScopedData(legacyData, gameId) {
+        const source = legacyData && typeof legacyData === 'object' ? legacyData : null;
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (!source) {
+            return null;
+        }
+
+        if (source.games && typeof source.games === 'object') {
+            const mappedGameData = source.games[normalizedGameId];
+            if (mappedGameData && typeof mappedGameData === 'object') {
+                return mappedGameData;
+            }
+        }
+
+        if (normalizedGameId === DEFAULT_GAME_ID) {
+            return source;
+        }
+        return null;
+    }
+
     function resolveGameScopedReadPayload(options) {
         const source = options && typeof options === 'object' ? options : {};
         const normalizedGameId = normalizeGameId(source.gameId) || DEFAULT_GAME_ID;
         const gameData = source.gameData && typeof source.gameData === 'object' ? source.gameData : null;
+        const allowLegacyFallback = source.allowLegacyFallback === true;
+        const legacyData = allowLegacyFallback
+            ? extractLegacyGameScopedData(source.legacyData, normalizedGameId)
+            : null;
 
         if (gameData) {
             return {
@@ -658,6 +682,14 @@ const FirebaseManager = (function() {
                 source: 'game',
                 usedLegacyFallback: false,
                 data: gameData,
+            };
+        }
+        if (legacyData) {
+            return {
+                gameId: normalizedGameId,
+                source: 'legacy',
+                usedLegacyFallback: true,
+                data: legacyData,
             };
         }
         return {
@@ -2674,8 +2706,20 @@ const FirebaseManager = (function() {
             const gameDocRef = getUserGameDocRef(user.uid, gameId);
             const gameRead = await getDocWithPermissionTolerantFallback(gameDocRef, { label: 'game-scoped profile' });
             const gameScopedData = gameRead.exists ? gameRead.data : null;
-            const readDenied = gameRead.permissionDenied;
-            if (readDenied) {
+            const legacyRead = await getDocWithPermissionTolerantFallback(userDocRef, { label: 'legacy user profile' });
+            const legacyUserData = legacyRead.exists ? legacyRead.data : null;
+            const readDenied = gameRead.permissionDenied === true;
+            const resolvedRead = resolveGameScopedReadPayload({
+                gameId: gameId,
+                gameData: gameScopedData,
+                legacyData: legacyUserData,
+                allowLegacyFallback: true,
+            });
+            if (resolvedRead.usedLegacyFallback) {
+                incrementObservabilityCounter('fallbackReadHitCount', 1);
+                console.log(`↩️ Using legacy user data fallback for game "${gameId}"`);
+            }
+            if (readDenied && !resolvedRead.data) {
                 console.warn('⚠️ Firestore rules denied game-scoped profile read; continuing with local defaults for this session.');
                 applyPermissionDeniedLoadFallbackState();
                 activeGameplayGameId = gameId;
@@ -2690,11 +2734,7 @@ const FirebaseManager = (function() {
                     limitedByPermissions: true,
                 };
             }
-            updateMigrationMarkersFromUserData(gameScopedData);
-            const resolvedRead = resolveGameScopedReadPayload({
-                gameId: gameId,
-                gameData: gameScopedData,
-            });
+            updateMigrationMarkersFromUserData(gameScopedData || legacyUserData);
 
             if (resolvedRead.data) {
                 const data = resolvedRead.data;

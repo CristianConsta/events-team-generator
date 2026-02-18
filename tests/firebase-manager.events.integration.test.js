@@ -76,7 +76,7 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
   assert.equal(global.FirebaseManager.removeEvent('desert_storm'), false);
 });
 
-test('firebase manager resolves game-scoped read payload with fallback gated by flag state', () => {
+test('firebase manager resolves game-scoped read payload with legacy fallback when enabled', () => {
   global.window = global;
   global.alert = () => {};
   global.document = {
@@ -108,9 +108,23 @@ test('firebase manager resolves game-scoped read payload with fallback gated by 
     legacyData: { playerDatabase: { Alice: { power: 1 } } },
     allowLegacyFallback: true,
   });
-  assert.equal(legacyOnlyFallbackEnabled.source, 'none');
-  assert.equal(legacyOnlyFallbackEnabled.usedLegacyFallback, false);
-  assert.equal(legacyOnlyFallbackEnabled.data, null);
+  assert.equal(legacyOnlyFallbackEnabled.source, 'legacy');
+  assert.equal(legacyOnlyFallbackEnabled.usedLegacyFallback, true);
+  assert.ok(legacyOnlyFallbackEnabled.data.playerDatabase.Alice);
+
+  const mappedLegacyFallback = global.FirebaseManager.resolveGameScopedReadPayload({
+    gameId: 'desert_ops',
+    gameData: null,
+    legacyData: {
+      games: {
+        desert_ops: { playerDatabase: { DesertAlice: { power: 5 } } },
+      },
+    },
+    allowLegacyFallback: true,
+  });
+  assert.equal(mappedLegacyFallback.source, 'legacy');
+  assert.equal(mappedLegacyFallback.usedLegacyFallback, true);
+  assert.ok(mappedLegacyFallback.data.playerDatabase.DesertAlice);
 
   const mixed = global.FirebaseManager.resolveGameScopedReadPayload({
     gameId: 'last_war',
