@@ -387,6 +387,7 @@ const FirebaseManager = (function() {
     let invitationNotifications = [];
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
     let activeAllianceGameId = DEFAULT_GAME_ID;
+    let activeAllianceDocScope = 'game';
     let onAuthCallback = null;
     let onDataLoadCallback = null;
     let onAllianceDataCallback = null;
@@ -669,6 +670,7 @@ const FirebaseManager = (function() {
         allianceId = null;
         allianceName = null;
         allianceData = null;
+        activeAllianceDocScope = 'game';
         pendingInvitations = [];
         sentInvitations = [];
         invitationNotifications = [];
@@ -2137,7 +2139,7 @@ const FirebaseManager = (function() {
         allianceDocUnsubscribe = null;
     }
 
-    function startAllianceDocListener(gameId) {
+    function startAllianceDocListener(gameId, options) {
         stopAllianceDocListener();
         if (!db || !currentUser || !allianceId) {
             return;
@@ -2145,12 +2147,23 @@ const FirebaseManager = (function() {
 
         const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
         const currentAllianceId = allianceId;
-        const allianceRef = getGameAllianceDocRef(normalizedGameId, currentAllianceId);
+        const requestedScope = options && options.scope === 'legacy' ? 'legacy' : 'game';
+        const allianceRef = options && options.ref
+            ? options.ref
+            : (requestedScope === 'legacy' && normalizedGameId === DEFAULT_GAME_ID
+                ? db.collection('alliances').doc(currentAllianceId)
+                : getGameAllianceDocRef(normalizedGameId, currentAllianceId));
         if (!allianceRef) {
             return;
         }
+        activeAllianceDocScope = requestedScope;
         allianceDocUnsubscribe = allianceRef.onSnapshot((doc) => {
-            if (!currentUser || allianceId !== currentAllianceId || activeAllianceGameId !== normalizedGameId) {
+            if (
+                !currentUser
+                || allianceId !== currentAllianceId
+                || activeAllianceGameId !== normalizedGameId
+                || activeAllianceDocScope !== requestedScope
+            ) {
                 return;
             }
 
@@ -2158,6 +2171,7 @@ const FirebaseManager = (function() {
                 allianceId = null;
                 allianceName = null;
                 allianceData = null;
+                activeAllianceDocScope = 'game';
                 if (playerSource === 'alliance') {
                     playerSource = 'personal';
                 }
@@ -2174,10 +2188,15 @@ const FirebaseManager = (function() {
             }
 
             const data = doc.data() || {};
+            if (requestedScope === 'game' && normalizeGameId(data.gameId) && normalizeGameId(data.gameId) !== normalizedGameId) {
+                incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                return;
+            }
             if (!data.members || !data.members[currentUser.uid]) {
                 allianceId = null;
                 allianceName = null;
                 allianceData = null;
+                activeAllianceDocScope = 'game';
                 if (playerSource === 'alliance') {
                     playerSource = 'personal';
                 }
@@ -2201,6 +2220,7 @@ const FirebaseManager = (function() {
                         : {}
                 ),
             };
+            activeAllianceDocScope = requestedScope;
             if (typeof data.name === 'string' && data.name.trim()) {
                 allianceName = data.name.trim();
             }
@@ -3364,18 +3384,57 @@ const FirebaseManager = (function() {
         if (!currentUser || !allianceId) {
             stopAllianceDocListener();
             allianceData = null;
+            activeAllianceDocScope = 'game';
             emitAllianceDataUpdate();
             return;
         }
         try {
-            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
-            if (!allianceRef) {
+            const gameAllianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!gameAllianceRef) {
                 return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
             }
-            const doc = await allianceRef.get();
-            if (doc.exists) {
-                allianceData = doc.data();
-                if (normalizeGameId(allianceData.gameId) && normalizeGameId(allianceData.gameId) !== gameId) {
+
+            let selectedDocRef = gameAllianceRef;
+            let selectedDoc = null;
+            let selectedScope = 'game';
+            let gameDocReadPermissionDenied = false;
+
+            try {
+                selectedDoc = await gameAllianceRef.get();
+            } catch (error) {
+                if (isPermissionDeniedError(error)) {
+                    gameDocReadPermissionDenied = true;
+                } else {
+                    throw error;
+                }
+            }
+
+            const fallbackFeatureEnabled = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
+            const shouldTryLegacyFallback = gameId === DEFAULT_GAME_ID
+                && (fallbackFeatureEnabled || gameDocReadPermissionDenied || !selectedDoc || !selectedDoc.exists);
+            if (shouldTryLegacyFallback) {
+                const legacyAllianceRef = db.collection('alliances').doc(allianceId);
+                try {
+                    const legacyDoc = await legacyAllianceRef.get();
+                    if (legacyDoc.exists) {
+                        selectedDoc = legacyDoc;
+                        selectedDocRef = legacyAllianceRef;
+                        selectedScope = 'legacy';
+                        incrementObservabilityCounter('fallbackReadHitCount', 1);
+                        if (!fallbackFeatureEnabled) {
+                            console.warn('⚠️ Using legacy alliance doc fallback for default game.');
+                        }
+                    }
+                } catch (legacyError) {
+                    if (!isPermissionDeniedError(legacyError)) {
+                        throw legacyError;
+                    }
+                }
+            }
+
+            if (selectedDoc && selectedDoc.exists) {
+                allianceData = selectedDoc.data() || {};
+                if (selectedScope === 'game' && normalizeGameId(allianceData.gameId) && normalizeGameId(allianceData.gameId) !== gameId) {
                     incrementObservabilityCounter('invitationContextMismatchCount', 1);
                     return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
                 }
@@ -3384,6 +3443,7 @@ const FirebaseManager = (function() {
                     allianceId = null;
                     allianceName = null;
                     allianceData = null;
+                    activeAllianceDocScope = 'game';
                     playerSource = 'personal';
                     await persistUserGameAssociationState(gameId, {
                         allianceId: null,
@@ -3392,10 +3452,22 @@ const FirebaseManager = (function() {
                     });
                     emitAllianceDataUpdate();
                 } else {
+                    allianceData = {
+                        ...allianceData,
+                        playerDatabase: normalizePlayerDatabaseMap(
+                            allianceData.playerDatabase && typeof allianceData.playerDatabase === 'object'
+                                ? allianceData.playerDatabase
+                                : {}
+                        ),
+                    };
                     if (typeof allianceData.name === 'string' && allianceData.name.trim()) {
                         allianceName = allianceData.name.trim();
                     }
-                    startAllianceDocListener(gameId);
+                    activeAllianceDocScope = selectedScope;
+                    startAllianceDocListener(gameId, {
+                        scope: selectedScope,
+                        ref: selectedDocRef,
+                    });
                     emitAllianceDataUpdate();
                 }
             } else {
@@ -3403,6 +3475,7 @@ const FirebaseManager = (function() {
                 allianceId = null;
                 allianceName = null;
                 allianceData = null;
+                activeAllianceDocScope = 'game';
                 playerSource = 'personal';
                 await persistUserGameAssociationState(gameId, {
                     allianceId: null,
@@ -4085,7 +4158,7 @@ const FirebaseManager = (function() {
         if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
             return {};
         }
-        return allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {};
+        return normalizePlayerDatabaseMap(allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {});
     }
 
     function getActivePlayerDatabase(context) {
@@ -4125,9 +4198,9 @@ const FirebaseManager = (function() {
         playerSource = source;
         if (currentUser) {
             try {
-                await db.collection('users').doc(currentUser.uid).set({
-                    playerSource: source
-                }, { merge: true });
+                await persistUserGameAssociationState(gameId, {
+                    playerSource: source,
+                });
             } catch (error) {
                 if (isPermissionDeniedError(error)) {
                     console.warn('Player source switched locally; Firestore persistence denied by rules.');

@@ -4188,9 +4188,10 @@ async function refreshPlayersDataAfterMutation(source) {
     if (typeof FirebaseService === 'undefined') {
         return;
     }
+    const gameplayContext = getGameplayContext();
 
     if (source === 'alliance' && typeof FirebaseService.loadAllianceData === 'function') {
-        await FirebaseService.loadAllianceData();
+        await FirebaseService.loadAllianceData(gameplayContext || undefined);
     } else if (
         source === 'personal'
         && typeof FirebaseService.getCurrentUser === 'function'
