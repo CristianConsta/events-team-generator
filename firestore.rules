@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && request.auth.uid == '2z2BdO8aVsUovqQWWL9WCRMdV933';
+    }
+
+    function allianceMember(data) {
+      return signedIn()
+        && data != null
+        && data.members != null
+        && data.members[request.auth.uid] != null;
+    }
+
+    function invitationParticipant(data) {
+      return signedIn()
+        && data != null
+        && (
+          data.invitedBy == request.auth.uid
+          || (request.auth.token.email != null && data.invitedEmail == request.auth.token.email)
+        );
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSelf(uid);
+
+      match /games/{gameId} {
+        allow read, write: if isSelf(uid);
+
+        match /players/{playerId} {
+          allow read, write: if isSelf(uid);
+        }
+
+        match /events/{eventId} {
+          allow read, write: if isSelf(uid);
+        }
+
+        match /event_media/{eventId} {
+          allow read, write: if isSelf(uid);
+        }
+      }
+    }
+
+    match /games/{gameId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isSuperAdmin();
+
+      match /alliances/{allianceId} {
+        allow create: if signedIn()
+          && request.resource.data.gameId == gameId
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.members != null
+          && request.resource.data.members[request.auth.uid] != null;
+
+        allow read: if allianceMember(resource.data);
+
+        allow update: if request.resource.data.gameId == gameId
+          && (
+            allianceMember(resource.data)
+            || resource.data.createdBy == request.auth.uid
+          );
+
+        allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+      }
+
+      match /invitations/{invitationId} {
+        allow create: if signedIn()
+          && request.resource.data.gameId == gameId
+          && request.resource.data.invitedBy == request.auth.uid;
+
+        allow read: if invitationParticipant(resource.data);
+
+        allow update: if request.resource.data.gameId == gameId
+          && invitationParticipant(resource.data);
+      }
+    }
+
+    match /app_config/{docId} {
+      allow read: if signedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // Legacy root collections are blocked after multigame cutover.
+    match /alliances/{allianceId} {
+      allow read, write: if false;
+    }
+
+    match /invitations/{invitationId} {
+      allow read, write: if false;
+    }
+  }
+}
