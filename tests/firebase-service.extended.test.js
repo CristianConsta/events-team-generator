@@ -124,7 +124,7 @@ test('feature flag helpers return default rollout values when manager is absent'
   loadModule();
   assert.deepEqual(global.FirebaseService.getFeatureFlags(), {
     MULTIGAME_ENABLED: false,
-    MULTIGAME_READ_FALLBACK_ENABLED: true,
+    MULTIGAME_READ_FALLBACK_ENABLED: false,
     MULTIGAME_DUAL_WRITE_ENABLED: false,
     MULTIGAME_GAME_SELECTOR_ENABLED: false,
   });
@@ -428,7 +428,7 @@ test('signOut clears active game context', async () => {
   assert.deepEqual(global.FirebaseService.getActiveGame(), { gameId: '', source: 'none' });
 });
 
-test('legacy game signature warning is emitted only once per method', () => {
+test('legacy game signature warning shim is retired in service layer', () => {
   const originalWarn = console.warn;
   const warnings = [];
   console.warn = (message) => warnings.push(String(message));
@@ -443,8 +443,7 @@ test('legacy game signature warning is emitted only once per method', () => {
     global.FirebaseService.getPlayerDatabase();
     global.FirebaseService.getPlayerDatabase();
 
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].includes('[multigame][legacy-signature] getPlayerDatabase'));
+    assert.equal(warnings.length, 0);
   } finally {
     console.warn = originalWarn;
   }

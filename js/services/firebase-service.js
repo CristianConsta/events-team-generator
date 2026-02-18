@@ -1,7 +1,7 @@
 (function initFirebaseService(global) {
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
         MULTIGAME_ENABLED: false,
-        MULTIGAME_READ_FALLBACK_ENABLED: true,
+        MULTIGAME_READ_FALLBACK_ENABLED: false,
         MULTIGAME_DUAL_WRITE_ENABLED: false,
         MULTIGAME_GAME_SELECTOR_ENABLED: false,
     });
@@ -9,7 +9,6 @@
     const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
     const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
     let activeGameIdCache = '';
-    const legacyGameSignatureWarnings = new Set();
 
     function manager() {
         return typeof global.FirebaseManager !== 'undefined' ? global.FirebaseManager : null;
@@ -239,14 +238,6 @@
         return { gameId: '', explicit: false };
     }
 
-    function warnLegacyGameSignature(methodName) {
-        if (legacyGameSignatureWarnings.has(methodName)) {
-            return;
-        }
-        legacyGameSignatureWarnings.add(methodName);
-        console.warn(`[multigame][legacy-signature] ${methodName} called without explicit gameId; using active game context.`);
-    }
-
     function isSignedInRuntime() {
         const svc = manager();
         if (!svc || typeof svc.isSignedIn !== 'function') {
@@ -266,7 +257,6 @@
             return { gameId: parsed.gameId, explicit: true };
         }
 
-        warnLegacyGameSignature(methodName);
         const current = getActiveGame();
         if (current.gameId) {
             return { gameId: current.gameId, explicit: false };

@@ -119,7 +119,7 @@ const FirebaseManager = (function() {
     const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
         MULTIGAME_ENABLED: false,
-        MULTIGAME_READ_FALLBACK_ENABLED: true,
+        MULTIGAME_READ_FALLBACK_ENABLED: false,
         MULTIGAME_DUAL_WRITE_ENABLED: false,
         MULTIGAME_GAME_SELECTOR_ENABLED: false,
     });
@@ -345,6 +345,7 @@ const FirebaseManager = (function() {
     function resolveGameScopedReadPayload(options) {
         const source = options && typeof options === 'object' ? options : {};
         const normalizedGameId = normalizeGameId(source.gameId) || DEFAULT_GAME_ID;
+        const allowLegacyFallback = source.allowLegacyFallback === true;
         const gameData = source.gameData && typeof source.gameData === 'object' ? source.gameData : null;
         const legacyData = source.legacyData && typeof source.legacyData === 'object' ? source.legacyData : null;
 
@@ -356,7 +357,7 @@ const FirebaseManager = (function() {
                 data: gameData,
             };
         }
-        if (normalizedGameId === DEFAULT_GAME_ID && legacyData) {
+        if (allowLegacyFallback && normalizedGameId === DEFAULT_GAME_ID && legacyData) {
             return {
                 gameId: normalizedGameId,
                 source: 'legacy-fallback',
@@ -395,8 +396,6 @@ const FirebaseManager = (function() {
         observabilityCounters.fallbackReadHitCount = 0;
     }
 
-    const legacyGameSignatureWarnings = new Set();
-
     function normalizeGameContextInput(context) {
         if (typeof context === 'string') {
             return normalizeGameId(context);
@@ -407,20 +406,11 @@ const FirebaseManager = (function() {
         return '';
     }
 
-    function warnLegacyGameSignature(methodName) {
-        if (legacyGameSignatureWarnings.has(methodName)) {
-            return;
-        }
-        legacyGameSignatureWarnings.add(methodName);
-        console.warn(`[multigame][legacy-signature] FirebaseManager.${methodName} called without explicit gameId; defaulting to ${DEFAULT_GAME_ID}.`);
-    }
-
     function resolveGameplayContext(methodName, context) {
         const explicitGameId = normalizeGameContextInput(context);
         if (explicitGameId) {
             return { gameId: explicitGameId, explicit: true };
         }
-        warnLegacyGameSignature(methodName);
         return { gameId: DEFAULT_GAME_ID, explicit: false };
     }
 
@@ -463,7 +453,8 @@ const FirebaseManager = (function() {
             }
         }
 
-        if (normalizedGameId === DEFAULT_GAME_ID) {
+        const allowLegacyFallback = isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED');
+        if (allowLegacyFallback && normalizedGameId === DEFAULT_GAME_ID) {
             const userDoc = await db.collection('users').doc(currentUser.uid).get();
             const legacy = userDoc.exists ? (userDoc.data() || {}) : {};
             return {
@@ -2174,6 +2165,7 @@ const FirebaseManager = (function() {
                 gameId: DEFAULT_GAME_ID,
                 gameData: gameScopedData,
                 legacyData: legacyData,
+                allowLegacyFallback: isFeatureFlagEnabled('MULTIGAME_READ_FALLBACK_ENABLED'),
             });
             if (resolvedRead.usedLegacyFallback) {
                 incrementObservabilityCounter('fallbackReadHitCount', 1);

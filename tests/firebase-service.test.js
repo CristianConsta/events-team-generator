@@ -32,7 +32,7 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
   assert.equal(global.FirebaseService.getGlobalDefaultBuildingPositionsVersion(), 0);
   assert.deepEqual(global.FirebaseService.getFeatureFlags(), {
     MULTIGAME_ENABLED: false,
-    MULTIGAME_READ_FALLBACK_ENABLED: true,
+    MULTIGAME_READ_FALLBACK_ENABLED: false,
     MULTIGAME_DUAL_WRITE_ENABLED: false,
     MULTIGAME_GAME_SELECTOR_ENABLED: false,
   });
