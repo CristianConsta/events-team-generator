@@ -116,6 +116,7 @@ const FirebaseManager = (function() {
             Object.freeze({ key: 'troops', header: 'E1 Troops', required: true }),
         ]),
     });
+    const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
         MULTIGAME_ENABLED: false,
         MULTIGAME_READ_FALLBACK_ENABLED: true,
@@ -947,6 +948,144 @@ const FirebaseManager = (function() {
             skippedCount: skippedCount,
             skippedPlayers: skippedPlayers,
         };
+    }
+
+    function isGameMetadataSuperAdmin(userOrUid) {
+        if (typeof userOrUid === 'string') {
+            return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
+        }
+        return !!(userOrUid && typeof userOrUid === 'object' && typeof userOrUid.uid === 'string' && userOrUid.uid.trim() === GAME_METADATA_SUPER_ADMIN_UID);
+    }
+
+    function getCatalogGames() {
+        if (typeof window !== 'undefined' && window.DSCoreGames && typeof window.DSCoreGames.listAvailableGames === 'function') {
+            const games = window.DSCoreGames.listAvailableGames();
+            if (Array.isArray(games)) {
+                return games.map((game) => JSON.parse(JSON.stringify(game)));
+            }
+        }
+        return [{
+            id: DEFAULT_GAME_ID,
+            name: 'Last War: Survival',
+            logo: '',
+            company: '',
+            attributes: {},
+        }];
+    }
+
+    function sanitizeGameMetadataPayload(payload, baseGame) {
+        const source = payload && typeof payload === 'object' ? payload : {};
+        const base = baseGame && typeof baseGame === 'object' ? baseGame : {};
+        const nameValue = Object.prototype.hasOwnProperty.call(source, 'name') ? source.name : base.name;
+        const logoValue = Object.prototype.hasOwnProperty.call(source, 'logo') ? source.logo : base.logo;
+        const companyValue = Object.prototype.hasOwnProperty.call(source, 'company') ? source.company : base.company;
+        const attributesValue = Object.prototype.hasOwnProperty.call(source, 'attributes') ? source.attributes : (base.attributes || {});
+        return {
+            name: typeof nameValue === 'string' ? nameValue.trim().slice(0, 80) : '',
+            logo: typeof logoValue === 'string' ? logoValue.trim().slice(0, MAX_EVENT_LOGO_DATA_URL_LEN) : '',
+            company: typeof companyValue === 'string' ? companyValue.trim().slice(0, 80) : '',
+            attributes: attributesValue && typeof attributesValue === 'object' && !Array.isArray(attributesValue)
+                ? JSON.parse(JSON.stringify(attributesValue))
+                : {},
+        };
+    }
+
+    async function listGameMetadata() {
+        const catalogGames = getCatalogGames();
+        const byId = new Map();
+        catalogGames.forEach((game) => {
+            const id = normalizeGameId(game.id);
+            if (!id) {
+                return;
+            }
+            byId.set(id, {
+                id: id,
+                name: typeof game.name === 'string' ? game.name : id,
+                logo: typeof game.logo === 'string' ? game.logo : '',
+                company: typeof game.company === 'string' ? game.company : '',
+                attributes: game.attributes && typeof game.attributes === 'object' && !Array.isArray(game.attributes)
+                    ? JSON.parse(JSON.stringify(game.attributes))
+                    : {},
+            });
+        });
+
+        if (db) {
+            try {
+                const snapshot = await db.collection(GAMES_COLLECTION).get();
+                snapshot.docs.forEach((doc) => {
+                    const gameId = normalizeGameId(doc.id);
+                    if (!gameId || !byId.has(gameId)) {
+                        return;
+                    }
+                    const current = byId.get(gameId);
+                    const data = doc.data() || {};
+                    const merged = sanitizeGameMetadataPayload(data, current);
+                    byId.set(gameId, {
+                        ...current,
+                        ...merged,
+                    });
+                });
+            } catch (error) {
+                console.warn('Failed to read game metadata overrides:', error);
+            }
+        }
+
+        return Array.from(byId.values());
+    }
+
+    async function getGameMetadata(gameId) {
+        const normalizedGameId = normalizeGameId(gameId);
+        if (!normalizedGameId) {
+            return null;
+        }
+        const games = await listGameMetadata();
+        return games.find((game) => game.id === normalizedGameId) || null;
+    }
+
+    async function setGameMetadata(gameId, payload) {
+        if (!currentUser) {
+            return { success: false, errorKey: 'game_metadata_forbidden', error: 'game_metadata_forbidden' };
+        }
+        if (!isGameMetadataSuperAdmin(currentUser)) {
+            return { success: false, errorKey: 'game_metadata_forbidden', error: 'game_metadata_forbidden' };
+        }
+        const normalizedGameId = normalizeGameId(gameId);
+        if (!normalizedGameId) {
+            return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
+        }
+        const baseGame = getCatalogGames().find((game) => normalizeGameId(game.id) === normalizedGameId);
+        if (!baseGame) {
+            return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
+        }
+        const sanitized = sanitizeGameMetadataPayload(payload, baseGame);
+        try {
+            const gameDocRef = getGameDocRef(normalizedGameId);
+            if (!gameDocRef) {
+                return { success: false, errorKey: 'game_metadata_unknown_game', error: 'game_metadata_unknown_game' };
+            }
+            await gameDocRef.set({
+                name: sanitized.name,
+                logo: sanitized.logo,
+                company: sanitized.company,
+                attributes: sanitized.attributes,
+                metadata: {
+                    updatedBy: currentUser.uid,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                },
+            }, { merge: true });
+            return {
+                success: true,
+                game: {
+                    id: normalizedGameId,
+                    name: sanitized.name,
+                    logo: sanitized.logo,
+                    company: sanitized.company,
+                    attributes: sanitized.attributes,
+                },
+            };
+        } catch (error) {
+            return { success: false, error: error.message || String(error) };
+        }
     }
 
     function normalizeAssignmentAlgorithmId(value, fallback) {
@@ -3882,6 +4021,12 @@ const FirebaseManager = (function() {
         // Templates
         generatePlayerDatabaseTemplate: generatePlayerDatabaseTemplate,
         generateTeamRosterTemplate: generateTeamRosterTemplate,
+
+        // Game metadata admin
+        isGameMetadataSuperAdmin: isGameMetadataSuperAdmin,
+        listGameMetadata: listGameMetadata,
+        getGameMetadata: getGameMetadata,
+        setGameMetadata: setGameMetadata,
 
         // Alliance
         createAlliance: function createAllianceGameAware(name, context) {

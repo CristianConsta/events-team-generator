@@ -7,6 +7,7 @@
     });
     const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
     const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
+    const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
     let activeGameIdCache = '';
     const legacyGameSignatureWarnings = new Set();
 
@@ -334,6 +335,53 @@
                     return listAvailableGamesFromCore();
                 },
                 listAvailableGamesFromCore()
+            );
+        },
+        isGameMetadataSuperAdmin: function isGameMetadataSuperAdmin(userOrUid) {
+            return withManager(
+                (svc) => {
+                    if (typeof svc.isGameMetadataSuperAdmin === 'function') {
+                        return svc.isGameMetadataSuperAdmin(userOrUid);
+                    }
+                    if (typeof userOrUid === 'string') {
+                        return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
+                    }
+                    const uid = userOrUid && typeof userOrUid === 'object' && typeof userOrUid.uid === 'string'
+                        ? userOrUid.uid.trim()
+                        : '';
+                    return uid === GAME_METADATA_SUPER_ADMIN_UID;
+                },
+                (typeof userOrUid === 'string'
+                    ? userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID
+                    : !!(userOrUid && typeof userOrUid === 'object' && typeof userOrUid.uid === 'string' && userOrUid.uid.trim() === GAME_METADATA_SUPER_ADMIN_UID))
+            );
+        },
+        listGameMetadata: async function listGameMetadata() {
+            return withManager(
+                (svc) => (typeof svc.listGameMetadata === 'function' ? svc.listGameMetadata() : listAvailableGamesFromCore()),
+                listAvailableGamesFromCore()
+            );
+        },
+        getGameMetadata: async function getGameMetadata(gameId) {
+            if (typeof gameId !== 'string' || !gameId.trim()) {
+                return null;
+            }
+            return withManager(
+                (svc) => (typeof svc.getGameMetadata === 'function' ? svc.getGameMetadata(gameId) : null),
+                null
+            );
+        },
+        setGameMetadata: async function setGameMetadata(gameId, payload) {
+            if (typeof gameId !== 'string' || !gameId.trim()) {
+                return {
+                    success: false,
+                    errorKey: 'game_metadata_unknown_game',
+                    error: 'game_metadata_unknown_game',
+                };
+            }
+            return withManager(
+                (svc) => (typeof svc.setGameMetadata === 'function' ? svc.setGameMetadata(gameId, payload) : notLoadedResult()),
+                notLoadedResult()
             );
         },
         getActiveGame: function getActiveGamePublic() {

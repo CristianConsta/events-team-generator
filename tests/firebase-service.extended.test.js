@@ -141,6 +141,30 @@ test('listAvailableGames falls back to DSCoreGames when manager is absent', () =
   assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
 });
 
+test('isGameMetadataSuperAdmin fallback validates configured super-admin uid', () => {
+  delete global.FirebaseManager;
+  loadModule();
+  assert.equal(global.FirebaseService.isGameMetadataSuperAdmin('2z2BdO8aVsUovqQWWL9WCRMdV933'), true);
+  assert.equal(global.FirebaseService.isGameMetadataSuperAdmin({ uid: '2z2BdO8aVsUovqQWWL9WCRMdV933' }), true);
+  assert.equal(global.FirebaseService.isGameMetadataSuperAdmin('not-admin'), false);
+});
+
+test('listGameMetadata falls back to core game catalog when manager is absent', async () => {
+  delete global.FirebaseManager;
+  global.DSCoreGames = {
+    listAvailableGames: () => ([
+      { id: 'last_war', name: 'Last War: Survival' },
+      { id: 'desert_ops', name: 'Desert Ops' },
+    ]),
+  };
+  loadModule();
+  const games = await global.FirebaseService.listGameMetadata();
+  assert.deepEqual(games, [
+    { id: 'last_war', name: 'Last War: Survival' },
+    { id: 'desert_ops', name: 'Desert Ops' },
+  ]);
+});
+
 test('ensureActiveGame uses default game id from catalog', () => {
   delete global.FirebaseManager;
   global.DSCoreGames = {
@@ -357,6 +381,41 @@ test('listAvailableGames falls back to DSCoreGames when manager does not expose 
   };
   loadModule();
   assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
+});
+
+test('game metadata methods delegate to manager when present', async () => {
+  let receivedGetId = null;
+  let receivedSetArgs = null;
+  let receivedAdminArg = null;
+  global.FirebaseManager = {
+    listGameMetadata: async () => ([{ id: 'last_war', name: 'Last War: Survival', company: '', logo: '', attributes: {} }]),
+    getGameMetadata: async (gameId) => {
+      receivedGetId = gameId;
+      return { id: gameId, name: 'Last War: Survival', company: '', logo: '', attributes: {} };
+    },
+    setGameMetadata: async (gameId, payload) => {
+      receivedSetArgs = { gameId, payload };
+      return { success: true };
+    },
+    isGameMetadataSuperAdmin: (userOrUid) => {
+      receivedAdminArg = userOrUid;
+      return true;
+    },
+  };
+  loadModule();
+
+  const listed = await global.FirebaseService.listGameMetadata();
+  const fetched = await global.FirebaseService.getGameMetadata('last_war');
+  const saved = await global.FirebaseService.setGameMetadata('last_war', { name: 'LW' });
+  const isAdmin = global.FirebaseService.isGameMetadataSuperAdmin({ uid: 'u1' });
+
+  assert.equal(Array.isArray(listed), true);
+  assert.equal(receivedGetId, 'last_war');
+  assert.deepEqual(fetched, { id: 'last_war', name: 'Last War: Survival', company: '', logo: '', attributes: {} });
+  assert.equal(saved.success, true);
+  assert.deepEqual(receivedSetArgs, { gameId: 'last_war', payload: { name: 'LW' } });
+  assert.equal(isAdmin, true);
+  assert.deepEqual(receivedAdminArg, { uid: 'u1' });
 });
 
 test('signOut clears active game context', async () => {

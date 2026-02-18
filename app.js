@@ -456,6 +456,311 @@ function resetPostAuthGameSelectorState() {
     closeGameSelector(true);
 }
 
+function isGameMetadataSuperAdmin(userOrUid) {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.isGameMetadataSuperAdmin === 'function') {
+        return FirebaseService.isGameMetadataSuperAdmin(userOrUid);
+    }
+    if (typeof userOrUid === 'string') {
+        return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
+    }
+    const uid = userOrUid && typeof userOrUid === 'object' && typeof userOrUid.uid === 'string'
+        ? userOrUid.uid.trim()
+        : '';
+    return uid === GAME_METADATA_SUPER_ADMIN_UID;
+}
+
+function syncGameMetadataMenuAvailability() {
+    const navGameMetadataBtn = document.getElementById('navGameMetadataBtn');
+    if (!navGameMetadataBtn) {
+        return;
+    }
+    const allowed = isGameMetadataSuperAdmin(currentAuthUser);
+    navGameMetadataBtn.classList.toggle('hidden', !allowed);
+    navGameMetadataBtn.disabled = !allowed;
+    if (!allowed) {
+        closeGameMetadataOverlay();
+    }
+}
+
+function clearGameMetadataForm() {
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    const companyInput = document.getElementById('gameMetadataCompanyInput');
+    const attributesInput = document.getElementById('gameMetadataAttributesInput');
+    if (nameInput) {
+        nameInput.value = '';
+    }
+    if (logoInput) {
+        logoInput.value = '';
+    }
+    if (companyInput) {
+        companyInput.value = '';
+    }
+    if (attributesInput) {
+        attributesInput.value = '{}';
+    }
+}
+
+function clearGameMetadataStatus() {
+    const status = document.getElementById('gameMetadataStatus');
+    if (status) {
+        status.replaceChildren();
+    }
+}
+
+function setGameMetadataFormDisabled(disabled) {
+    ['gameMetadataSelect', 'gameMetadataNameInput', 'gameMetadataLogoInput', 'gameMetadataCompanyInput', 'gameMetadataAttributesInput', 'gameMetadataSaveBtn']
+        .forEach((id) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.disabled = disabled;
+            }
+        });
+}
+
+function normalizeGameMetadataEntry(entry) {
+    const source = entry && typeof entry === 'object' ? entry : {};
+    const id = typeof source.id === 'string' ? source.id.trim() : '';
+    if (!id) {
+        return null;
+    }
+    return {
+        id: id,
+        name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : id,
+        logo: typeof source.logo === 'string' ? source.logo : '',
+        company: typeof source.company === 'string' ? source.company : '',
+        attributes: source.attributes && typeof source.attributes === 'object' && !Array.isArray(source.attributes)
+            ? JSON.parse(JSON.stringify(source.attributes))
+            : {},
+    };
+}
+
+function renderGameMetadataSelect(games, preferredGameId) {
+    const select = document.getElementById('gameMetadataSelect');
+    if (!select) {
+        return '';
+    }
+    select.replaceChildren();
+    const normalizedGames = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+    normalizedGames.forEach((game) => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.name;
+        select.appendChild(option);
+    });
+
+    const preferred = typeof preferredGameId === 'string' ? preferredGameId.trim() : '';
+    if (preferred && normalizedGames.some((game) => game.id === preferred)) {
+        select.value = preferred;
+    } else if (normalizedGames.length > 0) {
+        select.value = normalizedGames[0].id;
+    } else {
+        select.value = '';
+    }
+    return select.value;
+}
+
+async function reloadGameMetadataCatalog(preferredGameId) {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listGameMetadata !== 'function') {
+        gameMetadataCatalogCache = [];
+        return '';
+    }
+    const games = await FirebaseService.listGameMetadata();
+    gameMetadataCatalogCache = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+    return renderGameMetadataSelect(gameMetadataCatalogCache, preferredGameId);
+}
+
+function fillGameMetadataForm(game) {
+    const metadata = normalizeGameMetadataEntry(game);
+    if (!metadata) {
+        clearGameMetadataForm();
+        return;
+    }
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    const companyInput = document.getElementById('gameMetadataCompanyInput');
+    const attributesInput = document.getElementById('gameMetadataAttributesInput');
+    if (nameInput) {
+        nameInput.value = metadata.name || '';
+    }
+    if (logoInput) {
+        logoInput.value = metadata.logo || '';
+    }
+    if (companyInput) {
+        companyInput.value = metadata.company || '';
+    }
+    if (attributesInput) {
+        attributesInput.value = JSON.stringify(metadata.attributes || {}, null, 2);
+    }
+}
+
+function resolveSelectedMetadataGameId() {
+    const select = document.getElementById('gameMetadataSelect');
+    if (!select || typeof select.value !== 'string') {
+        return '';
+    }
+    return select.value.trim();
+}
+
+function formatGameMetadataError(errorOrResult) {
+    if (errorOrResult && typeof errorOrResult === 'object') {
+        if (errorOrResult.errorKey) {
+            return t(errorOrResult.errorKey, errorOrResult.errorParams || {});
+        }
+        if (typeof errorOrResult.error === 'string' && errorOrResult.error.trim()) {
+            return errorOrResult.error;
+        }
+        if (typeof errorOrResult.message === 'string' && errorOrResult.message.trim()) {
+            return errorOrResult.message;
+        }
+    }
+    return String(errorOrResult || 'unknown');
+}
+
+async function loadGameMetadataForSelection(gameId) {
+    const normalizedGameId = typeof gameId === 'string' ? gameId.trim() : '';
+    if (!normalizedGameId) {
+        clearGameMetadataForm();
+        return;
+    }
+    setGameMetadataFormDisabled(true);
+    try {
+        let metadata = null;
+        if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getGameMetadata === 'function') {
+            metadata = await FirebaseService.getGameMetadata(normalizedGameId);
+        }
+        if (!metadata) {
+            metadata = gameMetadataCatalogCache.find((game) => game && game.id === normalizedGameId) || null;
+        }
+        if (!metadata) {
+            showMessage('gameMetadataStatus', t('game_metadata_unknown_game'), 'error');
+            clearGameMetadataForm();
+            return;
+        }
+        fillGameMetadataForm(metadata);
+    } catch (error) {
+        showMessage('gameMetadataStatus', t('game_metadata_load_failed', { error: formatGameMetadataError(error) }), 'error');
+        clearGameMetadataForm();
+    } finally {
+        setGameMetadataFormDisabled(false);
+    }
+}
+
+async function openGameMetadataOverlay() {
+    closeNavigationMenu();
+    if (!isGameMetadataSuperAdmin(currentAuthUser)) {
+        alert(t('game_metadata_forbidden'));
+        return;
+    }
+    const overlay = document.getElementById('gameMetadataOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.remove('hidden');
+    clearGameMetadataStatus();
+    clearGameMetadataForm();
+
+    try {
+        showMessage('gameMetadataStatus', t('message_upload_processing'), 'processing');
+        const preferredGameId = getActiveGame() || ensureActiveGameContext() || '';
+        const selectedGameId = await reloadGameMetadataCatalog(preferredGameId);
+        clearGameMetadataStatus();
+        if (!selectedGameId) {
+            showMessage('gameMetadataStatus', t('game_selector_no_games'), 'warning');
+            return;
+        }
+        await loadGameMetadataForSelection(selectedGameId);
+    } catch (error) {
+        showMessage('gameMetadataStatus', t('game_metadata_load_failed', { error: formatGameMetadataError(error) }), 'error');
+    }
+}
+
+function closeGameMetadataOverlay() {
+    const overlay = document.getElementById('gameMetadataOverlay');
+    if (!overlay) {
+        return;
+    }
+    overlay.classList.add('hidden');
+    clearGameMetadataStatus();
+}
+
+function handleGameMetadataOverlayClick(event) {
+    if (event && event.target && event.target.id === 'gameMetadataOverlay') {
+        closeGameMetadataOverlay();
+    }
+}
+
+async function handleGameMetadataSelectionChange() {
+    clearGameMetadataStatus();
+    const selectedGameId = resolveSelectedMetadataGameId();
+    await loadGameMetadataForSelection(selectedGameId);
+}
+
+function parseGameMetadataAttributes(rawValue) {
+    const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
+    if (!raw) {
+        return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(t('game_metadata_invalid_attributes'));
+    }
+    return parsed;
+}
+
+async function saveGameMetadata() {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.setGameMetadata !== 'function') {
+        showMessage('gameMetadataStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+    if (!isGameMetadataSuperAdmin(currentAuthUser)) {
+        showMessage('gameMetadataStatus', t('game_metadata_forbidden'), 'error');
+        return;
+    }
+    const selectedGameId = resolveSelectedMetadataGameId();
+    if (!selectedGameId) {
+        showMessage('gameMetadataStatus', t('game_metadata_unknown_game'), 'error');
+        return;
+    }
+    const nameInput = document.getElementById('gameMetadataNameInput');
+    const logoInput = document.getElementById('gameMetadataLogoInput');
+    const companyInput = document.getElementById('gameMetadataCompanyInput');
+    const attributesInput = document.getElementById('gameMetadataAttributesInput');
+    let attributes = {};
+    try {
+        attributes = parseGameMetadataAttributes(attributesInput ? attributesInput.value : '');
+    } catch (error) {
+        showMessage('gameMetadataStatus', t('game_metadata_invalid_attributes'), 'error');
+        return;
+    }
+
+    const payload = {
+        name: nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '',
+        logo: logoInput && typeof logoInput.value === 'string' ? logoInput.value.trim() : '',
+        company: companyInput && typeof companyInput.value === 'string' ? companyInput.value.trim() : '',
+        attributes: attributes,
+    };
+
+    setGameMetadataFormDisabled(true);
+    showMessage('gameMetadataStatus', t('message_upload_processing'), 'processing');
+    try {
+        const result = await FirebaseService.setGameMetadata(selectedGameId, payload);
+        if (!result || !result.success) {
+            showMessage('gameMetadataStatus', formatGameMetadataError(result), 'error');
+            return;
+        }
+
+        await reloadGameMetadataCatalog(selectedGameId);
+        await loadGameMetadataForSelection(selectedGameId);
+        showMessage('gameMetadataStatus', t('game_metadata_saved'), 'success');
+        updateActiveGameBadge();
+    } catch (error) {
+        showMessage('gameMetadataStatus', formatGameMetadataError(error), 'error');
+    } finally {
+        setGameMetadataFormDisabled(false);
+    }
+}
+
 window.setActiveGame = setActiveGame;
 window.getActiveGame = getActiveGame;
 window.updateActiveGameBadge = updateActiveGameBadge;
@@ -645,6 +950,7 @@ function bindStaticUiActions() {
     on('navConfigBtn', 'click', showConfigurationPage);
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
+    on('navGameMetadataBtn', 'click', openGameMetadataOverlay);
     on('navSettingsBtn', 'click', openSettingsModal);
     on('navSwitchGameBtn', 'click', () => {
         openGameSelector({ requireChoice: false });
@@ -676,6 +982,10 @@ function bindStaticUiActions() {
             status.replaceChildren();
         }
     });
+    on('gameMetadataOverlay', 'click', handleGameMetadataOverlayClick);
+    on('gameMetadataCloseBtn', 'click', () => closeGameMetadataOverlay());
+    on('gameMetadataSelect', 'change', handleGameMetadataSelectionChange);
+    on('gameMetadataSaveBtn', 'click', saveGameMetadata);
 
     on('uploadPersonalBtn', 'click', uploadToPersonal);
     on('uploadAllianceBtn', 'click', uploadToAlliance);
@@ -878,11 +1188,13 @@ const EVENT_NAME_LIMIT = 30;
 const EVENT_LOGO_DATA_URL_LIMIT = 220000;
 const EVENT_MAP_DATA_URL_LIMIT = 950000;
 const DELETE_ACCOUNT_CONFIRM_WORD = 'delete';
+const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
 let eventEditorCurrentId = '';
 let eventDraftLogoDataUrl = '';
 let eventDraftMapDataUrl = '';
 let eventDraftMapRemoved = false;
 let eventEditorIsEditMode = false;
+let gameMetadataCatalogCache = [];
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     return teamSelections[teamKey].filter(p => p.role === 'starter').length;
@@ -1146,6 +1458,7 @@ function updateUserHeaderIdentity(user) {
     const avatarInitialsEl = document.getElementById('headerAvatarInitials');
     const initialsSource = visibleLabel || getSignInDisplayName(currentAuthUser);
     applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, getAvatarInitials(initialsSource, ''));
+    syncGameMetadataMenuAvailability();
 }
 
 function openSettingsModal() {

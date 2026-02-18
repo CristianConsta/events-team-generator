@@ -74,6 +74,7 @@
                             <button id="navPlayersBtn" class="header-menu-item" role="menuitem"><span data-i18n="players_management_button">Players Management</span></button>
                             <button id="navConfigBtn" class="header-menu-item" role="menuitem"><span data-i18n="events_manager_title">Events Manager</span></button>
                             <button id="navAllianceBtn" class="header-menu-item" role="menuitem"><span data-i18n="alliance_button">Alliance</span></button>
+                            <button id="navGameMetadataBtn" class="header-menu-item hidden" role="menuitem"><span data-i18n="game_metadata_admin_menu">Game Metadata Admin</span></button>
                             <button id="navSettingsBtn" class="header-menu-item" role="menuitem"><span data-i18n="settings_button">Settings</span></button>
                             <button id="navSwitchGameBtn" class="header-menu-item" role="menuitem"><span data-i18n="game_switch_button">Switch Game</span></button>
                             <div class="header-menu-divider"></div>
@@ -295,6 +296,32 @@
                         <button id="coordSaveBtn"><span data-i18n="coord_save">Save Coordinates</span></button>
                     </div>
                     <div id="coordStatus" style="margin-top: 10px;"></div>
+                </div>
+            </div>
+
+            <div id="gameMetadataOverlay" class="coord-overlay hidden">
+                <div style="width: min(520px, 94vw); background: rgba(26, 26, 46, 0.98); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); padding: 22px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                        <h2 style="margin: 0;" data-i18n="game_metadata_admin_title">Game Metadata Admin</h2>
+                        <button id="gameMetadataCloseBtn" class="clear-btn" type="button"><span data-i18n="close">Close</span></button>
+                    </div>
+                    <p style="opacity: 0.86; margin: 8px 0 16px;" data-i18n="game_metadata_admin_help">Only super admin can edit global game metadata.</p>
+                    <div class="settings-form-grid">
+                        <label for="gameMetadataSelect" data-i18n="game_selector_label">Game</label>
+                        <select id="gameMetadataSelect"></select>
+                        <label for="gameMetadataNameInput" data-i18n="game_metadata_name_label">Game Name</label>
+                        <input id="gameMetadataNameInput" type="text" maxlength="80">
+                        <label for="gameMetadataLogoInput" data-i18n="game_metadata_logo_label">Logo URL</label>
+                        <input id="gameMetadataLogoInput" type="text" maxlength="400000">
+                        <label for="gameMetadataCompanyInput" data-i18n="game_metadata_company_label">Company</label>
+                        <input id="gameMetadataCompanyInput" type="text" maxlength="80">
+                        <label for="gameMetadataAttributesInput" data-i18n="game_metadata_attributes_label">Attributes (JSON)</label>
+                        <textarea id="gameMetadataAttributesInput" rows="6" style="resize: vertical; min-height: 120px;"></textarea>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+                        <button id="gameMetadataSaveBtn" type="button"><span data-i18n="settings_save">Save</span></button>
+                    </div>
+                    <div id="gameMetadataStatus"></div>
                 </div>
             </div>
 
