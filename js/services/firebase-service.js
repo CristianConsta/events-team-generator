@@ -479,8 +479,9 @@
             const gameContext = resolveGameplayContext('setUserProfile', context);
             return withManager((svc) => svc.setUserProfile(profile, gameContext), { displayName: '', nickname: '', avatarDataUrl: '' });
         },
-        getPlayerSource: function getPlayerSource() {
-            return withManager((svc) => svc.getPlayerSource(), 'personal');
+        getPlayerSource: function getPlayerSource(context) {
+            const gameContext = resolveGameplayContext('getPlayerSource', context);
+            return withManager((svc) => svc.getPlayerSource(gameContext), 'personal');
         },
         getBuildingConfig: function getBuildingConfig(eventIdOrContext, context) {
             const scopedContext = resolveEventScopedContext('getBuildingConfig', eventIdOrContext, context);
@@ -594,26 +595,33 @@
             const gameContext = resolveGameplayContext('setPlayerSource', context);
             return withManager((svc) => svc.setPlayerSource(source, gameContext), notLoadedResult());
         },
-        getAllianceId: function getAllianceId() {
-            return withManager((svc) => svc.getAllianceId(), null);
+        getAllianceId: function getAllianceId(context) {
+            const gameContext = resolveGameplayContext('getAllianceId', context);
+            return withManager((svc) => svc.getAllianceId(gameContext), null);
         },
-        getAllianceName: function getAllianceName() {
-            return withManager((svc) => svc.getAllianceName(), null);
+        getAllianceName: function getAllianceName(context) {
+            const gameContext = resolveGameplayContext('getAllianceName', context);
+            return withManager((svc) => svc.getAllianceName(gameContext), null);
         },
-        getAllianceData: function getAllianceData() {
-            return withManager((svc) => svc.getAllianceData(), null);
+        getAllianceData: function getAllianceData(context) {
+            const gameContext = resolveGameplayContext('getAllianceData', context);
+            return withManager((svc) => svc.getAllianceData(gameContext), null);
         },
-        getPendingInvitations: function getPendingInvitations() {
-            return withManager((svc) => svc.getPendingInvitations(), []);
+        getPendingInvitations: function getPendingInvitations(context) {
+            const gameContext = resolveGameplayContext('getPendingInvitations', context);
+            return withManager((svc) => svc.getPendingInvitations(gameContext), []);
         },
-        getSentInvitations: function getSentInvitations() {
-            return withManager((svc) => svc.getSentInvitations(), []);
+        getSentInvitations: function getSentInvitations(context) {
+            const gameContext = resolveGameplayContext('getSentInvitations', context);
+            return withManager((svc) => svc.getSentInvitations(gameContext), []);
         },
-        getInvitationNotifications: function getInvitationNotifications() {
-            return withManager((svc) => svc.getInvitationNotifications(), []);
+        getInvitationNotifications: function getInvitationNotifications(context) {
+            const gameContext = resolveGameplayContext('getInvitationNotifications', context);
+            return withManager((svc) => svc.getInvitationNotifications(gameContext), []);
         },
-        getAllianceMembers: function getAllianceMembers() {
-            return withManager((svc) => svc.getAllianceMembers(), {});
+        getAllianceMembers: function getAllianceMembers(context) {
+            const gameContext = resolveGameplayContext('getAllianceMembers', context);
+            return withManager((svc) => svc.getAllianceMembers(gameContext), {});
         },
     };
 

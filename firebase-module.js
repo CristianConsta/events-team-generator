@@ -95,7 +95,10 @@ const FirebaseManager = (function() {
     const MAX_EVENT_LOGO_DATA_URL_LEN = 300000;
     const MAX_EVENT_MAP_DATA_URL_LEN = 950000;
     const EVENT_MEDIA_SUBCOLLECTION = 'event_media';
+    const GAMES_COLLECTION = 'games';
     const USER_GAMES_SUBCOLLECTION = 'games';
+    const GAME_ALLIANCES_SUBCOLLECTION = 'alliances';
+    const GAME_INVITATIONS_SUBCOLLECTION = 'invitations';
     const DEFAULT_GAME_ID = 'last_war';
     const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
     const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
@@ -121,6 +124,7 @@ const FirebaseManager = (function() {
     let sentInvitations = [];
     let invitationNotifications = [];
     let userProfile = { displayName: '', nickname: '', avatarDataUrl: '' };
+    let activeAllianceGameId = DEFAULT_GAME_ID;
     let onAuthCallback = null;
     let onDataLoadCallback = null;
     let onAllianceDataCallback = null;
@@ -266,6 +270,48 @@ const FirebaseManager = (function() {
         return db.collection('users').doc(userId).collection(USER_GAMES_SUBCOLLECTION).doc(normalizedGameId);
     }
 
+    function getGameDocRef(gameId) {
+        if (!db) {
+            return null;
+        }
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        return db.collection(GAMES_COLLECTION).doc(normalizedGameId);
+    }
+
+    function getGameAllianceCollectionRef(gameId) {
+        const gameRef = getGameDocRef(gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(GAME_ALLIANCES_SUBCOLLECTION);
+    }
+
+    function getGameAllianceDocRef(gameId, allianceDocId) {
+        const collectionRef = getGameAllianceCollectionRef(gameId);
+        const normalizedAllianceDocId = typeof allianceDocId === 'string' ? allianceDocId.trim() : '';
+        if (!collectionRef || !normalizedAllianceDocId) {
+            return null;
+        }
+        return collectionRef.doc(normalizedAllianceDocId);
+    }
+
+    function getGameInvitationCollectionRef(gameId) {
+        const gameRef = getGameDocRef(gameId);
+        if (!gameRef) {
+            return null;
+        }
+        return gameRef.collection(GAME_INVITATIONS_SUBCOLLECTION);
+    }
+
+    function getGameInvitationDocRef(gameId, invitationId) {
+        const collectionRef = getGameInvitationCollectionRef(gameId);
+        const normalizedInvitationId = typeof invitationId === 'string' ? invitationId.trim() : '';
+        if (!collectionRef || !normalizedInvitationId) {
+            return null;
+        }
+        return collectionRef.doc(normalizedInvitationId);
+    }
+
     function parseMigrationVersion(value) {
         const parsed = Number(value);
         if (!Number.isFinite(parsed) || parsed < 0) {
@@ -360,6 +406,115 @@ const FirebaseManager = (function() {
         }
         warnLegacyGameSignature(methodName);
         return { gameId: DEFAULT_GAME_ID, explicit: false };
+    }
+
+    function getResolvedGameId(methodName, context) {
+        const gameplayContext = resolveGameplayContext(methodName, context);
+        return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+    }
+
+    function resetAllianceRuntimeState() {
+        allianceId = null;
+        allianceName = null;
+        allianceData = null;
+        pendingInvitations = [];
+        sentInvitations = [];
+        invitationNotifications = [];
+    }
+
+    async function resolveUserGameAssociationState(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (!currentUser || !db) {
+            return {
+                gameId: normalizedGameId,
+                allianceId: null,
+                allianceName: null,
+                playerSource: 'personal',
+            };
+        }
+
+        const gameRef = getUserGameDocRef(currentUser.uid, normalizedGameId);
+        if (gameRef) {
+            const gameDoc = await gameRef.get();
+            if (gameDoc.exists) {
+                const gameData = gameDoc.data() || {};
+                return {
+                    gameId: normalizedGameId,
+                    allianceId: typeof gameData.allianceId === 'string' ? gameData.allianceId : null,
+                    allianceName: typeof gameData.allianceName === 'string' ? gameData.allianceName : null,
+                    playerSource: gameData.playerSource === 'alliance' ? 'alliance' : 'personal',
+                };
+            }
+        }
+
+        if (normalizedGameId === DEFAULT_GAME_ID) {
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            const legacy = userDoc.exists ? (userDoc.data() || {}) : {};
+            return {
+                gameId: normalizedGameId,
+                allianceId: typeof legacy.allianceId === 'string' ? legacy.allianceId : null,
+                allianceName: typeof legacy.allianceName === 'string' ? legacy.allianceName : null,
+                playerSource: legacy.playerSource === 'alliance' ? 'alliance' : 'personal',
+            };
+        }
+
+        return {
+            gameId: normalizedGameId,
+            allianceId: null,
+            allianceName: null,
+            playerSource: 'personal',
+        };
+    }
+
+    async function setActiveAllianceGameContext(gameId) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (activeAllianceGameId === normalizedGameId) {
+            return;
+        }
+        stopAllianceDocListener();
+        resetAllianceRuntimeState();
+        activeAllianceGameId = normalizedGameId;
+        const state = await resolveUserGameAssociationState(normalizedGameId);
+        allianceId = state.allianceId || null;
+        allianceName = state.allianceName || null;
+        playerSource = state.playerSource === 'alliance' ? 'alliance' : 'personal';
+    }
+
+    async function persistUserGameAssociationState(gameId, overrides) {
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+        if (!currentUser || !db) {
+            return;
+        }
+        const source = overrides && typeof overrides === 'object' ? overrides : {};
+        const nextAllianceId = Object.prototype.hasOwnProperty.call(source, 'allianceId')
+            ? (source.allianceId || null)
+            : (allianceId || null);
+        const nextAllianceName = Object.prototype.hasOwnProperty.call(source, 'allianceName')
+            ? (source.allianceName || null)
+            : (allianceName || null);
+        const nextPlayerSource = Object.prototype.hasOwnProperty.call(source, 'playerSource')
+            ? (source.playerSource === 'alliance' ? 'alliance' : 'personal')
+            : (playerSource === 'alliance' ? 'alliance' : 'personal');
+
+        const gameRef = getUserGameDocRef(currentUser.uid, normalizedGameId);
+        if (gameRef) {
+            await gameRef.set({
+                allianceId: nextAllianceId,
+                allianceName: nextAllianceName,
+                playerSource: nextPlayerSource,
+                metadata: {
+                    lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+                },
+            }, { merge: true });
+        }
+
+        if (normalizedGameId === DEFAULT_GAME_ID) {
+            await db.collection('users').doc(currentUser.uid).set({
+                allianceId: nextAllianceId,
+                allianceName: nextAllianceName,
+                playerSource: nextPlayerSource,
+            }, { merge: true });
+        }
     }
 
     function normalizeEventName(value, fallback) {
@@ -1269,11 +1424,13 @@ const FirebaseManager = (function() {
             }
         } else {
             console.log('ℹ️ User signed out');
+            stopAllianceDocListener();
             playerDatabase = {};
             eventData = ensureLegacyEventEntries(createEmptyEventData());
             allianceId = null;
             allianceName = null;
             allianceData = null;
+            activeAllianceGameId = DEFAULT_GAME_ID;
             playerSource = 'personal';
             pendingInvitations = [];
             sentInvitations = [];
@@ -1322,15 +1479,20 @@ const FirebaseManager = (function() {
         allianceDocUnsubscribe = null;
     }
 
-    function startAllianceDocListener() {
+    function startAllianceDocListener(gameId) {
         stopAllianceDocListener();
         if (!db || !currentUser || !allianceId) {
             return;
         }
 
+        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
         const currentAllianceId = allianceId;
-        allianceDocUnsubscribe = db.collection('alliances').doc(currentAllianceId).onSnapshot((doc) => {
-            if (!currentUser || allianceId !== currentAllianceId) {
+        const allianceRef = getGameAllianceDocRef(normalizedGameId, currentAllianceId);
+        if (!allianceRef) {
+            return;
+        }
+        allianceDocUnsubscribe = allianceRef.onSnapshot((doc) => {
+            if (!currentUser || allianceId !== currentAllianceId || activeAllianceGameId !== normalizedGameId) {
                 return;
             }
 
@@ -1342,6 +1504,13 @@ const FirebaseManager = (function() {
                     playerSource = 'personal';
                 }
                 stopAllianceDocListener();
+                persistUserGameAssociationState(normalizedGameId, {
+                    allianceId: null,
+                    allianceName: null,
+                    playerSource: 'personal',
+                }).catch((error) => {
+                    console.warn('Failed to persist alliance reset after doc removal:', error);
+                });
                 emitAllianceDataUpdate();
                 return;
             }
@@ -1355,6 +1524,13 @@ const FirebaseManager = (function() {
                     playerSource = 'personal';
                 }
                 stopAllianceDocListener();
+                persistUserGameAssociationState(normalizedGameId, {
+                    allianceId: null,
+                    allianceName: null,
+                    playerSource: 'personal',
+                }).catch((error) => {
+                    console.warn('Failed to persist alliance reset after membership loss:', error);
+                });
                 emitAllianceDataUpdate();
                 return;
             }
@@ -1509,17 +1685,36 @@ const FirebaseManager = (function() {
         if (!db) {
             return [];
         }
+        const addRefsFromSnapshot = (snapshot) => {
+            snapshot.docs.forEach((doc) => refMap.set(doc.ref.path, doc.ref));
+        };
+        const safeQuery = async (fn) => {
+            try {
+                const snapshot = await fn();
+                addRefsFromSnapshot(snapshot);
+            } catch (error) {
+                console.warn('Invitation cleanup query skipped:', error.message || error);
+            }
+        };
         if (uid) {
-            const byInviter = await db.collection('invitations')
+            await safeQuery(() => db.collection('invitations')
                 .where('invitedBy', '==', uid)
-                .get();
-            byInviter.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+                .get());
+            if (typeof db.collectionGroup === 'function') {
+                await safeQuery(() => db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
+                    .where('invitedBy', '==', uid)
+                    .get());
+            }
         }
         if (emailLower) {
-            const byInvitee = await db.collection('invitations')
+            await safeQuery(() => db.collection('invitations')
                 .where('invitedEmail', '==', emailLower)
-                .get();
-            byInvitee.docs.forEach((doc) => refMap.set(doc.id, doc.ref));
+                .get());
+            if (typeof db.collectionGroup === 'function') {
+                await safeQuery(() => db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
+                    .where('invitedEmail', '==', emailLower)
+                    .get());
+            }
         }
         return Array.from(refMap.values());
     }
@@ -1529,7 +1724,8 @@ const FirebaseManager = (function() {
             return;
         }
         try {
-            const allianceRef = db.collection('alliances').doc(allianceId);
+            const allianceRef = getGameAllianceDocRef(activeAllianceGameId, allianceId)
+                || db.collection('alliances').doc(allianceId);
             const snap = await allianceRef.get();
             if (!snap.exists) {
                 return;
@@ -1597,6 +1793,7 @@ const FirebaseManager = (function() {
         allianceId = null;
         allianceName = null;
         allianceData = null;
+        activeAllianceGameId = DEFAULT_GAME_ID;
         playerSource = 'personal';
         pendingInvitations = [];
         sentInvitations = [];
@@ -1684,6 +1881,7 @@ const FirebaseManager = (function() {
                 playerDatabase = data.playerDatabase || {};
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
+                activeAllianceGameId = DEFAULT_GAME_ID;
                 playerSource = data.playerSource || 'personal';
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
 
@@ -1811,6 +2009,7 @@ const FirebaseManager = (function() {
                 eventData = ensureLegacyEventEntries(createEmptyEventData());
                 allianceId = null;
                 allianceName = null;
+                activeAllianceGameId = DEFAULT_GAME_ID;
                 playerSource = 'personal';
                 userProfile = normalizeUserProfile(null);
                 migrationVersion = 0;
@@ -2223,11 +2422,12 @@ const FirebaseManager = (function() {
         return null;
     }
 
-    async function persistPlayerDatabaseForSource(source, nextDatabase) {
+    async function persistPlayerDatabaseForSource(source, nextDatabase, context) {
+        const gameId = getResolvedGameId('persistPlayerDatabaseForSource', context);
         if (source === 'personal') {
             const previousDatabase = playerDatabase;
             playerDatabase = nextDatabase;
-            const saveResult = await saveUserData({ immediate: true });
+            const saveResult = await saveUserData({ immediate: true }, { gameId: gameId });
             if (!saveResult.success) {
                 playerDatabase = previousDatabase;
                 return saveResult;
@@ -2239,7 +2439,11 @@ const FirebaseManager = (function() {
             if (!currentUser || !allianceId) {
                 return { success: false, errorKey: 'players_list_error_no_alliance' };
             }
-            await db.collection('alliances').doc(allianceId).set({
+            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            await allianceRef.set({
                 playerDatabase: nextDatabase,
                 metadata: {
                     totalPlayers: Object.keys(nextDatabase).length,
@@ -2262,7 +2466,7 @@ const FirebaseManager = (function() {
         return { success: false, errorKey: 'players_list_error_invalid_source' };
     }
 
-    async function upsertPlayerEntry(source, originalName, nextPlayer) {
+    async function upsertPlayerEntry(source, originalName, nextPlayer, context) {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
@@ -2317,7 +2521,7 @@ const FirebaseManager = (function() {
             lastUpdated: nowIso,
         };
 
-        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase);
+        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context);
         if (!persistResult.success) {
             return persistResult;
         }
@@ -2325,7 +2529,7 @@ const FirebaseManager = (function() {
         return { success: true, name: nextName, source: normalizedSource };
     }
 
-    async function removePlayerEntry(source, playerName) {
+    async function removePlayerEntry(source, playerName, context) {
         if (!currentUser) {
             return { success: false, error: 'No user signed in' };
         }
@@ -2352,7 +2556,7 @@ const FirebaseManager = (function() {
         }
 
         delete nextDatabase[normalizedName];
-        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase);
+        const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context);
         if (!persistResult.success) {
             return persistResult;
         }
@@ -2364,11 +2568,13 @@ const FirebaseManager = (function() {
     // ALLIANCE FUNCTIONS
     // ============================================================
 
-    async function createAlliance(name) {
+    async function createAlliance(name, context) {
         if (!currentUser) return { success: false, error: 'Not signed in' };
         if (!name || name.length > 40) return { success: false, error: 'Name must be 1-40 characters' };
+        const gameId = getResolvedGameId('createAlliance', context);
 
         try {
+            await setActiveAllianceGameContext(gameId);
             const members = {};
             members[currentUser.uid] = {
                 email: currentUser.email,
@@ -2376,7 +2582,12 @@ const FirebaseManager = (function() {
                 role: 'member'
             };
 
-            const docRef = await db.collection('alliances').add({
+            const allianceCollection = getGameAllianceCollectionRef(gameId);
+            if (!allianceCollection) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            const docRef = await allianceCollection.add({
+                gameId: gameId,
                 name: name,
                 createdBy: currentUser.uid,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2392,19 +2603,22 @@ const FirebaseManager = (function() {
             const id = docRef.id;
             allianceId = id;
             allianceName = name;
-            await db.collection('users').doc(currentUser.uid).set({
+            activeAllianceGameId = gameId;
+            await persistUserGameAssociationState(gameId, {
                 allianceId: id,
-                allianceName: name
-            }, { merge: true });
+                allianceName: name,
+            });
 
-            await loadAllianceData();
+            await loadAllianceData({ gameId: gameId });
             return { success: true, allianceId: id };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function loadAllianceData() {
+    async function loadAllianceData(context) {
+        const gameId = getResolvedGameId('loadAllianceData', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) {
             stopAllianceDocListener();
             allianceData = null;
@@ -2412,24 +2626,34 @@ const FirebaseManager = (function() {
             return;
         }
         try {
-            const doc = await db.collection('alliances').doc(allianceId).get();
+            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            const doc = await allianceRef.get();
             if (doc.exists) {
                 allianceData = doc.data();
+                if (normalizeGameId(allianceData.gameId) && normalizeGameId(allianceData.gameId) !== gameId) {
+                    incrementObservabilityCounter('invitationContextMismatchCount', 1);
+                    return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+                }
                 if (!allianceData.members || !allianceData.members[currentUser.uid]) {
                     stopAllianceDocListener();
                     allianceId = null;
                     allianceName = null;
                     allianceData = null;
                     playerSource = 'personal';
-                    await db.collection('users').doc(currentUser.uid).set({
-                        allianceId: null, allianceName: null, playerSource: 'personal'
-                    }, { merge: true });
+                    await persistUserGameAssociationState(gameId, {
+                        allianceId: null,
+                        allianceName: null,
+                        playerSource: 'personal',
+                    });
                     emitAllianceDataUpdate();
                 } else {
                     if (typeof allianceData.name === 'string' && allianceData.name.trim()) {
                         allianceName = allianceData.name.trim();
                     }
-                    startAllianceDocListener();
+                    startAllianceDocListener(gameId);
                     emitAllianceDataUpdate();
                 }
             } else {
@@ -2438,22 +2662,32 @@ const FirebaseManager = (function() {
                 allianceName = null;
                 allianceData = null;
                 playerSource = 'personal';
-                await db.collection('users').doc(currentUser.uid).set({
-                    allianceId: null, allianceName: null, playerSource: 'personal'
-                }, { merge: true });
+                await persistUserGameAssociationState(gameId, {
+                    allianceId: null,
+                    allianceName: null,
+                    playerSource: 'personal',
+                });
                 emitAllianceDataUpdate();
             }
+            return { success: true };
         } catch (error) {
             console.error('Failed to load alliance data:', error);
+            return { success: false, error: error.message || String(error) };
         }
     }
 
-    async function leaveAlliance() {
+    async function leaveAlliance(context) {
+        const gameId = getResolvedGameId('leaveAlliance', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         try {
             const memberPath = `members.${currentUser.uid}`;
-            await db.collection('alliances').doc(allianceId).update({
+            const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            await allianceRef.update({
                 [memberPath]: firebase.firestore.FieldValue.delete()
             });
 
@@ -2463,9 +2697,11 @@ const FirebaseManager = (function() {
             allianceData = null;
             playerSource = 'personal';
 
-            await db.collection('users').doc(currentUser.uid).set({
-                allianceId: null, allianceName: null, playerSource: 'personal'
-            }, { merge: true });
+            await persistUserGameAssociationState(gameId, {
+                allianceId: null,
+                allianceName: null,
+                playerSource: 'personal',
+            });
 
             emitAllianceDataUpdate();
             return { success: true };
@@ -2561,15 +2797,16 @@ const FirebaseManager = (function() {
         };
     }
 
-    function isInvitationContextMismatch(invitation) {
+    function isInvitationContextMismatch(invitation, expectedGameId) {
         if (!invitation || typeof invitation !== 'object') {
             return false;
         }
+        const targetGameId = normalizeGameId(expectedGameId) || DEFAULT_GAME_ID;
         const invitationGameId = normalizeGameId(invitation.gameId);
         if (!invitationGameId) {
-            return false;
+            return true;
         }
-        return invitationGameId !== DEFAULT_GAME_ID;
+        return invitationGameId !== targetGameId;
     }
 
     function stripInvitationPrivateFields(invitation) {
@@ -2594,6 +2831,7 @@ const FirebaseManager = (function() {
 
             const basePayload = {
                 invitationId: invitationId,
+                gameId: invitation.gameId || '',
                 allianceId: invitation.allianceId || '',
                 allianceName: invitation.allianceName || '',
                 invitedEmail: invitation.invitedEmail || '',
@@ -2688,7 +2926,9 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function sendInvitation(email) {
+    async function sendInvitation(email, context) {
+        const gameId = getResolvedGameId('sendInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         const normalizedEmail = email.trim().toLowerCase();
@@ -2705,7 +2945,11 @@ const FirebaseManager = (function() {
         }
 
         try {
-            const existing = await db.collection('invitations')
+            const invitationCollection = getGameInvitationCollectionRef(gameId);
+            if (!invitationCollection) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
+            const existing = await invitationCollection
                 .where('allianceId', '==', allianceId)
                 .where('invitedEmail', '==', normalizedEmail)
                 .where('status', '==', 'pending')
@@ -2715,8 +2959,8 @@ const FirebaseManager = (function() {
                 return { success: false, errorKey: 'alliance_invite_pending_exists' };
             }
 
-            const inviteRef = await db.collection('invitations').add({
-                gameId: DEFAULT_GAME_ID,
+            const inviteRef = await invitationCollection.add({
+                gameId: gameId,
                 allianceId: allianceId,
                 allianceName: allianceName,
                 invitedEmail: normalizedEmail,
@@ -2735,14 +2979,16 @@ const FirebaseManager = (function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return { success: true, invitationId: inviteRef.id };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function checkInvitations() {
+    async function checkInvitations(context) {
+        const gameId = getResolvedGameId('checkInvitations', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !currentUser.email) {
             pendingInvitations = [];
             sentInvitations = [];
@@ -2751,12 +2997,16 @@ const FirebaseManager = (function() {
         }
 
         try {
+            const invitationCollection = getGameInvitationCollectionRef(gameId);
+            if (!invitationCollection) {
+                return [];
+            }
             const normalizedEmail = currentUser.email.toLowerCase();
-            const pendingReceivedPromise = db.collection('invitations')
+            const pendingReceivedPromise = invitationCollection
                 .where('invitedEmail', '==', normalizedEmail)
                 .where('status', '==', 'pending')
                 .get();
-            const pendingSentPromise = db.collection('invitations')
+            const pendingSentPromise = invitationCollection
                 .where('invitedBy', '==', currentUser.uid)
                 .get();
 
@@ -2766,7 +3016,7 @@ const FirebaseManager = (function() {
                 .map((doc) => normalizeInvitationRecord(doc))
                 .filter((invite) => invite.status === 'pending')
                 .filter((invite) => {
-                    if (isInvitationContextMismatch(invite)) {
+                    if (isInvitationContextMismatch(invite, gameId)) {
                         incrementObservabilityCounter('invitationContextMismatchCount', 1);
                         return false;
                     }
@@ -2779,7 +3029,7 @@ const FirebaseManager = (function() {
                 .map((doc) => normalizeInvitationRecord(doc))
                 .filter((invite) => invite.status === 'pending')
                 .filter((invite) => {
-                    if (isInvitationContextMismatch(invite)) {
+                    if (isInvitationContextMismatch(invite, gameId)) {
                         incrementObservabilityCounter('invitationContextMismatchCount', 1);
                         return false;
                     }
@@ -2789,7 +3039,7 @@ const FirebaseManager = (function() {
                 .sort(sortInvitationsNewestFirst);
 
             invitationNotifications = buildInvitationNotifications(pendingInvitations);
-            return getInvitationNotifications();
+            return getInvitationNotifications({ gameId: gameId });
         } catch (error) {
             console.error('Failed to check invitations:', error);
             pendingInvitations = [];
@@ -2799,18 +3049,24 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function acceptInvitation(invitationId) {
+    async function acceptInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('acceptInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
-            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
+            const invDoc = await invitationRef.get();
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
 
             const inv = invDoc.data();
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
-            if (normalizeGameId(inv.gameId) && normalizeGameId(inv.gameId) !== DEFAULT_GAME_ID) {
+            if (isInvitationContextMismatch(inv, gameId)) {
                 incrementObservabilityCounter('invitationContextMismatchCount', 1);
-                return { success: false, error: 'Invitation game context mismatch' };
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
             }
             const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
             const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
@@ -2819,11 +3075,15 @@ const FirebaseManager = (function() {
             }
 
             if (allianceId) {
-                await leaveAlliance();
+                await leaveAlliance({ gameId: gameId });
             }
 
             const memberPath = `members.${currentUser.uid}`;
-            await db.collection('alliances').doc(inv.allianceId).update({
+            const allianceRef = getGameAllianceDocRef(gameId, inv.allianceId);
+            if (!allianceRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
+            await allianceRef.update({
                 [memberPath]: {
                     email: currentUser.email,
                     joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2831,7 +3091,7 @@ const FirebaseManager = (function() {
                 }
             });
 
-            await db.collection('invitations').doc(invitationId).update({
+            await invitationRef.update({
                 status: 'accepted',
                 respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2839,30 +3099,37 @@ const FirebaseManager = (function() {
 
             allianceId = inv.allianceId;
             allianceName = inv.allianceName;
-            await db.collection('users').doc(currentUser.uid).set({
+            activeAllianceGameId = gameId;
+            await persistUserGameAssociationState(gameId, {
                 allianceId: inv.allianceId,
                 allianceName: inv.allianceName
-            }, { merge: true });
+            });
 
-            await loadAllianceData();
-            await checkInvitations();
+            await loadAllianceData({ gameId: gameId });
+            await checkInvitations({ gameId: gameId });
             return { success: true, allianceId: inv.allianceId, allianceName: inv.allianceName };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function rejectInvitation(invitationId) {
+    async function rejectInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('rejectInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser) return { success: false, error: 'Not signed in' };
 
         try {
-            const invDoc = await db.collection('invitations').doc(invitationId).get();
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
+            const invDoc = await invitationRef.get();
             if (!invDoc.exists) return { success: false, error: 'Invitation not found' };
             const inv = invDoc.data() || {};
             if (inv.status !== 'pending') return { success: false, error: 'Invitation already responded to' };
-            if (normalizeGameId(inv.gameId) && normalizeGameId(inv.gameId) !== DEFAULT_GAME_ID) {
+            if (isInvitationContextMismatch(inv, gameId)) {
                 incrementObservabilityCounter('invitationContextMismatchCount', 1);
-                return { success: false, error: 'Invitation game context mismatch' };
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
             }
             const invitedEmail = typeof inv.invitedEmail === 'string' ? inv.invitedEmail.toLowerCase() : '';
             const userEmail = currentUser.email ? currentUser.email.toLowerCase() : '';
@@ -2870,24 +3137,29 @@ const FirebaseManager = (function() {
                 return { success: false, error: 'Invitation does not belong to this user' };
             }
 
-            await db.collection('invitations').doc(invitationId).update({
+            await invitationRef.update({
                 status: 'rejected',
                 respondedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return { success: true };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function revokeInvitation(invitationId) {
+    async function revokeInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('revokeInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         try {
-            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
             const invitationDoc = await invitationRef.get();
             if (!invitationDoc.exists) {
                 return { success: false, errorKey: 'alliance_invite_not_found' };
@@ -2897,9 +3169,9 @@ const FirebaseManager = (function() {
             if (invitation.status !== 'pending') {
                 return { success: false, errorKey: 'alliance_invite_not_pending' };
             }
-            if (normalizeGameId(invitation.gameId) && normalizeGameId(invitation.gameId) !== DEFAULT_GAME_ID) {
+            if (isInvitationContextMismatch(invitation, gameId)) {
                 incrementObservabilityCounter('invitationContextMismatchCount', 1);
-                return { success: false, errorKey: 'alliance_invite_not_owner' };
+                return { success: false, errorKey: 'invalid-invitation-context', error: 'invalid-invitation-context' };
             }
             if (invitation.invitedBy !== currentUser.uid) {
                 return { success: false, errorKey: 'alliance_invite_not_owner' };
@@ -2915,18 +3187,23 @@ const FirebaseManager = (function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return { success: true };
         } catch (error) {
             return { success: false, error: error.message };
         }
     }
 
-    async function resendInvitation(invitationId) {
+    async function resendInvitation(invitationId, context) {
+        const gameId = getResolvedGameId('resendInvitation', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) return { success: false, error: 'Not in an alliance' };
 
         try {
-            const invitationRef = db.collection('invitations').doc(invitationId);
+            const invitationRef = getGameInvitationDocRef(gameId, invitationId);
+            if (!invitationRef) {
+                return { success: false, error: 'invalid-invitation-context', errorKey: 'invalid-invitation-context' };
+            }
             const invitationDoc = await invitationRef.get();
             if (!invitationDoc.exists) {
                 return { success: false, errorKey: 'alliance_invite_not_found' };
@@ -2936,9 +3213,9 @@ const FirebaseManager = (function() {
             if (invitation.status !== 'pending') {
                 return { success: false, errorKey: 'alliance_invite_not_pending' };
             }
-            if (normalizeGameId(invitation.gameId) && normalizeGameId(invitation.gameId) !== DEFAULT_GAME_ID) {
+            if (isInvitationContextMismatch(invitation, gameId)) {
                 incrementObservabilityCounter('invitationContextMismatchCount', 1);
-                return { success: false, errorKey: 'alliance_invite_not_owner' };
+                return { success: false, errorKey: 'invalid-invitation-context', error: 'invalid-invitation-context' };
             }
             if (invitation.invitedBy !== currentUser.uid) {
                 return { success: false, errorKey: 'alliance_invite_not_owner' };
@@ -2969,7 +3246,7 @@ const FirebaseManager = (function() {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-            await checkInvitations();
+            await checkInvitations({ gameId: gameId });
             return {
                 success: true,
                 resendCount: nextResendCount,
@@ -2981,7 +3258,9 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function uploadAlliancePlayerDatabase(file) {
+    async function uploadAlliancePlayerDatabase(file, context) {
+        const gameId = getResolvedGameId('uploadAlliancePlayerDatabase', context);
+        await setActiveAllianceGameContext(gameId);
         if (!currentUser || !allianceId) {
             return Promise.reject({ success: false, error: 'Not in an alliance' });
         }
@@ -3032,7 +3311,12 @@ const FirebaseManager = (function() {
                         return;
                     }
 
-                    await db.collection('alliances').doc(allianceId).set({
+                    const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+                    if (!allianceRef) {
+                        reject({ success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' });
+                        return;
+                    }
+                    await allianceRef.set({
                         playerDatabase: alliancePlayerDB,
                         metadata: {
                             totalPlayers: addedCount,
@@ -3059,11 +3343,19 @@ const FirebaseManager = (function() {
         });
     }
 
-    function getAlliancePlayerDatabase() {
+    function getAlliancePlayerDatabase(context) {
+        const gameId = getResolvedGameId('getAlliancePlayerDatabase', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return {};
+        }
         return allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {};
     }
 
-    function getActivePlayerDatabase() {
+    function getActivePlayerDatabase(context) {
+        const gameId = getResolvedGameId('getActivePlayerDatabase', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return playerDatabase;
+        }
         if (playerSource === 'alliance' && allianceData && allianceData.playerDatabase) {
             return allianceData.playerDatabase;
         }
@@ -3079,35 +3371,60 @@ const FirebaseManager = (function() {
         return getUserProfile();
     }
 
-    async function setPlayerSource(source) {
+    async function setPlayerSource(source, context) {
+        const gameId = getResolvedGameId('setPlayerSource', context);
+        await setActiveAllianceGameContext(gameId);
         if (source !== 'personal' && source !== 'alliance') return;
         playerSource = source;
         if (currentUser) {
-            await db.collection('users').doc(currentUser.uid).set({
-                playerSource: source
-            }, { merge: true });
-            if (isDualWriteEnabled()) {
-                const gameRef = getUserGameDocRef(currentUser.uid, DEFAULT_GAME_ID);
-                if (gameRef) {
-                    await gameRef.set({
-                        playerSource: source,
-                        metadata: {
-                            lastModified: firebase.firestore.FieldValue.serverTimestamp()
-                        }
-                    }, { merge: true });
-                }
-            }
+            await persistUserGameAssociationState(gameId, {
+                playerSource: source,
+            });
         }
     }
 
-    function getAllianceId() { return allianceId; }
-    function getAllianceName() { return allianceName; }
-    function getAllianceData() { return allianceData; }
-    function getPlayerSource() { return playerSource; }
-    function getPendingInvitations() { return pendingInvitations.map(stripInvitationPrivateFields); }
-    function getSentInvitations() { return sentInvitations.map(stripInvitationPrivateFields); }
-    function getInvitationNotifications() { return invitationNotifications.map(stripInvitationPrivateFields); }
-    function getAllianceMembers() {
+    function getAllianceId(context) {
+        const gameId = getResolvedGameId('getAllianceId', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? allianceId : null;
+    }
+    function getAllianceName(context) {
+        const gameId = getResolvedGameId('getAllianceName', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? allianceName : null;
+    }
+    function getAllianceData(context) {
+        const gameId = getResolvedGameId('getAllianceData', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? allianceData : null;
+    }
+    function getPlayerSource(context) {
+        const gameId = getResolvedGameId('getPlayerSource', context);
+        return (normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) === gameId ? playerSource : 'personal';
+    }
+    function getPendingInvitations(context) {
+        const gameId = getResolvedGameId('getPendingInvitations', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return [];
+        }
+        return pendingInvitations.map(stripInvitationPrivateFields);
+    }
+    function getSentInvitations(context) {
+        const gameId = getResolvedGameId('getSentInvitations', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return [];
+        }
+        return sentInvitations.map(stripInvitationPrivateFields);
+    }
+    function getInvitationNotifications(context) {
+        const gameId = getResolvedGameId('getInvitationNotifications', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return [];
+        }
+        return invitationNotifications.map(stripInvitationPrivateFields);
+    }
+    function getAllianceMembers(context) {
+        const gameId = getResolvedGameId('getAllianceMembers', context);
+        if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
+            return {};
+        }
         return allianceData && allianceData.members ? allianceData.members : {};
     }
 
@@ -3355,12 +3672,12 @@ const FirebaseManager = (function() {
         getPlayerCount: getPlayerCount,
         getPlayer: getPlayer,
         upsertPlayerEntry: function upsertPlayerEntryGameAware(source, originalName, nextPlayer, context) {
-            resolveGameplayContext('upsertPlayerEntry', context);
-            return upsertPlayerEntry(source, originalName, nextPlayer);
+            const gameContext = resolveGameplayContext('upsertPlayerEntry', context);
+            return upsertPlayerEntry(source, originalName, nextPlayer, gameContext);
         },
         removePlayerEntry: function removePlayerEntryGameAware(source, playerName, context) {
-            resolveGameplayContext('removePlayerEntry', context);
-            return removePlayerEntry(source, playerName);
+            const gameContext = resolveGameplayContext('removePlayerEntry', context);
+            return removePlayerEntry(source, playerName, gameContext);
         },
         getAllEventData: function getAllEventDataGameAware(context) {
             resolveGameplayContext('getAllEventData', context);
@@ -3435,52 +3752,52 @@ const FirebaseManager = (function() {
 
         // Alliance
         createAlliance: function createAllianceGameAware(name, context) {
-            resolveGameplayContext('createAlliance', context);
-            return createAlliance(name);
+            const gameContext = resolveGameplayContext('createAlliance', context);
+            return createAlliance(name, gameContext);
         },
         leaveAlliance: function leaveAllianceGameAware(context) {
-            resolveGameplayContext('leaveAlliance', context);
-            return leaveAlliance();
+            const gameContext = resolveGameplayContext('leaveAlliance', context);
+            return leaveAlliance(gameContext);
         },
         loadAllianceData: function loadAllianceDataGameAware(context) {
-            resolveGameplayContext('loadAllianceData', context);
-            return loadAllianceData();
+            const gameContext = resolveGameplayContext('loadAllianceData', context);
+            return loadAllianceData(gameContext);
         },
         sendInvitation: function sendInvitationGameAware(email, context) {
-            resolveGameplayContext('sendInvitation', context);
-            return sendInvitation(email);
+            const gameContext = resolveGameplayContext('sendInvitation', context);
+            return sendInvitation(email, gameContext);
         },
         checkInvitations: function checkInvitationsGameAware(context) {
-            resolveGameplayContext('checkInvitations', context);
-            return checkInvitations();
+            const gameContext = resolveGameplayContext('checkInvitations', context);
+            return checkInvitations(gameContext);
         },
         acceptInvitation: function acceptInvitationGameAware(invitationId, context) {
-            resolveGameplayContext('acceptInvitation', context);
-            return acceptInvitation(invitationId);
+            const gameContext = resolveGameplayContext('acceptInvitation', context);
+            return acceptInvitation(invitationId, gameContext);
         },
         rejectInvitation: function rejectInvitationGameAware(invitationId, context) {
-            resolveGameplayContext('rejectInvitation', context);
-            return rejectInvitation(invitationId);
+            const gameContext = resolveGameplayContext('rejectInvitation', context);
+            return rejectInvitation(invitationId, gameContext);
         },
         revokeInvitation: function revokeInvitationGameAware(invitationId, context) {
-            resolveGameplayContext('revokeInvitation', context);
-            return revokeInvitation(invitationId);
+            const gameContext = resolveGameplayContext('revokeInvitation', context);
+            return revokeInvitation(invitationId, gameContext);
         },
         resendInvitation: function resendInvitationGameAware(invitationId, context) {
-            resolveGameplayContext('resendInvitation', context);
-            return resendInvitation(invitationId);
+            const gameContext = resolveGameplayContext('resendInvitation', context);
+            return resendInvitation(invitationId, gameContext);
         },
         uploadAlliancePlayerDatabase: function uploadAlliancePlayerDatabaseGameAware(file, context) {
-            resolveGameplayContext('uploadAlliancePlayerDatabase', context);
-            return uploadAlliancePlayerDatabase(file);
+            const gameContext = resolveGameplayContext('uploadAlliancePlayerDatabase', context);
+            return uploadAlliancePlayerDatabase(file, gameContext);
         },
         getAlliancePlayerDatabase: function getAlliancePlayerDatabaseGameAware(context) {
-            resolveGameplayContext('getAlliancePlayerDatabase', context);
-            return getAlliancePlayerDatabase();
+            const gameContext = resolveGameplayContext('getAlliancePlayerDatabase', context);
+            return getAlliancePlayerDatabase(gameContext);
         },
         getActivePlayerDatabase: function getActivePlayerDatabaseGameAware(context) {
-            resolveGameplayContext('getActivePlayerDatabase', context);
-            return getActivePlayerDatabase();
+            const gameContext = resolveGameplayContext('getActivePlayerDatabase', context);
+            return getActivePlayerDatabase(gameContext);
         },
         getUserProfile: function getUserProfileGameAware(context) {
             resolveGameplayContext('getUserProfile', context);
@@ -3491,17 +3808,41 @@ const FirebaseManager = (function() {
             return setUserProfile(profile);
         },
         setPlayerSource: function setPlayerSourceGameAware(source, context) {
-            resolveGameplayContext('setPlayerSource', context);
-            return setPlayerSource(source);
+            const gameContext = resolveGameplayContext('setPlayerSource', context);
+            return setPlayerSource(source, gameContext);
         },
-        getAllianceId: getAllianceId,
-        getAllianceName: getAllianceName,
-        getAllianceData: getAllianceData,
-        getPlayerSource: getPlayerSource,
-        getPendingInvitations: getPendingInvitations,
-        getSentInvitations: getSentInvitations,
-        getInvitationNotifications: getInvitationNotifications,
-        getAllianceMembers: getAllianceMembers,
+        getAllianceId: function getAllianceIdGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceId', context);
+            return getAllianceId(gameContext);
+        },
+        getAllianceName: function getAllianceNameGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceName', context);
+            return getAllianceName(gameContext);
+        },
+        getAllianceData: function getAllianceDataGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceData', context);
+            return getAllianceData(gameContext);
+        },
+        getPlayerSource: function getPlayerSourceGameAware(context) {
+            const gameContext = resolveGameplayContext('getPlayerSource', context);
+            return getPlayerSource(gameContext);
+        },
+        getPendingInvitations: function getPendingInvitationsGameAware(context) {
+            const gameContext = resolveGameplayContext('getPendingInvitations', context);
+            return getPendingInvitations(gameContext);
+        },
+        getSentInvitations: function getSentInvitationsGameAware(context) {
+            const gameContext = resolveGameplayContext('getSentInvitations', context);
+            return getSentInvitations(gameContext);
+        },
+        getInvitationNotifications: function getInvitationNotificationsGameAware(context) {
+            const gameContext = resolveGameplayContext('getInvitationNotifications', context);
+            return getInvitationNotifications(gameContext);
+        },
+        getAllianceMembers: function getAllianceMembersGameAware(context) {
+            const gameContext = resolveGameplayContext('getAllianceMembers', context);
+            return getAllianceMembers(gameContext);
+        },
         getMigrationVersion: getMigrationVersion,
         getMigratedToGameSubcollectionsAt: getMigratedToGameSubcollectionsAt,
         resolveGameScopedReadPayload: resolveGameScopedReadPayload,

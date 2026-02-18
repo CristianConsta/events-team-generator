@@ -10,7 +10,8 @@ function refreshLanguageDependentText() {
     const playerCountEl = document.getElementById('playerCount');
     if (playerCountEl && typeof allPlayers !== 'undefined') {
         if (typeof FirebaseService !== 'undefined') {
-            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource();
+            const gameplayContext = getGameplayContext();
+            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource(gameplayContext || undefined);
             const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
             playerCountEl.textContent = t('player_count_with_source', { count: allPlayers.length, source: sourceLabel });
         } else {
@@ -1053,7 +1054,8 @@ function showAlliancePage() {
     Promise.resolve()
         .then(async () => {
             if (typeof FirebaseService !== 'undefined' && FirebaseService.isSignedIn()) {
-                await FirebaseService.loadAllianceData();
+                const gameplayContext = getGameplayContext();
+                await FirebaseService.loadAllianceData(gameplayContext || undefined);
             }
             await checkAndDisplayNotifications();
         })
@@ -2880,7 +2882,8 @@ function getPlayersManagementActiveSource() {
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getPlayerSource !== 'function') {
         return 'personal';
     }
-    return FirebaseService.getPlayerSource() === 'alliance' ? 'alliance' : 'personal';
+    const gameplayContext = getGameplayContext();
+    return FirebaseService.getPlayerSource(gameplayContext || undefined) === 'alliance' ? 'alliance' : 'personal';
 }
 
 function getPlayersDatabaseBySource(source) {
@@ -3027,7 +3030,8 @@ function renderPlayersManagementSourceControls() {
         return;
     }
 
-    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext();
+    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
     if (!hasAlliance) {
         controls.classList.add('hidden');
         return;
@@ -3368,15 +3372,23 @@ function renderAlliancePanel() {
     if (!content) {
         return;
     }
+    const gameplayContext = getGameplayContext();
     const hasAllianceMembership = !!(typeof FirebaseService !== 'undefined'
         && FirebaseService.getAllianceId
-        && FirebaseService.getAllianceId());
+        && gameplayContext
+        && FirebaseService.getAllianceId(gameplayContext));
     if (window.DSAlliancePanelUI && typeof window.DSAlliancePanelUI.renderAlliancePanel === 'function') {
         window.DSAlliancePanelUI.renderAlliancePanel({
             contentElement: content,
             hasAllianceMembership: hasAllianceMembership,
-            getAllianceMembers: () => FirebaseService.getAllianceMembers(),
-            getAllianceName: () => FirebaseService.getAllianceName(),
+            getAllianceMembers: () => {
+                const ctx = getGameplayContext();
+                return ctx ? FirebaseService.getAllianceMembers(ctx) : {};
+            },
+            getAllianceName: () => {
+                const ctx = getGameplayContext();
+                return ctx ? FirebaseService.getAllianceName(ctx) : null;
+            },
             getPendingInvitations: getPendingInvitationsList,
             getSentInvitations: getSentInvitationsList,
             getInvitationSenderDisplay: getInvitationSenderDisplay,
@@ -3403,7 +3415,11 @@ function getPendingInvitationsList() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getPendingInvitations) {
         return [];
     }
-    const invitations = FirebaseService.getPendingInvitations();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return [];
+    }
+    const invitations = FirebaseService.getPendingInvitations(gameplayContext);
     return Array.isArray(invitations) ? invitations : [];
 }
 
@@ -3411,7 +3427,11 @@ function getSentInvitationsList() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.getSentInvitations) {
         return [];
     }
-    const invitations = FirebaseService.getSentInvitations();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return [];
+    }
+    const invitations = FirebaseService.getSentInvitations(gameplayContext);
     return Array.isArray(invitations) ? invitations : [];
 }
 
@@ -3470,7 +3490,11 @@ async function handleCreateAlliance() {
     }
 
     showMessage('allianceCreateStatus', t('message_upload_processing'), 'processing');
-    const result = await FirebaseService.createAlliance(name);
+    const gameplayContext = getGameplayContext('allianceCreateStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.createAlliance(name, gameplayContext);
 
     if (result.success) {
         showMessage('allianceCreateStatus', t('alliance_created'), 'success');
@@ -3488,7 +3512,11 @@ async function handleSendInvitation() {
         return;
     }
 
-    const result = await FirebaseService.sendInvitation(email);
+    const gameplayContext = getGameplayContext('inviteStatus');
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.sendInvitation(email, gameplayContext);
     if (result.success) {
         showMessage('inviteStatus', t('alliance_invite_sent_in_app'), 'success');
         document.getElementById('inviteEmail').value = '';
@@ -3503,7 +3531,11 @@ async function handleSendInvitation() {
 async function handleLeaveAlliance() {
     if (!confirm(t('alliance_confirm_leave'))) return;
 
-    const result = await FirebaseService.leaveAlliance();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.leaveAlliance(gameplayContext);
     if (result.success) {
         renderAlliancePanel();
         updateAllianceHeaderDisplay();
@@ -3512,12 +3544,12 @@ async function handleLeaveAlliance() {
 }
 
 async function switchPlayerSource(source, statusElementId) {
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId());
-    if (source === 'alliance' && !hasAlliance) {
-        return;
-    }
     const gameplayContext = getGameplayContext(statusElementId);
     if (!gameplayContext) {
+        return;
+    }
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext));
+    if (source === 'alliance' && !hasAlliance) {
         return;
     }
     await FirebaseService.setPlayerSource(source, gameplayContext);
@@ -3535,8 +3567,9 @@ async function switchPlayerSource(source, statusElementId) {
 
 function updateAllianceHeaderDisplay() {
     if (typeof FirebaseService === 'undefined') return;
-    const aid = FirebaseService.getAllianceId();
-    const aName = FirebaseService.getAllianceName();
+    const gameplayContext = getGameplayContext();
+    const aid = gameplayContext ? FirebaseService.getAllianceId(gameplayContext) : null;
+    const aName = gameplayContext ? FirebaseService.getAllianceName(gameplayContext) : null;
     const display = document.getElementById('allianceDisplay');
     const createBtn = document.getElementById('allianceCreateBtn');
 
@@ -3560,8 +3593,11 @@ let notificationPollInterval = null;
 
 async function checkAndDisplayNotifications() {
     if (typeof FirebaseService === 'undefined' || !FirebaseService.isSignedIn()) return;
-
-    const notifications = await FirebaseService.checkInvitations();
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return;
+    }
+    const notifications = await FirebaseService.checkInvitations(gameplayContext);
     const totalNotifications = Array.isArray(notifications) ? notifications.length : 0;
     const badge = document.getElementById('notificationBadge');
     const notificationBtn = document.getElementById('notificationBtn');
@@ -3606,12 +3642,16 @@ function getNotificationItems() {
     if (typeof FirebaseService === 'undefined') {
         return [];
     }
+    const gameplayContext = getGameplayContext();
+    if (!gameplayContext) {
+        return [];
+    }
     if (FirebaseService.getInvitationNotifications) {
-        const items = FirebaseService.getInvitationNotifications();
+        const items = FirebaseService.getInvitationNotifications(gameplayContext);
         return Array.isArray(items) ? items : [];
     }
 
-    const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations() : [];
+    const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations(gameplayContext) : [];
     if (!Array.isArray(invitations)) {
         return [];
     }
@@ -3707,9 +3747,13 @@ function openAllianceInvitesFromNotification(invitationId) {
 }
 
 async function handleAcceptInvitation(invitationId, statusElementId) {
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
     const invitation = getPendingInvitationsList().find((item) => item && item.id === invitationId);
     const currentAllianceId = typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId
-        ? FirebaseService.getAllianceId()
+        ? FirebaseService.getAllianceId(gameplayContext)
         : null;
     if (currentAllianceId && invitation && invitation.allianceId && currentAllianceId !== invitation.allianceId) {
         showMessage(statusElementId || 'allianceInvitesStatus', t('alliance_error_already_in_alliance'), 'error');
@@ -3722,7 +3766,7 @@ async function handleAcceptInvitation(invitationId, statusElementId) {
         return;
     }
 
-    const result = await FirebaseService.acceptInvitation(invitationId);
+    const result = await FirebaseService.acceptInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -3735,7 +3779,11 @@ async function handleAcceptInvitation(invitationId, statusElementId) {
 }
 
 async function handleRejectInvitation(invitationId, statusElementId) {
-    const result = await FirebaseService.rejectInvitation(invitationId);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.rejectInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -3747,7 +3795,11 @@ async function handleRejectInvitation(invitationId, statusElementId) {
 }
 
 async function handleRevokeInvitation(invitationId, statusElementId) {
-    const result = await FirebaseService.revokeInvitation(invitationId);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.revokeInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -3759,7 +3811,11 @@ async function handleRevokeInvitation(invitationId, statusElementId) {
 }
 
 async function handleResendInvitation(invitationId, statusElementId) {
-    const result = await FirebaseService.resendInvitation(invitationId);
+    const gameplayContext = getGameplayContext(statusElementId);
+    if (!gameplayContext) {
+        return;
+    }
+    const result = await FirebaseService.resendInvitation(invitationId, gameplayContext);
     if (result.success) {
         await checkAndDisplayNotifications();
         renderNotifications();
@@ -3800,7 +3856,8 @@ async function uploadPlayerData() {
         return;
     }
 
-    if (FirebaseService.getAllianceId()) {
+    const gameplayContext = getGameplayContext('uploadMessage');
+    if (FirebaseService.getAllianceId(gameplayContext || undefined)) {
         pendingUploadFile = file;
         openUploadTargetModal();
     } else {
@@ -3820,7 +3877,8 @@ function openUploadTargetModal() {
     if (!modal) {
         return;
     }
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext();
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
     const personalBtn = document.getElementById('uploadPersonalBtn');
     const allianceBtn = document.getElementById('uploadAllianceBtn');
     const bothBtn = document.getElementById('uploadBothBtn');
@@ -3931,7 +3989,7 @@ function syncPlayersFromActiveDatabase(options) {
         return;
     }
     const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
-    const source = FirebaseService.getPlayerSource();
+    const source = FirebaseService.getPlayerSource(gameplayContext);
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
     const count = playerDB && typeof playerDB === 'object' ? Object.keys(playerDB).length : 0;
 
@@ -3969,7 +4027,8 @@ function handleAllianceDataRealtimeUpdate() {
         renderAlliancePanel();
     }
 
-    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource() : 'personal';
+    const gameplayContext = getGameplayContext();
+    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || undefined) : 'personal';
     if (source === 'alliance') {
         syncPlayersFromActiveDatabase({ renderGeneratorViews: true });
     } else {
@@ -4003,7 +4062,7 @@ function loadPlayerData() {
     
     const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
     const count = Object.keys(playerDB).length;
-    const source = FirebaseService.getPlayerSource();
+    const source = FirebaseService.getPlayerSource(gameplayContext);
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
     renderSelectionSourceControls();
 
@@ -4062,14 +4121,15 @@ function renderSelectionSourceControls() {
         return;
     }
 
-    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId());
+    const gameplayContext = getGameplayContext();
+    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
     if (!hasAlliance) {
         controls.classList.add('hidden');
         return;
     }
     controls.classList.remove('hidden');
 
-    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource() : 'personal';
+    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || undefined) : 'personal';
     const personalActive = source !== 'alliance';
     const allianceActive = source === 'alliance';
     personalBtn.classList.toggle('secondary', !personalActive);

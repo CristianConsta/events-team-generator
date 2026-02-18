@@ -406,3 +406,65 @@ test('game-aware service methods accept explicit gameId context', async () => {
   assert.deepEqual(result, { success: true });
   assert.deepEqual(receivedContext, { gameId: 'last_war', explicit: true });
 });
+
+test('alliance and invitation methods propagate explicit game context', async () => {
+  const contexts = {
+    createAlliance: null,
+    loadAllianceData: null,
+    sendInvitation: null,
+    checkInvitations: null,
+    acceptInvitation: null,
+    rejectInvitation: null,
+    revokeInvitation: null,
+    resendInvitation: null,
+    getAllianceId: null,
+    getAllianceName: null,
+    getAllianceData: null,
+    getPendingInvitations: null,
+    getSentInvitations: null,
+    getInvitationNotifications: null,
+    getAllianceMembers: null,
+    getPlayerSource: null,
+  };
+  global.FirebaseManager = {
+    createAlliance: async (_name, context) => { contexts.createAlliance = context; return { success: true }; },
+    loadAllianceData: async (context) => { contexts.loadAllianceData = context; return { success: true }; },
+    sendInvitation: async (_email, context) => { contexts.sendInvitation = context; return { success: true }; },
+    checkInvitations: async (context) => { contexts.checkInvitations = context; return []; },
+    acceptInvitation: async (_id, context) => { contexts.acceptInvitation = context; return { success: true }; },
+    rejectInvitation: async (_id, context) => { contexts.rejectInvitation = context; return { success: true }; },
+    revokeInvitation: async (_id, context) => { contexts.revokeInvitation = context; return { success: true }; },
+    resendInvitation: async (_id, context) => { contexts.resendInvitation = context; return { success: true }; },
+    getAllianceId: (context) => { contexts.getAllianceId = context; return 'alliance-x'; },
+    getAllianceName: (context) => { contexts.getAllianceName = context; return 'Alliance X'; },
+    getAllianceData: (context) => { contexts.getAllianceData = context; return { id: 'alliance-x' }; },
+    getPendingInvitations: (context) => { contexts.getPendingInvitations = context; return []; },
+    getSentInvitations: (context) => { contexts.getSentInvitations = context; return []; },
+    getInvitationNotifications: (context) => { contexts.getInvitationNotifications = context; return []; },
+    getAllianceMembers: (context) => { contexts.getAllianceMembers = context; return {}; },
+    getPlayerSource: (context) => { contexts.getPlayerSource = context; return 'personal'; },
+  };
+  loadModule();
+
+  const context = { gameId: 'last_war' };
+  await global.FirebaseService.createAlliance('Alliance X', context);
+  await global.FirebaseService.loadAllianceData(context);
+  await global.FirebaseService.sendInvitation('test@example.com', context);
+  await global.FirebaseService.checkInvitations(context);
+  await global.FirebaseService.acceptInvitation('inv-1', context);
+  await global.FirebaseService.rejectInvitation('inv-1', context);
+  await global.FirebaseService.revokeInvitation('inv-1', context);
+  await global.FirebaseService.resendInvitation('inv-1', context);
+  global.FirebaseService.getAllianceId(context);
+  global.FirebaseService.getAllianceName(context);
+  global.FirebaseService.getAllianceData(context);
+  global.FirebaseService.getPendingInvitations(context);
+  global.FirebaseService.getSentInvitations(context);
+  global.FirebaseService.getInvitationNotifications(context);
+  global.FirebaseService.getAllianceMembers(context);
+  global.FirebaseService.getPlayerSource(context);
+
+  Object.keys(contexts).forEach((key) => {
+    assert.deepEqual(contexts[key], { gameId: 'last_war', explicit: true });
+  });
+});
