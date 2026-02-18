@@ -2568,10 +2568,15 @@ const FirebaseManager = (function() {
                 const normalizedPlayerDatabase = normalizePlayerDatabaseMap(rawPlayerDatabase);
                 playerDatabase = normalizedPlayerDatabase;
                 let shouldPersistNormalizedPlayerDatabase = !areJsonEqual(rawPlayerDatabase, normalizedPlayerDatabase);
+                let shouldPersistNormalizedPlayerSource = false;
                 allianceId = data.allianceId || null;
                 allianceName = data.allianceName || null;
                 activeAllianceGameId = DEFAULT_GAME_ID;
-                playerSource = data.playerSource || 'personal';
+                playerSource = data.playerSource === 'alliance' ? 'alliance' : 'personal';
+                if (playerSource === 'alliance' && !allianceId) {
+                    playerSource = 'personal';
+                    shouldPersistNormalizedPlayerSource = true;
+                }
                 userProfile = normalizeUserProfile(data.userProfile || data.profile || null);
 
                 if (
@@ -2667,6 +2672,16 @@ const FirebaseManager = (function() {
                         console.log('✅ Player database normalized and saved for user');
                     } catch (normalizeErr) {
                         console.warn('⚠️ Failed to persist normalized player database:', normalizeErr);
+                    }
+                }
+                if (shouldPersistNormalizedPlayerSource) {
+                    try {
+                        await db.collection('users').doc(user.uid).set({
+                            playerSource: playerSource,
+                        }, { merge: true });
+                        console.log('✅ Player source normalized and saved for user');
+                    } catch (sourceErr) {
+                        console.warn('⚠️ Failed to persist normalized player source:', sourceErr);
                     }
                 }
 
@@ -4078,8 +4093,11 @@ const FirebaseManager = (function() {
         if ((normalizeGameId(activeAllianceGameId) || DEFAULT_GAME_ID) !== gameId) {
             return playerDatabase;
         }
-        if (playerSource === 'alliance' && allianceData && allianceData.playerDatabase) {
-            return normalizePlayerDatabaseMap(allianceData.playerDatabase);
+        if (playerSource === 'alliance') {
+            if (allianceData && allianceData.playerDatabase) {
+                return normalizePlayerDatabaseMap(allianceData.playerDatabase);
+            }
+            return {};
         }
         return normalizePlayerDatabaseMap(playerDatabase);
     }
@@ -4096,13 +4114,29 @@ const FirebaseManager = (function() {
     async function setPlayerSource(source, context) {
         const gameId = getResolvedGameId('setPlayerSource', context);
         await setActiveAllianceGameContext(gameId);
-        if (source !== 'personal' && source !== 'alliance') return;
+        if (source !== 'personal' && source !== 'alliance') {
+            return { success: false, error: 'Invalid player source' };
+        }
+        if (source === 'alliance' && !allianceId) {
+            playerSource = 'personal';
+            return { success: false, error: 'Not in an alliance' };
+        }
+
         playerSource = source;
         if (currentUser) {
-            await persistUserGameAssociationState(gameId, {
-                playerSource: source,
-            });
+            try {
+                await db.collection('users').doc(currentUser.uid).set({
+                    playerSource: source
+                }, { merge: true });
+            } catch (error) {
+                if (isPermissionDeniedError(error)) {
+                    console.warn('Player source switched locally; Firestore persistence denied by rules.');
+                    return { success: true, persisted: false, warning: 'permission-denied' };
+                }
+                throw error;
+            }
         }
+        return { success: true, persisted: true };
     }
 
     function getAllianceId(context) {

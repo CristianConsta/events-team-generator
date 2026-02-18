@@ -5079,13 +5079,32 @@ async function switchPlayerSource(source, statusElementId) {
     if (!gameplayContext) {
         return;
     }
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext));
-    if (source === 'alliance' && !hasAlliance) {
+    if (typeof FirebaseService === 'undefined') {
         return;
     }
-    await FirebaseService.setPlayerSource(source, gameplayContext);
+    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext));
+    if (source === 'alliance' && !hasAlliance) {
+        showMessage(statusElementId || 'playerSourceStatus', 'Join an alliance first.', 'error');
+        return;
+    }
+
+    let switchResult = null;
+    try {
+        if (source === 'alliance' && typeof FirebaseService.loadAllianceData === 'function') {
+            await FirebaseService.loadAllianceData(gameplayContext);
+        }
+        switchResult = await FirebaseService.setPlayerSource(source, gameplayContext);
+    } catch (error) {
+        switchResult = { success: false, error: error && error.message ? error.message : 'unknown' };
+    }
     loadPlayerData();
     renderAlliancePanel();
+
+    if (switchResult && switchResult.success === false) {
+        showMessage(statusElementId || 'playerSourceStatus', switchResult.error || t('error_generic', { error: 'unknown' }), 'error');
+        return;
+    }
+
     const sourceLabels = {
         personal: t('alliance_source_personal'),
         alliance: t('alliance_source_alliance'),
@@ -5093,6 +5112,10 @@ async function switchPlayerSource(source, statusElementId) {
     const sourceLabel = Object.prototype.hasOwnProperty.call(sourceLabels, source)
         ? sourceLabels[source]
         : source;
+    if (switchResult && switchResult.persisted === false) {
+        showMessage(statusElementId || 'playerSourceStatus', `${t('alliance_source_switched', { source: sourceLabel })} (not synced)`, 'warning');
+        return;
+    }
     showMessage(statusElementId || 'playerSourceStatus', t('alliance_source_switched', { source: sourceLabel }), 'success');
 }
 
