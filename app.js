@@ -488,7 +488,7 @@ function resetTransientPlanningState(options) {
     updateTeamCounters();
 }
 
-function applyGameSwitch(gameId, options) {
+async function applyGameSwitch(gameId, options) {
     const config = options && typeof options === 'object' ? options : {};
     const statusElementId = typeof config.statusElementId === 'string' ? config.statusElementId : '';
 
@@ -503,19 +503,37 @@ function applyGameSwitch(gameId, options) {
     const shouldReload = result.changed === true || config.forceReload === true;
     if (shouldReload) {
         resetTransientPlanningState({ renderPlayersTable: false });
+        if (
+            typeof FirebaseService !== 'undefined'
+            && typeof FirebaseService.loadUserData === 'function'
+            && typeof FirebaseService.getCurrentUser === 'function'
+            && typeof FirebaseService.isSignedIn === 'function'
+            && FirebaseService.isSignedIn()
+        ) {
+            const activeUser = FirebaseService.getCurrentUser();
+            if (activeUser && activeUser.uid) {
+                try {
+                    await FirebaseService.loadUserData(activeUser, { gameId: result.gameId });
+                } catch (error) {
+                    if (statusElementId) {
+                        showMessage(statusElementId, t('error_generic', { error: String(error && error.message ? error.message : error || 'unknown') }), 'error');
+                    }
+                    return false;
+                }
+            }
+        }
         loadPlayerData();
         updateAllianceHeaderDisplay();
         if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.loadAllianceData === 'function' && FirebaseService.isSignedIn()) {
-            Promise.resolve(FirebaseService.loadAllianceData({ gameId: result.gameId }))
-                .then(() => {
-                    if (currentPageView === 'alliance') {
-                        renderAlliancePanel();
-                        updateAllianceHeaderDisplay();
-                    }
-                })
-                .catch(() => {
-                    // Ignore transient alliance refresh errors after game switch.
-                });
+            try {
+                await FirebaseService.loadAllianceData({ gameId: result.gameId });
+                if (currentPageView === 'alliance') {
+                    renderAlliancePanel();
+                    updateAllianceHeaderDisplay();
+                }
+            } catch (error) {
+                // Ignore transient alliance refresh errors after game switch.
+            }
         }
     }
 
@@ -523,7 +541,7 @@ function applyGameSwitch(gameId, options) {
     return true;
 }
 
-function confirmGameSelectorChoice() {
+async function confirmGameSelectorChoice() {
     const selector = document.getElementById('gameSelectorInput');
     if (!selector) {
         return;
@@ -533,7 +551,7 @@ function confirmGameSelectorChoice() {
         showMessage('gameSelectorStatus', t('game_selector_invalid'), 'error');
         return;
     }
-    applyGameSwitch(selectedGameId, { statusElementId: 'gameSelectorStatus' });
+    await applyGameSwitch(selectedGameId, { statusElementId: 'gameSelectorStatus' });
 }
 
 function showPostAuthGameSelector() {
