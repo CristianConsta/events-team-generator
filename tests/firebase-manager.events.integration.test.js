@@ -700,3 +700,352 @@ test('game metadata list reads app_config overrides when games collection read i
   assert.equal(games[0].company, 'Override Inc');
   assert.equal(games[0].logo, 'data:image/png;base64,BBBB');
 });
+
+test('loadUserData prefers game subcollections over legacy/root map payloads', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  function createQuerySnapshot(docs) {
+    return {
+      empty: docs.length === 0,
+      docs,
+      forEach(callback) {
+        docs.forEach((doc) => callback(doc));
+      },
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {
+            LegacyOnly: { power: 1, troops: 'Tank', thp: 1 },
+          },
+          events: {
+            desert_storm: {
+              name: 'Legacy Desert',
+              buildingConfig: [{ name: 'Legacy HQ', slots: 1, priority: 1 }],
+              buildingPositions: { 'Legacy HQ': [1, 1] },
+            },
+          },
+        }),
+      };
+    }
+    if (joined === 'users/qa-user/games/desert_ops') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {
+            RootGameDocPlayer: { power: 3, troops: 'Aero', thp: 2 },
+          },
+          events: {
+            desert_storm: {
+              name: 'Root Game Desert',
+              buildingConfig: [{ name: 'Root HQ', slots: 1, priority: 1 }],
+              buildingPositions: { 'Root HQ': [2, 2] },
+            },
+          },
+        }),
+      };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return {
+        exists: false,
+        data: () => ({}),
+      };
+    }
+    return {
+      exists: false,
+      data: () => ({}),
+    };
+  }
+
+  function resolveCollectionGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/desert_ops/players') {
+      return createQuerySnapshot([
+        {
+          id: 'player_sub_1',
+          data: () => ({
+            name: 'SubcollectionPlayer',
+            power: 99,
+            troops: 'Missile',
+            thp: 77,
+          }),
+        },
+      ]);
+    }
+    if (joined === 'users/qa-user/games/desert_ops/events') {
+      return createQuerySnapshot([
+        {
+          id: 'desert_storm',
+          data: () => ({
+            id: 'desert_storm',
+            name: 'Subcollection Desert',
+            logoDataUrl: '',
+            mapDataUrl: '',
+            assignmentAlgorithmId: 'balanced_round_robin',
+            buildingConfig: [{ name: 'Sub HQ', slots: 1, priority: 1 }],
+            buildingConfigVersion: 1,
+            buildingPositions: { 'Sub HQ': [9, 9] },
+            buildingPositionsVersion: 1,
+          }),
+        },
+      ]);
+    }
+    return createQuerySnapshot([]);
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => resolveCollectionGet(pathParts),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {},
+      update: async () => {},
+      delete: async () => {},
+      path: pathParts.join('/'),
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set() {},
+      update() {},
+      delete() {},
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+
+  const result = await global.FirebaseManager.loadUserData(
+    {
+      uid: 'qa-user',
+      email: 'qa@example.com',
+      providerData: [{ providerId: 'password' }],
+    },
+    { gameId: 'desert_ops' }
+  );
+
+  assert.equal(result.success, true);
+
+  const players = global.FirebaseManager.getPlayerDatabase({ gameId: 'desert_ops' });
+  assert.equal(Object.prototype.hasOwnProperty.call(players, 'SubcollectionPlayer'), true);
+  assert.equal(Object.prototype.hasOwnProperty.call(players, 'LegacyOnly'), false);
+
+  const eventMeta = global.FirebaseManager.getEventMeta('desert_storm', { gameId: 'desert_ops' });
+  assert.equal(eventMeta.name, 'Subcollection Desert');
+});
+
+test('saveUserData persists players and events into game subcollections for selected game', async () => {
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  const setPaths = [];
+  const batchSetPaths = [];
+
+  function createSnapshot(docs) {
+    return {
+      empty: docs.length === 0,
+      docs,
+      forEach(callback) {
+        docs.forEach((doc) => callback(doc));
+      },
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user') {
+      return { exists: false, data: () => ({}) };
+    }
+    if (joined === 'users/qa-user/games/desert_ops') {
+      return { exists: false, data: () => ({}) };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return { exists: false, data: () => ({}) };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function resolveCollectionGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/desert_ops/players') {
+      return createSnapshot([]);
+    }
+    if (joined === 'users/qa-user/games/desert_ops/events') {
+      return createSnapshot([]);
+    }
+    return createSnapshot([]);
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      get: async () => resolveCollectionGet(pathParts),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async () => {
+        setPaths.push(pathParts.join('/'));
+      },
+      update: async () => {},
+      delete: async () => {},
+      path: pathParts.join('/'),
+    };
+  }
+
+  let authStateChanged = null;
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => ({
+      set(ref) {
+        batchSetPaths.push(ref.path);
+      },
+      update() {},
+      delete(ref) {
+        batchSetPaths.push(ref.path);
+      },
+      commit: async () => {},
+    }),
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+
+  await authStateChanged({
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  });
+
+  const gameContext = { gameId: 'desert_ops' };
+  const upsertPlayerResult = await global.FirebaseManager.upsertPlayerEntry('personal', '', {
+    name: 'SubDoc QA Player',
+    power: 123,
+    troops: 'Tank',
+    thp: 44,
+  }, gameContext);
+  assert.equal(upsertPlayerResult.success, true);
+
+  global.FirebaseManager.upsertEvent('desert_storm', {
+    name: 'SubDoc Event',
+    assignmentAlgorithmId: 'balanced_round_robin',
+    buildingConfig: [{ name: 'HQ', slots: 1, priority: 1 }],
+    buildingPositions: { HQ: [10, 20] },
+  }, gameContext);
+
+  const saveResult = await global.FirebaseManager.saveUserData({ immediate: true }, gameContext);
+  assert.equal(saveResult.success, true);
+
+  const combinedPaths = setPaths.concat(batchSetPaths);
+  assert.equal(
+    combinedPaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/players/')),
+    true
+  );
+  assert.equal(
+    combinedPaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/events/')),
+    true
+  );
+});
