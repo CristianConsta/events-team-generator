@@ -116,3 +116,27 @@ test('firebase manager resolves game-scoped read payload with last_war legacy fa
   assert.equal(nativeOnly.usedLegacyFallback, false);
   assert.ok(nativeOnly.data.playerDatabase.Cara);
 });
+
+test('firebase manager resolves gameplay context with optional gameId signatures', () => {
+  global.window = global;
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  require(firebaseModulePath);
+
+  const explicit = global.FirebaseManager.resolveGameplayContext('getPlayerDatabase', { gameId: 'last_war' });
+  assert.deepEqual(explicit, { gameId: 'last_war', explicit: true });
+
+  const legacy = global.FirebaseManager.resolveGameplayContext('getPlayerDatabase');
+  assert.deepEqual(legacy, { gameId: 'last_war', explicit: false });
+});

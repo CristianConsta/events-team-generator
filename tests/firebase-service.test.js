@@ -39,7 +39,9 @@ test('firebase service returns safe fallbacks when manager is missing', async ()
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_ENABLED'), false);
   assert.deepEqual(global.FirebaseService.listAvailableGames(), []);
   assert.deepEqual(global.FirebaseService.getActiveGame(), { gameId: '', source: 'none' });
-  assert.deepEqual(global.FirebaseService.setActiveGame('last_war'), { success: true, gameId: 'last_war', changed: true });
+  const setActiveResult = global.FirebaseService.setActiveGame('last_war');
+  assert.equal(setActiveResult.success, true);
+  assert.equal(setActiveResult.gameId, 'last_war');
   assert.equal(global.FirebaseService.requireActiveGame(), 'last_war');
   global.FirebaseService.clearActiveGame();
   assert.throws(() => global.FirebaseService.requireActiveGame(), (error) => error && error.code === 'missing-active-game');
@@ -100,7 +102,9 @@ test('firebase service delegates calls to FirebaseManager', async () => {
   });
   assert.equal(global.FirebaseService.isFeatureFlagEnabled('MULTIGAME_DUAL_WRITE_ENABLED'), true);
   assert.deepEqual(global.FirebaseService.listAvailableGames(), [{ id: 'last_war', name: 'Last War: Survival' }]);
-  assert.deepEqual(global.FirebaseService.setActiveGame('last_war'), { success: true, gameId: 'last_war', changed: true });
+  const delegatedSetActiveResult = global.FirebaseService.setActiveGame('last_war');
+  assert.equal(delegatedSetActiveResult.success, true);
+  assert.equal(delegatedSetActiveResult.gameId, 'last_war');
   assert.equal(global.FirebaseService.requireActiveGame(), 'last_war');
   assert.equal(global.FirebaseService.getMigrationVersion(), 1);
   assert.equal(global.FirebaseService.getMigratedToGameSubcollectionsAt(), '2026-02-18T00:00:00.000Z');

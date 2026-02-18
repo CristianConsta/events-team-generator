@@ -305,6 +305,35 @@ const FirebaseManager = (function() {
         };
     }
 
+    const legacyGameSignatureWarnings = new Set();
+
+    function normalizeGameContextInput(context) {
+        if (typeof context === 'string') {
+            return normalizeGameId(context);
+        }
+        if (context && typeof context === 'object' && typeof context.gameId === 'string') {
+            return normalizeGameId(context.gameId);
+        }
+        return '';
+    }
+
+    function warnLegacyGameSignature(methodName) {
+        if (legacyGameSignatureWarnings.has(methodName)) {
+            return;
+        }
+        legacyGameSignatureWarnings.add(methodName);
+        console.warn(`[multigame][legacy-signature] FirebaseManager.${methodName} called without explicit gameId; defaulting to ${DEFAULT_GAME_ID}.`);
+    }
+
+    function resolveGameplayContext(methodName, context) {
+        const explicitGameId = normalizeGameContextInput(context);
+        if (explicitGameId) {
+            return { gameId: explicitGameId, explicit: true };
+        }
+        warnLegacyGameSignature(methodName);
+        return { gameId: DEFAULT_GAME_ID, explicit: false };
+    }
+
     function normalizeEventName(value, fallback) {
         const raw = typeof value === 'string' ? value.trim() : '';
         const resolved = raw || (typeof fallback === 'string' ? fallback : '');
@@ -3165,29 +3194,86 @@ const FirebaseManager = (function() {
         
         // Database operations
         loadUserData: loadUserData,
-        saveUserData: saveUserData,
-        uploadPlayerDatabase: uploadPlayerDatabase,
-        getPlayerDatabase: getPlayerDatabase,
+        saveUserData: function saveUserDataGameAware(options, context) {
+            resolveGameplayContext('saveUserData', context);
+            return saveUserData(options);
+        },
+        uploadPlayerDatabase: function uploadPlayerDatabaseGameAware(file, context) {
+            resolveGameplayContext('uploadPlayerDatabase', context);
+            return uploadPlayerDatabase(file);
+        },
+        getPlayerDatabase: function getPlayerDatabaseGameAware(context) {
+            resolveGameplayContext('getPlayerDatabase', context);
+            return getPlayerDatabase();
+        },
         getPlayerCount: getPlayerCount,
         getPlayer: getPlayer,
-        upsertPlayerEntry: upsertPlayerEntry,
-        removePlayerEntry: removePlayerEntry,
-        getAllEventData: getAllEventData,
-        getEventIds: getEventIds,
-        getEventMeta: getEventMeta,
-        upsertEvent: upsertEvent,
-        removeEvent: removeEvent,
-        setEventMetadata: setEventMetadata,
+        upsertPlayerEntry: function upsertPlayerEntryGameAware(source, originalName, nextPlayer, context) {
+            resolveGameplayContext('upsertPlayerEntry', context);
+            return upsertPlayerEntry(source, originalName, nextPlayer);
+        },
+        removePlayerEntry: function removePlayerEntryGameAware(source, playerName, context) {
+            resolveGameplayContext('removePlayerEntry', context);
+            return removePlayerEntry(source, playerName);
+        },
+        getAllEventData: function getAllEventDataGameAware(context) {
+            resolveGameplayContext('getAllEventData', context);
+            return getAllEventData();
+        },
+        getEventIds: function getEventIdsGameAware(context) {
+            resolveGameplayContext('getEventIds', context);
+            return getEventIds();
+        },
+        getEventMeta: function getEventMetaGameAware(eventId, context) {
+            resolveGameplayContext('getEventMeta', context);
+            return getEventMeta(eventId);
+        },
+        upsertEvent: function upsertEventGameAware(eventId, payload, context) {
+            resolveGameplayContext('upsertEvent', context);
+            return upsertEvent(eventId, payload);
+        },
+        removeEvent: function removeEventGameAware(eventId, context) {
+            resolveGameplayContext('removeEvent', context);
+            return removeEvent(eventId);
+        },
+        setEventMetadata: function setEventMetadataGameAware(eventId, metadata, context) {
+            resolveGameplayContext('setEventMetadata', context);
+            return setEventMetadata(eventId, metadata);
+        },
 
         // Building config
-        getBuildingConfig: getBuildingConfig,
-        setBuildingConfig: setBuildingConfig,
-        getBuildingConfigVersion: getBuildingConfigVersion,
-        setBuildingConfigVersion: setBuildingConfigVersion,
-        getBuildingPositions: getBuildingPositions,
-        setBuildingPositions: setBuildingPositions,
-        getBuildingPositionsVersion: getBuildingPositionsVersion,
-        setBuildingPositionsVersion: setBuildingPositionsVersion,
+        getBuildingConfig: function getBuildingConfigGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingConfig', context);
+            return getBuildingConfig(eventId);
+        },
+        setBuildingConfig: function setBuildingConfigGameAware(eventId, config, context) {
+            resolveGameplayContext('setBuildingConfig', context);
+            return setBuildingConfig(eventId, config);
+        },
+        getBuildingConfigVersion: function getBuildingConfigVersionGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingConfigVersion', context);
+            return getBuildingConfigVersion(eventId);
+        },
+        setBuildingConfigVersion: function setBuildingConfigVersionGameAware(eventId, version, context) {
+            resolveGameplayContext('setBuildingConfigVersion', context);
+            return setBuildingConfigVersion(eventId, version);
+        },
+        getBuildingPositions: function getBuildingPositionsGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingPositions', context);
+            return getBuildingPositions(eventId);
+        },
+        setBuildingPositions: function setBuildingPositionsGameAware(eventId, positions, context) {
+            resolveGameplayContext('setBuildingPositions', context);
+            return setBuildingPositions(eventId, positions);
+        },
+        getBuildingPositionsVersion: function getBuildingPositionsVersionGameAware(eventId, context) {
+            resolveGameplayContext('getBuildingPositionsVersion', context);
+            return getBuildingPositionsVersion(eventId);
+        },
+        setBuildingPositionsVersion: function setBuildingPositionsVersionGameAware(eventId, version, context) {
+            resolveGameplayContext('setBuildingPositionsVersion', context);
+            return setBuildingPositionsVersion(eventId, version);
+        },
         getGlobalDefaultBuildingConfig: getGlobalDefaultBuildingConfig,
         getGlobalDefaultBuildingConfigVersion: getGlobalDefaultBuildingConfigVersion,
         getGlobalDefaultBuildingPositions: getGlobalDefaultBuildingPositions,
@@ -3202,21 +3288,60 @@ const FirebaseManager = (function() {
         generateTeamRosterTemplate: generateTeamRosterTemplate,
 
         // Alliance
-        createAlliance: createAlliance,
-        leaveAlliance: leaveAlliance,
-        loadAllianceData: loadAllianceData,
-        sendInvitation: sendInvitation,
-        checkInvitations: checkInvitations,
-        acceptInvitation: acceptInvitation,
-        rejectInvitation: rejectInvitation,
-        revokeInvitation: revokeInvitation,
-        resendInvitation: resendInvitation,
-        uploadAlliancePlayerDatabase: uploadAlliancePlayerDatabase,
-        getAlliancePlayerDatabase: getAlliancePlayerDatabase,
-        getActivePlayerDatabase: getActivePlayerDatabase,
+        createAlliance: function createAllianceGameAware(name, context) {
+            resolveGameplayContext('createAlliance', context);
+            return createAlliance(name);
+        },
+        leaveAlliance: function leaveAllianceGameAware(context) {
+            resolveGameplayContext('leaveAlliance', context);
+            return leaveAlliance();
+        },
+        loadAllianceData: function loadAllianceDataGameAware(context) {
+            resolveGameplayContext('loadAllianceData', context);
+            return loadAllianceData();
+        },
+        sendInvitation: function sendInvitationGameAware(email, context) {
+            resolveGameplayContext('sendInvitation', context);
+            return sendInvitation(email);
+        },
+        checkInvitations: function checkInvitationsGameAware(context) {
+            resolveGameplayContext('checkInvitations', context);
+            return checkInvitations();
+        },
+        acceptInvitation: function acceptInvitationGameAware(invitationId, context) {
+            resolveGameplayContext('acceptInvitation', context);
+            return acceptInvitation(invitationId);
+        },
+        rejectInvitation: function rejectInvitationGameAware(invitationId, context) {
+            resolveGameplayContext('rejectInvitation', context);
+            return rejectInvitation(invitationId);
+        },
+        revokeInvitation: function revokeInvitationGameAware(invitationId, context) {
+            resolveGameplayContext('revokeInvitation', context);
+            return revokeInvitation(invitationId);
+        },
+        resendInvitation: function resendInvitationGameAware(invitationId, context) {
+            resolveGameplayContext('resendInvitation', context);
+            return resendInvitation(invitationId);
+        },
+        uploadAlliancePlayerDatabase: function uploadAlliancePlayerDatabaseGameAware(file, context) {
+            resolveGameplayContext('uploadAlliancePlayerDatabase', context);
+            return uploadAlliancePlayerDatabase(file);
+        },
+        getAlliancePlayerDatabase: function getAlliancePlayerDatabaseGameAware(context) {
+            resolveGameplayContext('getAlliancePlayerDatabase', context);
+            return getAlliancePlayerDatabase();
+        },
+        getActivePlayerDatabase: function getActivePlayerDatabaseGameAware(context) {
+            resolveGameplayContext('getActivePlayerDatabase', context);
+            return getActivePlayerDatabase();
+        },
         getUserProfile: getUserProfile,
         setUserProfile: setUserProfile,
-        setPlayerSource: setPlayerSource,
+        setPlayerSource: function setPlayerSourceGameAware(source, context) {
+            resolveGameplayContext('setPlayerSource', context);
+            return setPlayerSource(source);
+        },
         getAllianceId: getAllianceId,
         getAllianceName: getAllianceName,
         getAllianceData: getAllianceData,
@@ -3227,7 +3352,8 @@ const FirebaseManager = (function() {
         getAllianceMembers: getAllianceMembers,
         getMigrationVersion: getMigrationVersion,
         getMigratedToGameSubcollectionsAt: getMigratedToGameSubcollectionsAt,
-        resolveGameScopedReadPayload: resolveGameScopedReadPayload
+        resolveGameScopedReadPayload: resolveGameScopedReadPayload,
+        resolveGameplayContext: resolveGameplayContext
     };
     
 })();

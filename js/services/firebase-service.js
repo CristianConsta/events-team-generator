@@ -8,6 +8,7 @@
     const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
     const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
     let activeGameIdCache = '';
+    const legacyGameSignatureWarnings = new Set();
 
     function manager() {
         return typeof global.FirebaseManager !== 'undefined' ? global.FirebaseManager : null;
@@ -208,6 +209,59 @@
         return context.gameId;
     }
 
+    function normalizeGameContextInput(context) {
+        if (typeof context === 'string') {
+            return { gameId: normalizeGameId(context), explicit: true };
+        }
+        if (context && typeof context === 'object' && typeof context.gameId === 'string') {
+            return { gameId: normalizeGameId(context.gameId), explicit: true };
+        }
+        return { gameId: '', explicit: false };
+    }
+
+    function warnLegacyGameSignature(methodName) {
+        if (legacyGameSignatureWarnings.has(methodName)) {
+            return;
+        }
+        legacyGameSignatureWarnings.add(methodName);
+        console.warn(`[multigame][legacy-signature] ${methodName} called without explicit gameId; using active game context.`);
+    }
+
+    function isSignedInRuntime() {
+        const svc = manager();
+        if (!svc || typeof svc.isSignedIn !== 'function') {
+            return false;
+        }
+        try {
+            return svc.isSignedIn() === true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function resolveGameplayContext(methodName, context) {
+        const parsed = normalizeGameContextInput(context);
+        if (parsed.explicit && parsed.gameId) {
+            setActiveGame(parsed.gameId);
+            return { gameId: parsed.gameId, explicit: true };
+        }
+
+        warnLegacyGameSignature(methodName);
+        const current = getActiveGame();
+        if (current.gameId) {
+            return { gameId: current.gameId, explicit: false };
+        }
+
+        if (isSignedInRuntime()) {
+            const ensured = ensureActiveGame();
+            if (ensured && ensured.gameId) {
+                return { gameId: ensured.gameId, explicit: false };
+            }
+            throw createMissingActiveGameError();
+        }
+        return { gameId: resolveDefaultGameId(), explicit: false };
+    }
+
     const FirebaseService = {
         isAvailable: function isAvailable() {
             return manager() !== null;
@@ -290,44 +344,57 @@
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);
         },
-        saveUserData: async function saveUserData(options) {
-            return withManager((svc) => svc.saveUserData(options), notLoadedResult());
+        saveUserData: async function saveUserData(options, context) {
+            const gameContext = resolveGameplayContext('saveUserData', context);
+            return withManager((svc) => svc.saveUserData(options, gameContext), notLoadedResult());
         },
-        uploadPlayerDatabase: async function uploadPlayerDatabase(file) {
-            return withManager((svc) => svc.uploadPlayerDatabase(file), Promise.reject(notLoadedResult()));
+        uploadPlayerDatabase: async function uploadPlayerDatabase(file, context) {
+            const gameContext = resolveGameplayContext('uploadPlayerDatabase', context);
+            return withManager((svc) => svc.uploadPlayerDatabase(file, gameContext), Promise.reject(notLoadedResult()));
         },
-        getPlayerDatabase: function getPlayerDatabase() {
-            return withManager((svc) => svc.getPlayerDatabase(), {});
+        getPlayerDatabase: function getPlayerDatabase(context) {
+            const gameContext = resolveGameplayContext('getPlayerDatabase', context);
+            return withManager((svc) => svc.getPlayerDatabase(gameContext), {});
         },
-        getAlliancePlayerDatabase: function getAlliancePlayerDatabase() {
-            return withManager((svc) => svc.getAlliancePlayerDatabase(), {});
+        getAlliancePlayerDatabase: function getAlliancePlayerDatabase(context) {
+            const gameContext = resolveGameplayContext('getAlliancePlayerDatabase', context);
+            return withManager((svc) => svc.getAlliancePlayerDatabase(gameContext), {});
         },
-        upsertPlayerEntry: async function upsertPlayerEntry(source, originalName, nextPlayer) {
-            return withManager((svc) => svc.upsertPlayerEntry(source, originalName, nextPlayer), notLoadedResult());
+        upsertPlayerEntry: async function upsertPlayerEntry(source, originalName, nextPlayer, context) {
+            const gameContext = resolveGameplayContext('upsertPlayerEntry', context);
+            return withManager((svc) => svc.upsertPlayerEntry(source, originalName, nextPlayer, gameContext), notLoadedResult());
         },
-        removePlayerEntry: async function removePlayerEntry(source, playerName) {
-            return withManager((svc) => svc.removePlayerEntry(source, playerName), notLoadedResult());
+        removePlayerEntry: async function removePlayerEntry(source, playerName, context) {
+            const gameContext = resolveGameplayContext('removePlayerEntry', context);
+            return withManager((svc) => svc.removePlayerEntry(source, playerName, gameContext), notLoadedResult());
         },
-        getAllEventData: function getAllEventData() {
-            return withManager((svc) => svc.getAllEventData(), {});
+        getAllEventData: function getAllEventData(context) {
+            const gameContext = resolveGameplayContext('getAllEventData', context);
+            return withManager((svc) => svc.getAllEventData(gameContext), {});
         },
-        getEventIds: function getEventIds() {
-            return withManager((svc) => svc.getEventIds(), []);
+        getEventIds: function getEventIds(context) {
+            const gameContext = resolveGameplayContext('getEventIds', context);
+            return withManager((svc) => svc.getEventIds(gameContext), []);
         },
-        getEventMeta: function getEventMeta(eventId) {
-            return withManager((svc) => svc.getEventMeta(eventId), null);
+        getEventMeta: function getEventMeta(eventId, context) {
+            const gameContext = resolveGameplayContext('getEventMeta', context);
+            return withManager((svc) => svc.getEventMeta(eventId, gameContext), null);
         },
-        upsertEvent: function upsertEvent(eventId, payload) {
-            return withManager((svc) => svc.upsertEvent(eventId, payload), null);
+        upsertEvent: function upsertEvent(eventId, payload, context) {
+            const gameContext = resolveGameplayContext('upsertEvent', context);
+            return withManager((svc) => svc.upsertEvent(eventId, payload, gameContext), null);
         },
-        removeEvent: function removeEvent(eventId) {
-            return withManager((svc) => svc.removeEvent(eventId), false);
+        removeEvent: function removeEvent(eventId, context) {
+            const gameContext = resolveGameplayContext('removeEvent', context);
+            return withManager((svc) => svc.removeEvent(eventId, gameContext), false);
         },
-        setEventMetadata: function setEventMetadata(eventId, metadata) {
-            return withManager((svc) => svc.setEventMetadata(eventId, metadata), null);
+        setEventMetadata: function setEventMetadata(eventId, metadata, context) {
+            const gameContext = resolveGameplayContext('setEventMetadata', context);
+            return withManager((svc) => svc.setEventMetadata(eventId, metadata, gameContext), null);
         },
-        getActivePlayerDatabase: function getActivePlayerDatabase() {
-            return withManager((svc) => svc.getActivePlayerDatabase(), {});
+        getActivePlayerDatabase: function getActivePlayerDatabase(context) {
+            const gameContext = resolveGameplayContext('getActivePlayerDatabase', context);
+            return withManager((svc) => svc.getActivePlayerDatabase(gameContext), {});
         },
         getUserProfile: function getUserProfile() {
             return withManager((svc) => svc.getUserProfile(), { displayName: '', nickname: '', avatarDataUrl: '' });
@@ -338,29 +405,37 @@
         getPlayerSource: function getPlayerSource() {
             return withManager((svc) => svc.getPlayerSource(), 'personal');
         },
-        getBuildingConfig: function getBuildingConfig(eventId) {
-            return withManager((svc) => svc.getBuildingConfig(eventId), null);
+        getBuildingConfig: function getBuildingConfig(eventId, context) {
+            const gameContext = resolveGameplayContext('getBuildingConfig', context);
+            return withManager((svc) => svc.getBuildingConfig(eventId, gameContext), null);
         },
-        setBuildingConfig: function setBuildingConfig(eventId, config) {
-            return withManager((svc) => svc.setBuildingConfig(eventId, config), null);
+        setBuildingConfig: function setBuildingConfig(eventId, config, context) {
+            const gameContext = resolveGameplayContext('setBuildingConfig', context);
+            return withManager((svc) => svc.setBuildingConfig(eventId, config, gameContext), null);
         },
-        getBuildingConfigVersion: function getBuildingConfigVersion(eventId) {
-            return withManager((svc) => svc.getBuildingConfigVersion(eventId), 0);
+        getBuildingConfigVersion: function getBuildingConfigVersion(eventId, context) {
+            const gameContext = resolveGameplayContext('getBuildingConfigVersion', context);
+            return withManager((svc) => svc.getBuildingConfigVersion(eventId, gameContext), 0);
         },
-        setBuildingConfigVersion: function setBuildingConfigVersion(eventId, version) {
-            return withManager((svc) => svc.setBuildingConfigVersion(eventId, version), null);
+        setBuildingConfigVersion: function setBuildingConfigVersion(eventId, version, context) {
+            const gameContext = resolveGameplayContext('setBuildingConfigVersion', context);
+            return withManager((svc) => svc.setBuildingConfigVersion(eventId, version, gameContext), null);
         },
-        getBuildingPositions: function getBuildingPositions(eventId) {
-            return withManager((svc) => svc.getBuildingPositions(eventId), null);
+        getBuildingPositions: function getBuildingPositions(eventId, context) {
+            const gameContext = resolveGameplayContext('getBuildingPositions', context);
+            return withManager((svc) => svc.getBuildingPositions(eventId, gameContext), null);
         },
-        setBuildingPositions: function setBuildingPositions(eventId, positions) {
-            return withManager((svc) => svc.setBuildingPositions(eventId, positions), null);
+        setBuildingPositions: function setBuildingPositions(eventId, positions, context) {
+            const gameContext = resolveGameplayContext('setBuildingPositions', context);
+            return withManager((svc) => svc.setBuildingPositions(eventId, positions, gameContext), null);
         },
-        getBuildingPositionsVersion: function getBuildingPositionsVersion(eventId) {
-            return withManager((svc) => svc.getBuildingPositionsVersion(eventId), 0);
+        getBuildingPositionsVersion: function getBuildingPositionsVersion(eventId, context) {
+            const gameContext = resolveGameplayContext('getBuildingPositionsVersion', context);
+            return withManager((svc) => svc.getBuildingPositionsVersion(eventId, gameContext), 0);
         },
-        setBuildingPositionsVersion: function setBuildingPositionsVersion(eventId, version) {
-            return withManager((svc) => svc.setBuildingPositionsVersion(eventId, version), null);
+        setBuildingPositionsVersion: function setBuildingPositionsVersion(eventId, version, context) {
+            const gameContext = resolveGameplayContext('setBuildingPositionsVersion', context);
+            return withManager((svc) => svc.setBuildingPositionsVersion(eventId, version, gameContext), null);
         },
         getGlobalDefaultBuildingConfig: function getGlobalDefaultBuildingConfig(eventId) {
             return withManager((svc) => svc.getGlobalDefaultBuildingConfig(eventId), null);
@@ -374,38 +449,49 @@
         getGlobalDefaultBuildingPositionsVersion: function getGlobalDefaultBuildingPositionsVersion() {
             return withManager((svc) => svc.getGlobalDefaultBuildingPositionsVersion(), 0);
         },
-        createAlliance: async function createAlliance(name) {
-            return withManager((svc) => svc.createAlliance(name), notLoadedResult());
+        createAlliance: async function createAlliance(name, context) {
+            const gameContext = resolveGameplayContext('createAlliance', context);
+            return withManager((svc) => svc.createAlliance(name, gameContext), notLoadedResult());
         },
-        leaveAlliance: async function leaveAlliance() {
-            return withManager((svc) => svc.leaveAlliance(), notLoadedResult());
+        leaveAlliance: async function leaveAlliance(context) {
+            const gameContext = resolveGameplayContext('leaveAlliance', context);
+            return withManager((svc) => svc.leaveAlliance(gameContext), notLoadedResult());
         },
-        loadAllianceData: async function loadAllianceData() {
-            return withManager((svc) => svc.loadAllianceData(), notLoadedResult());
+        loadAllianceData: async function loadAllianceData(context) {
+            const gameContext = resolveGameplayContext('loadAllianceData', context);
+            return withManager((svc) => svc.loadAllianceData(gameContext), notLoadedResult());
         },
-        sendInvitation: async function sendInvitation(email) {
-            return withManager((svc) => svc.sendInvitation(email), notLoadedResult());
+        sendInvitation: async function sendInvitation(email, context) {
+            const gameContext = resolveGameplayContext('sendInvitation', context);
+            return withManager((svc) => svc.sendInvitation(email, gameContext), notLoadedResult());
         },
-        checkInvitations: async function checkInvitations() {
-            return withManager((svc) => svc.checkInvitations(), []);
+        checkInvitations: async function checkInvitations(context) {
+            const gameContext = resolveGameplayContext('checkInvitations', context);
+            return withManager((svc) => svc.checkInvitations(gameContext), []);
         },
-        acceptInvitation: async function acceptInvitation(invitationId) {
-            return withManager((svc) => svc.acceptInvitation(invitationId), notLoadedResult());
+        acceptInvitation: async function acceptInvitation(invitationId, context) {
+            const gameContext = resolveGameplayContext('acceptInvitation', context);
+            return withManager((svc) => svc.acceptInvitation(invitationId, gameContext), notLoadedResult());
         },
-        rejectInvitation: async function rejectInvitation(invitationId) {
-            return withManager((svc) => svc.rejectInvitation(invitationId), notLoadedResult());
+        rejectInvitation: async function rejectInvitation(invitationId, context) {
+            const gameContext = resolveGameplayContext('rejectInvitation', context);
+            return withManager((svc) => svc.rejectInvitation(invitationId, gameContext), notLoadedResult());
         },
-        revokeInvitation: async function revokeInvitation(invitationId) {
-            return withManager((svc) => svc.revokeInvitation(invitationId), notLoadedResult());
+        revokeInvitation: async function revokeInvitation(invitationId, context) {
+            const gameContext = resolveGameplayContext('revokeInvitation', context);
+            return withManager((svc) => svc.revokeInvitation(invitationId, gameContext), notLoadedResult());
         },
-        resendInvitation: async function resendInvitation(invitationId) {
-            return withManager((svc) => svc.resendInvitation(invitationId), notLoadedResult());
+        resendInvitation: async function resendInvitation(invitationId, context) {
+            const gameContext = resolveGameplayContext('resendInvitation', context);
+            return withManager((svc) => svc.resendInvitation(invitationId, gameContext), notLoadedResult());
         },
-        uploadAlliancePlayerDatabase: async function uploadAlliancePlayerDatabase(file) {
-            return withManager((svc) => svc.uploadAlliancePlayerDatabase(file), Promise.reject(notLoadedResult()));
+        uploadAlliancePlayerDatabase: async function uploadAlliancePlayerDatabase(file, context) {
+            const gameContext = resolveGameplayContext('uploadAlliancePlayerDatabase', context);
+            return withManager((svc) => svc.uploadAlliancePlayerDatabase(file, gameContext), Promise.reject(notLoadedResult()));
         },
-        setPlayerSource: async function setPlayerSource(source) {
-            return withManager((svc) => svc.setPlayerSource(source), notLoadedResult());
+        setPlayerSource: async function setPlayerSource(source, context) {
+            const gameContext = resolveGameplayContext('setPlayerSource', context);
+            return withManager((svc) => svc.setPlayerSource(source, gameContext), notLoadedResult());
         },
         getAllianceId: function getAllianceId() {
             return withManager((svc) => svc.getAllianceId(), null);

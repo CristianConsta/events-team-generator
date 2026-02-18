@@ -315,3 +315,41 @@ test('signOut clears active game context', async () => {
   await global.FirebaseService.signOut();
   assert.deepEqual(global.FirebaseService.getActiveGame(), { gameId: '', source: 'none' });
 });
+
+test('legacy game signature warning is emitted only once per method', () => {
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (message) => warnings.push(String(message));
+
+  try {
+    global.FirebaseManager = {
+      isSignedIn: () => false,
+      getPlayerDatabase: () => ({}),
+    };
+    loadModule();
+
+    global.FirebaseService.getPlayerDatabase();
+    global.FirebaseService.getPlayerDatabase();
+
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].includes('[multigame][legacy-signature] getPlayerDatabase'));
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('game-aware service methods accept explicit gameId context', async () => {
+  let receivedContext = null;
+  global.FirebaseManager = {
+    isSignedIn: () => true,
+    saveUserData: async (_options, context) => {
+      receivedContext = context;
+      return { success: true };
+    },
+  };
+  loadModule();
+
+  const result = await global.FirebaseService.saveUserData({ immediate: true }, { gameId: 'last_war' });
+  assert.deepEqual(result, { success: true });
+  assert.deepEqual(receivedContext, { gameId: 'last_war', explicit: true });
+});
