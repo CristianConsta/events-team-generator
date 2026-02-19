@@ -5874,9 +5874,21 @@ async function performUpload(file, target) {
     if (!gameplayContext) {
         return;
     }
+    const normalizedTarget = typeof target === 'string' ? target.trim().toLowerCase() : '';
+    if (normalizedTarget !== 'personal' && normalizedTarget !== 'alliance' && normalizedTarget !== 'both') {
+        showMessage('uploadMessage', t('message_upload_failed', { error: 'Invalid upload target' }), 'error');
+        return;
+    }
+    const hasAlliance = !!(typeof FirebaseService !== 'undefined'
+        && typeof FirebaseService.getAllianceId === 'function'
+        && FirebaseService.getAllianceId(gameplayContext || undefined));
+    if ((normalizedTarget === 'alliance' || normalizedTarget === 'both') && !hasAlliance) {
+        showMessage('uploadMessage', 'Join an alliance first.', 'error');
+        return;
+    }
 
     try {
-        if (target === 'both') {
+        if (normalizedTarget === 'both') {
             let personalResult = null;
             let allianceResult = null;
             let personalError = '';
@@ -5917,7 +5929,7 @@ async function performUpload(file, target) {
             return;
         }
 
-        const result = target === 'alliance'
+        const result = normalizedTarget === 'alliance'
             ? await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext)
             : await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
 
