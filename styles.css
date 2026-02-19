@@ -533,14 +533,6 @@ button:focus-visible {
     font-size: 17px;
     line-height: 1.2;
 }
-.game-selector-option-meta {
-    opacity: 0.74;
-    font-size: 12px;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
 .game-selector-option-check {
     margin-left: auto;
     width: 24px;
@@ -3290,7 +3282,6 @@ select {
     .game-selector-option     { padding: 10px; gap: 10px; border-radius: 12px; }
     .game-selector-option-avatar { width: 42px; height: 42px; min-width: 42px; font-size: 12px; }
     .game-selector-option-name { font-size: 15px; }
-    .game-selector-option-meta { font-size: 11px; }
     .game-selector-actions    { gap: 8px; margin-top: 2px; }
     .settings-avatar-wrap     { gap: 10px; }
     .settings-avatar-preview  { width: 62px; height: 62px; font-size: 18px; }

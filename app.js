@@ -434,11 +434,7 @@ function renderGameSelectorOptions(preferredGameId) {
         const name = document.createElement('span');
         name.className = 'game-selector-option-name';
         name.textContent = game.name || game.id;
-        const meta = document.createElement('span');
-        meta.className = 'game-selector-option-meta';
-        meta.textContent = game.id;
         body.appendChild(name);
-        body.appendChild(meta);
 
         const check = document.createElement('span');
         check.className = 'game-selector-option-check';
@@ -505,7 +501,7 @@ function closeGameSelector(forceClose) {
     }
 }
 
-function openGameSelector(options) {
+async function openGameSelector(options) {
     const config = options && typeof options === 'object' ? options : {};
     const overlay = document.getElementById('gameSelectorOverlay');
     const cancelBtn = document.getElementById('gameSelectorCancelBtn');
@@ -517,6 +513,10 @@ function openGameSelector(options) {
 
     closeNavigationMenu();
     refreshGameSelectorMenuAvailability();
+
+    if (typeof refreshGameMetadataCatalogCache === 'function') {
+        await refreshGameMetadataCatalogCache({ silent: true, preferredGameId: getActiveGame() || '' });
+    }
 
     const activeGameId = getActiveGame() || ensureActiveGameContext();
     const games = renderGameSelectorOptions(activeGameId);
