@@ -715,6 +715,10 @@ function showPostAuthGameSelector() {
         postAuthGameSelectionPending = false;
         return;
     }
+    if (getActiveGame()) {
+        postAuthGameSelectionPending = false;
+        return;
+    }
     postAuthGameSelectionPending = true;
     openGameSelector({ requireChoice: true });
 }

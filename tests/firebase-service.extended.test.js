@@ -11,10 +11,21 @@ function loadModule() {
   require(modulePath);
 }
 
+function makeLocalStorage(seed) {
+  const store = { ...(seed || {}) };
+  return {
+    getItem: (key) => (Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null),
+    setItem: (key, value) => { store[key] = String(value); },
+    removeItem: (key) => { delete store[key]; },
+    dump: () => ({ ...store }),
+  };
+}
+
 test.afterEach(() => {
   delete global.FirebaseManager;
   delete global.FirebaseService;
   delete global.DSCoreGames;
+  delete global.localStorage;
   delete require.cache[require.resolve(modulePath)];
 });
 
@@ -205,6 +216,57 @@ test('setActiveGame accepts ids exposed by manager game catalog', () => {
     gameId: 'desert_ops',
     changed: true,
   });
+});
+
+test('active game selection is persisted per signed-in user', () => {
+  global.localStorage = makeLocalStorage({});
+  global.FirebaseManager = {
+    getCurrentUser: () => ({ uid: 'uid-1' }),
+  };
+  loadModule();
+
+  const firstSet = global.FirebaseService.setActiveGame('last_war');
+  assert.equal(firstSet.success, true);
+  assert.deepEqual(global.localStorage.dump(), {
+    'ds_active_game_id::uid-1': 'last_war',
+  });
+});
+
+test('legacy active game key is migrated into user-scoped key', () => {
+  global.localStorage = makeLocalStorage({
+    ds_active_game_id: 'last_war',
+  });
+  global.FirebaseManager = {
+    getCurrentUser: () => ({ uid: 'uid-2' }),
+  };
+  loadModule();
+
+  const context = global.FirebaseService.getActiveGame();
+  assert.equal(context.gameId, 'last_war');
+  assert.equal(context.source, 'storage-legacy');
+  assert.deepEqual(global.localStorage.dump(), {
+    'ds_active_game_id::uid-2': 'last_war',
+  });
+});
+
+test('signOut clears in-memory active game but keeps user default for next sign-in', async () => {
+  global.localStorage = makeLocalStorage({});
+  let currentUser = { uid: 'uid-3' };
+  global.FirebaseManager = {
+    getCurrentUser: () => currentUser,
+    signOut: async () => {
+      currentUser = null;
+      return { success: true };
+    },
+  };
+  loadModule();
+
+  global.FirebaseService.setActiveGame('last_war');
+  await global.FirebaseService.signOut();
+  assert.deepEqual(global.FirebaseService.getActiveGame(), { gameId: '', source: 'none' });
+
+  currentUser = { uid: 'uid-3' };
+  assert.deepEqual(global.FirebaseService.getActiveGame(), { gameId: 'last_war', source: 'storage' });
 });
 
 // ── Delegation when FirebaseManager is present ───────────────────────────────

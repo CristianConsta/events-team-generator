@@ -64,7 +64,7 @@
 
         FirebaseService.setAuthCallback((isSignedIn, user) => {
             if (isSignedIn) {
-                syncSignedInGameContext({ allowDefault: false });
+                const activeGameId = syncSignedInGameContext({ allowDefault: false });
                 if (typeof global.refreshGameMetadataCatalogCache === 'function') {
                     global.refreshGameMetadataCatalogCache({ silent: true }).catch(() => {});
                 }
@@ -74,7 +74,7 @@
                     updateUserHeaderIdentity(user);
                 }
                 applyTranslations();
-                if (typeof global.showPostAuthGameSelector === 'function') {
+                if (!activeGameId && typeof global.showPostAuthGameSelector === 'function') {
                     global.showPostAuthGameSelector();
                 }
                 initOnboarding();

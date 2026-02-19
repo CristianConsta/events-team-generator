@@ -27,7 +27,7 @@
     const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
     const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
     const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
-    let activeGameIdCache = '';
+    let activeGameContextCache = { uid: '', gameId: '' };
 
     function manager() {
         return typeof global.FirebaseManager !== 'undefined' ? global.FirebaseManager : null;
@@ -329,6 +329,34 @@
             .replace(/^_+|_+$/g, '');
     }
 
+    function normalizeUid(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value.trim();
+    }
+
+    function getCurrentSignedInUid() {
+        return withManager(
+            (svc) => {
+                if (typeof svc.getCurrentUser !== 'function') {
+                    return '';
+                }
+                const user = svc.getCurrentUser();
+                return normalizeUid(user && user.uid);
+            },
+            ''
+        );
+    }
+
+    function getScopedActiveGameStorageKey(uid) {
+        const normalizedUid = normalizeUid(uid);
+        if (!normalizedUid) {
+            return '';
+        }
+        return `${ACTIVE_GAME_STORAGE_KEY}::${normalizedUid}`;
+    }
+
     function normalizeGameIdsFromCatalog(catalog) {
         if (!Array.isArray(catalog)) {
             return [];
@@ -368,36 +396,78 @@
         return 'last_war';
     }
 
-    function readStoredActiveGameId() {
-        if (!global.localStorage || typeof global.localStorage.getItem !== 'function') {
+    function readStoredActiveGameIdFromKey(storageKey) {
+        if (!storageKey || !global.localStorage || typeof global.localStorage.getItem !== 'function') {
             return '';
         }
         try {
-            return normalizeGameId(global.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
+            return normalizeGameId(global.localStorage.getItem(storageKey));
         } catch (error) {
             return '';
         }
     }
 
-    function writeStoredActiveGameId(gameId) {
-        if (!global.localStorage || typeof global.localStorage.setItem !== 'function') {
+    function readStoredActiveGameId(currentUid) {
+        const scopedStorageKey = getScopedActiveGameStorageKey(currentUid);
+        if (scopedStorageKey) {
+            const scopedStoredId = readStoredActiveGameIdFromKey(scopedStorageKey);
+            if (scopedStoredId) {
+                return { gameId: scopedStoredId, source: 'storage' };
+            }
+        }
+
+        const legacyStoredId = readStoredActiveGameIdFromKey(ACTIVE_GAME_STORAGE_KEY);
+        if (!legacyStoredId) {
+            return { gameId: '', source: 'none' };
+        }
+
+        if (scopedStorageKey) {
+            writeStoredActiveGameId(legacyStoredId, currentUid);
+        }
+        return { gameId: legacyStoredId, source: 'storage-legacy' };
+    }
+
+    function writeStoredActiveGameIdToKey(storageKey, gameId) {
+        if (!storageKey || !global.localStorage || typeof global.localStorage.setItem !== 'function') {
             return;
         }
         try {
-            global.localStorage.setItem(ACTIVE_GAME_STORAGE_KEY, gameId);
+            global.localStorage.setItem(storageKey, gameId);
         } catch (error) {
             // Best effort only.
         }
     }
 
-    function removeStoredActiveGameId() {
-        if (!global.localStorage || typeof global.localStorage.removeItem !== 'function') {
+    function writeStoredActiveGameId(gameId, currentUid) {
+        const scopedStorageKey = getScopedActiveGameStorageKey(currentUid);
+        if (scopedStorageKey) {
+            writeStoredActiveGameIdToKey(scopedStorageKey, gameId);
+            removeStoredActiveGameIdFromKey(ACTIVE_GAME_STORAGE_KEY);
+            return;
+        }
+        writeStoredActiveGameIdToKey(ACTIVE_GAME_STORAGE_KEY, gameId);
+    }
+
+    function removeStoredActiveGameIdFromKey(storageKey) {
+        if (!storageKey || !global.localStorage || typeof global.localStorage.removeItem !== 'function') {
             return;
         }
         try {
-            global.localStorage.removeItem(ACTIVE_GAME_STORAGE_KEY);
+            global.localStorage.removeItem(storageKey);
         } catch (error) {
             // Best effort only.
+        }
+    }
+
+    function removeStoredActiveGameId(currentUid, options) {
+        const config = options && typeof options === 'object' ? options : {};
+        const clearLegacy = config.clearLegacy !== false;
+        const clearScoped = config.clearScoped === true;
+        if (clearLegacy) {
+            removeStoredActiveGameIdFromKey(ACTIVE_GAME_STORAGE_KEY);
+        }
+        if (clearScoped) {
+            removeStoredActiveGameIdFromKey(getScopedActiveGameStorageKey(currentUid));
         }
     }
 
@@ -412,27 +482,41 @@
             return { success: false, code: 'unknown-game-id', error: 'Unknown game id' };
         }
 
-        const changed = activeGameIdCache !== normalizedId;
-        activeGameIdCache = normalizedId;
-        writeStoredActiveGameId(normalizedId);
+        const currentUid = getCurrentSignedInUid();
+        const changed = activeGameContextCache.gameId !== normalizedId || activeGameContextCache.uid !== currentUid;
+        activeGameContextCache = {
+            uid: currentUid,
+            gameId: normalizedId,
+        };
+        writeStoredActiveGameId(normalizedId, currentUid);
         return { success: true, gameId: normalizedId, changed: changed };
     }
 
     function getActiveGame() {
-        if (activeGameIdCache) {
-            return { gameId: activeGameIdCache, source: 'memory' };
+        const currentUid = getCurrentSignedInUid();
+        if (
+            activeGameContextCache.gameId
+            && activeGameContextCache.uid === currentUid
+        ) {
+            return { gameId: activeGameContextCache.gameId, source: 'memory' };
         }
-        const storedId = readStoredActiveGameId();
-        if (storedId) {
-            activeGameIdCache = storedId;
-            return { gameId: storedId, source: 'storage' };
+
+        const stored = readStoredActiveGameId(currentUid);
+        if (stored.gameId) {
+            activeGameContextCache = {
+                uid: currentUid,
+                gameId: stored.gameId,
+            };
+            return { gameId: stored.gameId, source: stored.source };
         }
+
         return { gameId: '', source: 'none' };
     }
 
-    function clearActiveGame() {
-        activeGameIdCache = '';
-        removeStoredActiveGameId();
+    function clearActiveGame(options) {
+        const currentUid = getCurrentSignedInUid();
+        activeGameContextCache = { uid: '', gameId: '' };
+        removeStoredActiveGameId(currentUid, options);
     }
 
     function ensureActiveGame() {
@@ -615,8 +699,8 @@
         setActiveGame: function setActiveGamePublic(gameId) {
             return setActiveGame(gameId);
         },
-        clearActiveGame: function clearActiveGamePublic() {
-            return clearActiveGame();
+        clearActiveGame: function clearActiveGamePublic(options) {
+            return clearActiveGame(options);
         },
         ensureActiveGame: function ensureActiveGamePublic() {
             return ensureActiveGame();
@@ -671,7 +755,7 @@
             return withManager((svc) => svc.resetPassword(email), notLoadedResult());
         },
         signOut: async function signOut() {
-            clearActiveGame();
+            clearActiveGame({ clearLegacy: true, clearScoped: false });
             return withManager((svc) => svc.signOut(), notLoadedResult());
         },
         deleteUserAccountAndData: async function deleteUserAccountAndData() {

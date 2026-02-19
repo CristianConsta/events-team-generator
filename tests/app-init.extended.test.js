@@ -209,6 +209,25 @@ test('auth callback triggers post-auth game selector hook on sign-in', () => {
   assert.ok(calls.includes('selector'));
 });
 
+test('auth callback skips post-auth game selector when active game exists on sign-in', () => {
+  const calls = [];
+  buildEnv({ showPostAuthGameSelector: () => calls.push('selector') });
+
+  let authCb;
+  global.FirebaseService = {
+    isAvailable: () => true,
+    getActiveGame: () => ({ gameId: 'last_war', source: 'storage' }),
+    setAuthCallback:         (cb) => { authCb = cb; },
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  authCb(true, { email: 'x@y.com', uid: 'uid1' });
+
+  assert.equal(calls.length, 0);
+});
+
 test('auth callback syncs active game context from existing state on sign-in', () => {
   buildEnv();
   let authCb;

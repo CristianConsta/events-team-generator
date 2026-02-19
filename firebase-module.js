@@ -810,6 +810,25 @@ const FirebaseManager = (function() {
         return '';
     }
 
+    function normalizeUid(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value.trim();
+    }
+
+    function resolveScopedActiveGameStorageKey(userOrUid) {
+        const userUid = normalizeUid(
+            typeof userOrUid === 'string'
+                ? userOrUid
+                : (userOrUid && typeof userOrUid === 'object' ? userOrUid.uid : '')
+        );
+        if (!userUid) {
+            return '';
+        }
+        return `${ACTIVE_GAME_STORAGE_KEY}::${userUid}`;
+    }
+
     function resolveGameplayContext(methodName, context) {
         const explicitGameId = normalizeGameContextInput(context);
         if (explicitGameId) {
@@ -823,7 +842,7 @@ const FirebaseManager = (function() {
         return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
     }
 
-    function resolveInitialAuthGameId() {
+    function resolveInitialAuthGameId(userOrUid) {
         if (typeof window !== 'undefined') {
             const fromGlobal = normalizeGameId(window.__ACTIVE_GAME_ID);
             if (fromGlobal) {
@@ -831,8 +850,22 @@ const FirebaseManager = (function() {
             }
             try {
                 if (window.localStorage && typeof window.localStorage.getItem === 'function') {
+                    const scopedStorageKey = resolveScopedActiveGameStorageKey(userOrUid);
+                    if (scopedStorageKey) {
+                        const fromScopedStorage = normalizeGameId(window.localStorage.getItem(scopedStorageKey));
+                        if (fromScopedStorage) {
+                            return fromScopedStorage;
+                        }
+                    }
                     const fromStorage = normalizeGameId(window.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
                     if (fromStorage) {
+                        if (scopedStorageKey && typeof window.localStorage.setItem === 'function') {
+                            try {
+                                window.localStorage.setItem(scopedStorageKey, fromStorage);
+                            } catch (scopedWriteError) {
+                                // Best effort migration to user-scoped key only.
+                            }
+                        }
                         return fromStorage;
                     }
                 }
@@ -2358,7 +2391,7 @@ const FirebaseManager = (function() {
 
             console.log('✅ User signed in:', user.email);
             resetSaveState();
-            loadUserData(user, { gameId: resolveInitialAuthGameId() });
+            loadUserData(user, { gameId: resolveInitialAuthGameId(user.uid) });
             
             if (onAuthCallback) {
                 onAuthCallback(true, user);
