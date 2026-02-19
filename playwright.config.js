@@ -17,6 +17,14 @@ const { defineConfig, devices } = require('@playwright/test');
 
 /** Absolute path to index.html served as a file:// URL */
 const INDEX_URL = `file://${__dirname}/index.html`.replace(/\\/g, '/');
+const PLAYWRIGHT_CHANNEL = (process.env.PLAYWRIGHT_CHANNEL || 'msedge').trim();
+
+function withChannel(useConfig) {
+  if (!PLAYWRIGHT_CHANNEL || PLAYWRIGHT_CHANNEL === 'default') {
+    return Object.assign({}, useConfig);
+  }
+  return Object.assign({}, useConfig, { channel: PLAYWRIGHT_CHANNEL });
+}
 
 module.exports = defineConfig({
   testDir: './e2e',
@@ -47,16 +55,14 @@ module.exports = defineConfig({
     {
       name: 'edge-desktop',
       use: {
-        ...devices['Desktop Edge'],
-        channel: 'msedge',
+        ...withChannel(devices['Desktop Edge']),
         viewport: { width: 1280, height: 800 },
       },
     },
     {
       name: 'edge-mobile',
       use: {
-        ...devices['Pixel 5'],
-        channel: 'msedge',
+        ...withChannel(devices['Pixel 5']),
       },
     },
   ],

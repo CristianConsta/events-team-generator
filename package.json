@@ -3,7 +3,10 @@
   "private": true,
   "description": "One-time tooling for Firebase data migration",
   "scripts": {
+    "lint": "eslint app.js firebase-module.js js/**/*.js tests/**/*.js e2e/**/*.js",
+    "lint:ci": "npm run lint",
     "test": "npm run test:unit",
+    "test:ci": "npm run lint:ci && npm run test:unit && npm run test:e2e:smoke",
     "test:unit": "node --test tests/*.test.js",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.emulator.js\"",
     "test:e2e": "playwright test --project=edge-desktop --project=edge-mobile",
@@ -20,6 +23,7 @@
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
     "@playwright/test": "^1.58.2",
+    "eslint": "^8.57.1",
     "firebase-tools": "^14.21.0"
   }
 }

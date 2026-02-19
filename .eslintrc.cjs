@@ -15,6 +15,13 @@ module.exports = {
   },
   overrides: [
     {
+      files: ['app.js', 'firebase-module.js', 'js/app-init.js', 'js/core/i18n.js'],
+      rules: {
+        'no-undef': 'off',
+        'no-inner-declarations': 'off',
+      },
+    },
+    {
       files: ['*.mjs', 'js/**/*.mjs'],
       parserOptions: {
         sourceType: 'module',
