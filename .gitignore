@@ -25,3 +25,5 @@ npm-debug.log*
 # Node
 node_modules/
 nul
+playwright-report/
+test-results/

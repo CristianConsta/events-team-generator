@@ -232,6 +232,12 @@ Unit tests only:
 npm run test:unit
 ```
 
+Static size budgets:
+
+```bash
+npm run check:budgets
+```
+
 Playwright E2E (separate from unit tests):
 
 ```bash
