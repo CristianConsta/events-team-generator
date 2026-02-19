@@ -2228,11 +2228,82 @@ const FirebaseManager = (function() {
     }
 
     function cloneJson(value) {
+        if (typeof structuredClone === 'function') {
+            return structuredClone(value);
+        }
         return JSON.parse(JSON.stringify(value));
     }
 
+    function isPlainObject(value) {
+        if (!value || typeof value !== 'object') {
+            return false;
+        }
+        const proto = Object.getPrototypeOf(value);
+        return proto === Object.prototype || proto === null;
+    }
+
     function areJsonEqual(a, b) {
-        return JSON.stringify(a) === JSON.stringify(b);
+        if (a === b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        if (Array.isArray(a) || Array.isArray(b)) {
+            if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+                return false;
+            }
+            for (let i = 0; i < a.length; i += 1) {
+                if (!areJsonEqual(a[i], b[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (isPlainObject(a) || isPlainObject(b)) {
+            if (!isPlainObject(a) || !isPlainObject(b)) {
+                return false;
+            }
+            const aKeys = Object.keys(a);
+            const bKeys = Object.keys(b);
+            if (aKeys.length !== bKeys.length) {
+                return false;
+            }
+            for (let i = 0; i < aKeys.length; i += 1) {
+                const key = aKeys[i];
+                if (!Object.prototype.hasOwnProperty.call(b, key)) {
+                    return false;
+                }
+                if (!areJsonEqual(a[key], b[key])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    function getUserStateDiff(lastState, currentState) {
+        const changedFields = [];
+
+        if (!lastState || !areJsonEqual(lastState.playerDatabase, currentState.playerDatabase)) {
+            changedFields.push('playerDatabase');
+        }
+        if (!lastState || !areJsonEqual(lastState.events, currentState.events)) {
+            changedFields.push('events');
+        }
+        const mediaChanged = !lastState || !areJsonEqual(lastState.eventMedia, currentState.eventMedia);
+        if (mediaChanged) {
+            changedFields.push('eventMedia');
+        }
+        if (!lastState || !areJsonEqual(lastState.userProfile, currentState.userProfile)) {
+            changedFields.push('userProfile');
+        }
+
+        return {
+            changedFields: changedFields,
+            mediaChanged: mediaChanged,
+        };
     }
 
     function getCurrentPersistedUserState() {
@@ -3196,21 +3267,9 @@ const FirebaseManager = (function() {
         const gameId = getResolvedGameId('persistChangedUserData', context);
 
         const currentState = getCurrentPersistedUserState();
-        const changedFields = [];
-
-        if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.playerDatabase, currentState.playerDatabase)) {
-            changedFields.push('playerDatabase');
-        }
-        if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.events, currentState.events)) {
-            changedFields.push('events');
-        }
-        const mediaChanged = !lastSavedUserState || !areJsonEqual(lastSavedUserState.eventMedia, currentState.eventMedia);
-        if (mediaChanged) {
-            changedFields.push('eventMedia');
-        }
-        if (!lastSavedUserState || !areJsonEqual(lastSavedUserState.userProfile, currentState.userProfile)) {
-            changedFields.push('userProfile');
-        }
+        const stateDiff = getUserStateDiff(lastSavedUserState, currentState);
+        const changedFields = stateDiff.changedFields;
+        const mediaChanged = stateDiff.mediaChanged;
 
         if (changedFields.length === 0 && !mediaChanged) {
             return { success: true, skipped: true };
