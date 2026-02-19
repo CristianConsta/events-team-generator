@@ -338,6 +338,7 @@ async function navigateTo(page, navBtnId) {
     mobileNavConfigBtn: 'configurationPage',
     navAllianceBtn: 'alliancePage',
     mobileNavAllianceBtn: 'alliancePage',
+    navSupportBtn: 'supportPage',
   };
 
   async function waitForExpectedPage(id, timeoutMs) {
@@ -428,7 +429,7 @@ function defaultPlayers() {
  * Assert that only one page view is visible at a time.
  */
 async function assertOnlyPageVisible(page, visiblePageId) {
-  const pages = ['generatorPage', 'playersManagementPage', 'configurationPage', 'alliancePage'];
+  const pages = ['generatorPage', 'playersManagementPage', 'configurationPage', 'alliancePage', 'supportPage'];
   await page.waitForFunction(
     ({ expectedId, ids }) => {
       return ids.every((id) => {

@@ -42,4 +42,10 @@ test.describe('Navigation workflows', () => {
     });
     await expect(page.locator('#settingsModal')).toBeHidden();
   });
+
+  test('@regression @navigation support page opens from menu item', async ({ page }) => {
+    await navigateTo(page, 'navSupportBtn');
+    await assertOnlyPageVisible(page, 'supportPage');
+    await expect(page.locator('#supportPage')).toBeVisible();
+  });
 });

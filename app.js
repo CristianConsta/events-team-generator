@@ -1307,6 +1307,7 @@ function bindStaticUiActions() {
     on('navConfigBtn', 'click', showConfigurationPage);
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
+    on('navSupportBtn', 'click', showSupportPage);
     on('mobileNavGeneratorBtn', 'click', showGeneratorPage);
     on('mobileNavConfigBtn', 'click', showConfigurationPage);
     on('mobileNavPlayersBtn', 'click', showPlayersManagementPage);
