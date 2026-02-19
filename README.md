@@ -262,6 +262,14 @@ Regression workflows (`@regression`):
 npm run test:e2e:regression
 ```
 
+Real Firebase smoke workflow (`@real`):
+
+```bash
+$env:E2E_REAL_EMAIL='qa-user@example.com'
+$env:E2E_REAL_PASSWORD='your-password'
+npm run test:e2e:real
+```
+
 ## Troubleshooting
 
 - `Firebase config not found`

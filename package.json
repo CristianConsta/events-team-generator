@@ -14,7 +14,8 @@
     "test:e2e:mobile": "playwright test --project=edge-mobile",
     "test:e2e:headed": "playwright test --project=edge-desktop --headed",
     "test:e2e:smoke": "playwright test --project=edge-desktop --project=edge-mobile --grep @smoke",
-    "test:e2e:regression": "playwright test --project=edge-desktop --project=edge-mobile --grep @regression"
+    "test:e2e:regression": "playwright test --project=edge-desktop --project=edge-mobile --grep @regression",
+    "test:e2e:real": "playwright test --project=edge-desktop --grep @real"
   },
   "dependencies": {
     "@google-cloud/firestore": "^8.2.0",
