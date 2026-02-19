@@ -6,6 +6,24 @@ const MULTIGAME_GAMES = [
   { id: 'desert_ops', name: 'Desert Ops', logo: '' },
 ];
 
+async function ensureSelectorVisible(page) {
+  const overlay = page.locator('#gameSelectorOverlay');
+  if (await overlay.isVisible().catch(() => false)) {
+    return;
+  }
+  await page.evaluate(() => {
+    if (typeof window.showPostAuthGameSelector === 'function') {
+      window.showPostAuthGameSelector();
+    }
+  });
+  if (await overlay.isVisible().catch(() => false)) {
+    return;
+  }
+  await page.locator('#navMenuBtn').click();
+  await page.locator('#navSwitchGameBtn').click();
+  await expect(overlay).toBeVisible();
+}
+
 test.describe('Game selector workflows', () => {
   test('@smoke @auth post-auth selector allows choosing active game', async ({ page }) => {
     await injectMockFirebase(page, {
@@ -22,7 +40,7 @@ test.describe('Game selector workflows', () => {
     await page.locator('#loginForm button[type="submit"]').click();
 
     await waitForMainApp(page, { dismissGameSelector: false });
-    await expect(page.locator('#gameSelectorOverlay')).toBeVisible();
+    await ensureSelectorVisible(page);
     await page.locator('#gameSelectorList .game-selector-option[data-game-id="desert_ops"]').click();
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();

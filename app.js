@@ -346,9 +346,14 @@ function enforceGameplayContext(statusElementId) {
                 }
                 return '';
             }
-            const fallbackId = ensureActiveGameContext();
-            if (fallbackId) {
-                return fallbackId;
+            const signedIn = typeof FirebaseService !== 'undefined'
+                && typeof FirebaseService.isSignedIn === 'function'
+                && FirebaseService.isSignedIn() === true;
+            if (signedIn) {
+                const fallbackId = ensureActiveGameContext();
+                if (fallbackId) {
+                    return fallbackId;
+                }
             }
             if (statusElementId) {
                 showMessage(statusElementId, 'Active game context is required.', 'error');
@@ -387,13 +392,19 @@ let postAuthSelectorShownThisSession = false;
 let postAuthGameSelectionPending = false;
 
 function isPostAuthGameSelectorEnabled() {
+    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.isFeatureFlagEnabled === 'function') {
+        const liveFlag = FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED');
+        if (liveFlag === true) {
+            return true;
+        }
+        if (liveFlag === false) {
+            return false;
+        }
+    }
     if (window.__APP_FEATURE_FLAGS && typeof window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === 'boolean') {
         return window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
     }
-    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.isFeatureFlagEnabled !== 'function') {
-        return false;
-    }
-    return FirebaseService.isFeatureFlagEnabled('MULTIGAME_GAME_SELECTOR_ENABLED');
+    return false;
 }
 
 function renderGameSelectorOptions(preferredGameId) {
@@ -706,6 +717,10 @@ async function confirmGameSelectorChoice() {
 
 function showPostAuthGameSelector() {
     refreshGameSelectorMenuAvailability();
+    if (!isPostAuthGameSelectorEnabled()) {
+        postAuthGameSelectionPending = false;
+        return;
+    }
     if (postAuthSelectorShownThisSession) {
         return;
     }
@@ -1681,8 +1696,9 @@ function initializeApplicationUiRuntime() {
     startNewEventDraft();
     switchEvent(currentEvent);
     updateUserHeaderIdentity(currentAuthUser);
-    ensureActiveGameContext();
-    updateActiveGameBadge();
+    const activeGameContext = getActiveGameContext();
+    window.__ACTIVE_GAME_ID = activeGameContext.gameId;
+    updateActiveGameBadge(activeGameContext.gameId);
     refreshGameSelectorMenuAvailability();
     if (typeof refreshGameMetadataCatalogCache === 'function') {
         refreshGameMetadataCatalogCache({ silent: true }).catch(() => {});
