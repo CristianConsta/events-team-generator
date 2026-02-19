@@ -56,7 +56,7 @@ test('users/{uid}/games/{gameId} is readable/writable only by owner', async () =
   );
 });
 
-test('alliance doc is readable by authenticated users', async () => {
+test('alliance doc is readable only by members/creator', async () => {
   await seedDoc('games/last_war/alliances/a1', {
     gameId: 'last_war',
     createdBy: 'owner',
@@ -73,12 +73,79 @@ test('alliance doc is readable by authenticated users', async () => {
   await assertSucceeds(
     member.doc('games/last_war/alliances/a1').get()
   );
-  await assertSucceeds(
+  await assertFails(
     outsider.doc('games/last_war/alliances/a1').get()
   );
 });
 
-test('invitation create/read/update is allowed for authenticated users', async () => {
+test('alliance create/update follows membership and game scope checks', async () => {
+  const owner = authedDb('owner', 'owner@example.com');
+  const invitee = authedDb('member2', 'member2@example.com');
+  const outsider = authedDb('outsider', 'outsider@example.com');
+
+  await assertSucceeds(
+    owner.doc('games/last_war/alliances/new-alliance').set({
+      gameId: 'last_war',
+      name: 'New Alliance',
+      createdBy: 'owner',
+      members: {
+        owner: { email: 'owner@example.com', role: 'member' },
+      },
+      playerDatabase: {},
+      metadata: { totalPlayers: 0 },
+    })
+  );
+
+  await assertFails(
+    owner.doc('games/last_war/alliances/invalid-alliance').set({
+      gameId: 'last_war',
+      name: 'Invalid Alliance',
+      createdBy: 'other-user',
+      members: {
+        owner: { email: 'owner@example.com', role: 'member' },
+      },
+      playerDatabase: {},
+      metadata: { totalPlayers: 0 },
+    })
+  );
+
+  await assertSucceeds(
+    owner.doc('games/last_war/alliances/new-alliance').set({
+      gameId: 'last_war',
+      playerDatabase: {
+        Alpha: { power: 10, troops: 'Tank' },
+      },
+    }, { merge: true })
+  );
+
+  await assertSucceeds(
+    invitee.doc('games/last_war/alliances/new-alliance').set({
+      gameId: 'last_war',
+      members: {
+        owner: { email: 'owner@example.com', role: 'member' },
+        member2: { email: 'member2@example.com', role: 'member' },
+      },
+    }, { merge: true })
+  );
+
+  await assertFails(
+    outsider.doc('games/last_war/alliances/new-alliance').set({
+      gameId: 'last_war',
+      name: 'Blocked update',
+    }, { merge: true })
+  );
+});
+
+test('invitation create requires alliance actor; read/update limited to inviter or invitee', async () => {
+  await seedDoc('games/last_war/alliances/a1', {
+    gameId: 'last_war',
+    createdBy: 'owner',
+    name: 'Alpha',
+    members: {
+      owner: { email: 'owner@example.com', role: 'member' },
+    },
+  });
+
   const inviter = authedDb('owner', 'owner@example.com');
   const invitee = authedDb('member2', 'member2@example.com');
   const outsider = authedDb('outsider', 'outsider@example.com');
@@ -99,7 +166,7 @@ test('invitation create/read/update is allowed for authenticated users', async (
   await assertSucceeds(
     invitee.doc('games/last_war/invitations/inv1').get()
   );
-  await assertSucceeds(
+  await assertFails(
     outsider.doc('games/last_war/invitations/inv1').get()
   );
 
@@ -107,6 +174,23 @@ test('invitation create/read/update is allowed for authenticated users', async (
     invitee.doc('games/last_war/invitations/inv1').update({
       status: 'accepted',
       gameId: 'last_war',
+    })
+  );
+
+  await assertFails(
+    outsider.doc('games/last_war/invitations/inv1').update({
+      status: 'revoked',
+      gameId: 'last_war',
+    })
+  );
+
+  await assertFails(
+    outsider.doc('games/last_war/invitations/inv2').set({
+      gameId: 'last_war',
+      allianceId: 'a1',
+      invitedBy: 'outsider',
+      invitedEmail: 'target@example.com',
+      status: 'pending',
     })
   );
 });
@@ -133,11 +217,15 @@ test('only configured super admin can write game metadata docs', async () => {
   );
 });
 
-test('legacy root alliances and invitations are allowed for authenticated users', async () => {
+test('legacy root alliances and invitations are read-only for authenticated users', async () => {
+  await seedDoc('alliances/legacy-a1', { name: 'Legacy A1' });
+  await seedDoc('invitations/legacy-i1', { status: 'pending' });
   const user = authedDb('alice', 'alice@example.com');
 
-  await assertSucceeds(user.doc('alliances/legacy-a1').set({ name: 'Legacy A1' }));
-  await assertSucceeds(user.doc('invitations/legacy-i1').set({ status: 'pending' }));
+  await assertSucceeds(user.doc('alliances/legacy-a1').get());
+  await assertSucceeds(user.doc('invitations/legacy-i1').get());
+  await assertFails(user.doc('alliances/legacy-a1').set({ name: 'Blocked legacy write' }));
+  await assertFails(user.doc('invitations/legacy-i1').set({ status: 'blocked' }));
 
   // Sanity: game-scoped paths remain valid for signed-in users.
   await assertSucceeds(user.doc('games/last_war').get());

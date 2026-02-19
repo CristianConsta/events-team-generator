@@ -13,6 +13,52 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == '2z2BdO8aVsUovqQWWL9WCRMdV933';
     }
 
+    function authEmailLower() {
+      return signedIn() && request.auth.token.email is string
+        ? lower(request.auth.token.email)
+        : '';
+    }
+
+    function isGameScopedPayloadFor(gameId) {
+      return request.resource != null
+        && request.resource.data.gameId is string
+        && request.resource.data.gameId == gameId;
+    }
+
+    function isAllianceMemberPayload(data, uid) {
+      return data != null
+        && data.members is map
+        && data.members[uid] != null;
+    }
+
+    function isAllianceActor(data) {
+      return signedIn()
+        && (
+          (data.createdBy is string && data.createdBy == request.auth.uid)
+          || isAllianceMemberPayload(data, request.auth.uid)
+        );
+    }
+
+    function isInviteePayload(data) {
+      return signedIn()
+        && data.invitedEmail is string
+        && lower(data.invitedEmail) == authEmailLower();
+    }
+
+    function isInvitationActor(data) {
+      return signedIn()
+        && (
+          (data.invitedBy is string && data.invitedBy == request.auth.uid)
+          || isInviteePayload(data)
+        );
+    }
+
+    function invitationBelongsToGame(data, gameId) {
+      return data != null
+        && data.gameId is string
+        && data.gameId == gameId;
+    }
+
     match /users/{uid} {
       allow read, write: if isSelf(uid);
 
@@ -43,24 +89,46 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin(); // game metadata admin
 
       match /alliances/{allianceId} {
-        // Permissive authenticated access so create/join/leave/invite flows
-        // work during multigame rollout without membership deadlocks.
-        allow read, write: if signedIn()
+        allow read: if isAllianceActor(resource.data);
+        allow create: if signedIn()
+          && isGameScopedPayloadFor(gameId)
+          && request.resource.data.createdBy is string
+          && request.resource.data.createdBy == request.auth.uid
+          && isAllianceMemberPayload(request.resource.data, request.auth.uid);
+        allow update: if signedIn()
+          && resource != null
+          && isGameScopedPayloadFor(gameId)
           && (
-            request.method == 'delete'
-            || !('gameId' in request.resource.data)
-            || request.resource.data.gameId == gameId
+            isAllianceActor(resource.data)
+            // Invitees can self-join through accept-invitation flow.
+            || (
+              request.resource.data.members is map
+              && request.resource.data.members[request.auth.uid] != null
+            )
           );
+        allow delete: if isAllianceActor(resource.data);
       }
 
       match /invitations/{invitationId} {
-        // Permissive authenticated access for invitation lifecycle.
-        allow read, write: if signedIn()
-          && (
-            request.method == 'delete'
-            || !('gameId' in request.resource.data)
-            || request.resource.data.gameId == gameId
+        allow read: if invitationBelongsToGame(resource.data, gameId)
+          && isInvitationActor(resource.data);
+        allow create: if signedIn()
+          && isGameScopedPayloadFor(gameId)
+          && request.resource.data.invitedBy is string
+          && request.resource.data.invitedBy == request.auth.uid
+          && request.resource.data.allianceId is string
+          && exists(/databases/$(database)/documents/games/$(gameId)/alliances/$(request.resource.data.allianceId))
+          && isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(request.resource.data.allianceId)).data
           );
+        allow update: if resource != null
+          && invitationBelongsToGame(resource.data, gameId)
+          && isGameScopedPayloadFor(gameId)
+          && isInvitationActor(resource.data);
+        allow delete: if resource != null
+          && invitationBelongsToGame(resource.data, gameId)
+          && resource.data.invitedBy is string
+          && resource.data.invitedBy == request.auth.uid;
       }
     }
 
@@ -71,11 +139,13 @@ service cloud.firestore {
 
     // Legacy root collections retained for compatibility while rollout completes.
     match /alliances/{allianceId} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if false;
     }
 
     match /invitations/{invitationId} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if false;
     }
   }
 }
