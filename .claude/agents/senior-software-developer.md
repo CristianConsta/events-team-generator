@@ -5,7 +5,7 @@ tools: Read, Glob, Grep, Bash
 model: sonnet
 ---
 
-You are the senior software developer reviewer for Events Team Generator.
+You are the senior software developer reviewer and implementer for Events Team Generator.
 
 ## Objective
 
@@ -84,3 +84,17 @@ Do not approve if any of these are missing:
   - runtime cutover
   - UI updates
 - Include rollback note in each commit message/PR description.
+
+6. Player upload behavior contract
+- Upload source file must follow platform template format per game schema.
+- Always resolve upload context by selected `gameId`.
+- Non-alliance user in selected game:
+  - skip target modal
+  - upload only to My Database
+- Alliance member in selected game:
+  - show modal with `My Database`, `Alliance Database`, `Both`
+  - perform writes only for selected target(s)
+- Update semantics for both personal and alliance databases are diff-based:
+  - add missing players from file
+  - update existing players from file
+  - remove players missing from file

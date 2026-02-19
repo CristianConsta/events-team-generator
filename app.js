@@ -5768,6 +5768,62 @@ async function handleResendInvitation(invitationId, statusElementId) {
 
 let pendingUploadFile = null;
 
+function hasAllianceUploadAccess(gameplayContext) {
+    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getAllianceId !== 'function') {
+        return false;
+    }
+
+    const allianceId = FirebaseService.getAllianceId(gameplayContext || undefined);
+    if (!allianceId) {
+        return false;
+    }
+
+    if (typeof FirebaseService.getAllianceData !== 'function') {
+        return true;
+    }
+
+    const allianceState = FirebaseService.getAllianceData(gameplayContext || undefined);
+    if (!allianceState || typeof allianceState !== 'object') {
+        return false;
+    }
+
+    if (typeof FirebaseService.getCurrentUser !== 'function') {
+        return true;
+    }
+
+    const currentUser = FirebaseService.getCurrentUser();
+    const uid = currentUser && typeof currentUser.uid === 'string' ? currentUser.uid : '';
+    if (!uid) {
+        return true;
+    }
+
+    const members = allianceState.members && typeof allianceState.members === 'object'
+        ? allianceState.members
+        : null;
+    return !!(members && members[uid]);
+}
+
+async function resolveAllianceUploadAccess(gameplayContext) {
+    const context = gameplayContext || getGameplayContext();
+    if (!context || typeof FirebaseService === 'undefined') {
+        return false;
+    }
+
+    if (
+        typeof FirebaseService.loadAllianceData === 'function'
+        && typeof FirebaseService.isSignedIn === 'function'
+        && FirebaseService.isSignedIn()
+    ) {
+        try {
+            await FirebaseService.loadAllianceData(context);
+        } catch (error) {
+            // Best effort refresh for upload decision only.
+        }
+    }
+
+    return hasAllianceUploadAccess(context);
+}
+
 async function uploadPlayerData() {
     const activeGameId = enforceGameplayContext('uploadMessage');
     if (!activeGameId) {
@@ -5793,9 +5849,10 @@ async function uploadPlayerData() {
     }
 
     const gameplayContext = getGameplayContext('uploadMessage');
-    if (FirebaseService.getAllianceId(gameplayContext || undefined)) {
+    const hasAlliance = await resolveAllianceUploadAccess(gameplayContext);
+    if (hasAlliance) {
         pendingUploadFile = file;
-        openUploadTargetModal();
+        openUploadTargetModal({ hasAlliance: true, gameplayContext });
     } else {
         await performUpload(file, 'personal');
     }
@@ -5811,13 +5868,16 @@ function closeUploadTargetModal() {
     }
 }
 
-function openUploadTargetModal() {
+function openUploadTargetModal(options) {
     const modal = document.getElementById('uploadTargetModal');
     if (!modal) {
         return;
     }
-    const gameplayContext = getGameplayContext();
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined' && FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
+    const config = options && typeof options === 'object' ? options : {};
+    const gameplayContext = config.gameplayContext || getGameplayContext();
+    const hasAlliance = config.hasAlliance === true
+        ? true
+        : hasAllianceUploadAccess(gameplayContext);
     const personalBtn = document.getElementById('uploadPersonalBtn');
     const allianceBtn = document.getElementById('uploadAllianceBtn');
     const bothBtn = document.getElementById('uploadBothBtn');
@@ -5879,9 +5939,7 @@ async function performUpload(file, target) {
         showMessage('uploadMessage', t('message_upload_failed', { error: 'Invalid upload target' }), 'error');
         return;
     }
-    const hasAlliance = !!(typeof FirebaseService !== 'undefined'
-        && typeof FirebaseService.getAllianceId === 'function'
-        && FirebaseService.getAllianceId(gameplayContext || undefined));
+    const hasAlliance = hasAllianceUploadAccess(gameplayContext);
     if ((normalizedTarget === 'alliance' || normalizedTarget === 'both') && !hasAlliance) {
         showMessage('uploadMessage', 'Join an alliance first.', 'error');
         return;

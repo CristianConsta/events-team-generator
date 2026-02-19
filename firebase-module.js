@@ -2282,8 +2282,25 @@ const FirebaseManager = (function() {
         }
 
         const payload = buildGameScopedUserPayload(currentState, changedFields);
+        const mergeFields = [
+            'playerSource',
+            'allianceId',
+            'allianceName',
+            'metadata',
+        ];
+        if (Array.isArray(changedFields)) {
+            if (changedFields.includes('playerDatabase')) {
+                mergeFields.push('playerDatabase');
+            }
+            if (changedFields.includes('events')) {
+                mergeFields.push('events');
+            }
+            if (changedFields.includes('userProfile')) {
+                mergeFields.push('userProfile');
+            }
+        }
         try {
-            await gameRef.set(payload, { merge: true });
+            await gameRef.set(payload, { mergeFields: mergeFields });
             await db.collection('users').doc(currentUser.uid).set({
                 migrationVersion: GAME_SUBCOLLECTION_MIGRATION_VERSION,
                 migratedToGameSubcollectionsAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -4826,7 +4843,7 @@ const FirebaseManager = (function() {
                             lastUpload: new Date().toISOString(),
                             lastModified: firebase.firestore.FieldValue.serverTimestamp()
                         }
-                    }, { merge: true });
+                    }, { mergeFields: ['playerDatabase', 'metadata'] });
 
                     if (allianceData) {
                         allianceData.playerDatabase = alliancePlayerDB;

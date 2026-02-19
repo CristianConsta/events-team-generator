@@ -72,6 +72,16 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 - All added text must be translated across all supported locales.
 - Preserve mobile safe-area behavior and existing nav/footer layout on small screens.
 
+6. Player upload UX contract
+- Upload starts from file chooser using downloaded template format.
+- If user is not in alliance for selected game:
+  - do not show target modal
+  - upload directly to My Database
+- If user is in alliance for selected game:
+  - show target modal with `My Database`, `Alliance Database`, `Both`
+  - keep modal accessible and mobile-friendly
+- Never present alliance upload choices when alliance enrollment is absent.
+
 ## Quick patterns
 
 Add translated text in markup:

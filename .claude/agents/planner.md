@@ -120,3 +120,14 @@ A good plan in this repo must:
   - exact test commands
   - Firestore integrity checks (counts/path presence)
   - rollback note
+
+6. Player upload planning invariant
+- Include explicit acceptance criteria for upload routing:
+  - non-alliance user -> direct My Database upload, no modal
+  - alliance user -> modal with `My Database`, `Alliance Database`, `Both`
+- Include diff-update acceptance criteria per selected target DB:
+  - add missing
+  - update existing
+  - delete removed
+- Include verification for game scoping:
+  - upload modifies only selected `gameId` paths

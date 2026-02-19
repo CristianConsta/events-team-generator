@@ -39,6 +39,8 @@ async function injectMockFirebase(page, options) {
     events: {},
     allianceId: null,
     allianceName: null,
+    allianceData: null,
+    alliancePlayers: {},
     games: [{ id: 'last_war', name: 'Last War: Survival', logo: '' }],
     featureFlags: {},
   }, options || {});
@@ -67,6 +69,24 @@ async function injectMockFirebase(page, options) {
       let _authCb = null;
       let _dataCb = null;
       let _allianceCb = null;
+      const _uploadCalls = [];
+      window.__E2E_UPLOAD_CALLS = _uploadCalls;
+      const resolveAllianceData = () => {
+        if (config.allianceData && typeof config.allianceData === 'object') {
+          return config.allianceData;
+        }
+        if (config.allianceId) {
+          return {
+            id: config.allianceId,
+            name: config.allianceName || config.allianceId,
+            members: {
+              [config.uid]: { uid: config.uid, role: 'member' },
+            },
+            playerDatabase: config.alliancePlayers || {},
+          };
+        }
+        return null;
+      };
       const emitAuth = () => {
         if (!_authCb) return;
         if (config.isSignedIn) {
@@ -102,6 +122,14 @@ async function injectMockFirebase(page, options) {
           return Array.isArray(config.games) ? config.games : [];
         },
         // Auth
+        getCurrentUser()             {
+          if (!config.isSignedIn) return null;
+          return {
+            email: config.email,
+            displayName: config.displayName,
+            uid: config.uid,
+          };
+        },
         setAuthCallback(cb)          {
           _authCb = cb;
           setTimeout(emitAuth, 0);
@@ -153,8 +181,12 @@ async function injectMockFirebase(page, options) {
 
         // Player data
         getPlayerDatabase()          { return config.players; },
-        getAlliancePlayerDatabase()   { return {}; },
-        getActivePlayerDatabase()    { return config.players; },
+        getAlliancePlayerDatabase()   { return config.alliancePlayers || {}; },
+        getActivePlayerDatabase()    {
+          return config.playerSource === 'alliance'
+            ? (config.alliancePlayers || {})
+            : config.players;
+        },
         getPlayerSource()            { return config.playerSource; },
         setPlayerSource(src)         { config.playerSource = src; return Promise.resolve({ success: true }); },
         upsertPlayerEntry(src, orig, next) {
@@ -168,8 +200,17 @@ async function injectMockFirebase(page, options) {
           if (_dataCb) _dataCb(config.players);
           return Promise.resolve({ success: true });
         },
-        uploadPlayerDatabase()       { return Promise.resolve({ success: true, count: 0 }); },
-        uploadAlliancePlayerDatabase() { return Promise.resolve({ success: true, count: 0 }); },
+        uploadPlayerDatabase(file)   {
+          _uploadCalls.push({ target: 'personal', fileName: file && file.name ? String(file.name) : '' });
+          return Promise.resolve({ success: true, count: 0, message: 'Personal upload mock success' });
+        },
+        uploadAlliancePlayerDatabase(file) {
+          _uploadCalls.push({ target: 'alliance', fileName: file && file.name ? String(file.name) : '' });
+          return Promise.resolve({ success: true, count: 0, message: 'Alliance upload mock success' });
+        },
+        getUploadCalls() {
+          return _uploadCalls.map((entry) => Object.assign({}, entry));
+        },
 
         // User profile
         getUserProfile()             {
@@ -209,14 +250,20 @@ async function injectMockFirebase(page, options) {
         // Alliance
         getAllianceId()               { return config.allianceId; },
         getAllianceName()             { return config.allianceName; },
-        getAllianceData()             { return null; },
-        getAllianceMembers()          { return {}; },
+        getAllianceData()             { return resolveAllianceData(); },
+        getAllianceMembers()          {
+          const allianceData = resolveAllianceData();
+          return allianceData && allianceData.members ? allianceData.members : {};
+        },
         getPendingInvitations()      { return []; },
         getSentInvitations()         { return []; },
         getInvitationNotifications() { return []; },
         createAlliance()             { return Promise.resolve({ success: true }); },
         leaveAlliance()              { return Promise.resolve({ success: true }); },
-        loadAllianceData()           { return Promise.resolve({ success: true }); },
+        loadAllianceData()           {
+          if (_allianceCb) _allianceCb(resolveAllianceData());
+          return Promise.resolve({ success: true });
+        },
         sendInvitation()             { return Promise.resolve({ success: true }); },
         checkInvitations()           { return Promise.resolve([]); },
         acceptInvitation()           { return Promise.resolve({ success: true }); },

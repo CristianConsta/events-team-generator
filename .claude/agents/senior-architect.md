@@ -103,3 +103,13 @@ Do not approve if any of these are missing:
 5. Strict-mode cutover discipline
 - `MULTIGAME_STRICT_MODE` cannot be enabled until post-migration integrity checks pass.
 - Require explicit go/no-go checklist and rollback sequence.
+
+6. Player upload contract (must stay true)
+- Player upload uses predefined Excel template from platform download.
+- Upload is game-scoped and must only mutate selected `gameId`.
+- If user has no alliance in selected game: no target modal; upload directly to My Database.
+- If user has alliance in selected game: show modal with exactly `My Database`, `Alliance Database`, `Both`.
+- Update semantics are diff-based for the selected target database:
+  - add players present in file and missing in DB
+  - update players present in both
+  - delete players missing from file

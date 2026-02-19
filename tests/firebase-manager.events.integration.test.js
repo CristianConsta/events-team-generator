@@ -1791,7 +1791,453 @@ test('loadUserData recovers players from legacy root when game player map and su
   assert.equal(Object.prototype.hasOwnProperty.call(players, 'LegacyRootOnly'), true);
 });
 
-async function setupUploadScopeHarness() {
+async function setupUploadScopeHarness(options) {
+  const config = options && typeof options === 'object' ? options : {};
+  global.window = global;
+  global.addEventListener = () => {};
+  global.alert = () => {};
+  global.document = {
+    addEventListener() {},
+  };
+  global.FIREBASE_CONFIG = {
+    apiKey: 'x',
+    authDomain: 'x',
+    projectId: 'x',
+    storageBucket: 'x',
+    messagingSenderId: 'x',
+    appId: 'x',
+  };
+
+  const writes = [];
+  let authStateChanged = null;
+  const gamePlayersCollectionPath = 'users/qa-user/games/desert_ops/players';
+  const gameAllianceDocPath = 'games/desert_ops/alliances/alliance-x';
+  const playersSubcollectionState = new Map();
+  let allianceDocState = {
+    id: 'alliance-x',
+    gameId: 'desert_ops',
+    name: 'Alliance X',
+    members: {
+      'qa-user': {
+        uid: 'qa-user',
+        role: 'owner',
+      },
+    },
+    playerDatabase: {},
+  };
+  if (config.initialAlliancePlayerDatabase && typeof config.initialAlliancePlayerDatabase === 'object') {
+    allianceDocState.playerDatabase = { ...config.initialAlliancePlayerDatabase };
+  }
+  const uploadRowsSequence = Array.isArray(config.uploadRowsSequence) && config.uploadRowsSequence.length > 0
+    ? config.uploadRowsSequence
+    : [[{
+      'Player Name': 'Upload Player',
+      'E1 Total Power(M)': 123,
+      'E1 Troops': 'Infantry',
+    }]];
+  let uploadRowsIndex = 0;
+
+  function createSnapshot(docs) {
+    return {
+      empty: docs.length === 0,
+      docs,
+      forEach(callback) {
+        docs.forEach((doc) => callback(doc));
+      },
+      size: docs.length,
+    };
+  }
+
+  function resolveDocGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === 'users/qa-user/games/desert_ops') {
+      return {
+        exists: true,
+        data: () => ({
+          playerDatabase: {},
+          events: {},
+          playerSource: 'personal',
+          allianceId: 'alliance-x',
+          allianceName: 'Alliance X',
+        }),
+      };
+    }
+    if (joined === 'games/desert_ops/alliances/alliance-x') {
+      return {
+        exists: true,
+        data: () => ({ ...allianceDocState }),
+      };
+    }
+    if (joined === 'users/qa-user') {
+      return {
+        exists: true,
+        data: () => ({}),
+      };
+    }
+    if (joined === 'app_config/default_event_positions' || joined === 'app_config/default_event_building_config') {
+      return { exists: false, data: () => ({}) };
+    }
+    return { exists: false, data: () => ({}) };
+  }
+
+  function resolveCollectionGet(pathParts) {
+    const joined = pathParts.join('/');
+    if (joined === gamePlayersCollectionPath) {
+      const docs = Array.from(playersSubcollectionState.entries()).map(([docId, payload]) => ({
+        id: docId,
+        data: () => ({ ...payload }),
+        ref: {
+          path: `${gamePlayersCollectionPath}/${docId}`,
+        },
+      }));
+      return createSnapshot(docs);
+    }
+    if (
+      joined === 'users/qa-user/games/desert_ops/events'
+      || joined === 'users/qa-user/games/desert_ops/event_media'
+    ) {
+      return createSnapshot([]);
+    }
+    return createSnapshot([]);
+  }
+
+  function makeCollection(pathParts) {
+    return {
+      doc(id) {
+        return makeDocRef(pathParts.concat(id));
+      },
+      where() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      orderBy() {
+        return this;
+      },
+      startAfter() {
+        return this;
+      },
+      get: async () => resolveCollectionGet(pathParts),
+      add: async () => ({ id: 'mock-id' }),
+    };
+  }
+
+  function makeDocRef(pathParts) {
+    return {
+      collection(name) {
+        return makeCollection(pathParts.concat(name));
+      },
+      get: async () => resolveDocGet(pathParts),
+      set: async (payload, options) => {
+        const joined = pathParts.join('/');
+        if (joined === gameAllianceDocPath) {
+          const mergeFields = options && Array.isArray(options.mergeFields) ? options.mergeFields : null;
+          if (mergeFields && mergeFields.includes('playerDatabase')) {
+            allianceDocState.playerDatabase = payload && payload.playerDatabase && typeof payload.playerDatabase === 'object'
+              ? { ...payload.playerDatabase }
+              : {};
+          }
+          if (mergeFields && mergeFields.includes('metadata')) {
+            allianceDocState.metadata = payload && payload.metadata && typeof payload.metadata === 'object'
+              ? { ...payload.metadata }
+              : {};
+          }
+        }
+        writes.push({
+          type: 'set',
+          path: joined,
+          payload,
+          options,
+        });
+      },
+      update: async (payload) => {
+        writes.push({
+          type: 'update',
+          path: pathParts.join('/'),
+          payload,
+        });
+      },
+      delete: async () => {
+        writes.push({
+          type: 'delete',
+          path: pathParts.join('/'),
+        });
+      },
+      onSnapshot() {
+        return () => {};
+      },
+      path: pathParts.join('/'),
+    };
+  }
+
+  const authMock = {
+    onAuthStateChanged(cb) {
+      authStateChanged = cb;
+    },
+    async signOut() {},
+  };
+
+  const firestoreFactory = () => ({
+    collection(name) {
+      return makeCollection([name]);
+    },
+    batch: () => {
+      const operations = [];
+      return {
+        set(ref, payload, options) {
+          operations.push({
+            type: 'batch.set',
+            path: ref && typeof ref.path === 'string' ? ref.path : '',
+            payload,
+            options,
+          });
+        },
+        update(ref, payload) {
+          operations.push({
+            type: 'batch.update',
+            path: ref && typeof ref.path === 'string' ? ref.path : '',
+            payload,
+          });
+        },
+        delete(ref) {
+          operations.push({
+            type: 'batch.delete',
+            path: ref && typeof ref.path === 'string' ? ref.path : '',
+          });
+        },
+        commit: async () => {
+          operations.forEach((operation) => {
+            if (typeof operation.path !== 'string') {
+              return;
+            }
+            if (operation.path.startsWith(`${gamePlayersCollectionPath}/`)) {
+              const docId = operation.path.substring(gamePlayersCollectionPath.length + 1);
+              if (operation.type === 'batch.delete') {
+                playersSubcollectionState.delete(docId);
+                return;
+              }
+              if (operation.type === 'batch.set') {
+                playersSubcollectionState.set(docId, operation.payload || {});
+              }
+            }
+          });
+          writes.push(...operations);
+        },
+      };
+    },
+  });
+  firestoreFactory.FieldValue = {
+    serverTimestamp: () => ({}),
+    delete: () => ({}),
+  };
+
+  global.firebase = {
+    initializeApp() {},
+    auth: () => authMock,
+    firestore: firestoreFactory,
+  };
+  global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
+
+  class MockFileReader {
+    constructor() {
+      this.onload = null;
+      this.onerror = null;
+    }
+
+    readAsArrayBuffer() {
+      if (typeof this.onload === 'function') {
+        this.onload({ target: { result: new ArrayBuffer(16) } });
+      }
+    }
+  }
+
+  global.FileReader = MockFileReader;
+  global.XLSX = {
+    read: () => ({
+      Sheets: { Players: {} },
+    }),
+    utils: {
+      sheet_to_json: (_sheet, options) => {
+        if (options && options.header === 1) {
+          return [['Player Name', 'E1 Total Power(M)', 'E1 Troops']];
+        }
+        const selectedRows = uploadRowsSequence[Math.min(uploadRowsIndex, uploadRowsSequence.length - 1)];
+        if (uploadRowsIndex < uploadRowsSequence.length - 1) {
+          uploadRowsIndex += 1;
+        }
+        return Array.isArray(selectedRows) ? selectedRows.map((row) => ({ ...(row || {}) })) : [];
+      },
+    },
+  };
+
+  require(firebaseModulePath);
+  assert.equal(global.FirebaseManager.init(), true);
+  assert.equal(typeof authStateChanged, 'function');
+
+  const authUser = {
+    uid: 'qa-user',
+    email: 'qa@example.com',
+    emailVerified: true,
+    providerData: [{ providerId: 'password' }],
+  };
+  await authStateChanged(authUser);
+  const loadResult = await global.FirebaseManager.loadUserData(authUser, { gameId: 'desert_ops' });
+  assert.equal(loadResult.success, true);
+
+  return {
+    writes,
+    file: { name: 'players.xlsx', size: 1024 },
+    clearWrites() {
+      writes.length = 0;
+    },
+    getPlayersSubcollectionState() {
+      const byName = {};
+      playersSubcollectionState.forEach((payload) => {
+        const playerName = payload && typeof payload.name === 'string' ? payload.name : '';
+        if (!playerName) {
+          return;
+        }
+        byName[playerName] = { ...(payload || {}) };
+      });
+      return byName;
+    },
+    getAlliancePlayerDatabaseState() {
+      return allianceDocState && allianceDocState.playerDatabase && typeof allianceDocState.playerDatabase === 'object'
+        ? JSON.parse(JSON.stringify(allianceDocState.playerDatabase))
+        : {};
+    },
+  };
+}
+
+test('upload personal player template writes only into selected user/game paths', async () => {
+  const harness = await setupUploadScopeHarness();
+  harness.clearWrites();
+
+  const result = await global.FirebaseManager.uploadPlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  assert.equal(result.success, true);
+
+  const writePaths = harness.writes.map((entry) => entry.path);
+  assert.equal(
+    writePaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/players/')),
+    true
+  );
+  assert.equal(
+    writePaths.some((path) => path === 'users/qa-user/games/desert_ops'),
+    true
+  );
+  assert.equal(
+    writePaths.some((path) => path.includes('/last_war')),
+    false
+  );
+  assert.equal(
+    writePaths.some((path) => path.startsWith('games/desert_ops/alliances/')),
+    false
+  );
+});
+
+test('upload alliance player template writes only into selected game alliance path', async () => {
+  const harness = await setupUploadScopeHarness();
+  harness.clearWrites();
+
+  const result = await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  assert.equal(result.success, true);
+
+  const writePaths = harness.writes.map((entry) => entry.path);
+  assert.equal(
+    writePaths.some((path) => path === 'games/desert_ops/alliances/alliance-x'),
+    true
+  );
+  assert.equal(
+    writePaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/players/')),
+    false
+  );
+  assert.equal(
+    writePaths.some((path) => path.includes('/last_war')),
+    false
+  );
+});
+
+test('personal + alliance upload sequence (both mode) stays scoped to selected game', async () => {
+  const harness = await setupUploadScopeHarness();
+  harness.clearWrites();
+
+  const personalResult = await global.FirebaseManager.uploadPlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  const allianceResult = await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
+
+  assert.equal(personalResult.success, true);
+  assert.equal(allianceResult.success, true);
+
+  const writePaths = harness.writes.map((entry) => entry.path);
+  assert.equal(
+    writePaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/players/')),
+    true
+  );
+  assert.equal(
+    writePaths.some((path) => path === 'games/desert_ops/alliances/alliance-x'),
+    true
+  );
+  assert.equal(
+    writePaths.some((path) => path.includes('/last_war')),
+    false
+  );
+});
+
+test('personal upload applies diff update semantics (add/update/delete) for selected game database', async () => {
+  const harness = await setupUploadScopeHarness({
+    uploadRowsSequence: [
+      [
+        { 'Player Name': 'Alpha', 'E1 Total Power(M)': 100, 'E1 Troops': 'Infantry' },
+        { 'Player Name': 'Bravo', 'E1 Total Power(M)': 200, 'E1 Troops': 'Tank' },
+      ],
+      [
+        { 'Player Name': 'Alpha', 'E1 Total Power(M)': 999, 'E1 Troops': 'Missile' },
+        { 'Player Name': 'Charlie', 'E1 Total Power(M)': 300, 'E1 Troops': 'Infantry' },
+      ],
+    ],
+  });
+  harness.clearWrites();
+
+  const firstResult = await global.FirebaseManager.uploadPlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  const secondResult = await global.FirebaseManager.uploadPlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  assert.equal(firstResult.success, true);
+  assert.equal(secondResult.success, true);
+
+  const finalPlayers = harness.getPlayersSubcollectionState();
+  assert.deepEqual(Object.keys(finalPlayers).sort(), ['Alpha', 'Charlie']);
+  assert.equal(finalPlayers.Alpha.power, 999);
+  assert.equal(finalPlayers.Alpha.troops, 'Missile');
+  assert.equal(Object.prototype.hasOwnProperty.call(finalPlayers, 'Bravo'), false);
+});
+
+test('alliance upload applies diff update semantics (add/update/delete) for selected game alliance database', async () => {
+  const harness = await setupUploadScopeHarness({
+    uploadRowsSequence: [
+      [
+        { 'Player Name': 'Alpha', 'E1 Total Power(M)': 100, 'E1 Troops': 'Infantry' },
+        { 'Player Name': 'Bravo', 'E1 Total Power(M)': 200, 'E1 Troops': 'Tank' },
+      ],
+      [
+        { 'Player Name': 'Alpha', 'E1 Total Power(M)': 777, 'E1 Troops': 'Missile' },
+        { 'Player Name': 'Charlie', 'E1 Total Power(M)': 300, 'E1 Troops': 'Infantry' },
+      ],
+    ],
+  });
+  harness.clearWrites();
+
+  const firstResult = await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  const secondResult = await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
+  assert.equal(firstResult.success, true);
+  assert.equal(secondResult.success, true);
+
+  const finalAlliancePlayers = harness.getAlliancePlayerDatabaseState();
+  assert.deepEqual(Object.keys(finalAlliancePlayers).sort(), ['Alpha', 'Charlie']);
+  assert.equal(finalAlliancePlayers.Alpha.power, 777);
+  assert.equal(finalAlliancePlayers.Alpha.troops, 'Missile');
+  assert.equal(Object.prototype.hasOwnProperty.call(finalAlliancePlayers, 'Bravo'), false);
+});
+
+async function setupUploadNoAllianceHarness() {
   global.window = global;
   global.addEventListener = () => {};
   global.alert = () => {};
@@ -1830,25 +2276,8 @@ async function setupUploadScopeHarness() {
           playerDatabase: {},
           events: {},
           playerSource: 'personal',
-          allianceId: 'alliance-x',
-          allianceName: 'Alliance X',
-        }),
-      };
-    }
-    if (joined === 'games/desert_ops/alliances/alliance-x') {
-      return {
-        exists: true,
-        data: () => ({
-          id: 'alliance-x',
-          gameId: 'desert_ops',
-          name: 'Alliance X',
-          members: {
-            'qa-user': {
-              uid: 'qa-user',
-              role: 'owner',
-            },
-          },
-          playerDatabase: {},
+          allianceId: null,
+          allianceName: null,
         }),
       };
     }
@@ -2042,8 +2471,8 @@ async function setupUploadScopeHarness() {
   };
 }
 
-test('upload personal player template writes only into selected user/game paths', async () => {
-  const harness = await setupUploadScopeHarness();
+test('non-alliance users can upload personal database without alliance writes', async () => {
+  const harness = await setupUploadNoAllianceHarness();
   harness.clearWrites();
 
   const result = await global.FirebaseManager.uploadPlayerDatabase(harness.file, { gameId: 'desert_ops' });
@@ -2055,62 +2484,17 @@ test('upload personal player template writes only into selected user/game paths'
     true
   );
   assert.equal(
-    writePaths.some((path) => path === 'users/qa-user/games/desert_ops'),
-    true
-  );
-  assert.equal(
-    writePaths.some((path) => path.includes('/last_war')),
-    false
-  );
-  assert.equal(
     writePaths.some((path) => path.startsWith('games/desert_ops/alliances/')),
     false
   );
 });
 
-test('upload alliance player template writes only into selected game alliance path', async () => {
-  const harness = await setupUploadScopeHarness();
+test('non-alliance users cannot upload alliance database', async () => {
+  const harness = await setupUploadNoAllianceHarness();
   harness.clearWrites();
 
-  const result = await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
-  assert.equal(result.success, true);
-
-  const writePaths = harness.writes.map((entry) => entry.path);
-  assert.equal(
-    writePaths.some((path) => path === 'games/desert_ops/alliances/alliance-x'),
-    true
-  );
-  assert.equal(
-    writePaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/players/')),
-    false
-  );
-  assert.equal(
-    writePaths.some((path) => path.includes('/last_war')),
-    false
-  );
-});
-
-test('personal + alliance upload sequence (both mode) stays scoped to selected game', async () => {
-  const harness = await setupUploadScopeHarness();
-  harness.clearWrites();
-
-  const personalResult = await global.FirebaseManager.uploadPlayerDatabase(harness.file, { gameId: 'desert_ops' });
-  const allianceResult = await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
-
-  assert.equal(personalResult.success, true);
-  assert.equal(allianceResult.success, true);
-
-  const writePaths = harness.writes.map((entry) => entry.path);
-  assert.equal(
-    writePaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/players/')),
-    true
-  );
-  assert.equal(
-    writePaths.some((path) => path === 'games/desert_ops/alliances/alliance-x'),
-    true
-  );
-  assert.equal(
-    writePaths.some((path) => path.includes('/last_war')),
-    false
+  await assert.rejects(
+    global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' }),
+    (error) => error && error.success === false && String(error.error || '').includes('Not in an alliance')
   );
 });

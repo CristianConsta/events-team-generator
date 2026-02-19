@@ -118,3 +118,16 @@ PASS / FAIL — [one-line summary]
 - Navigate generator, players, events, alliance pages.
 - Switch player source personal <-> alliance and validate roster changes.
 - Validate language switch and mobile viewport behavior.
+
+6. Mandatory player-upload integrity checks
+- Validate Excel upload follows template contract and executes in selected game only.
+- Non-alliance user:
+  - upload must bypass target modal
+  - only My Database is updated
+- Alliance user:
+  - upload target modal must appear with `My Database`, `Alliance Database`, `Both`
+  - selected option updates only intended database(s)
+- Diff semantics verification for personal and alliance DB:
+  - players in file + in DB => updated
+  - players in file + missing in DB => added
+  - players missing in file + in DB => deleted
