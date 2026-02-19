@@ -342,7 +342,7 @@ function enforceGameplayContext(statusElementId) {
         if (error && error.code === 'missing-active-game') {
             if (postAuthGameSelectionPending) {
                 if (statusElementId) {
-                    showMessage(statusElementId, 'Select a game to continue.', 'warning');
+                    showMessage(statusElementId, t('game_selector_invalid'), 'warning');
                 }
                 return '';
             }
@@ -356,7 +356,7 @@ function enforceGameplayContext(statusElementId) {
                 }
             }
             if (statusElementId) {
-                showMessage(statusElementId, 'Active game context is required.', 'error');
+                showMessage(statusElementId, t('game_selector_invalid'), 'error');
             }
             return '';
         }
@@ -5432,7 +5432,7 @@ async function switchPlayerSource(source, statusElementId) {
     }
     const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext));
     if (source === 'alliance' && !hasAlliance) {
-        showMessage(statusElementId || 'playerSourceStatus', 'Join an alliance first.', 'error');
+        showMessage(statusElementId || 'playerSourceStatus', t('players_list_error_no_alliance'), 'error');
         return;
     }
 
@@ -5952,12 +5952,12 @@ async function performUpload(file, target) {
     }
     const normalizedTarget = typeof target === 'string' ? target.trim().toLowerCase() : '';
     if (normalizedTarget !== 'personal' && normalizedTarget !== 'alliance' && normalizedTarget !== 'both') {
-        showMessage('uploadMessage', t('message_upload_failed', { error: 'Invalid upload target' }), 'error');
+        showMessage('uploadMessage', t('message_upload_failed', { error: t('players_list_error_invalid_source') }), 'error');
         return;
     }
     const hasAlliance = hasAllianceUploadAccess(gameplayContext);
     if ((normalizedTarget === 'alliance' || normalizedTarget === 'both') && !hasAlliance) {
-        showMessage('uploadMessage', 'Join an alliance first.', 'error');
+        showMessage('uploadMessage', t('players_list_error_no_alliance'), 'error');
         return;
     }
 
@@ -7457,7 +7457,7 @@ function resolveCurrentEventAssignmentSelection(activeGameId) {
 function generateTeamAssignments(team) {
     const activeGameId = enforceGameplayContext();
     if (!activeGameId) {
-        alert('missing-active-game');
+        alert(t('game_selector_invalid'));
         return;
     }
     if (typeof FirebaseService === 'undefined') {

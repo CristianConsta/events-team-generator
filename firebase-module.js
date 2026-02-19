@@ -352,6 +352,7 @@ const FirebaseManager = (function() {
     const GAME_INVITATIONS_SUBCOLLECTION = 'invitations';
     const GAME_PLAYERS_SUBCOLLECTION = 'players';
     const GAME_EVENTS_SUBCOLLECTION = 'events';
+    const GAME_METADATA_CACHE_TTL_MS = 30000;
     const DEFAULT_GAME_ID = 'last_war';
     const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
     const GAME_SUBCOLLECTION_MIGRATION_VERSION = 1;
@@ -413,6 +414,7 @@ const FirebaseManager = (function() {
     let globalDefaultPositionsVersion = 0;
     let globalDefaultEventBuildingConfig = {};
     let globalDefaultBuildingConfigVersion = 0;
+    let gameMetadataCache = { expiresAt: 0, entries: null };
     let migrationVersion = 0;
     let migratedToGameSubcollectionsAt = null;
     const observabilityCounters = {
@@ -1570,7 +1572,51 @@ const FirebaseManager = (function() {
         );
     }
 
+    function cloneGameMetadataEntries(entries) {
+        if (!Array.isArray(entries)) {
+            return [];
+        }
+        return entries.map((entry) => {
+            const game = entry && typeof entry === 'object' ? entry : {};
+            return {
+                id: typeof game.id === 'string' ? game.id : '',
+                name: typeof game.name === 'string' ? game.name : '',
+                logo: typeof game.logo === 'string' ? game.logo : '',
+                company: typeof game.company === 'string' ? game.company : '',
+            };
+        });
+    }
+
+    function invalidateGameMetadataCache() {
+        gameMetadataCache = {
+            expiresAt: 0,
+            entries: null,
+        };
+    }
+
+    function readCachedGameMetadata() {
+        if (!gameMetadataCache || !Array.isArray(gameMetadataCache.entries)) {
+            return null;
+        }
+        if (Date.now() > Number(gameMetadataCache.expiresAt || 0)) {
+            invalidateGameMetadataCache();
+            return null;
+        }
+        return cloneGameMetadataEntries(gameMetadataCache.entries);
+    }
+
+    function writeGameMetadataCache(entries) {
+        gameMetadataCache = {
+            expiresAt: Date.now() + GAME_METADATA_CACHE_TTL_MS,
+            entries: cloneGameMetadataEntries(entries),
+        };
+    }
+
     async function listGameMetadata() {
+        const cached = readCachedGameMetadata();
+        if (cached) {
+            return cached;
+        }
         const catalogGames = getCatalogGames();
         const strictMode = isStrictModeEnabled();
         const byId = new Map();
@@ -1615,7 +1661,9 @@ const FirebaseManager = (function() {
             }
         }
 
-        return Array.from(byId.values());
+        const resolved = Array.from(byId.values());
+        writeGameMetadataCache(resolved);
+        return cloneGameMetadataEntries(resolved);
     }
 
     async function getGameMetadata(gameId) {
@@ -1686,6 +1734,7 @@ const FirebaseManager = (function() {
                     console.warn('Failed to mirror game metadata to app config override:', fallbackError);
                 }
             }
+            invalidateGameMetadataCache();
 
             return {
                 success: true,
@@ -2463,6 +2512,7 @@ const FirebaseManager = (function() {
      */
     function handleAuthStateChanged(user) {
         currentUser = user;
+        invalidateGameMetadataCache();
         if (!user) {
             stopAllianceDocListener();
         }
