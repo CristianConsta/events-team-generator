@@ -322,16 +322,87 @@ async function waitForMainApp(page, options) {
  * Open the navigation menu and click a nav button by its ID.
  */
 async function navigateTo(page, navBtnId) {
-  const menu = page.locator('#navMenuPanel');
-  const isVisible = await menu.isVisible().catch(() => false);
-  if (!isVisible) {
-    await page.locator('#navMenuBtn').click();
-    await expect(menu).toBeVisible({ timeout: 3000 });
+  const mobileNavByMenuId = {
+    navGeneratorBtn: 'mobileNavGeneratorBtn',
+    navPlayersBtn: 'mobileNavPlayersBtn',
+    navConfigBtn: 'mobileNavConfigBtn',
+    navAllianceBtn: 'mobileNavAllianceBtn',
+  };
+
+  const expectedPageByNavId = {
+    navGeneratorBtn: 'generatorPage',
+    mobileNavGeneratorBtn: 'generatorPage',
+    navPlayersBtn: 'playersManagementPage',
+    mobileNavPlayersBtn: 'playersManagementPage',
+    navConfigBtn: 'configurationPage',
+    mobileNavConfigBtn: 'configurationPage',
+    navAllianceBtn: 'alliancePage',
+    mobileNavAllianceBtn: 'alliancePage',
+  };
+
+  async function waitForExpectedPage(id, timeoutMs) {
+    await page.waitForFunction(
+      (pageId) => {
+        const el = document.getElementById(pageId);
+        return !!el && !el.classList.contains('hidden');
+      },
+      id,
+      { timeout: timeoutMs }
+    );
   }
-  const target = page.locator(`#${navBtnId}`);
-  await expect(target).toBeVisible({ timeout: 3000 });
-  await target.click({ force: true });
-  await page.waitForTimeout(200);
+
+  async function clickWithPrimaryOrFallback(primaryId, fallbackId) {
+    const primary = page.locator(`#${primaryId}`);
+    if (await primary.isVisible().catch(() => false)) {
+      await primary.click({ force: true });
+      return primaryId;
+    }
+
+    if (!fallbackId) {
+      await expect(primary).toBeVisible({ timeout: 3000 });
+      await primary.click({ force: true });
+      return primaryId;
+    }
+
+    const fallback = page.locator(`#${fallbackId}`);
+    await expect(fallback).toBeVisible({ timeout: 3000 });
+    await fallback.click({ force: true });
+    return fallbackId;
+  }
+
+  let clickedNavId = navBtnId;
+  const mobileNavId = mobileNavByMenuId[navBtnId] || null;
+  const mobileNav = mobileNavId ? page.locator(`#${mobileNavId}`) : null;
+  const canUseMobileNav = mobileNav && await mobileNav.isVisible().catch(() => false);
+
+  if (canUseMobileNav) {
+    clickedNavId = await clickWithPrimaryOrFallback(mobileNavId, navBtnId);
+  } else {
+    const menu = page.locator('#navMenuPanel');
+    const isVisible = await menu.isVisible().catch(() => false);
+    if (!isVisible) {
+      await page.locator('#navMenuBtn').click({ force: true });
+      await expect(menu).toBeVisible({ timeout: 3000 });
+    }
+    clickedNavId = await clickWithPrimaryOrFallback(navBtnId, mobileNavId);
+  }
+
+  const expectedPageId = expectedPageByNavId[clickedNavId] || expectedPageByNavId[navBtnId];
+  if (expectedPageId) {
+    try {
+      await waitForExpectedPage(expectedPageId, 2500);
+    } catch (_) {
+      await page.evaluate((id) => {
+        const btn = document.getElementById(id);
+        if (btn instanceof HTMLElement) {
+          btn.click();
+        }
+      }, clickedNavId);
+      await waitForExpectedPage(expectedPageId, 3500);
+    }
+  } else {
+    await page.waitForTimeout(200);
+  }
 }
 
 // ─── Default test data ────────────────────────────────────────────────────────
@@ -358,14 +429,18 @@ function defaultPlayers() {
  */
 async function assertOnlyPageVisible(page, visiblePageId) {
   const pages = ['generatorPage', 'playersManagementPage', 'configurationPage', 'alliancePage'];
-  for (const id of pages) {
-    const el = page.locator(`#${id}`);
-    if (id === visiblePageId) {
-      await expect(el).not.toHaveClass(/\bhidden\b/, { timeout: 3000 });
-    } else {
-      await expect(el).toHaveClass(/\bhidden\b/, { timeout: 3000 });
-    }
-  }
+  await page.waitForFunction(
+    ({ expectedId, ids }) => {
+      return ids.every((id) => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        const isHidden = el.classList.contains('hidden');
+        return id === expectedId ? !isHidden : isHidden;
+      });
+    },
+    { expectedId: visiblePageId, ids: pages },
+    { timeout: 4000 }
+  );
 }
 
 module.exports = {
