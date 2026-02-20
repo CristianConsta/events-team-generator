@@ -16,5 +16,29 @@
       "Bash(git pull:*)",
       "Bash(git rebase:*)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/eslint-fix.js"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-firebase-config.js"
+          }
+        ]
+      }
+    ]
   }
 }
