@@ -17,9 +17,12 @@
       "Bash(npm audit:*)",
       "Bash(node -e:*)",
       "Bash(node:*)",
+      "Bash(git fetch:*)",
       "Bash(git pull:*)",
       "Bash(git rebase:*)",
-      "Bash(git checkout:*)"
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)"
     ]
   },
   "hooks": {
