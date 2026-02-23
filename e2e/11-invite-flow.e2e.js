@@ -352,6 +352,9 @@ function injectPlayerUpdateFirebaseMock(page, options) {
                         if (opts.hangAuth) {
                             return new Promise(function () { /* intentionally never resolves */ });
                         }
+                        if (opts.authError) {
+                            return Promise.reject(new Error(opts.authError));
+                        }
                         return Promise.resolve({ user: { uid: 'anon-test-uid' } });
                     },
                 };
@@ -513,4 +516,48 @@ test('@regression @invite player-update page shows used error for already-used t
     const msgEl = page.locator('#updateErrorMessage');
     await expect(msgEl).toBeVisible({ timeout: 2000 });
     expect((await msgEl.textContent()).trim().length).toBeGreaterThan(0);
+});
+
+// ---------------------------------------------------------------------------
+// Regression: anonymous auth failure shows auth error (not crash)
+// ---------------------------------------------------------------------------
+
+test('@regression @invite player-update page shows auth error when anonymous sign-in fails', async ({ page }) => {
+    await injectPlayerUpdateFirebaseMock(page, {
+        authError: 'Firebase: Error (auth/operation-not-allowed).',
+    });
+
+    await page.goto('player-update.html?token=testtoken&uid=owneruid');
+    await page.waitForLoadState('domcontentloaded');
+    await waitForLoadingHidden(page);
+
+    await expect(page.locator('#updateError')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#updateForm')).toBeHidden();
+
+    const msgEl = page.locator('#updateErrorMessage');
+    await expect(msgEl).toBeVisible({ timeout: 2000 });
+    const text = (await msgEl.textContent()).trim();
+    expect(text.length).toBeGreaterThan(0);
+    // Should show auth-specific error, not generic network error
+    expect(text.toLowerCase()).toContain('authenticat');
+});
+
+// ---------------------------------------------------------------------------
+// Regression: generic network error still shows network error message
+// ---------------------------------------------------------------------------
+
+test('@regression @invite player-update page shows network error for non-auth failures', async ({ page }) => {
+    await injectPlayerUpdateFirebaseMock(page, {
+        authError: 'network timeout',
+    });
+
+    await page.goto('player-update.html?token=testtoken&uid=owneruid');
+    await page.waitForLoadState('domcontentloaded');
+    await waitForLoadingHidden(page);
+
+    await expect(page.locator('#updateError')).toBeVisible({ timeout: 3000 });
+
+    const msgEl = page.locator('#updateErrorMessage');
+    const text = (await msgEl.textContent()).trim();
+    expect(text.toLowerCase()).toContain('network');
 });

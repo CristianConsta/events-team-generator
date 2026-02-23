@@ -4,6 +4,7 @@
         TOKEN_USED: 'player_update_error_used',
         TOKEN_INVALID: 'player_update_error_invalid',
         NETWORK_ERROR: 'player_update_error_network',
+        AUTH_FAILED: 'player_update_error_auth',
     };
 
     function parseParams() {
@@ -239,8 +240,13 @@
                         });
                     });
             })
-            .catch(function () {
-                showError(ERROR_CODES.NETWORK_ERROR);
+            .catch(function (err) {
+                var msg = err && err.message ? err.message : '';
+                if (msg.indexOf('auth') !== -1 || msg.indexOf('ADMIN_ONLY') !== -1 || msg.indexOf('operation-not-allowed') !== -1) {
+                    showError(ERROR_CODES.AUTH_FAILED);
+                } else {
+                    showError(ERROR_CODES.NETWORK_ERROR);
+                }
             });
     }
 
