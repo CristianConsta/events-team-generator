@@ -1116,6 +1116,15 @@ async function saveGameMetadata() {
     }
 }
 
+window.t = t;
+window.initLanguage = initLanguage;
+window.applyTranslations = applyTranslations;
+window.updateGenerateEventLabels = updateGenerateEventLabels;
+window.loadPlayerData = loadPlayerData;
+window.loadBuildingConfig = loadBuildingConfig;
+window.loadBuildingPositions = loadBuildingPositions;
+window.updateAllianceHeaderDisplay = updateAllianceHeaderDisplay;
+window.checkAndDisplayNotifications = checkAndDisplayNotifications;
 window.setActiveGame = setActiveGame;
 window.getActiveGame = getActiveGame;
 window.updateActiveGameBadge = updateActiveGameBadge;
