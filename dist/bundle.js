@@ -17813,6 +17813,9 @@
       window.loadBuildingPositions = loadBuildingPositions2;
       window.updateAllianceHeaderDisplay = updateAllianceHeaderDisplay2;
       window.checkAndDisplayNotifications = checkAndDisplayNotifications2;
+      window.initOnboarding = initOnboarding2;
+      window.startNotificationPolling = startNotificationPolling2;
+      window.stopNotificationPolling = stopNotificationPolling2;
       window.setActiveGame = setActiveGame;
       window.getActiveGame = getActiveGame;
       window.updateActiveGameBadge = updateActiveGameBadge;
@@ -17837,6 +17840,16 @@
       var currentOnboardingStep = 0;
       var pendingOnboardingStep = null;
       var currentHighlightTarget = null;
+      function initOnboarding2() {
+        try {
+          if (localStorage.getItem("ds_onboarding_done")) return;
+        } catch (e) {
+          return;
+        }
+        onboardingActive = true;
+        currentOnboardingStep = 0;
+        showOnboardingStep(0);
+      }
       function showOnboardingStep(index) {
         if (index >= ONBOARDING_STEPS.length) {
           completeOnboarding();
@@ -19681,6 +19694,7 @@
           if (createBtn) createBtn.style.display = "inline-flex";
         }
       }
+      var notificationPollInterval = null;
       async function checkAndDisplayNotifications2() {
         if (typeof FirebaseService === "undefined" || !FirebaseService.isSignedIn()) return;
         const gameplayContext = getGameplayContext();
@@ -19700,6 +19714,20 @@
         }
         if (notificationBtn) {
           notificationBtn.classList.toggle("has-notifications", badgeState.hasNotifications);
+        }
+      }
+      function startNotificationPolling2() {
+        if (notificationPollInterval) return;
+        notificationPollInterval = setInterval(() => {
+          if (document.visibilityState === "visible" && typeof FirebaseService !== "undefined" && FirebaseService.isSignedIn()) {
+            checkAndDisplayNotifications2();
+          }
+        }, 6e4);
+      }
+      function stopNotificationPolling2() {
+        if (notificationPollInterval) {
+          clearInterval(notificationPollInterval);
+          notificationPollInterval = null;
         }
       }
       function closeNotificationsPanel() {
