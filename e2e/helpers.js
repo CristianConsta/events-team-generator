@@ -178,6 +178,10 @@ async function injectMockFirebase(page, options) {
           return Promise.resolve({ success: true });
         },
         deleteUserAccountAndData()   { return Promise.resolve({ success: true }); },
+        loadUserData()               {
+          if (_dataCb) setTimeout(emitData, 0);
+          return Promise.resolve({ success: true });
+        },
 
         // Player data
         getPlayerDatabase()          { return config.players; },
