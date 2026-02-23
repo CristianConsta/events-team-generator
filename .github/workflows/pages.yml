@@ -80,7 +80,8 @@ jobs:
         env:
           CI: "true"
           HOME: /root
-        run: npm run test:e2e:smoke
+          PLAYWRIGHT_CHANNEL: "default"
+        run: npx playwright test --project=edge-desktop --project=edge-mobile --grep @smoke
 
   package-and-deploy:
     needs: [lint-and-unit, e2e-smoke]
