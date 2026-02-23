@@ -5194,7 +5194,12 @@ function showInviteLinkPopover(anchorButton, url) {
     const scrollY = window.scrollY || document.documentElement.scrollTop;
     const scrollX = window.scrollX || document.documentElement.scrollLeft;
     popover.style.top = (rect.bottom + scrollY + 6) + 'px';
-    popover.style.left = Math.max(8, rect.left + scrollX) + 'px';
+    var popoverWidth = popover.offsetWidth || 260;
+    var viewportWidth = window.innerWidth;
+    var idealLeft = rect.left + scrollX;
+    // Keep popover within viewport with 8px margin on each side
+    var maxLeft = viewportWidth - popoverWidth - 8 + scrollX;
+    popover.style.left = Math.max(8, Math.min(idealLeft, maxLeft)) + 'px';
     function onOutsideClick(e) {
         if (!popover.contains(e.target) && e.target !== anchorButton) {
             popover.remove();

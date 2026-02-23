@@ -1059,7 +1059,16 @@ select {
     flex-direction: column;
     gap: 8px;
     min-width: 260px;
-    max-width: 100%;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
+}
+@media (max-width: 768px) {
+    .invite-link-popover {
+        left: 8px !important;
+        right: 8px;
+        width: calc(100vw - 16px);
+        min-width: 0;
+    }
 }
 .invite-link-input {
     width: 100%;
