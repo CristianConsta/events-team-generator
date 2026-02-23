@@ -2,6 +2,12 @@
     function createGateway(utils) {
         const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
         return {
+            createUpdateToken: async function createUpdateToken(allianceId, playerName, options) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.createUpdateToken(allianceId, playerName, options),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
             saveTokenBatch: async function saveTokenBatch(allianceId, tokenDocs) {
                 return gatewayUtils.withManager(
                     (svc) => svc.saveTokenBatch(allianceId, tokenDocs),

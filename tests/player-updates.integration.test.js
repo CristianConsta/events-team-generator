@@ -269,3 +269,47 @@ test('init returns destroy function', () => {
     const handle = global.DSFeaturePlayerUpdatesController.init(makeMockGateway());
     assert.ok(handle && typeof handle.destroy === 'function');
 });
+
+// ---------------------------------------------------------------------------
+// createUpdateToken (per-player invite flow)
+// ---------------------------------------------------------------------------
+
+test('createUpdateToken gateway mock: returns success with tokenId', async () => {
+    loadModules();
+    const gateway = makeMockGateway({
+        createUpdateToken: async function (allianceId, playerName, options) {
+            return { success: true, tokenId: 'mock-token-123' };
+        },
+    });
+    const result = await gateway.createUpdateToken('alliance_pu_integ_1', 'Alice', { expiryHours: 48 });
+    assert.equal(result.success, true);
+    assert.equal(result.tokenId, 'mock-token-123');
+});
+
+test('createUpdateToken gateway mock: passes allianceId and playerName correctly', async () => {
+    loadModules();
+    var capturedArgs = null;
+    const gateway = makeMockGateway({
+        createUpdateToken: async function (allianceId, playerName, options) {
+            capturedArgs = { allianceId, playerName, options };
+            return { success: true, tokenId: 'tok-xyz' };
+        },
+    });
+    await gateway.createUpdateToken('alliance_pu_integ_1', 'Bob', { expiryHours: 48 });
+    assert.ok(capturedArgs, 'createUpdateToken should have been called');
+    assert.equal(capturedArgs.allianceId, 'alliance_pu_integ_1');
+    assert.equal(capturedArgs.playerName, 'Bob');
+    assert.equal(capturedArgs.options.expiryHours, 48);
+});
+
+test('createUpdateToken gateway mock: returns failure on error', async () => {
+    loadModules();
+    const gateway = makeMockGateway({
+        createUpdateToken: async function () {
+            return { success: false, error: 'Permission denied' };
+        },
+    });
+    const result = await gateway.createUpdateToken('alliance_pu_integ_1', 'Alice', { expiryHours: 48 });
+    assert.equal(result.success, false);
+    assert.ok(result.error);
+});

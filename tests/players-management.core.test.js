@@ -107,3 +107,25 @@ test('players management core applies filters and sorting deterministically', ()
   });
   assert.deepEqual(tankSearch.map((row) => row.name), ['Bella', 'Zed']);
 });
+
+// ---------------------------------------------------------------------------
+// Invite button presence in app.js player row template
+// ---------------------------------------------------------------------------
+
+test('app.js player row template contains invite button with data-pm-action="invite"', () => {
+  // Verify structural presence of the invite button in the view-mode row template.
+  // The button is defined as a template literal in app.js (renderPlayersManagementTable).
+  const fs = require('node:fs');
+  const appSource = fs.readFileSync(
+    require('node:path').resolve(__dirname, '../app.js'),
+    'utf8'
+  );
+  assert.ok(
+    appSource.includes('data-pm-action="invite"'),
+    'app.js should contain invite button with data-pm-action="invite"'
+  );
+  assert.ok(
+    appSource.includes('players-mgmt-invite-btn'),
+    'app.js should contain the players-mgmt-invite-btn class'
+  );
+});

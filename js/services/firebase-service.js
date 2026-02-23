@@ -263,6 +263,7 @@
 
     function fallbackPlayerUpdatesGateway(gatewayUtils) {
         return {
+            createUpdateToken: async function createUpdateToken() { return gatewayUtils.notLoadedResult(); },
             saveTokenBatch: async function saveTokenBatch() { return gatewayUtils.notLoadedResult(); },
             loadPendingUpdates: async function loadPendingUpdates() { return []; },
             updatePendingUpdateStatus: async function updatePendingUpdateStatus() { return gatewayUtils.notLoadedResult(); },
@@ -1040,6 +1041,9 @@
         },
         subscribePendingFinalizationCount: function subscribePendingFinalizationCount(allianceId, callback) {
             return eventHistoryGateway.subscribePendingFinalizationCount(allianceId, callback);
+        },
+        createUpdateToken: function createUpdateToken(allianceId, playerName, options) {
+            return playerUpdatesGateway.createUpdateToken(allianceId, playerName, options);
         },
         saveTokenBatch: function saveTokenBatch(allianceId, tokenDocs) {
             return playerUpdatesGateway.saveTokenBatch(allianceId, tokenDocs);

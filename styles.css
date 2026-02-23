@@ -1025,6 +1025,81 @@ select {
     border-color: rgba(255, 107, 53, 0.84);
     color: #ffb398;
 }
+.players-mgmt-actions .players-mgmt-invite-btn {
+    border-color: rgba(100, 180, 255, 0.55);
+    color: rgba(140, 200, 255, 0.95);
+    background: transparent;
+    cursor: pointer;
+}
+.players-mgmt-actions .players-mgmt-invite-btn:hover {
+    background: rgba(100, 180, 255, 0.12);
+    border-color: rgba(100, 180, 255, 0.84);
+    color: #a8d8ff;
+}
+.players-mgmt-invite-btn .invite-btn-icon {
+    display: none;
+}
+@media (max-width: 768px) {
+    .players-mgmt-invite-btn .invite-btn-text {
+        display: none;
+    }
+    .players-mgmt-invite-btn .invite-btn-icon {
+        display: inline;
+    }
+}
+.invite-link-popover {
+    position: absolute;
+    z-index: 9000;
+    background: #1e2533;
+    border: 1px solid rgba(100, 180, 255, 0.45);
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 260px;
+    max-width: 100%;
+}
+.invite-link-input {
+    width: 100%;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.3);
+    color: #e0e6f0;
+    font-size: 0.82em;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.invite-link-copy-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(100, 180, 255, 0.55);
+    background: rgba(100, 180, 255, 0.12);
+    color: rgba(140, 200, 255, 0.95);
+    cursor: pointer;
+    font-size: 0.88em;
+}
+.invite-link-copy-btn:hover {
+    background: rgba(100, 180, 255, 0.22);
+}
+.invite-link-close-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    font-size: 1.1em;
+    line-height: 1;
+    padding: 0 4px;
+}
+.invite-link-close-btn:hover {
+    color: #fff;
+}
 .players-table .players-mgmt-edit-row input,
 .players-table .players-mgmt-edit-row select {
     width: 100%;

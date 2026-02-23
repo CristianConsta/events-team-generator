@@ -91,6 +91,7 @@ const scenarios = [
   { method: 'uploadAlliancePlayerDatabase', args: ['alliance.csv'], reject: NOT_LOADED },
   { method: 'setPlayerSource', args: ['alliance'], fallback: NOT_LOADED },
   { method: 'getAllianceId', args: [], fallback: null },
+  { method: 'createUpdateToken', args: ['ally-1', 'Alice', { expiryHours: 48 }], fallback: { success: false, error: 'Firebase not loaded' } },
   { method: 'getAllianceName', args: [], fallback: null },
   { method: 'getAllianceData', args: [], fallback: null },
   { method: 'getPendingInvitations', args: [], fallback: [] },

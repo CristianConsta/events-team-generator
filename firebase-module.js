@@ -5610,6 +5610,30 @@ const FirebaseManager = (function() {
         }
     }
 
+    async function createUpdateToken(allianceIdParam, playerName, options) {
+        try {
+            if (!db || !allianceIdParam || !playerName) {
+                return { success: false, error: 'Not available' };
+            }
+            var opts = options && typeof options === 'object' ? options : {};
+            var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
+            var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+            var docRef = await db.collection('alliances').doc(allianceIdParam)
+                .collection('update_tokens')
+                .add({
+                    playerName: playerName,
+                    expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+                    used: false,
+                    createdBy: currentUser ? currentUser.uid : null,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+            return { success: true, tokenId: docRef.id };
+        } catch (err) {
+            console.error('createUpdateToken error:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
     async function loadActiveTokens(allianceIdParam) {
         try {
             if (!db || !allianceIdParam) {
@@ -5889,6 +5913,7 @@ const FirebaseManager = (function() {
         finalizeHistory: finalizeHistory,
 
         // Player Updates
+        createUpdateToken: createUpdateToken,
         saveTokenBatch: saveTokenBatch,
         loadPendingUpdates: loadPendingUpdates,
         updatePendingUpdateStatus: updatePendingUpdateStatus,

@@ -1717,6 +1717,8 @@ function initializeApplicationUiRuntime() {
             closeNavigationMenu();
             closeSettingsModal();
             closeGameSelector(false);
+            const invitePopover = document.querySelector('.invite-link-popover');
+            if (invitePopover) { invitePopover.remove(); }
         }
     });
 
@@ -4891,6 +4893,7 @@ function renderPlayersManagementTable() {
                     <div class="players-mgmt-actions players-mgmt-actions--default">
                         <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_edit_button'))}</button>
                         <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_delete_button'))}</button>
+                        <button type="button" class="players-mgmt-invite-btn" data-pm-action="invite" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_invite_button'))}"><span class="invite-btn-text">${escapeHtml(t('players_list_invite_button'))}</span><span class="invite-btn-icon" aria-hidden="true">&#8599;</span></button>
                     </div>
                 </td>
             `;
@@ -5091,6 +5094,88 @@ async function handlePlayersManagementTableAction(event) {
         }
         showMessage('playersMgmtStatus', translatePlayersManagementError(result), 'error');
     }
+
+    if (action === 'invite') {
+        const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+        if (!allianceId) {
+            showMessage('playersMgmtStatus', t('invite_error'), 'error');
+            return;
+        }
+        button.disabled = true;
+        const originalButtonContent = button.innerHTML;
+        button.innerHTML = '<span class="invite-btn-text">' + escapeHtml(t('invite_generating')) + '</span>';
+        const result = await FirebaseService.createUpdateToken(allianceId, originalName, { expiryHours: 48 });
+        button.disabled = false;
+        button.innerHTML = originalButtonContent;
+        if (!result || !result.success) {
+            showMessage('playersMgmtStatus', t('invite_error'), 'error');
+            return;
+        }
+        const inviteUrl = window.location.origin + '/player-update.html?token=' + encodeURIComponent(result.tokenId) + '&alliance=' + encodeURIComponent(allianceId);
+        showInviteLinkPopover(button, inviteUrl);
+    }
+}
+
+function showInviteLinkPopover(anchorButton, url) {
+    const existingPopover = document.querySelector('.invite-link-popover');
+    if (existingPopover) {
+        existingPopover.remove();
+    }
+    const popover = document.createElement('div');
+    popover.className = 'invite-link-popover';
+    popover.setAttribute('role', 'dialog');
+    popover.setAttribute('aria-label', t('invite_copy_link'));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.readOnly = true;
+    input.value = url;
+    input.className = 'invite-link-input';
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'invite-link-copy-btn';
+    copyBtn.textContent = t('invite_copy_link');
+    copyBtn.addEventListener('click', function() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function() {
+                copyBtn.textContent = t('invite_link_copied');
+                setTimeout(function() { copyBtn.textContent = t('invite_copy_link'); }, 2000);
+            }).catch(function() {
+                input.select();
+                document.execCommand('copy');
+                copyBtn.textContent = t('invite_link_copied');
+                setTimeout(function() { copyBtn.textContent = t('invite_copy_link'); }, 2000);
+            });
+        } else {
+            input.select();
+            document.execCommand('copy');
+            copyBtn.textContent = t('invite_link_copied');
+            setTimeout(function() { copyBtn.textContent = t('invite_copy_link'); }, 2000);
+        }
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'invite-link-close-btn';
+    closeBtn.setAttribute('aria-label', t('close_button'));
+    closeBtn.textContent = '\u00d7';
+    closeBtn.addEventListener('click', function() { popover.remove(); });
+    popover.appendChild(closeBtn);
+    popover.appendChild(input);
+    popover.appendChild(copyBtn);
+    document.body.appendChild(popover);
+    const rect = anchorButton.getBoundingClientRect();
+    const scrollY = window.scrollY || document.documentElement.scrollTop;
+    const scrollX = window.scrollX || document.documentElement.scrollLeft;
+    popover.style.top = (rect.bottom + scrollY + 6) + 'px';
+    popover.style.left = Math.max(8, rect.left + scrollX) + 'px';
+    function onOutsideClick(e) {
+        if (!popover.contains(e.target) && e.target !== anchorButton) {
+            popover.remove();
+            document.removeEventListener('click', onOutsideClick, true);
+        }
+    }
+    setTimeout(function() {
+        document.addEventListener('click', onOutsideClick, true);
+    }, 0);
 }
 
 // ============================================================
