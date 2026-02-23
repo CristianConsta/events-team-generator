@@ -1037,22 +1037,26 @@ select {
     color: #a8d8ff;
 }
 .players-mgmt-invite-btn .invite-btn-icon,
-.players-mgmt-actions .action-btn-icon {
+.action-btn-icon {
     display: none;
 }
 @media (max-width: 768px) {
     .players-mgmt-invite-btn .invite-btn-text,
-    .players-mgmt-actions .action-btn-text {
+    .action-btn-text {
         display: none;
     }
     .players-mgmt-invite-btn .invite-btn-icon,
-    .players-mgmt-actions .action-btn-icon {
+    .action-btn-icon {
         display: inline;
     }
     .players-mgmt-actions .players-mgmt-edit-btn,
     .players-mgmt-actions .players-mgmt-danger-btn {
         min-width: 0;
         padding: 4px 8px;
+    }
+    button:has(.action-btn-icon) {
+        min-width: 44px;
+        min-height: 44px;
     }
 }
 .invite-link-popover {

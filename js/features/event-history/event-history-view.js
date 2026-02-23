@@ -38,7 +38,9 @@
             openBtn.className = 'secondary';
             openBtn.setAttribute('data-history-id', record.id || '');
             openBtn.setAttribute('data-action', 'open-attendance');
-            openBtn.textContent = 'Mark Attendance';
+            openBtn.setAttribute('title', 'Mark attendance for ' + (record.eventName || 'event'));
+            openBtn.setAttribute('aria-label', 'Mark attendance for ' + (record.eventName || 'event'));
+            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span>';
 
             item.appendChild(name);
             item.appendChild(date);

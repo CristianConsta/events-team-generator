@@ -330,12 +330,16 @@
 
             const acceptBtn = cardTemplate.querySelector('[data-invite-action="accept"]');
             if (acceptBtn) {
-                acceptBtn.textContent = t('notification_accept');
+                acceptBtn.innerHTML = '<span class="action-btn-text">' + t('notification_accept') + '</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span>';
+                acceptBtn.setAttribute('title', t('notification_accept'));
+                acceptBtn.setAttribute('aria-label', 'Accept invitation');
                 acceptBtn.classList.add('alliance-action-btn--primary');
             }
             const rejectBtn = cardTemplate.querySelector('[data-invite-action="reject"]');
             if (rejectBtn) {
-                rejectBtn.textContent = t('notification_reject');
+                rejectBtn.innerHTML = '<span class="action-btn-text">' + t('notification_reject') + '</span><span class="action-btn-icon" aria-hidden="true">&#10005;</span>';
+                rejectBtn.setAttribute('title', t('notification_reject'));
+                rejectBtn.setAttribute('aria-label', 'Reject invitation');
                 rejectBtn.classList.add('alliance-action-btn--danger');
             }
 
@@ -387,7 +391,12 @@
         const t = getTranslator(config && config.translate);
         setElementText(joinTemplate, '.alliance-panel-subtitle', t('alliance_create_title'));
         setElementPlaceholder(joinTemplate, '#newAllianceName', t('alliance_name_placeholder'));
-        setElementText(joinTemplate, '#allianceCreateActionBtn', t('alliance_create_button'));
+        var createActionBtn = joinTemplate.querySelector('#allianceCreateActionBtn');
+        if (createActionBtn) {
+            createActionBtn.innerHTML = '<span class="action-btn-text">' + t('alliance_create_button') + '</span><span class="action-btn-icon" aria-hidden="true">&#43;</span>';
+            createActionBtn.setAttribute('title', 'Create alliance');
+            createActionBtn.setAttribute('aria-label', 'Create alliance');
+        }
 
         container.replaceChildren(joinTemplate);
 
@@ -421,9 +430,19 @@
         setElementText(memberTemplate, '#allianceMembersTitle', t('alliance_members_title'));
         setElementText(memberTemplate, '#allianceInviteTitle', t('alliance_invite_title'));
         setElementPlaceholder(memberTemplate, '#inviteEmail', t('alliance_invite_placeholder'));
-        setElementText(memberTemplate, '#allianceInviteActionBtn', t('alliance_invite_button'));
+        var inviteActionBtn = memberTemplate.querySelector('#allianceInviteActionBtn');
+        if (inviteActionBtn) {
+            inviteActionBtn.innerHTML = '<span class="action-btn-text">' + t('alliance_invite_button') + '</span><span class="action-btn-icon" aria-hidden="true">&#8599;</span>';
+            inviteActionBtn.setAttribute('title', 'Send alliance invitation');
+            inviteActionBtn.setAttribute('aria-label', 'Send alliance invitation');
+        }
         setElementText(memberTemplate, '#allianceInviteHint', t('alliance_invite_platform_hint'));
-        setElementText(memberTemplate, '#allianceLeaveBtn', t('alliance_leave_button'));
+        var leaveBtnEl = memberTemplate.querySelector('#allianceLeaveBtn');
+        if (leaveBtnEl) {
+            leaveBtnEl.innerHTML = '<span class="action-btn-text">' + t('alliance_leave_button') + '</span><span class="action-btn-icon" aria-hidden="true">&#8592;</span>';
+            leaveBtnEl.setAttribute('title', 'Leave alliance');
+            leaveBtnEl.setAttribute('aria-label', 'Leave alliance');
+        }
 
         const membersList = memberTemplate.querySelector('#allianceMembersList');
         if (membersList) {

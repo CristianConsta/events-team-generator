@@ -37,7 +37,10 @@
             copyBtn.className = 'secondary token-copy-btn';
             copyBtn.setAttribute('data-link', token.link || '');
             copyBtn.setAttribute('data-i18n', 'player_updates_copy_link');
-            copyBtn.textContent = 'Copy';
+            var playerName = (token && token.playerName) || 'player';
+            copyBtn.setAttribute('title', 'Copy link for ' + playerName);
+            copyBtn.setAttribute('aria-label', 'Copy link for ' + playerName);
+            copyBtn.innerHTML = '<span class="action-btn-text">Copy</span><span class="action-btn-icon" aria-hidden="true">&#128203;</span>';
 
             item.appendChild(nameEl);
             item.appendChild(linkEl);

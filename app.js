@@ -4878,8 +4878,8 @@ function renderPlayersManagementTable() {
                 </td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions players-mgmt-actions--edit">
-                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_save_button'))}</button>
-                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_cancel_button'))}</button>
+                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_save_button'))}" aria-label="${escapeHtml(t('players_list_save_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_save_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span></button>
+                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_cancel_button'))}" aria-label="${escapeHtml(t('players_list_cancel_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_cancel_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#10005;</span></button>
                     </div>
                 </td>
             `;
