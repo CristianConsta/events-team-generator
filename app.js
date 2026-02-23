@@ -5098,6 +5098,7 @@ async function handlePlayersManagementTableAction(event) {
     if (action === 'invite') {
         const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
         if (!allianceId) {
+            console.warn('Invite: no allianceId for gameplayContext', gameplayContext);
             showMessage('playersMgmtStatus', t('invite_error'), 'error');
             return;
         }
@@ -5108,6 +5109,7 @@ async function handlePlayersManagementTableAction(event) {
         button.disabled = false;
         button.innerHTML = originalButtonContent;
         if (!result || !result.success) {
+            console.warn('Invite: createUpdateToken failed', result);
             showMessage('playersMgmtStatus', t('invite_error'), 'error');
             return;
         }
