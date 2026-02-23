@@ -5120,7 +5120,7 @@ async function handlePlayersManagementTableAction(event) {
                 showMessage('playersMgmtStatus', t('invite_error'), 'error');
                 return;
             }
-            inviteUrl = window.location.origin + '/player-update.html?token=' + encodeURIComponent(result.tokenId) + '&uid=' + encodeURIComponent(uid);
+            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0] + '?token=' + encodeURIComponent(result.tokenId) + '&uid=' + encodeURIComponent(uid);
         } else {
             const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
             if (!allianceId) {
@@ -5138,7 +5138,7 @@ async function handlePlayersManagementTableAction(event) {
                 showMessage('playersMgmtStatus', t('invite_error'), 'error');
                 return;
             }
-            inviteUrl = window.location.origin + '/player-update.html?token=' + encodeURIComponent(result.tokenId) + '&alliance=' + encodeURIComponent(allianceId);
+            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0] + '?token=' + encodeURIComponent(result.tokenId) + '&alliance=' + encodeURIComponent(allianceId);
         }
         showInviteLinkPopover(button, inviteUrl);
     }
