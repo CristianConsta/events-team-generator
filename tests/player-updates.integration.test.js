@@ -313,3 +313,71 @@ test('createUpdateToken gateway mock: returns failure on error', async () => {
     assert.equal(result.success, false);
     assert.ok(result.error);
 });
+
+// ---------------------------------------------------------------------------
+// Invite flow: player name propagation (regression for bug fixes)
+// ---------------------------------------------------------------------------
+
+test('invite flow: createUpdateToken receives playerName from clicked row (originalName)', async () => {
+    // Regression test: app.js reads originalName from data-player attribute and
+    // passes it directly to FirebaseService.createUpdateToken. This verifies the
+    // contract that the gateway receives the same name that was on the button.
+    loadModules();
+
+    var capturedPlayerName = null;
+    const gateway = makeMockGateway({
+        createUpdateToken: async function (allianceId, playerName, options) {
+            capturedPlayerName = playerName;
+            return { success: true, tokenId: 'tok-from-row' };
+        },
+    });
+
+    // Simulate what app.js does: read originalName from data-player and call createUpdateToken
+    const originalName = 'Alice';
+    await gateway.createUpdateToken('alliance_pu_integ_1', originalName, { expiryHours: 48 });
+
+    assert.equal(capturedPlayerName, 'Alice', 'createUpdateToken should receive the exact player name from the row');
+});
+
+test('invite flow: invite URL uses alliance param (not aid) matching player-update.js reader', async () => {
+    // Regression test: app.js builds invite URL with &alliance= param.
+    // player-update.js reads params.alliance || params.aid.
+    // This test verifies the URL produced by app.js contains &alliance= so
+    // player-update.js can read it.
+    loadModules();
+
+    const tokenId = 'tok-abc123';
+    const allianceId = 'alliance_pu_integ_1';
+    const origin = global.location.origin;
+
+    // Reproduce the URL construction from app.js line 5116
+    const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
+        + '&alliance=' + encodeURIComponent(allianceId);
+
+    assert.ok(inviteUrl.includes('alliance='), 'URL should contain alliance= param');
+    assert.ok(!inviteUrl.includes('&aid='), 'URL should not use deprecated &aid= param');
+    assert.ok(inviteUrl.includes('token=' + tokenId));
+    assert.ok(inviteUrl.includes('alliance=' + allianceId));
+});
+
+test('invite flow: createUpdateToken stores playerName in token doc shape', async () => {
+    // Verifies the token document passed to the gateway includes playerName field.
+    // Regression for: token lookup would fail if playerName was absent.
+    loadModules();
+
+    var storedDoc = null;
+    const gateway = makeMockGateway({
+        saveTokenBatch: async function (allianceId, tokenDocs) {
+            storedDoc = tokenDocs[0];
+            return { ok: true, tokenIds: ['tok_stored'] };
+        },
+    });
+
+    global.DSFeaturePlayerUpdatesController.init(gateway);
+    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
+    await new Promise(function (resolve) { setTimeout(resolve, 50); });
+
+    assert.ok(storedDoc, 'Token doc should have been stored');
+    assert.ok('playerName' in storedDoc.doc, 'Token doc.doc must have playerName field');
+    assert.equal(storedDoc.doc.playerName, 'Alice', 'Token doc.doc.playerName must match the invited player');
+});

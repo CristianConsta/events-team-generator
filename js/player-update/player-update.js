@@ -79,7 +79,7 @@
     function init() {
         var params = parseParams();
         var hex = params.token || '';
-        var aid = params.aid || '';
+        var aid = params.alliance || params.aid || '';
         var lang = params.lang || 'EN';
 
         // Step 2: set i18n language
@@ -111,22 +111,21 @@
             .then(function (userCredential) {
                 var uid = userCredential.user.uid;
 
-                // Step 5: query Firestore for token
-                return firebase.firestore()
+                // Step 5: fetch token document by ID
+                var tokenRef = firebase.firestore()
                     .collection('alliances').doc(aid)
                     .collection('update_tokens')
-                    .where('token', '==', hex)
-                    .limit(1)
-                    .get()
+                    .doc(hex);
+                return tokenRef.get()
                     .then(function (snapshot) {
                         // Step 6: token not found
-                        if (snapshot.empty) {
+                        if (!snapshot.exists) {
                             showError(ERROR_CODES.TOKEN_INVALID);
                             return;
                         }
 
-                        var tokenDoc = snapshot.docs[0].data();
-                        var tokenRef = snapshot.docs[0].ref;
+                        var tokenDoc = snapshot.data();
+                        tokenRef = snapshot.ref;
 
                         // Step 7: token already used
                         if (tokenDoc.used === true) {
@@ -187,7 +186,7 @@
                                 submittedAt: firebase.firestore.Timestamp.now(),
                                 submittedByAnonUid: uid,
                                 status: 'pending',
-                                tokenId: snapshot.docs[0].id,
+                                tokenId: hex,
                             };
 
                             firebase.firestore()

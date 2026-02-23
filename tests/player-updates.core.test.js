@@ -263,3 +263,42 @@ test('formatLinksForMessaging: non-array returns empty string', () => {
     const result = global.DSFeaturePlayerUpdatesCore.formatLinksForMessaging(null);
     assert.equal(result, '');
 });
+
+// ---------------------------------------------------------------------------
+// Source-level regression: player-update.js bug fixes
+// ---------------------------------------------------------------------------
+
+test('player-update.js source: reads params.alliance (not just params.aid)', () => {
+    // Regression: URL param was `params.aid` only; app.js sends `alliance`.
+    // The fix reads `params.alliance || params.aid`.
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes('params.alliance'),
+        'player-update.js must read params.alliance (not just params.aid)'
+    );
+});
+
+test('player-update.js source: does NOT use .where("token" query for token lookup', () => {
+    // Regression: token lookup used .where('token', '==', hex) but tokens are stored
+    // as document IDs. The fix uses .doc(hex).get().
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        !source.includes(".where('token'"),
+        "player-update.js must NOT use .where('token') query — tokens are fetched by doc ID"
+    );
+});
+
+test('player-update.js source: fetches token by document ID using .doc(', () => {
+    // Regression: token must be fetched as .doc(hex).get() not by query.
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes('.doc(hex)'),
+        'player-update.js must fetch token by document ID: .doc(hex)'
+    );
+});
