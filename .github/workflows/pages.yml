@@ -58,6 +58,8 @@ jobs:
 
   e2e-smoke:
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -74,24 +76,10 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system deps only
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
       - name: Run E2E smoke tests
         env:
           CI: "true"
+          HOME: /root
         run: npm run test:e2e:smoke
 
   package-and-deploy:
