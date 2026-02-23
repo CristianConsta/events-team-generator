@@ -107,6 +107,15 @@
             return;
         }
 
+        if (!firebase.apps || !firebase.apps.length) {
+            var config = global.FIREBASE_CONFIG;
+            if (!config) {
+                showError(ERROR_CODES.NETWORK_ERROR);
+                return;
+            }
+            firebase.initializeApp(config);
+        }
+
         var isPersonal = !!uidParam;
 
         // Step 4: sign in anonymously

@@ -269,3 +269,248 @@ test('@regression @invite player-update page shows error for token without uid o
     const errorEl = page.locator('#updateError');
     await expect(errorEl).toBeVisible({ timeout: 5000 });
 });
+
+// ---------------------------------------------------------------------------
+// Helper: inject a mock window.firebase for player-update.html.
+// Must be called via page.addInitScript BEFORE page.goto.
+//
+// options is a plain-JSON-serializable object:
+//   {
+//     snapshotExists: boolean,          // whether the token doc exists
+//     tokenData: {                      // token doc fields (plain values only)
+//       used: boolean,
+//       expiresAtMs: number,            // epoch ms — converted to { toDate() } inside
+//       playerName: string,
+//       currentSnapshot: { power, thp, troops }
+//     } | null
+//     hangAuth: boolean                 // if true, signInAnonymously never resolves
+//   }
+//
+// All values must be JSON-serializable (no functions) because addInitScript
+// serialises the second argument via JSON before injecting it.
+// ---------------------------------------------------------------------------
+
+function injectPlayerUpdateFirebaseMock(page, options) {
+    return page.addInitScript((opts) => {
+        // Provide FIREBASE_CONFIG so the script doesn't bail on missing config.
+        window.FIREBASE_CONFIG = {
+            apiKey: 'mock-key',
+            authDomain: 'mock.firebaseapp.com',
+            projectId: 'mock-project',
+            storageBucket: 'mock.appspot.com',
+            messagingSenderId: '000000000000',
+            appId: '1:000000000000:web:000000000000000000000000',
+        };
+
+        // Build the snapshot object the page code will call .exists / .data() on.
+        function buildSnapshot(snapshotExists, tokenData) {
+            if (!snapshotExists) {
+                return { exists: false, data: function () { return null; } };
+            }
+            return {
+                exists: true,
+                ref: { update: function () { return Promise.resolve(); } },
+                data: function () {
+                    var td = tokenData || {};
+                    return {
+                        used: td.used === true,
+                        expiresAt: {
+                            toDate: function () { return new Date(td.expiresAtMs || 0); },
+                        },
+                        playerName: td.playerName || '',
+                        currentSnapshot: td.currentSnapshot || {},
+                    };
+                },
+            };
+        }
+
+        var snapshot = buildSnapshot(opts.snapshotExists, opts.tokenData);
+
+        // Chainable Firestore mock — every collection/doc call returns the same
+        // snapshot regardless of path depth.
+        function makeFirestoreMock() {
+            function docChain() {
+                return {
+                    collection: function () { return { doc: docChain }; },
+                    get: function () { return Promise.resolve(snapshot); },
+                    update: function () { return Promise.resolve(); },
+                };
+            }
+            return {
+                collection: function () { return { doc: docChain }; },
+            };
+        }
+
+        var mockFirebase = {
+            apps: [],
+            initializeApp: function (config) {
+                mockFirebase.apps.push({ name: '[DEFAULT]', options: config });
+            },
+            auth: function () {
+                return {
+                    signInAnonymously: function () {
+                        if (opts.hangAuth) {
+                            return new Promise(function () { /* intentionally never resolves */ });
+                        }
+                        return Promise.resolve({ user: { uid: 'anon-test-uid' } });
+                    },
+                };
+            },
+            firestore: function () {
+                return makeFirestoreMock();
+            },
+        };
+        mockFirebase.firestore.Timestamp = {
+            now: function () { return { toDate: function () { return new Date(); } }; },
+        };
+
+        // Protect the mock from being overwritten by vendor scripts loaded later.
+        try {
+            Object.defineProperty(window, 'firebase', {
+                configurable: true,
+                enumerable: true,
+                get: function () { return mockFirebase; },
+                set: function () { /* ignore vendor attempts to overwrite */ },
+            });
+        } catch (_) {
+            window.firebase = mockFirebase;
+        }
+    }, options);
+}
+
+// Shared helper: wait until the loading spinner has been hidden.
+async function waitForLoadingHidden(page, timeout) {
+    await page.waitForFunction(() => {
+        var el = document.getElementById('updateLoading');
+        return el && el.classList.contains('hidden');
+    }, { timeout: timeout || 8000 });
+}
+
+// ---------------------------------------------------------------------------
+// Smoke: player-update page initialises Firebase without a "no-app" crash
+// ---------------------------------------------------------------------------
+
+test('@smoke @invite player-update page initializes Firebase without errors', async ({ page }) => {
+    // Token not found — page should reach an error state, NOT a Firebase crash.
+    await injectPlayerUpdateFirebaseMock(page, { snapshotExists: false });
+
+    const consoleErrors = [];
+    page.on('console', (msg) => {
+        if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
+    await page.goto('player-update.html?token=testtoken&uid=testuid');
+    await page.waitForLoadState('domcontentloaded');
+    await waitForLoadingHidden(page);
+
+    // Must be in error state (token invalid), not crashed.
+    await expect(page.locator('#updateError')).toBeVisible({ timeout: 3000 });
+
+    // Must not have a Firebase "no-app" error in the console.
+    const firebaseNoAppErrors = consoleErrors.filter((e) =>
+        /no firebase app/i.test(e) || /no-app/i.test(e)
+    );
+    expect(firebaseNoAppErrors).toHaveLength(0);
+});
+
+// ---------------------------------------------------------------------------
+// Regression: loading state is visible immediately on navigation
+// ---------------------------------------------------------------------------
+
+test('@regression @invite player-update page shows loading state initially', async ({ page }) => {
+    // hangAuth: true means signInAnonymously never resolves — loading persists.
+    await injectPlayerUpdateFirebaseMock(page, {
+        snapshotExists: false,
+        hangAuth: true,
+    });
+
+    await page.goto('player-update.html?token=testtoken&uid=testuid');
+    await page.waitForLoadState('domcontentloaded');
+
+    // Loading indicator must be visible right after DOM is ready.
+    await expect(page.locator('#updateLoading')).toBeVisible({ timeout: 3000 });
+
+    // Form and error panels must be hidden at this point.
+    await expect(page.locator('#updateForm')).toBeHidden();
+    await expect(page.locator('#updateError')).toBeHidden();
+});
+
+// ---------------------------------------------------------------------------
+// Regression: form is shown when the token document is valid
+// ---------------------------------------------------------------------------
+
+test('@regression @invite player-update page shows form when token is valid', async ({ page }) => {
+    await injectPlayerUpdateFirebaseMock(page, {
+        snapshotExists: true,
+        tokenData: {
+            used: false,
+            expiresAtMs: Date.now() + 24 * 60 * 60 * 1000, // 24 h from now
+            playerName: 'TestHero',
+            currentSnapshot: { power: 1234, thp: 5678, troops: 'Aero' },
+        },
+    });
+
+    await page.goto('player-update.html?token=validtoken&uid=owneruid');
+    await page.waitForLoadState('domcontentloaded');
+    await waitForLoadingHidden(page);
+
+    await expect(page.locator('#updateForm')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#updatePlayerName')).toContainText('TestHero', { timeout: 2000 });
+    await expect(page.locator('#updatePower')).toHaveValue('1234');
+    await expect(page.locator('#updateThp')).toHaveValue('5678');
+    await expect(page.locator('#updateTroops')).toHaveValue('Aero');
+});
+
+// ---------------------------------------------------------------------------
+// Regression: expired token shows error state
+// ---------------------------------------------------------------------------
+
+test('@regression @invite player-update page shows expired error for expired token', async ({ page }) => {
+    await injectPlayerUpdateFirebaseMock(page, {
+        snapshotExists: true,
+        tokenData: {
+            used: false,
+            expiresAtMs: Date.now() - 24 * 60 * 60 * 1000, // 24 h ago
+            playerName: 'ExpiredHero',
+            currentSnapshot: {},
+        },
+    });
+
+    await page.goto('player-update.html?token=expiredtoken&uid=owneruid');
+    await page.waitForLoadState('domcontentloaded');
+    await waitForLoadingHidden(page);
+
+    await expect(page.locator('#updateError')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#updateForm')).toBeHidden();
+
+    const msgEl = page.locator('#updateErrorMessage');
+    await expect(msgEl).toBeVisible({ timeout: 2000 });
+    expect((await msgEl.textContent()).trim().length).toBeGreaterThan(0);
+});
+
+// ---------------------------------------------------------------------------
+// Regression: already-used token shows error state
+// ---------------------------------------------------------------------------
+
+test('@regression @invite player-update page shows used error for already-used token', async ({ page }) => {
+    await injectPlayerUpdateFirebaseMock(page, {
+        snapshotExists: true,
+        tokenData: {
+            used: true,
+            expiresAtMs: Date.now() + 24 * 60 * 60 * 1000,
+            playerName: 'UsedHero',
+            currentSnapshot: {},
+        },
+    });
+
+    await page.goto('player-update.html?token=usedtoken&uid=owneruid');
+    await page.waitForLoadState('domcontentloaded');
+    await waitForLoadingHidden(page);
+
+    await expect(page.locator('#updateError')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#updateForm')).toBeHidden();
+
+    const msgEl = page.locator('#updateErrorMessage');
+    await expect(msgEl).toBeVisible({ timeout: 2000 });
+    expect((await msgEl.textContent()).trim().length).toBeGreaterThan(0);
+});
