@@ -250,9 +250,38 @@
         });
     }
 
+    function renderLoadingState(tableBody, translate) {
+        var t = getTranslator(translate);
+        tableBody.innerHTML = '';
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.setAttribute('colspan', '5');
+        td.className = 'table-loading-state';
+        var spinner = document.createElement('div');
+        spinner.className = 'loading-spinner';
+        td.appendChild(spinner);
+        td.appendChild(document.createTextNode(t('loading_players')));
+        tr.appendChild(td);
+        tableBody.appendChild(tr);
+    }
+
+    function renderEmptyState(tableBody, translate) {
+        var t = getTranslator(translate);
+        tableBody.innerHTML = '';
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.setAttribute('colspan', '5');
+        td.className = 'table-empty-state';
+        td.textContent = t('empty_state_no_players');
+        tr.appendChild(td);
+        tableBody.appendChild(tr);
+    }
+
     global.DSPlayerTableUI = {
         getFilteredAndSortedPlayers: getFilteredAndSortedPlayers,
         refreshVisiblePlayerRows: refreshVisiblePlayerRows,
         renderPlayersTable: renderPlayersTable,
+        renderLoadingState: renderLoadingState,
+        renderEmptyState: renderEmptyState,
     };
 })(window);

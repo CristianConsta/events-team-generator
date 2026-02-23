@@ -7264,6 +7264,14 @@ function renderPlayersTable() {
 
     const tbody = document.getElementById('playersTableBody');
     const searchTerm = (document.getElementById('searchFilter').value || '').toLowerCase();
+    if (allPlayers.length === 0) {
+        if (typeof window.DSPlayerTableUI.renderEmptyState === 'function') {
+            window.DSPlayerTableUI.renderEmptyState(tbody, t);
+        }
+        updateClearAllButtonVisibility();
+        return;
+    }
+
     window.DSPlayerTableUI.renderPlayersTable({
         tbody: tbody,
         allPlayers: allPlayers,
