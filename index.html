@@ -76,6 +76,14 @@
                             <button id="navPlayersBtn" class="header-menu-item" role="menuitem"><span data-i18n="players_management_button">Players Management</span></button>
                             <button id="navConfigBtn" class="header-menu-item" role="menuitem"><span data-i18n="events_manager_title">Events Manager</span></button>
                             <button id="navAllianceBtn" class="header-menu-item" role="menuitem"><span data-i18n="alliance_button">Alliance</span></button>
+                            <button id="navEventHistoryBtn" class="header-menu-item" role="menuitem">
+                                <span data-i18n="event_history_nav">Event History</span>
+                                <span id="eventHistoryPendingBadge" class="nav-badge hidden" aria-label="Pending finalization">0</span>
+                            </button>
+                            <button id="navPlayerUpdatesBtn" class="header-menu-item" role="menuitem">
+                                <span data-i18n="player_updates_review_nav">Pending Updates</span>
+                                <span id="playerUpdatesPendingBadge" class="nav-badge hidden" aria-label="Pending updates">0</span>
+                            </button>
                             <button id="navGameMetadataBtn" class="header-menu-item hidden" role="menuitem"><span data-i18n="game_metadata_admin_menu">Game Metadata Admin</span></button>
                             <button id="navSettingsBtn" class="header-menu-item" role="menuitem"><span data-i18n="settings_button">Settings</span></button>
                             <button id="navSwitchGameBtn" class="header-menu-item" role="menuitem"><span data-i18n="game_switch_button">Switch Game</span></button>
@@ -672,6 +680,7 @@
                                         <option value="name-desc" data-i18n="sort_name_desc">Sort by Name (Z-A)</option>
                                     </select>
                                     <button id="playersMgmtClearFiltersBtn" class="secondary" type="button" data-i18n="clear_all_selections">Clear All Selections</button>
+                                    <button id="playersMgmtRequestUpdatesBtn" class="secondary" type="button" data-i18n="request_updates_btn">Request Updates</button>
                                 </div>
                                 <div class="players-mgmt-table-wrap">
                                     <table class="players-table responsive-table-card" id="playersMgmtTable">
@@ -854,6 +863,9 @@
                         <button id="downloadExcelBtn">
                             📊 <span data-i18n="download_excel">Excel</span>
                         </button>
+                        <button id="eventHistorySaveBtn" class="secondary" type="button">
+                            <span data-i18n="event_history_save_btn">Save as History</span>
+                        </button>
                     </div>
                     <div id="downloadStatus"></div>
                 </div>
@@ -919,6 +931,50 @@
             <div class="onboarding-desc"       id="onboardingDesc"></div>
             <div class="onboarding-skip"       id="onboardingSkip"></div>
         </div>
+
+        <!-- Event History View -->
+        <section id="eventHistoryView" class="view-section hidden" aria-labelledby="eventHistoryHeading">
+            <h2 id="eventHistoryHeading" class="view-heading" data-i18n="event_history_title">Event History</h2>
+            <div id="eventHistoryContainer"></div>
+        </section>
+
+        <!-- Attendance Check-in Modal -->
+        <div id="attendancePanelModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="attendancePanelTitle">
+            <div class="modal-card">
+                <h2 id="attendancePanelTitle" data-i18n="attendance_panel_title">Mark Attendance</h2>
+                <div id="attendancePanelBody"></div>
+                <div class="modal-actions">
+                    <button id="attendanceFinalizeBtn" class="primary" data-i18n="attendance_finalize_btn">Finalize Attendance</button>
+                    <button id="attendanceCancelBtn" class="secondary" data-i18n="players_list_cancel_button">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Updates Review View -->
+        <section id="playerUpdatesReviewView" class="view-section hidden" aria-labelledby="playerUpdatesReviewHeading">
+            <h2 id="playerUpdatesReviewHeading" class="view-heading" data-i18n="player_updates_review_title">Pending Player Updates</h2>
+            <div id="playerUpdatesReviewContainer"></div>
+        </section>
+
+        <!-- Token Generation Modal -->
+        <div id="tokenGenerationModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle">
+            <div class="modal-card">
+                <h2 id="tokenModalTitle" data-i18n="token_modal_title">Generate Update Links</h2>
+                <div class="modal-field">
+                    <label for="tokenExpiryHours" data-i18n="token_modal_expiry_label">Link Expiry</label>
+                    <select id="tokenExpiryHours">
+                        <option value="24" data-i18n="token_modal_expiry_24h">24 hours</option>
+                        <option value="48" selected data-i18n="token_modal_expiry_48h">48 hours (default)</option>
+                        <option value="72" data-i18n="token_modal_expiry_72h">72 hours</option>
+                    </select>
+                </div>
+                <div id="tokenModalBody"></div>
+                <div class="modal-actions">
+                    <button id="tokenCopyAllBtn" class="secondary" type="button" data-i18n="token_copy_all_btn">Copy All Links</button>
+                    <button id="tokenModalCloseBtn" class="primary" type="button" data-i18n="close_button">Close</button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script defer src="translations.js"></script>
@@ -957,7 +1013,19 @@
     <script defer src="js/shared/data/firebase-events-gateway.js"></script>
     <script defer src="js/shared/data/firebase-alliance-gateway.js"></script>
     <script defer src="js/shared/data/firebase-notifications-gateway.js"></script>
+    <script defer src="js/shared/data/firebase-event-history-gateway.js"></script>
     <script defer src="js/services/firebase-service.js"></script>
+    <script defer src="js/core/firestore-utils.js"></script>
+    <script defer src="js/core/reliability.js"></script>
+    <script defer src="js/features/event-history/event-history-core.js"></script>
+    <script defer src="js/features/event-history/event-history-actions.js"></script>
+    <script defer src="js/features/event-history/event-history-view.js"></script>
+    <script defer src="js/features/event-history/event-history-controller.js"></script>
+    <script defer src="js/shared/data/firebase-player-updates-gateway.js"></script>
+    <script defer src="js/features/player-updates/player-updates-core.js"></script>
+    <script defer src="js/features/player-updates/player-updates-actions.js"></script>
+    <script defer src="js/features/player-updates/player-updates-view.js"></script>
+    <script defer src="js/features/player-updates/player-updates-controller.js"></script>
     <script defer src="js/shell/bootstrap/app-shell-contracts.js"></script>
     <script defer src="js/shell/navigation/navigation-controller.js"></script>
     <script defer src="js/shell/overlays/modal-controller.js"></script>

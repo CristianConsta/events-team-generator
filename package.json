@@ -8,7 +8,7 @@
     "check:budgets": "node scripts/check-size-budgets.js",
     "test": "npm run test:unit",
     "test:ci": "npm run lint:ci && npm run check:budgets && npm run test:unit && npm run test:e2e:smoke",
-    "test:unit": "node --test tests/*.test.js",
+    "test:unit": "node --test tests/*.test.js tests/helpers/*.test.js",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.emulator.js\"",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test:e2e": "playwright test --project=edge-desktop --project=edge-mobile",
@@ -17,16 +17,18 @@
     "test:e2e:headed": "playwright test --project=edge-desktop --headed",
     "test:e2e:smoke": "playwright test --project=edge-desktop --project=edge-mobile --grep @smoke",
     "test:e2e:regression": "playwright test --project=edge-desktop --project=edge-mobile --grep @regression",
-    "test:e2e:real": "playwright test --project=edge-desktop --grep @real"
+    "test:e2e:real": "playwright test --project=edge-desktop --grep @real",
+    "build": "node scripts/build.js",
+    "dev": "node scripts/build.js --watch"
   },
-  "dependencies": {},
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
     "@google-cloud/firestore": "^8.2.0",
-    "firebase-admin": "^13.6.1",
     "@playwright/test": "^1.58.2",
-    "eslint": "^8.57.1",
-    "firebase-tools": "^14.21.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^10.0.1",
+    "firebase-admin": "^13.6.1",
+    "firebase-tools": "^15.7.0",
     "typescript": "^5.4.0"
   }
 }

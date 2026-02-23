@@ -5318,9 +5318,337 @@ const FirebaseManager = (function() {
     }
     
     // ============================================================
+    // EVENT HISTORY & PLAYER STATS
+    // ============================================================
+
+    async function saveEventHistoryRecord(allianceId, record) {
+        try {
+            if (!db || !allianceId) {
+                return { ok: false, error: 'Not available' };
+            }
+            const docRef = await db.collection('alliances').doc(allianceId)
+                .collection('event_history').add(Object.assign({}, record, {
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                }));
+            return { ok: true, historyId: docRef.id };
+        } catch (err) {
+            console.error('saveEventHistoryRecord error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function saveAttendanceBatch(allianceIdParam, historyId, attendanceDocs) {
+        try {
+            if (!db || !allianceIdParam || !historyId) {
+                return { ok: false, error: 'Not available' };
+            }
+            const batch = db.batch();
+            const basePath = db.collection('alliances').doc(allianceIdParam)
+                .collection('event_history').doc(historyId)
+                .collection('attendance');
+            attendanceDocs.forEach(function(entry) {
+                var ref = basePath.doc(entry.docId);
+                batch.set(ref, entry.doc);
+            });
+            await batch.commit();
+            return { ok: true };
+        } catch (err) {
+            console.error('saveAttendanceBatch error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function loadEventHistoryRecords(allianceIdParam, filters) {
+        try {
+            if (!db || !allianceIdParam) {
+                return [];
+            }
+            var query = db.collection('alliances').doc(allianceIdParam)
+                .collection('event_history');
+            var f = filters && typeof filters === 'object' ? filters : {};
+            if (f.gameId) {
+                query = query.where('gameId', '==', f.gameId);
+            }
+            if (f.status) {
+                query = query.where('status', '==', f.status);
+            }
+            query = query.orderBy('scheduledAt', 'desc');
+            if (f.limit && typeof f.limit === 'number') {
+                query = query.limit(f.limit);
+            }
+            var snapshot = await query.get();
+            var results = [];
+            snapshot.forEach(function(doc) {
+                results.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            return results;
+        } catch (err) {
+            console.error('loadEventHistoryRecords error:', err);
+            return [];
+        }
+    }
+
+    async function loadEventAttendance(allianceIdParam, historyId) {
+        try {
+            if (!db || !allianceIdParam || !historyId) {
+                return [];
+            }
+            var snapshot = await db.collection('alliances').doc(allianceIdParam)
+                .collection('event_history').doc(historyId)
+                .collection('attendance').get();
+            var results = [];
+            snapshot.forEach(function(doc) {
+                results.push(Object.assign({ docId: doc.id }, doc.data()));
+            });
+            return results;
+        } catch (err) {
+            console.error('loadEventAttendance error:', err);
+            return [];
+        }
+    }
+
+    async function updateAttendanceStatus(allianceIdParam, historyId, docId, status, markedBy) {
+        try {
+            if (!db || !allianceIdParam || !historyId || !docId) {
+                return { ok: false, error: 'Not available' };
+            }
+            await db.collection('alliances').doc(allianceIdParam)
+                .collection('event_history').doc(historyId)
+                .collection('attendance').doc(docId)
+                .update({
+                    status: status,
+                    markedBy: markedBy,
+                    markedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+            return { ok: true };
+        } catch (err) {
+            console.error('updateAttendanceStatus error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function finalizeEventHistory(allianceIdParam, historyId, playerStatsUpdates) {
+        try {
+            if (!db || !allianceIdParam || !historyId) {
+                return { ok: false, error: 'Not available' };
+            }
+            var batch = db.batch();
+            var historyRef = db.collection('alliances').doc(allianceIdParam)
+                .collection('event_history').doc(historyId);
+            batch.update(historyRef, {
+                finalized: true,
+                completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+            var updates = Array.isArray(playerStatsUpdates) ? playerStatsUpdates : [];
+            updates.forEach(function(entry) {
+                var statsRef = db.collection('alliances').doc(allianceIdParam)
+                    .collection('player_stats').doc(entry.docId);
+                batch.set(statsRef, Object.assign({}, entry.stats, {
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                }), { merge: true });
+            });
+            await batch.commit();
+            return { ok: true };
+        } catch (err) {
+            console.error('finalizeEventHistory error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    // Canonical aliases — gateway contract uses these exact names
+    async function saveHistoryRecord(allianceId, record) {
+        return saveEventHistoryRecord(allianceId, record);
+    }
+
+    async function loadHistoryRecords(allianceId, filters) {
+        return loadEventHistoryRecords(allianceId, filters);
+    }
+
+    async function loadAttendance(allianceId, historyId) {
+        return loadEventAttendance(allianceId, historyId);
+    }
+
+    async function finalizeHistory(allianceId, historyId, playerStatsUpdates) {
+        return finalizeEventHistory(allianceId, historyId, playerStatsUpdates);
+    }
+
+    async function loadPlayerStats(allianceIdParam, playerDocIds) {
+        try {
+            if (!db || !allianceIdParam || !Array.isArray(playerDocIds) || playerDocIds.length === 0) {
+                return {};
+            }
+            var result = {};
+            var collection = db.collection('alliances').doc(allianceIdParam)
+                .collection('player_stats');
+            var promises = playerDocIds.map(function(docId) {
+                return collection.doc(docId).get().then(function(doc) {
+                    if (doc.exists) {
+                        result[docId] = doc.data();
+                    }
+                });
+            });
+            await Promise.all(promises);
+            return result;
+        } catch (err) {
+            console.error('loadPlayerStats error:', err);
+            return {};
+        }
+    }
+
+    async function upsertPlayerStats(allianceIdParam, docId, stats) {
+        try {
+            if (!db || !allianceIdParam || !docId) {
+                return { ok: false, error: 'Not available' };
+            }
+            await db.collection('alliances').doc(allianceIdParam)
+                .collection('player_stats').doc(docId)
+                .set(Object.assign({}, stats, {
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                }), { merge: true });
+            return { ok: true };
+        } catch (err) {
+            console.error('upsertPlayerStats error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    function subscribePendingFinalizationCount(allianceIdParam, callback) {
+        if (!db || !allianceIdParam || typeof callback !== 'function') {
+            return function noop() {};
+        }
+        return db.collection('alliances').doc(allianceIdParam)
+            .collection('event_history')
+            .where('finalized', '==', false)
+            .onSnapshot(function(snapshot) {
+                callback(snapshot.size);
+            }, function(err) {
+                console.error('subscribePendingFinalizationCount error:', err);
+                callback(0);
+            });
+    }
+
+    // ============================================================
+    // PLAYER UPDATES (TOKENS & PENDING UPDATES)
+    // ============================================================
+
+    async function saveTokenBatch(allianceIdParam, tokenDocs) {
+        try {
+            if (!db || !allianceIdParam || !Array.isArray(tokenDocs)) {
+                return { ok: false, error: 'Not available' };
+            }
+            var batch = db.batch();
+            var tokenIds = [];
+            var collection = db.collection('alliances').doc(allianceIdParam)
+                .collection('update_tokens');
+            tokenDocs.forEach(function(entry) {
+                var ref = collection.doc();
+                tokenIds.push(ref.id);
+                batch.set(ref, Object.assign({}, entry.doc, {
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                }));
+            });
+            await batch.commit();
+            return { ok: true, tokenIds: tokenIds };
+        } catch (err) {
+            console.error('saveTokenBatch error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function loadPendingUpdates(allianceIdParam, status) {
+        try {
+            if (!db || !allianceIdParam) {
+                return [];
+            }
+            var query = db.collection('alliances').doc(allianceIdParam)
+                .collection('pending_updates');
+            if (status && status !== 'all') {
+                query = query.where('status', '==', status);
+            }
+            var snapshot = await query.get();
+            var results = [];
+            snapshot.forEach(function(doc) {
+                results.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            return results;
+        } catch (err) {
+            console.error('loadPendingUpdates error:', err);
+            return [];
+        }
+    }
+
+    async function updatePendingUpdateStatus(allianceIdParam, updateId, decision) {
+        try {
+            if (!db || !allianceIdParam || !updateId) {
+                return { ok: false, error: 'Not available' };
+            }
+            await db.collection('alliances').doc(allianceIdParam)
+                .collection('pending_updates').doc(updateId)
+                .update(decision);
+            return { ok: true };
+        } catch (err) {
+            console.error('updatePendingUpdateStatus error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function revokeToken(allianceIdParam, tokenId) {
+        try {
+            if (!db || !allianceIdParam || !tokenId) {
+                return { ok: false, error: 'Not available' };
+            }
+            await db.collection('alliances').doc(allianceIdParam)
+                .collection('update_tokens').doc(tokenId)
+                .update({
+                    used: true,
+                    usedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+            return { ok: true };
+        } catch (err) {
+            console.error('revokeToken error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function loadActiveTokens(allianceIdParam) {
+        try {
+            if (!db || !allianceIdParam) {
+                return [];
+            }
+            var snapshot = await db.collection('alliances').doc(allianceIdParam)
+                .collection('update_tokens')
+                .where('used', '==', false)
+                .get();
+            var results = [];
+            snapshot.forEach(function(doc) {
+                results.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            return results;
+        } catch (err) {
+            console.error('loadActiveTokens error:', err);
+            return [];
+        }
+    }
+
+    function subscribePendingUpdatesCount(allianceIdParam, callback) {
+        if (!db || !allianceIdParam || typeof callback !== 'function') {
+            return function noop() {};
+        }
+        return db.collection('alliances').doc(allianceIdParam)
+            .collection('pending_updates')
+            .where('status', '==', 'pending')
+            .onSnapshot(function(snapshot) {
+                callback(snapshot.size);
+            }, function(err) {
+                console.error('subscribePendingUpdatesCount error:', err);
+                callback(0);
+            });
+    }
+
+    // ============================================================
     // PUBLIC API
     // ============================================================
-    
+
     return {
         // Initialization
         init: init,
@@ -5542,7 +5870,31 @@ const FirebaseManager = (function() {
         resolveGameScopedReadPayload: resolveGameScopedReadPayload,
         resolveGameplayContext: resolveGameplayContext,
         getObservabilityCounters: getObservabilityCounters,
-        resetObservabilityCounters: resetObservabilityCounters
+        resetObservabilityCounters: resetObservabilityCounters,
+
+        // Event History
+        saveEventHistoryRecord: saveEventHistoryRecord,
+        saveAttendanceBatch: saveAttendanceBatch,
+        loadEventHistoryRecords: loadEventHistoryRecords,
+        loadEventAttendance: loadEventAttendance,
+        updateAttendanceStatus: updateAttendanceStatus,
+        finalizeEventHistory: finalizeEventHistory,
+        loadPlayerStats: loadPlayerStats,
+        upsertPlayerStats: upsertPlayerStats,
+        subscribePendingFinalizationCount: subscribePendingFinalizationCount,
+        // Canonical gateway-contract aliases
+        saveHistoryRecord: saveHistoryRecord,
+        loadHistoryRecords: loadHistoryRecords,
+        loadAttendance: loadAttendance,
+        finalizeHistory: finalizeHistory,
+
+        // Player Updates
+        saveTokenBatch: saveTokenBatch,
+        loadPendingUpdates: loadPendingUpdates,
+        updatePendingUpdateStatus: updatePendingUpdateStatus,
+        revokeToken: revokeToken,
+        loadActiveTokens: loadActiveTokens,
+        subscribePendingUpdatesCount: subscribePendingUpdatesCount
     };
     
 })();

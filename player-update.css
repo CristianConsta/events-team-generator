@@ -1,0 +1,204 @@
+/* player-update.css — standalone styles for player-update.html */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--color-bg-dark, #121212);
+    color: var(--color-text-primary, #e0e0e0);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+.update-card-root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    background: var(--color-bg-dark, #121212);
+}
+
+.update-card {
+    background: var(--color-surface, #1e1e1e);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Loading state */
+.update-state-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px;
+    color: var(--color-text-secondary, #9e9e9e);
+    font-size: 1rem;
+}
+
+.update-state-loading::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--color-surface, #333);
+    border-top-color: var(--color-accent, #90caf9);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Form state */
+.update-state-form {
+    background: var(--color-surface, #1e1e1e);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.update-state-form h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--color-text-primary, #e0e0e0);
+}
+
+.update-player-name {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--color-accent, #90caf9);
+    margin-bottom: 20px;
+}
+
+#updateStatsForm {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#updateStatsForm label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-secondary, #9e9e9e);
+    margin-bottom: 2px;
+    display: block;
+}
+
+#updateStatsForm input,
+#updateStatsForm select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--color-bg-dark, #121212);
+    border: 1px solid var(--color-border, #333);
+    border-radius: 8px;
+    color: var(--color-text-primary, #e0e0e0);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#updateStatsForm input:focus,
+#updateStatsForm select:focus {
+    outline: none;
+    border-color: var(--color-accent, #90caf9);
+}
+
+#updateStatsForm input:invalid:not(:placeholder-shown),
+#updateStatsForm select:invalid:not(:placeholder-shown) {
+    border-color: var(--color-error, #ef5350);
+}
+
+#updateStatsForm button[type="submit"] {
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--color-accent, #90caf9);
+    color: #121212;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+#updateStatsForm button[type="submit"]:hover {
+    opacity: 0.88;
+}
+
+#updateStatsForm button[type="submit"]:active {
+    opacity: 0.72;
+}
+
+#updateStatsForm button[type="submit"]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Success state */
+.update-state-success {
+    background: var(--color-surface, #1e1e1e);
+    border-radius: 12px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.update-state-success::before {
+    content: '✓';
+    display: block;
+    font-size: 2.5rem;
+    color: var(--color-success, #66bb6a);
+    margin-bottom: 16px;
+}
+
+.update-state-success p {
+    font-size: 1rem;
+    color: var(--color-text-primary, #e0e0e0);
+    line-height: 1.5;
+}
+
+/* Error state */
+.update-state-error {
+    background: var(--color-surface, #1e1e1e);
+    border-radius: 12px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.update-state-error::before {
+    content: '✕';
+    display: block;
+    font-size: 2.5rem;
+    color: var(--color-error, #ef5350);
+    margin-bottom: 16px;
+}
+
+.update-state-error p {
+    font-size: 1rem;
+    color: var(--color-text-secondary, #9e9e9e);
+    line-height: 1.5;
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}

@@ -3319,6 +3319,131 @@ select {
     }
 }
 
+/* ============================================================
+   Phase 1A — Event History & Reliability
+   ============================================================ */
 
+/* Reliability dots */
+.reliability-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: help;
+    /* Accessible: size is above 4.5px minimum for decorative indicators */
+}
+.reliability-excellent { background-color: #2e7d32; }
+.reliability-good      { background-color: #1565c0; }
+.reliability-fair      { background-color: #ef6c00; }
+.reliability-poor      { background-color: #c62828; }
+.reliability-critical  { background-color: #b71c1c; }
+.reliability-new       { background-color: #757575; }
 
+/* Nav badge */
+.nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: var(--color-danger, #c62828);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 4px;
+    margin-left: 4px;
+}
+.nav-badge.hidden { display: none; }
+
+/* Event history list */
+.event-history-list { list-style: none; padding: 0; margin: 0; }
+.event-history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.event-history-item-name { font-weight: 600; flex: 1; }
+.event-history-item-date { font-size: 12px; color: var(--color-text-muted); }
+.event-history-item-status {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+.event-history-status-completed { background: #e8f5e9; color: #2e7d32; }
+.event-history-status-planned    { background: #e3f2fd; color: #1565c0; }
+.event-history-status-cancelled  { background: #fafafa; color: #757575; }
+
+/* Attendance panel */
+.attendance-player-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.attendance-player-name { flex: 1; font-weight: 500; }
+.attendance-radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.attendance-staleness-warning {
+    padding: 10px 14px;
+    background: #fff3e0;
+    border-left: 3px solid #ef6c00;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+/* ============================================================
+   Phase 1B — Player Self-Update
+   ============================================================ */
+
+/* Freshness dots */
+.freshness-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: help;
+}
+.freshness-fresh       { background-color: #2e7d32; }
+.freshness-stale       { background-color: #ef6c00; }
+.freshness-very-stale  { background-color: #c62828; }
+.freshness-never       { background-color: #757575; }
+
+/* Review panel */
+.review-panel { padding: 16px; }
+.review-comparison-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.review-player-name { font-weight: 600; }
+.review-delta-warning { color: #ef6c00; font-size: 12px; }
+.review-actions { display: flex; gap: 8px; }
+
+/* Token generation modal */
+.token-link-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 13px;
+}
+.token-link-url {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
 

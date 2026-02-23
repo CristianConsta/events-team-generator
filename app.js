@@ -1308,6 +1308,44 @@ function bindStaticUiActions() {
     on('navPlayersBtn', 'click', showPlayersManagementPage);
     on('navAllianceBtn', 'click', showAlliancePage);
     on('navSupportBtn', 'click', showSupportPage);
+    on('navEventHistoryBtn', 'click', function() {
+        if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === 'function') {
+            window._eventHistoryController.showEventHistoryView();
+        }
+        const eventHistoryView = document.getElementById('eventHistoryView');
+        if (eventHistoryView) {
+            const allViewSections = document.querySelectorAll('.view-section');
+            allViewSections.forEach(function(s) { s.classList.add('hidden'); });
+            eventHistoryView.classList.remove('hidden');
+        }
+        closeNavigationMenu();
+    });
+    on('navPlayerUpdatesBtn', 'click', function() {
+        const playerUpdatesReviewView = document.getElementById('playerUpdatesReviewView');
+        if (playerUpdatesReviewView) {
+            const allViewSections = document.querySelectorAll('.view-section');
+            allViewSections.forEach(function(s) { s.classList.add('hidden'); });
+            playerUpdatesReviewView.classList.remove('hidden');
+        }
+        // Load pending updates into review panel
+        if (window._playerUpdatesController && window.FirebaseService) {
+            const allianceId = window.FirebaseService.getAllianceId ? window.FirebaseService.getAllianceId() : null;
+            if (allianceId && window.FirebaseService.loadPendingUpdates) {
+                window.FirebaseService.loadPendingUpdates(allianceId, 'pending').then(function(updates) {
+                    const container = document.getElementById('playerUpdatesReviewContainer');
+                    if (container && window.DSFeaturePlayerUpdatesView) {
+                        window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, updates);
+                    }
+                }).catch(function() {});
+            }
+        }
+        closeNavigationMenu();
+    });
+    on('playersMgmtRequestUpdatesBtn', 'click', function() {
+        if (!window.DSFeaturePlayerUpdatesActions || !window._playerUpdatesController) return;
+        var selectedNames = window.DSFeaturePlayerUpdatesActions.readSelectedPlayerNames();
+        window._playerUpdatesController.openTokenGenerationModal(selectedNames);
+    });
     on('mobileNavGeneratorBtn', 'click', showGeneratorPage);
     on('mobileNavConfigBtn', 'click', showConfigurationPage);
     on('mobileNavPlayersBtn', 'click', showPlayersManagementPage);
@@ -7586,6 +7624,31 @@ function openDownloadModal(team) {
     document.getElementById('downloadModalSubtitle').textContent = t('download_modal_subtitle', { team: team });
     document.getElementById('downloadMapBtn').onclick = () => downloadTeamMap(team);
     document.getElementById('downloadExcelBtn').onclick = () => downloadTeamExcel(team);
+    const eventHistorySaveBtn = document.getElementById('eventHistorySaveBtn');
+    if (eventHistorySaveBtn && window._eventHistoryController && typeof window._eventHistoryController.saveAssignmentAsHistory === 'function') {
+        eventHistorySaveBtn.classList.remove('hidden');
+        eventHistorySaveBtn.onclick = () => {
+            const assignments = isA ? assignmentsA : assignmentsB;
+            const gameplayContext = getGameplayContext();
+            const currentAssignment = {
+                eventTypeId: currentEvent || '',
+                eventName: currentEvent || '',
+                gameId: (gameplayContext && gameplayContext.gameId) || '',
+                scheduledAt: new Date(),
+                teamA: isA ? assignments : [],
+                teamB: !isA ? assignments : [],
+            };
+            window._eventHistoryController.saveAssignmentAsHistory(currentAssignment)
+                .then((result) => {
+                    if (result && result.ok) {
+                        showMessage('downloadStatus', t('event_history_save_btn'), 'success');
+                    }
+                })
+                .catch(() => {});
+        };
+    } else if (eventHistorySaveBtn) {
+        eventHistorySaveBtn.classList.add('hidden');
+    }
     document.getElementById('downloadStatus').innerHTML = '';
     const overlay = document.getElementById('downloadModalOverlay');
     if (overlay) {

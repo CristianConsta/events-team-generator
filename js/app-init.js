@@ -137,6 +137,30 @@
             }
             updateAllianceHeaderDisplay();
             checkAndDisplayNotifications();
+
+            // BEGIN FEATURE WIRING
+            // Event History feature
+            if (global.DSFeatureEventHistoryController && typeof global.DSFeatureEventHistoryController.init === 'function') {
+                global._eventHistoryController = global.DSFeatureEventHistoryController.init(global.FirebaseService);
+            }
+
+            // Player Updates feature
+            if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.init === 'function') {
+                global._playerUpdatesController = global.DSFeaturePlayerUpdatesController.init(global.FirebaseService);
+                // Subscribe to pending updates count for badge
+                const puAllianceId = global.FirebaseService.getAllianceId
+                    ? global.FirebaseService.getAllianceId()
+                    : null;
+                if (puAllianceId && typeof global.FirebaseService.subscribePendingUpdatesCount === 'function') {
+                    global.FirebaseService.subscribePendingUpdatesCount(puAllianceId, function(count) {
+                        var badge = document.getElementById('playerUpdatesPendingBadge');
+                        if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === 'function') {
+                            global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
+                        }
+                    });
+                }
+            }
+            // END FEATURE WIRING
         });
 
         if (typeof FirebaseService.setAllianceDataCallback === 'function') {

@@ -1,0 +1,228 @@
+(function initPlayerUpdate(global) {
+    var ERROR_CODES = {
+        TOKEN_EXPIRED: 'player_update_error_expired',
+        TOKEN_USED: 'player_update_error_used',
+        TOKEN_INVALID: 'player_update_error_invalid',
+        NETWORK_ERROR: 'player_update_error_network',
+    };
+
+    function parseParams() {
+        var search = global.location && global.location.search ? global.location.search : '';
+        var params = {};
+        if (!search) {
+            return params;
+        }
+        search.replace(/^\?/, '').split('&').forEach(function (pair) {
+            var parts = pair.split('=');
+            if (parts.length >= 1 && parts[0]) {
+                params[decodeURIComponent(parts[0])] = parts[1] ? decodeURIComponent(parts[1]) : '';
+            }
+        });
+        return params;
+    }
+
+    function getEl(id) {
+        return global.document ? global.document.getElementById(id) : null;
+    }
+
+    function showState(stateName) {
+        var stateIds = ['updateLoading', 'updateForm', 'updateSuccess', 'updateError'];
+        stateIds.forEach(function (id) {
+            var el = getEl(id);
+            if (!el) {
+                return;
+            }
+            if (id === stateName) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        });
+    }
+
+    function showError(i18nKey) {
+        showState('updateError');
+        var msgEl = getEl('updateErrorMessage');
+        if (!msgEl) {
+            return;
+        }
+        if (global.DSI18N && typeof global.DSI18N.t === 'function') {
+            msgEl.textContent = global.DSI18N.t(i18nKey) || i18nKey;
+        } else {
+            msgEl.dataset.i18n = i18nKey;
+            msgEl.textContent = i18nKey;
+        }
+    }
+
+    function prefillForm(snapshot, playerName) {
+        var nameEl = getEl('updatePlayerName');
+        if (nameEl) {
+            nameEl.textContent = playerName || '';
+        }
+        if (!snapshot) {
+            return;
+        }
+        var powerEl = getEl('updatePower');
+        if (powerEl && snapshot.power !== undefined) {
+            powerEl.value = snapshot.power;
+        }
+        var thpEl = getEl('updateThp');
+        if (thpEl && snapshot.thp !== undefined) {
+            thpEl.value = snapshot.thp;
+        }
+        var troopsEl = getEl('updateTroops');
+        if (troopsEl && snapshot.troops) {
+            troopsEl.value = snapshot.troops;
+        }
+    }
+
+    function init() {
+        var params = parseParams();
+        var hex = params.token || '';
+        var aid = params.aid || '';
+        var lang = params.lang || 'EN';
+
+        // Step 2: set i18n language
+        if (global.DSI18N) {
+            if (typeof global.DSI18N.setLanguage === 'function') {
+                global.DSI18N.setLanguage(lang);
+            }
+            if (typeof global.DSI18N.applyTranslations === 'function') {
+                global.DSI18N.applyTranslations();
+            }
+        }
+
+        // Step 3: show loading state
+        showState('updateLoading');
+
+        if (!hex || !aid) {
+            showError(ERROR_CODES.TOKEN_INVALID);
+            return;
+        }
+
+        var firebase = global.firebase;
+        if (!firebase) {
+            showError(ERROR_CODES.NETWORK_ERROR);
+            return;
+        }
+
+        // Step 4: sign in anonymously
+        firebase.auth().signInAnonymously()
+            .then(function (userCredential) {
+                var uid = userCredential.user.uid;
+
+                // Step 5: query Firestore for token
+                return firebase.firestore()
+                    .collection('alliances').doc(aid)
+                    .collection('update_tokens')
+                    .where('token', '==', hex)
+                    .limit(1)
+                    .get()
+                    .then(function (snapshot) {
+                        // Step 6: token not found
+                        if (snapshot.empty) {
+                            showError(ERROR_CODES.TOKEN_INVALID);
+                            return;
+                        }
+
+                        var tokenDoc = snapshot.docs[0].data();
+                        var tokenRef = snapshot.docs[0].ref;
+
+                        // Step 7: token already used
+                        if (tokenDoc.used === true) {
+                            showError(ERROR_CODES.TOKEN_USED);
+                            return;
+                        }
+
+                        // Step 8: token expired
+                        var now = new Date();
+                        var expiresAt = tokenDoc.expiresAt && tokenDoc.expiresAt.toDate
+                            ? tokenDoc.expiresAt.toDate()
+                            : new Date(tokenDoc.expiresAt);
+                        if (expiresAt < now) {
+                            showError(ERROR_CODES.TOKEN_EXPIRED);
+                            return;
+                        }
+
+                        // Step 9: prefill form and show it
+                        prefillForm(tokenDoc.currentSnapshot, tokenDoc.playerName);
+                        showState('updateForm');
+
+                        // Step 10: wire up form submit
+                        var form = getEl('updateStatsForm');
+                        if (!form) {
+                            return;
+                        }
+
+                        form.addEventListener('submit', function (e) {
+                            e.preventDefault();
+
+                            var powerEl = getEl('updatePower');
+                            var thpEl = getEl('updateThp');
+                            var troopsEl = getEl('updateTroops');
+
+                            var proposed = {
+                                power: powerEl ? Number(powerEl.value) : null,
+                                thp: thpEl ? Number(thpEl.value) : null,
+                                troops: troopsEl ? troopsEl.value : null,
+                            };
+
+                            // client-side validation
+                            var validation = global.DSFeaturePlayerUpdatesCore
+                                ? global.DSFeaturePlayerUpdatesCore.validateProposedValues(proposed)
+                                : { valid: true, errors: [] };
+
+                            if (!validation.valid) {
+                                // show first error inline — keep error state minimal
+                                showError(ERROR_CODES.TOKEN_INVALID);
+                                return;
+                            }
+
+                            // write pending_update doc
+                            var pendingUpdateDoc = {
+                                playerName: tokenDoc.playerName,
+                                allianceId: aid,
+                                proposedValues: proposed,
+                                currentSnapshot: tokenDoc.currentSnapshot || {},
+                                submittedAt: firebase.firestore.Timestamp.now(),
+                                submittedByAnonUid: uid,
+                                status: 'pending',
+                                tokenId: snapshot.docs[0].id,
+                            };
+
+                            firebase.firestore()
+                                .collection('alliances').doc(aid)
+                                .collection('pending_updates')
+                                .add(pendingUpdateDoc)
+                                .then(function () {
+                                    // update token as used
+                                    return tokenRef.update({
+                                        used: true,
+                                        usedAt: firebase.firestore.Timestamp.now(),
+                                        usedByAnonUid: uid,
+                                    });
+                                })
+                                .then(function () {
+                                    // Step 11: show success
+                                    showState('updateSuccess');
+                                })
+                                .catch(function () {
+                                    showError(ERROR_CODES.NETWORK_ERROR);
+                                });
+                        });
+                    });
+            })
+            .catch(function () {
+                showError(ERROR_CODES.NETWORK_ERROR);
+            });
+    }
+
+    // Auto-init on DOMContentLoaded
+    if (global.document) {
+        global.document.addEventListener('DOMContentLoaded', init);
+    }
+
+    global.DSPlayerUpdate = {
+        init: init,
+    };
+})(window);

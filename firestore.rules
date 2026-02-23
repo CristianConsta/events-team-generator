@@ -137,10 +137,73 @@ service cloud.firestore {
       allow write: if isSuperAdmin();
     }
 
+    // Helper: check if the current user is a member of the given alliance.
+    // Looks up the alliance doc under each known game; returns true if found.
+    // NOTE: This performs a get() call which counts toward Firestore security-rule limits.
+    function isAllianceMember(allianceId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/games/last_war/alliances/$(allianceId))
+        && isAllianceMemberPayload(
+          get(/databases/$(database)/documents/games/last_war/alliances/$(allianceId)).data,
+          request.auth.uid
+        );
+    }
+
+    function isAnonymous() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
     // Legacy root collections retained for compatibility while rollout completes.
     match /alliances/{allianceId} {
       allow read: if signedIn();
       allow write: if false;
+
+      match /event_history/{historyId} {
+        allow read: if isAllianceMember(allianceId);
+        allow create: if isAllianceMember(allianceId)
+                      && request.resource.data.createdBy == request.auth.uid;
+        allow update: if isAllianceMember(allianceId);
+        allow delete: if isAllianceMember(allianceId);
+
+        match /attendance/{playerDocId} {
+          allow read: if isAllianceMember(allianceId);
+          allow write: if isAllianceMember(allianceId);
+        }
+      }
+
+      match /player_stats/{playerDocId} {
+        allow read: if isAllianceMember(allianceId);
+        allow write: if isAllianceMember(allianceId);
+      }
+
+      match /update_tokens/{tokenId} {
+        allow create: if isAllianceMember(allianceId);
+        allow read: if isAllianceMember(allianceId)
+                    || (isAnonymous()
+                        && resource.data.used == false
+                        && resource.data.expiresAt > request.time);
+        allow update: if isAllianceMember(allianceId)
+                      || (isAnonymous()
+                          && resource.data.used == false
+                          && request.resource.data.used == true
+                          && request.resource.data.diff(resource.data)
+                                 .affectedKeys()
+                                 .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+        allow delete: if isAllianceMember(allianceId);
+      }
+
+      match /pending_updates/{updateId} {
+        allow create: if isAnonymous()
+                      && request.resource.data.proposedValues.power is number
+                      && request.resource.data.proposedValues.power >= 0
+                      && request.resource.data.proposedValues.power <= 9999
+                      && request.resource.data.proposedValues.thp is number
+                      && request.resource.data.proposedValues.thp >= 0
+                      && request.resource.data.proposedValues.thp <= 99999
+                      && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+        allow read, update: if isAllianceMember(allianceId);
+      }
     }
 
     match /invitations/{invitationId} {

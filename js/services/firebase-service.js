@@ -247,6 +247,31 @@
         };
     }
 
+    function fallbackEventHistoryGateway(gatewayUtils) {
+        return {
+            saveHistoryRecord: async function saveHistoryRecord() { return gatewayUtils.notLoadedResult(); },
+            saveAttendanceBatch: async function saveAttendanceBatch() { return gatewayUtils.notLoadedResult(); },
+            loadHistoryRecords: async function loadHistoryRecords() { return []; },
+            loadAttendance: async function loadAttendance() { return []; },
+            updateAttendanceStatus: async function updateAttendanceStatus() { return gatewayUtils.notLoadedResult(); },
+            finalizeHistory: async function finalizeHistory() { return gatewayUtils.notLoadedResult(); },
+            loadPlayerStats: async function loadPlayerStats() { return {}; },
+            upsertPlayerStats: async function upsertPlayerStats() { return gatewayUtils.notLoadedResult(); },
+            subscribePendingFinalizationCount: function subscribePendingFinalizationCount() { return function noop() {}; },
+        };
+    }
+
+    function fallbackPlayerUpdatesGateway(gatewayUtils) {
+        return {
+            saveTokenBatch: async function saveTokenBatch() { return gatewayUtils.notLoadedResult(); },
+            loadPendingUpdates: async function loadPendingUpdates() { return []; },
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus() { return gatewayUtils.notLoadedResult(); },
+            revokeToken: async function revokeToken() { return gatewayUtils.notLoadedResult(); },
+            loadActiveTokens: async function loadActiveTokens() { return []; },
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount() { return function noop() {}; },
+        };
+    }
+
     function fromFactory(factoryName, fallbackFactory) {
         const factory = global[factoryName];
         if (factory && typeof factory.createGateway === 'function') {
@@ -260,6 +285,8 @@
     const eventsGateway = fromFactory('DSSharedFirebaseEventsGateway', fallbackEventsGateway);
     const allianceGateway = fromFactory('DSSharedFirebaseAllianceGateway', fallbackAllianceGateway);
     const notificationsGateway = fromFactory('DSSharedFirebaseNotificationsGateway', fallbackNotificationsGateway);
+    const eventHistoryGateway = fromFactory('DSSharedFirebaseEventHistoryGateway', fallbackEventHistoryGateway);
+    const playerUpdatesGateway = fromFactory('DSSharedFirebasePlayerUpdatesGateway', fallbackPlayerUpdatesGateway);
 
     function normalizeFeatureFlagValue(value, fallbackValue) {
         if (typeof value === 'boolean') {
@@ -768,6 +795,9 @@
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);
         },
+        getCurrentUser: function getCurrentUser() {
+            return withManager((svc) => svc.getCurrentUser(), null);
+        },
         saveUserData: async function saveUserData(options, context) {
             const gameContext = resolveGameplayContext('saveUserData', context);
             return withManager((svc) => svc.saveUserData(options, gameContext), notLoadedResult());
@@ -983,6 +1013,51 @@
         getAllianceMembers: function getAllianceMembers(context) {
             const gameContext = resolveGameplayContext('getAllianceMembers', context);
             return withManager((svc) => svc.getAllianceMembers(gameContext), {});
+        },
+        saveHistoryRecord: function saveHistoryRecord(allianceId, record) {
+            return eventHistoryGateway.saveHistoryRecord(allianceId, record);
+        },
+        saveAttendanceBatch: function saveAttendanceBatch(allianceId, historyId, attendanceDocs) {
+            return eventHistoryGateway.saveAttendanceBatch(allianceId, historyId, attendanceDocs);
+        },
+        loadHistoryRecords: function loadHistoryRecords(allianceId, filters) {
+            return eventHistoryGateway.loadHistoryRecords(allianceId, filters);
+        },
+        loadAttendance: function loadAttendance(allianceId, historyId) {
+            return eventHistoryGateway.loadAttendance(allianceId, historyId);
+        },
+        updateAttendanceStatus: function updateAttendanceStatus(allianceId, historyId, docId, status, markedBy) {
+            return eventHistoryGateway.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy);
+        },
+        finalizeHistory: function finalizeHistory(allianceId, historyId, playerStatsUpdates) {
+            return eventHistoryGateway.finalizeHistory(allianceId, historyId, playerStatsUpdates);
+        },
+        loadPlayerStats: function loadPlayerStats(allianceId, playerDocIds) {
+            return eventHistoryGateway.loadPlayerStats(allianceId, playerDocIds);
+        },
+        upsertPlayerStats: function upsertPlayerStats(allianceId, docId, stats) {
+            return eventHistoryGateway.upsertPlayerStats(allianceId, docId, stats);
+        },
+        subscribePendingFinalizationCount: function subscribePendingFinalizationCount(allianceId, callback) {
+            return eventHistoryGateway.subscribePendingFinalizationCount(allianceId, callback);
+        },
+        saveTokenBatch: function saveTokenBatch(allianceId, tokenDocs) {
+            return playerUpdatesGateway.saveTokenBatch(allianceId, tokenDocs);
+        },
+        loadPendingUpdates: function loadPendingUpdates(allianceId, status) {
+            return playerUpdatesGateway.loadPendingUpdates(allianceId, status);
+        },
+        updatePendingUpdateStatus: function updatePendingUpdateStatus(allianceId, updateId, decision) {
+            return playerUpdatesGateway.updatePendingUpdateStatus(allianceId, updateId, decision);
+        },
+        revokeToken: function revokeToken(allianceId, tokenId) {
+            return playerUpdatesGateway.revokeToken(allianceId, tokenId);
+        },
+        loadActiveTokens: function loadActiveTokens(allianceId) {
+            return playerUpdatesGateway.loadActiveTokens(allianceId);
+        },
+        subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
+            return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, callback);
         },
     };
 
