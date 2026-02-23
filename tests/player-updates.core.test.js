@@ -302,3 +302,78 @@ test('player-update.js source: fetches token by document ID using .doc(', () => 
         'player-update.js must fetch token by document ID: .doc(hex)'
     );
 });
+
+// ---------------------------------------------------------------------------
+// personal context: player-update.js source-level checks
+// ---------------------------------------------------------------------------
+
+test('player-update.js source: reads params.uid for personal context', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes('params.uid'),
+        'player-update.js must read params.uid for personal invite context'
+    );
+});
+
+test('player-update.js source: does not require both uid and alliance (accepts either)', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    // Should NOT have the old guard that required both token AND aid
+    assert.ok(
+        !source.includes('!hex || !aid'),
+        'player-update.js must not require both hex and aid — one of uid/alliance is sufficient'
+    );
+});
+
+test('player-update.js source: routes token fetch to users/{uid}/update_tokens for personal context', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes("collection('users')"),
+        "player-update.js must reference users collection for personal token fetch"
+    );
+    assert.ok(
+        source.includes("collection('update_tokens')"),
+        "player-update.js must reference update_tokens subcollection"
+    );
+});
+
+test('player-update.js source: routes token fetch to alliances/{aid}/update_tokens for alliance context', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes("collection('alliances')"),
+        "player-update.js must reference alliances collection for alliance token fetch"
+    );
+});
+
+test('player-update.js source: routes pending_updates write to users/{uid}/pending_updates for personal', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes("collection('pending_updates')"),
+        "player-update.js must reference pending_updates subcollection for write"
+    );
+    // Both personal (users) and alliance paths must be present
+    assert.ok(
+        source.includes("collection('users')") && source.includes("collection('alliances')"),
+        "player-update.js must have both users and alliances collection paths"
+    );
+});
+
+test('player-update.js source: shows TOKEN_INVALID when neither uid nor alliance is present', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    // The guard should check for missing both params
+    assert.ok(
+        source.includes('!uidParam') && source.includes('!aid'),
+        'player-update.js must guard against missing both uid and alliance params'
+    );
+});

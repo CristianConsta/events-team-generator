@@ -80,6 +80,7 @@
         var params = parseParams();
         var hex = params.token || '';
         var aid = params.alliance || params.aid || '';
+        var uidParam = params.uid || '';
         var lang = params.lang || 'EN';
 
         // Step 2: set i18n language
@@ -95,7 +96,7 @@
         // Step 3: show loading state
         showState('updateLoading');
 
-        if (!hex || !aid) {
+        if (!hex || (!aid && !uidParam)) {
             showError(ERROR_CODES.TOKEN_INVALID);
             return;
         }
@@ -106,16 +107,24 @@
             return;
         }
 
+        var isPersonal = !!uidParam;
+
         // Step 4: sign in anonymously
         firebase.auth().signInAnonymously()
             .then(function (userCredential) {
-                var uid = userCredential.user.uid;
+                var anonUid = userCredential.user.uid;
 
                 // Step 5: fetch token document by ID
-                var tokenRef = firebase.firestore()
-                    .collection('alliances').doc(aid)
-                    .collection('update_tokens')
-                    .doc(hex);
+                var tokenRef = isPersonal
+                    ? firebase.firestore()
+                        .collection('users').doc(uidParam)
+                        .collection('update_tokens')
+                        .doc(hex)
+                    : firebase.firestore()
+                        .collection('alliances').doc(aid)
+                        .collection('update_tokens')
+                        .doc(hex);
+
                 return tokenRef.get()
                     .then(function (snapshot) {
                         // Step 6: token not found
@@ -179,26 +188,36 @@
 
                             // write pending_update doc
                             var pendingUpdateDoc = {
+                                contextType: isPersonal ? 'personal' : 'alliance',
                                 playerName: tokenDoc.playerName,
-                                allianceId: aid,
                                 proposedValues: proposed,
                                 currentSnapshot: tokenDoc.currentSnapshot || {},
                                 submittedAt: firebase.firestore.Timestamp.now(),
-                                submittedByAnonUid: uid,
+                                submittedByAnonUid: anonUid,
                                 status: 'pending',
                                 tokenId: hex,
                             };
 
-                            firebase.firestore()
-                                .collection('alliances').doc(aid)
-                                .collection('pending_updates')
+                            var pendingRef = isPersonal
+                                ? firebase.firestore()
+                                    .collection('users').doc(uidParam)
+                                    .collection('pending_updates')
+                                : firebase.firestore()
+                                    .collection('alliances').doc(aid)
+                                    .collection('pending_updates');
+
+                            if (!isPersonal) {
+                                pendingUpdateDoc.allianceId = aid;
+                            }
+
+                            pendingRef
                                 .add(pendingUpdateDoc)
                                 .then(function () {
                                     // update token as used
                                     return tokenRef.update({
                                         used: true,
                                         usedAt: firebase.firestore.Timestamp.now(),
-                                        usedByAnonUid: uid,
+                                        usedByAnonUid: anonUid,
                                     });
                                 })
                                 .then(function () {

@@ -360,6 +360,86 @@ test('invite flow: invite URL uses alliance param (not aid) matching player-upda
     assert.ok(inviteUrl.includes('alliance=' + allianceId));
 });
 
+// ---------------------------------------------------------------------------
+// createPersonalUpdateToken (personal invite flow)
+// ---------------------------------------------------------------------------
+
+test('createPersonalUpdateToken gateway mock: receives correct uid, playerName, options', async () => {
+    loadModules();
+    var capturedArgs = null;
+    const gateway = makeMockGateway({
+        createPersonalUpdateToken: async function (uid, playerName, options) {
+            capturedArgs = { uid, playerName, options };
+            return { success: true, tokenId: 'personal-tok-001' };
+        },
+    });
+    await gateway.createPersonalUpdateToken('uid_leader_pu', 'Alice', { expiryHours: 48 });
+    assert.ok(capturedArgs, 'createPersonalUpdateToken should have been called');
+    assert.equal(capturedArgs.uid, 'uid_leader_pu');
+    assert.equal(capturedArgs.playerName, 'Alice');
+    assert.equal(capturedArgs.options.expiryHours, 48);
+});
+
+test('createPersonalUpdateToken gateway mock: returns { success: true, tokenId }', async () => {
+    loadModules();
+    const gateway = makeMockGateway({
+        createPersonalUpdateToken: async function (uid, playerName, options) {
+            return { success: true, tokenId: 'personal-tok-abc' };
+        },
+    });
+    const result = await gateway.createPersonalUpdateToken('uid_leader_pu', 'Bob', { expiryHours: 48 });
+    assert.equal(result.success, true);
+    assert.equal(result.tokenId, 'personal-tok-abc');
+});
+
+test('createPersonalUpdateToken gateway mock: returns failure on error', async () => {
+    loadModules();
+    const gateway = makeMockGateway({
+        createPersonalUpdateToken: async function () {
+            return { success: false, error: 'Permission denied' };
+        },
+    });
+    const result = await gateway.createPersonalUpdateToken('uid_leader_pu', 'Alice', { expiryHours: 48 });
+    assert.equal(result.success, false);
+    assert.ok(result.error);
+});
+
+// ---------------------------------------------------------------------------
+// Invite URL construction: personal vs alliance
+// ---------------------------------------------------------------------------
+
+test('invite flow personal: URL uses ?token=...&uid=... (no alliance param)', () => {
+    loadModules();
+    const tokenId = 'tok-personal-xyz';
+    const uid = 'uid_leader_pu';
+    const origin = global.location.origin;
+
+    // Reproduce the URL construction from app.js personal branch
+    const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
+        + '&uid=' + encodeURIComponent(uid);
+
+    assert.ok(inviteUrl.includes('uid='), 'Personal invite URL should contain uid= param');
+    assert.ok(!inviteUrl.includes('alliance='), 'Personal invite URL should NOT contain alliance= param');
+    assert.ok(inviteUrl.includes('token=' + tokenId));
+    assert.ok(inviteUrl.includes('uid=' + uid));
+});
+
+test('invite flow alliance: URL uses ?token=...&alliance=... (no uid param)', () => {
+    loadModules();
+    const tokenId = 'tok-alliance-xyz';
+    const allianceId = 'alliance_pu_integ_1';
+    const origin = global.location.origin;
+
+    // Reproduce the URL construction from app.js alliance branch
+    const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
+        + '&alliance=' + encodeURIComponent(allianceId);
+
+    assert.ok(inviteUrl.includes('alliance='), 'Alliance invite URL should contain alliance= param');
+    assert.ok(!inviteUrl.includes('&uid='), 'Alliance invite URL should NOT contain uid= param');
+    assert.ok(inviteUrl.includes('token=' + tokenId));
+    assert.ok(inviteUrl.includes('alliance=' + allianceId));
+});
+
 test('invite flow: createUpdateToken stores playerName in token doc shape', async () => {
     // Verifies the token document passed to the gateway includes playerName field.
     // Regression for: token lookup would fail if playerName was absent.

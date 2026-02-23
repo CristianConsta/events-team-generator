@@ -44,6 +44,30 @@
                     function noop() {}
                 );
             },
+            createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.createPersonalUpdateToken(uid, playerName, options),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
+            createPersonalPendingUpdate: async function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.createPersonalPendingUpdate(uid, pendingUpdateDoc),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
+            loadPersonalPendingUpdates: async function loadPersonalPendingUpdates(uid, status) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.loadPersonalPendingUpdates(uid, status),
+                    []
+                );
+            },
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.updatePersonalPendingUpdateStatus(uid, updateId, decision),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
         };
     }
 

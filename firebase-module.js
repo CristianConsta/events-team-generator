@@ -5621,7 +5621,12 @@ const FirebaseManager = (function() {
             var docRef = await db.collection('alliances').doc(allianceIdParam)
                 .collection('update_tokens')
                 .add({
+                    contextType: 'alliance',
+                    allianceId: allianceIdParam,
+                    ownerUid: currentUser ? currentUser.uid : null,
+                    gameId: opts.gameId || null,
                     playerName: playerName,
+                    expiryHours: expiryHours,
                     expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
                     used: false,
                     createdBy: currentUser ? currentUser.uid : null,
@@ -5651,6 +5656,87 @@ const FirebaseManager = (function() {
         } catch (err) {
             console.error('loadActiveTokens error:', err);
             return [];
+        }
+    }
+
+    async function createPersonalUpdateToken(uid, playerName, options) {
+        try {
+            if (!db || !uid || !playerName) {
+                return { success: false, error: 'Not available' };
+            }
+            var opts = options && typeof options === 'object' ? options : {};
+            var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
+            var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+            var docRef = await db.collection('users').doc(uid)
+                .collection('update_tokens')
+                .add({
+                    contextType: 'personal',
+                    ownerUid: uid,
+                    gameId: opts.gameId || null,
+                    allianceId: null,
+                    playerName: playerName,
+                    expiryHours: expiryHours,
+                    expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+                    used: false,
+                    createdBy: currentUser ? currentUser.uid : null,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+            return { success: true, tokenId: docRef.id };
+        } catch (err) {
+            console.error('createPersonalUpdateToken error:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    async function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
+        try {
+            if (!db || !uid || !pendingUpdateDoc) {
+                return { ok: false, error: 'Not available' };
+            }
+            var docRef = await db.collection('users').doc(uid)
+                .collection('pending_updates')
+                .add(pendingUpdateDoc);
+            return { ok: true, updateId: docRef.id };
+        } catch (err) {
+            console.error('createPersonalPendingUpdate error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    async function loadPersonalPendingUpdates(uid, status) {
+        try {
+            if (!db || !uid) {
+                return [];
+            }
+            var query = db.collection('users').doc(uid)
+                .collection('pending_updates');
+            if (status && status !== 'all') {
+                query = query.where('status', '==', status);
+            }
+            var snapshot = await query.get();
+            var results = [];
+            snapshot.forEach(function(doc) {
+                results.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            return results;
+        } catch (err) {
+            console.error('loadPersonalPendingUpdates error:', err);
+            return [];
+        }
+    }
+
+    async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+        try {
+            if (!db || !uid || !updateId) {
+                return { ok: false, error: 'Not available' };
+            }
+            await db.collection('users').doc(uid)
+                .collection('pending_updates').doc(updateId)
+                .update(decision);
+            return { ok: true };
+        } catch (err) {
+            console.error('updatePersonalPendingUpdateStatus error:', err);
+            return { ok: false, error: err.message };
         }
     }
 
@@ -5919,7 +6005,12 @@ const FirebaseManager = (function() {
         updatePendingUpdateStatus: updatePendingUpdateStatus,
         revokeToken: revokeToken,
         loadActiveTokens: loadActiveTokens,
-        subscribePendingUpdatesCount: subscribePendingUpdatesCount
+        subscribePendingUpdatesCount: subscribePendingUpdatesCount,
+        // Personal Player Updates
+        createPersonalUpdateToken: createPersonalUpdateToken,
+        createPersonalPendingUpdate: createPersonalPendingUpdate,
+        loadPersonalPendingUpdates: loadPersonalPendingUpdates,
+        updatePersonalPendingUpdateStatus: updatePersonalPendingUpdateStatus
     };
     
 })();

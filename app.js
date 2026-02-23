@@ -5096,24 +5096,50 @@ async function handlePlayersManagementTableAction(event) {
     }
 
     if (action === 'invite') {
-        const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
-        if (!allianceId) {
-            console.warn('Invite: no allianceId for gameplayContext', gameplayContext);
-            showMessage('playersMgmtStatus', t('invite_error'), 'error');
-            return;
-        }
         button.disabled = true;
         const originalButtonContent = button.innerHTML;
         button.innerHTML = '<span class="invite-btn-text">' + escapeHtml(t('invite_generating')) + '</span>';
-        const result = await FirebaseService.createUpdateToken(allianceId, originalName, { expiryHours: 48 });
-        button.disabled = false;
-        button.innerHTML = originalButtonContent;
-        if (!result || !result.success) {
-            console.warn('Invite: createUpdateToken failed', result);
-            showMessage('playersMgmtStatus', t('invite_error'), 'error');
-            return;
+        let result;
+        let inviteUrl;
+        if (source === 'personal') {
+            const currentUser = FirebaseService.getCurrentUser ? FirebaseService.getCurrentUser() : null;
+            const uid = currentUser ? currentUser.uid : null;
+            if (!uid) {
+                console.warn('Invite: no uid for personal invite', gameplayContext);
+                button.disabled = false;
+                button.innerHTML = originalButtonContent;
+                showMessage('playersMgmtStatus', t('invite_error'), 'error');
+                return;
+            }
+            const gameId = gameplayContext.gameId || '';
+            result = await FirebaseService.createPersonalUpdateToken(uid, originalName, { expiryHours: 48, gameId: gameId });
+            button.disabled = false;
+            button.innerHTML = originalButtonContent;
+            if (!result || !result.success) {
+                console.warn('Invite: createPersonalUpdateToken failed', result);
+                showMessage('playersMgmtStatus', t('invite_error'), 'error');
+                return;
+            }
+            inviteUrl = window.location.origin + '/player-update.html?token=' + encodeURIComponent(result.tokenId) + '&uid=' + encodeURIComponent(uid);
+        } else {
+            const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+            if (!allianceId) {
+                console.warn('Invite: no allianceId for gameplayContext', gameplayContext);
+                button.disabled = false;
+                button.innerHTML = originalButtonContent;
+                showMessage('playersMgmtStatus', t('invite_error'), 'error');
+                return;
+            }
+            result = await FirebaseService.createUpdateToken(allianceId, originalName, { expiryHours: 48 });
+            button.disabled = false;
+            button.innerHTML = originalButtonContent;
+            if (!result || !result.success) {
+                console.warn('Invite: createUpdateToken failed', result);
+                showMessage('playersMgmtStatus', t('invite_error'), 'error');
+                return;
+            }
+            inviteUrl = window.location.origin + '/player-update.html?token=' + encodeURIComponent(result.tokenId) + '&alliance=' + encodeURIComponent(allianceId);
         }
-        const inviteUrl = window.location.origin + '/player-update.html?token=' + encodeURIComponent(result.tokenId) + '&alliance=' + encodeURIComponent(allianceId);
         showInviteLinkPopover(button, inviteUrl);
     }
 }

@@ -270,6 +270,10 @@
             revokeToken: async function revokeToken() { return gatewayUtils.notLoadedResult(); },
             loadActiveTokens: async function loadActiveTokens() { return []; },
             subscribePendingUpdatesCount: function subscribePendingUpdatesCount() { return function noop() {}; },
+            createPersonalUpdateToken: async function createPersonalUpdateToken() { return gatewayUtils.notLoadedResult(); },
+            createPersonalPendingUpdate: async function createPersonalPendingUpdate() { return gatewayUtils.notLoadedResult(); },
+            loadPersonalPendingUpdates: async function loadPersonalPendingUpdates() { return []; },
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus() { return gatewayUtils.notLoadedResult(); },
         };
     }
 
@@ -1062,6 +1066,41 @@
         },
         subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
             return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, callback);
+        },
+        createPersonalUpdateToken: function createPersonalUpdateToken(uid, playerName, options) {
+            return playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, options);
+        },
+        createPersonalPendingUpdate: function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
+            return playerUpdatesGateway.createPersonalPendingUpdate(uid, pendingUpdateDoc);
+        },
+        loadPersonalPendingUpdates: function loadPersonalPendingUpdates(uid, status) {
+            return playerUpdatesGateway.loadPersonalPendingUpdates(uid, status);
+        },
+        updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+            return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision);
+        },
+        createUpdateTokenForContext: async function createUpdateTokenForContext(source, gameplayContext, playerName, options) {
+            var ctx = gameplayContext && typeof gameplayContext === 'object' ? gameplayContext : {};
+            var opts = options && typeof options === 'object' ? options : {};
+            if (source === 'personal') {
+                var uid = ctx.uid || '';
+                var gameId = ctx.gameId || opts.gameId || '';
+                var result = await playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, Object.assign({}, opts, { gameId: gameId }));
+                if (!result || !result.success) {
+                    return result || { success: false, error: 'Not available' };
+                }
+                return { success: true, tokenId: result.tokenId, contextType: 'personal', ownerUid: uid, gameId: gameId };
+            }
+            if (source === 'alliance') {
+                var allianceId = ctx.allianceId || opts.allianceId || '';
+                var allianceGameId = ctx.gameId || opts.gameId || '';
+                var allianceResult = await playerUpdatesGateway.createUpdateToken(allianceId, playerName, Object.assign({}, opts, { gameId: allianceGameId }));
+                if (!allianceResult || !allianceResult.success) {
+                    return allianceResult || { success: false, error: 'Not available' };
+                }
+                return { success: true, tokenId: allianceResult.tokenId, contextType: 'alliance', allianceId: allianceId, gameId: allianceGameId };
+            }
+            return { success: false, error: 'Unknown source: ' + source };
         },
     };
 

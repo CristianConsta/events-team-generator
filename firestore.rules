@@ -67,6 +67,36 @@ service cloud.firestore {
         allow read, write: if isSelf(uid);
       }
 
+      // Personal update tokens for player self-update invites.
+      match /update_tokens/{tokenId} {
+        allow create: if isSelf(uid);
+        allow read: if isSelf(uid)
+                    || (isAnonymous()
+                        && resource.data.used == false
+                        && resource.data.expiresAt > request.time);
+        allow update: if isSelf(uid)
+                      || (isAnonymous()
+                          && resource.data.used == false
+                          && request.resource.data.used == true
+                          && request.resource.data.diff(resource.data)
+                                 .affectedKeys()
+                                 .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+        allow delete: if isSelf(uid);
+      }
+
+      // Personal pending player updates submitted via token links.
+      match /pending_updates/{updateId} {
+        allow create: if isAnonymous()
+                      && request.resource.data.proposedValues.power is number
+                      && request.resource.data.proposedValues.power >= 0
+                      && request.resource.data.proposedValues.power <= 9999
+                      && request.resource.data.proposedValues.thp is number
+                      && request.resource.data.proposedValues.thp >= 0
+                      && request.resource.data.proposedValues.thp <= 99999
+                      && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+        allow read, update: if isSelf(uid);
+      }
+
       match /games/{gameId} {
         allow read, write: if isSelf(uid);
 
