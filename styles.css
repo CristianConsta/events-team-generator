@@ -3134,12 +3134,21 @@ select {
         border-top: none !important;
         padding-top: 0 !important;
         margin-top: 0;
+        margin-left: 8px;
+    }
+
+    /* Line break between row 1 (name+actions) and row 2 (stats) */
+    #playersTable tr::before {
+        content: '';
+        flex: 0 0 100%;
+        height: 0;
+        order: 3;
     }
 
     /* Stats (row 2) */
-    #playersTable td:nth-child(2) { order: 3; }
-    #playersTable td:nth-child(3) { order: 4; }
-    #playersTable td:nth-child(4) { order: 5; }
+    #playersTable td:nth-child(2) { order: 4; }
+    #playersTable td:nth-child(3) { order: 5; }
+    #playersTable td:nth-child(4) { order: 6; }
 
     #playersTable td:nth-child(2),
     #playersTable td:nth-child(3),
@@ -3147,7 +3156,7 @@ select {
         flex: 0 0 auto;
         font-size: 12px;
         color: var(--text-muted);
-        padding: 1px 0;
+        padding: 2px 0 0;
         white-space: nowrap;
     }
     #playersTable td:nth-child(2)::before { content: none; }
@@ -3161,31 +3170,106 @@ select {
         opacity: 0.4;
         margin: 0 5px;
     }
+    /* Players Mgmt: compact card layout */
     #playersMgmtTable tr {
-        display: block;
-        padding: 10px 12px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: rgba(255,255,255,0.04);
     }
     #playersMgmtTable td {
         border-bottom: none;
-        padding: 6px 0;
-        display: block;
+        padding: 0;
     }
-    #playersMgmtTable td::before {
-        content: attr(data-label);
+    /* Hide all ::before labels by default */
+    #playersMgmtTable td::before { content: none !important; display: none !important; }
+
+    /* Name: row 1 left */
+    #playersMgmtTable td:nth-child(1) {
+        order: 1;
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: 2px 0;
+    }
+    #playersMgmtTable td:nth-child(1) strong { font-size: 15px; font-weight: 700; }
+
+    /* Actions: row 1 right */
+    #playersMgmtTable td:nth-child(5) {
+        order: 2;
+        flex: 0 0 auto;
+        margin-left: 8px;
+        padding: 2px 0;
+    }
+
+    /* Line break between row 1 and row 2 */
+    #playersMgmtTable tr::before {
+        content: '';
+        flex: 0 0 100%;
+        height: 0;
+        order: 3;
+    }
+
+    /* Stats: row 2 inline */
+    #playersMgmtTable td:nth-child(2) { order: 4; }
+    #playersMgmtTable td:nth-child(3) { order: 5; }
+    #playersMgmtTable td:nth-child(4) { order: 6; }
+    #playersMgmtTable td:nth-child(2),
+    #playersMgmtTable td:nth-child(3),
+    #playersMgmtTable td:nth-child(4) {
+        flex: 0 0 auto;
+        font-size: 12px;
+        color: var(--text-muted);
+        padding: 2px 0 0;
+        white-space: nowrap;
+    }
+    #playersMgmtTable td:nth-child(2)::before { content: none !important; }
+    #playersMgmtTable td:nth-child(3)::before {
+        content: '\00B7' !important;
+        display: inline !important;
+        opacity: 0.4;
+        margin: 0 5px;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--text-muted);
+    }
+    #playersMgmtTable td:nth-child(4)::before {
+        content: '\00B7' !important;
+        display: inline !important;
+        opacity: 0.4;
+        margin: 0 5px;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--text-muted);
+    }
+
+    /* Edit mode: revert to stacked block layout for input fields */
+    #playersMgmtTable tr:has(input[data-field]) {
         display: block;
+        padding: 10px 12px;
+    }
+    #playersMgmtTable tr:has(input[data-field]) td {
+        display: block;
+        padding: 4px 0;
+    }
+    #playersMgmtTable tr:has(input[data-field]) td::before {
+        content: attr(data-label) !important;
+        display: block !important;
         font-size: 11px;
         font-weight: 700;
         color: rgba(255,255,255,0.68);
-        margin-bottom: 4px;
+        margin-bottom: 2px;
     }
-    #playersMgmtTable td:nth-child(1)::before { content: '👤 ' attr(data-label); }
-    #playersMgmtTable td:nth-child(2)::before { content: '⚡ ' attr(data-label); }
-    #playersMgmtTable td:nth-child(3)::before { content: '⛨ ' attr(data-label); }
-    #playersMgmtTable td:nth-child(4)::before { content: '⌖ ' attr(data-label); }
-    #playersMgmtTable td:nth-child(5)::before { content: '⚙ ' attr(data-label); }
+
+    /* Empty row keeps original block layout */
     #playersMgmtTable .players-mgmt-empty-row td::before {
-        content: '';
-        display: none;
+        content: '' !important;
+        display: none !important;
     }
     #playersMgmtTable .players-mgmt-actions {
         justify-content: flex-start;
