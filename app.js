@@ -4891,8 +4891,8 @@ function renderPlayersManagementTable() {
                 <td data-label="${troopHeader}">${escapeHtml(getTroopLabel(player.troops))}</td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions players-mgmt-actions--default">
-                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_edit_button'))}</button>
-                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}">${escapeHtml(t('players_list_delete_button'))}</button>
+                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_edit_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_edit_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#9998;</span></button>
+                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_delete_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_delete_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#128465;</span></button>
                         <button type="button" class="players-mgmt-invite-btn" data-pm-action="invite" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_invite_button'))}"><span class="invite-btn-text">${escapeHtml(t('players_list_invite_button'))}</span><span class="invite-btn-icon" aria-hidden="true">&#8599;</span></button>
                     </div>
                 </td>
