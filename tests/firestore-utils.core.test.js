@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 // Inline the implementation for unit testing (no browser globals needed)
 function sanitizeDocId(name) {
     if (typeof name !== 'string' || name.length === 0) return '_empty_';
+    // eslint-disable-next-line no-useless-escape
     var sanitized = name.replace(/[\/\.#\[\]\*]/g, '_');
     sanitized = sanitized.replace(/^__/, '_x_').replace(/__$/, '_x_');
     if (sanitized.length > 1500) sanitized = sanitized.slice(0, 1500);
