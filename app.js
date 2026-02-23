@@ -1135,6 +1135,9 @@ window.refreshGameMetadataCatalogCache = refreshGameMetadataCatalogCache;
 window.showPostAuthGameSelector = showPostAuthGameSelector;
 window.resetPostAuthGameSelectorState = resetPostAuthGameSelectorState;
 window.isPostAuthGameSelectionPending = isPostAuthGameSelectionPending;
+window.initializeApplicationUiRuntime = initializeApplicationUiRuntime;
+window.updateUserHeaderIdentity = updateUserHeaderIdentity;
+window.handleAllianceDataRealtimeUpdate = handleAllianceDataRealtimeUpdate;
 
 // ============================================================
 // ONBOARDING TOUR
