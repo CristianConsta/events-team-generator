@@ -119,8 +119,11 @@
 
         var isPersonal = !!uidParam;
 
-        // Step 4: sign in anonymously
-        firebase.auth().signInAnonymously()
+        // Step 4: sign in anonymously (session-only, no persistence)
+        firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE)
+            .then(function () {
+                return firebase.auth().signInAnonymously();
+            })
             .then(function (userCredential) {
                 var anonUid = userCredential.user.uid;
 

@@ -96,6 +96,7 @@ function createMockGlobal(options) {
 
     const mockAuth = function () {
         return {
+            setPersistence: function () { return Promise.resolve(); },
             signInAnonymously: function () {
                 signInCalls.push(true);
                 if (opts.signInError) {
@@ -105,6 +106,7 @@ function createMockGlobal(options) {
             },
         };
     };
+    mockAuth.Auth = { Persistence: { NONE: 'none', SESSION: 'session', LOCAL: 'local' } };
 
     const global = {
         location: { search: opts.search },
