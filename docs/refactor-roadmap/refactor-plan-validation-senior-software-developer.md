@@ -60,3 +60,17 @@ Validator: `senior-software-developer` agent
 - Plan update includes Phase 18 with measurable exit criteria.
 - CI enforces coverage and metric checks.
 - Browser e2e smoke runs green in CI.
+
+## Audit Status (2026-02-23)
+
+| Required Change | Status |
+|----------------|--------|
+| Phase 18: Legacy Runtime Retirement | [TODO] — doc exists (`refactor-phase18-legacy-runtime-retirement.md`) but not implemented |
+| CI coverage enforcement (`test:coverage`) | [TODO] — not in CI pipeline |
+| Browser e2e smoke gate (Playwright) | [DONE] — Playwright e2e added and runs in `pages.yml` |
+| Metric-budget CI checks | [PARTIAL] — `scripts/check-size-budgets.js` exists but no app.js line-count gate |
+
+### Updated Observations
+- `app.js` is now **8760 lines** (was 6645 at validation time) — grew instead of shrinking
+- `firebase-module.js` is now **6030 lines** (was 3195)
+- Controllers are additive layers that delegate TO app.js, not replacements

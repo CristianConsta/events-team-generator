@@ -43,12 +43,19 @@ Add maintainability quality gates (lint/typecheck/smoke) and enforce them in CI.
    - `typescript`
    - (Vite from Phase 16 retained)
 
-## Validation
-- `npm run lint` passes.
-- `npm run typecheck` passes.
-- `npm test` passes.
-- `npm run test:smoke` passes.
+## Audit Status (2026-02-23)
 
-## Exit Criteria
-- CI gate coverage for lint/typecheck/tests/smoke: done.
-- Typecheck path established for gradual adoption: done.
+| Item | Status |
+|------|--------|
+| ESLint config (`.eslintrc.cjs`) | [DONE] |
+| TypeScript typecheck (`tsconfig.typecheck.json`, `types/global.d.ts`) | [DONE] |
+| Smoke workflow tests (`tests/smoke-workflows.test.js`) | [DONE] |
+| Playwright browser e2e | [DONE] — added post-plan |
+| Size budget checks (`scripts/check-size-budgets.js`) | [DONE] — added post-plan |
+| CI workflow | [DONE] — runs in `.github/workflows/pages.yml` (not separate `ci.yml` as doc describes) |
+| Coverage enforcement in CI | [TODO] — no `test:coverage` script or coverage threshold gate |
+| Separate `ci.yml` | [TODO] — decide: keep merged in `pages.yml` or split out |
+
+## Remaining Work
+1. Add coverage enforcement (e.g., `c8` or `istanbul` with threshold gate in CI)
+2. Update doc to reflect actual CI structure (`pages.yml`, not `ci.yml`)

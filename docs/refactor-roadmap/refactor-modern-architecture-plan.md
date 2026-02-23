@@ -198,5 +198,30 @@ Reference:
 - Risk: metric goals not enforced.
 - Mitigation: make metrics machine-checked and CI-blocking in Phase 17.
 
+## Audit Status (2026-02-23)
+
+### Updated Baseline
+- `app.js`: **8760 lines** (grew from 6645 — controllers are additive, not replacing logic)
+- `firebase-module.js`: **6030 lines** (grew from 3195)
+- Feature controllers exist but are thin delegation layers (~302 lines total across all features)
+- Core extraction modules (`*-core.js`) contain genuine self-contained logic
+- Playwright e2e exists and runs in CI
+
+### Progress Summary
+| Phase | Status |
+|-------|--------|
+| Phases 0-7 (baseline, boundaries, core extractions) | [DONE] — archived |
+| Phases 8-9 (contracts, state store) | [DONE] — archived |
+| Phases 10-14 (controllers) | [DONE] — files/tests exist, but controllers delegate to app.js |
+| Phase 15 (gateway decomposition) | [DONE] — archived |
+| Phase 16 (ESM + tooling) | [PARTIAL] — esbuild replaced Vite; dead `vite.config.mjs` |
+| Phase 17 (quality gates) | [PARTIAL] — no coverage CI gate |
+| Phase 18 (legacy retirement) | [TODO] — critical: migrate logic OUT of app.js into controllers |
+
+### Critical Next Steps
+1. **Phase 18** is the most impactful remaining work — app.js must shrink from 8760 to ≤1000 lines
+2. Phase 17 coverage enforcement
+3. Phase 16 Vite cleanup
+
 ## Next Execution Slice
-Run Phase 17 first, then Phase 18.
+Run Phase 17 coverage enforcement, then Phase 18 legacy retirement.

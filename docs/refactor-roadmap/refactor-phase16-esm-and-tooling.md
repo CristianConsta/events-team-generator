@@ -28,10 +28,16 @@ Introduce an ES module entrypoint and lightweight build tooling while preserving
    - `tests/esm-bootstrap.test.js`
    - Covers successful and missing-initializer boot behavior.
 
-## Validation
-- `npm test` passes.
+## Audit Status (2026-02-23)
 
-## Exit Criteria
-- ESM entrypoint introduced: done.
-- Build tooling scaffolded with Vite: done.
-- Compatibility maintained with existing runtime path: done.
+| Item | Status |
+|------|--------|
+| ESM entrypoint (`js/main.mjs`, `app-shell-bootstrap.esm.mjs`) | [DONE] |
+| ESM bootstrap tests | [DONE] |
+| Build tooling | [DONE] — but esbuild (`scripts/build.js` → `dist/bundle.js`) replaced Vite as the approved bundler per CLAUDE.md |
+| `vite.config.mjs` | [TODO] Remove — dead config; esbuild is the only approved bundler |
+| Vite npm scripts | [TODO] Verify `npm run dev` and `npm run build` use esbuild, not Vite |
+
+## Remaining Work
+1. Remove or repurpose `vite.config.mjs` (dead code)
+2. Update doc references from Vite to esbuild
