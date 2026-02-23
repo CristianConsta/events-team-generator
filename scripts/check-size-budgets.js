@@ -18,7 +18,7 @@ function countLines(content) {
 const budgets = [
   {
     file: 'app.js',
-    maxLines: resolveMax('APP_JS_MAX_LINES', 8800),
+    maxLines: resolveMax('APP_JS_MAX_LINES', 6000),
   },
   {
     file: 'firebase-module.js',

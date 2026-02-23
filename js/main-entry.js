@@ -3,6 +3,7 @@
 // they appear as <script defer> tags in index.html (excluding vendor files
 // and firebase-config.js which are loaded separately).
 
+require('../firebase-module.js');
 require('../translations.js');
 require('./core/firestore-utils.js');
 require('./core/games.js');
@@ -17,13 +18,18 @@ require('./features/generator/team-selection-core.js');
 require('./features/generator/generator-actions.js');
 require('./features/generator/generator-view.js');
 require('./features/generator/generator-controller.js');
+require('./features/generator/download-controller.js');
 require('./features/players-management/players-management-core.js');
 require('./features/players-management/players-management-actions.js');
 require('./features/players-management/players-management-view.js');
 require('./features/players-management/players-management-controller.js');
+require('./features/players-management/player-data-upload.js');
+require('./features/buildings/buildings-config-manager.js');
+require('./features/buildings/coordinate-picker-controller.js');
 require('./features/events-manager/event-selector-view.js');
 require('./features/events-manager/events-manager-actions.js');
 require('./features/events-manager/events-manager-controller.js');
+require('./features/events-manager/events-registry-controller.js');
 require('./features/notifications/notifications-core.js');
 require('./features/alliance/alliance-controller.js');
 require('./features/notifications/notifications-controller.js');

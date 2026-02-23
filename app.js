@@ -2951,1408 +2951,141 @@ async function deleteAccountFromSettings() {
 }
 
 // ============================================================
-// EVENT REGISTRY
+// EVENT REGISTRY — delegated to DSEventsRegistryController
 // ============================================================
 
 const EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
-const DEFAULT_ASSIGNMENT_ALGORITHM_ID = 'balanced_round_robin';
-function getEventIds() {
-    return window.DSCoreEvents.getEventIds();
-}
-
-currentEvent = getEventIds()[0] || 'desert_storm';
-
-function normalizeAssignmentAlgorithmId(value) {
-    if (typeof value !== 'string') {
-        return '';
-    }
-    return value.trim().toLowerCase();
-}
-
-function normalizeGameId(value) {
-    if (typeof value !== 'string') {
-        return '';
-    }
-    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-}
-
-function resolveDefaultAssignmentAlgorithmId(gameId) {
-    const normalizedGameId = normalizeGameId(gameId);
-    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.listAlgorithmsForGame === 'function') {
-        const algorithms = window.DSAssignmentRegistry.listAlgorithmsForGame(normalizedGameId);
-        if (Array.isArray(algorithms) && algorithms.length > 0 && algorithms[0] && typeof algorithms[0].id === 'string') {
-            const normalized = normalizeAssignmentAlgorithmId(algorithms[0].id);
-            if (normalized) {
-                return normalized;
-            }
-        }
-    }
-    return DEFAULT_ASSIGNMENT_ALGORITHM_ID;
-}
-
-function getActiveEvent() {
-    const active = window.DSCoreEvents.getEvent(currentEvent);
-    if (active) {
-        return active;
-    }
-    const firstId = getEventIds()[0];
-    if (firstId) {
-        currentEvent = firstId;
-        return window.DSCoreEvents.getEvent(firstId);
-    }
-    return null;
-}
-
-// Per-event building state
-let buildingConfigs = {};
-let buildingPositionsMap = {};
-
-const MAP_PREVIEW = 'preview';
-const MAP_EXPORT = 'export';
-const MAP_CANVAS_WIDTH = 1080;
-const MAP_CANVAS_FALLBACK_HEIGHT = 720;
-const MAP_GRID_STEP = 90;
-const MAP_UPLOAD_MAX_SIDE = MAP_CANVAS_WIDTH;
-
-// Per-event map state (image + loading state), keyed by purpose/event.
-const mapRuntimeState = new Map();
-let coordMapWarningShown = {};
-const maxRetries = 3;
-
-function normalizeMapPurpose(purpose) {
-    return purpose === MAP_EXPORT ? MAP_EXPORT : MAP_PREVIEW;
-}
-
-function getMapRuntimeStateKey(eventId, purpose) {
-    return `${normalizeMapPurpose(purpose)}::${normalizeEventId(eventId)}`;
-}
-
-function createMapRuntimeState() {
-    return {
-        image: new Image(),
-        loaded: false,
-        retries: 0,
-        unavailable: false,
-        promise: null,
-        sourceSignature: '',
-    };
-}
-
-function ensureMapRuntimeState(eventId, purpose) {
-    const key = getMapRuntimeStateKey(eventId, purpose);
-    if (!mapRuntimeState.has(key)) {
-        mapRuntimeState.set(key, createMapRuntimeState());
-    }
-    return mapRuntimeState.get(key);
-}
-
-function getMapRuntimeState(eventId, purpose) {
-    const eid = normalizeEventId(eventId);
-    if (!eid) {
-        return null;
-    }
-    return ensureMapRuntimeState(eid, purpose);
-}
-
-function deleteMapRuntimeStateForEvent(eventId) {
-    const eid = normalizeEventId(eventId);
-    if (!eid) {
-        return;
-    }
-    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        mapRuntimeState.delete(getMapRuntimeStateKey(eid, purpose));
-    });
-}
-
-function normalizeEventId(value) {
-    if (typeof value !== 'string') {
-        return '';
-    }
-    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-}
-
-function isImageDataUrl(value, maxLength) {
-    const dataUrl = typeof value === 'string' ? value.trim() : '';
-    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-        return false;
-    }
-    return dataUrl.length <= maxLength;
-}
-
-function ensureEventRuntimeState(eventId) {
-    const event = normalizeEventId(eventId);
-    if (!event) {
-        return;
-    }
-    if (!Object.prototype.hasOwnProperty.call(buildingConfigs, event)) {
-        buildingConfigs[event] = null;
-    }
-    if (!Object.prototype.hasOwnProperty.call(buildingPositionsMap, event)) {
-        buildingPositionsMap[event] = {};
-    }
-    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        ensureMapRuntimeState(event, purpose);
-    });
-    if (!Object.prototype.hasOwnProperty.call(coordMapWarningShown, event)) {
-        coordMapWarningShown[event] = false;
-    }
-}
-
-function resetMapStateForEvent(eventId) {
-    const event = normalizeEventId(eventId);
-    if (!event) {
-        return;
-    }
-    ensureEventRuntimeState(event);
-    [MAP_PREVIEW, MAP_EXPORT].forEach((purpose) => {
-        const state = ensureMapRuntimeState(event, purpose);
-        state.loaded = false;
-        state.retries = 0;
-        state.unavailable = false;
-        state.promise = null;
-        state.sourceSignature = '';
-        if (state.image) {
-            state.image.src = '';
-        }
-    });
-    coordMapWarningShown[event] = false;
-}
-
-function syncRuntimeStateWithRegistry() {
-    const eventIds = getEventIds();
-    const eventIdSet = new Set(eventIds);
-
-    eventIds.forEach((eventId) => ensureEventRuntimeState(eventId));
-
-    Object.keys(buildingConfigs).forEach((eventId) => {
-        if (!eventIdSet.has(eventId)) {
-            delete buildingConfigs[eventId];
-        }
-    });
-    Object.keys(buildingPositionsMap).forEach((eventId) => {
-        if (!eventIdSet.has(eventId)) {
-            delete buildingPositionsMap[eventId];
-        }
-    });
-    Array.from(mapRuntimeState.keys()).forEach((key) => {
-        const parts = key.split('::');
-        const eventId = parts.length > 1 ? parts[1] : '';
-        if (!eventIdSet.has(eventId)) {
-            mapRuntimeState.delete(key);
-        }
-    });
-    Object.keys(coordMapWarningShown).forEach((eventId) => {
-        if (!eventIdSet.has(eventId)) {
-            delete coordMapWarningShown[eventId];
-        }
-    });
-
-    if (!eventIdSet.has(currentEvent)) {
-        currentEvent = eventIds[0] || 'desert_storm';
-    }
-}
-
-function getEventDisplayName(eventId) {
-    if (
-        window.DSFeatureEventsManagerSelector
-        && typeof window.DSFeatureEventsManagerSelector.resolveEventDisplayName === 'function'
-    ) {
-        return window.DSFeatureEventsManagerSelector.resolveEventDisplayName(eventId, {
-            getEvent: (id) => window.DSCoreEvents.getEvent(id),
-            translate: t,
-        });
-    }
-
-    const event = window.DSCoreEvents.getEvent(eventId);
-    if (!event) {
-        return eventId;
-    }
-    if (typeof event.name === 'string' && event.name.trim()) {
-        return event.name.trim();
-    }
-    if (event.titleKey) {
-        const translated = t(event.titleKey);
-        if (translated && translated !== event.titleKey) {
-            return translated;
-        }
-    }
-    return event.name || eventId;
-}
-
-function createEventSelectorButton(eventId) {
-    if (
-        window.DSFeatureEventsManagerSelector
-        && typeof window.DSFeatureEventsManagerSelector.createEventSelectorButton === 'function'
-    ) {
-        return window.DSFeatureEventsManagerSelector.createEventSelectorButton({
-            document: document,
-            eventId: eventId,
-            currentEvent: currentEvent,
-            displayName: getEventDisplayName(eventId),
-            onSelect: switchEvent,
-        });
-    }
-
-    const button = document.createElement('button');
-    button.className = `event-btn${eventId === currentEvent ? ' active' : ''}`;
-    button.type = 'button';
-    button.dataset.event = eventId;
-    button.textContent = getEventDisplayName(eventId);
-    button.addEventListener('click', () => switchEvent(eventId));
-    return button;
-}
-
-function renderEventSelector(containerId) {
-    if (
-        window.DSFeatureEventsManagerSelector
-        && typeof window.DSFeatureEventsManagerSelector.renderEventSelector === 'function'
-    ) {
-        window.DSFeatureEventsManagerSelector.renderEventSelector({
-            document: document,
-            containerId: containerId,
-            eventIds: getEventIds(),
-            currentEvent: currentEvent,
-            getDisplayName: getEventDisplayName,
-            onSelect: switchEvent,
-        });
-        return;
-    }
-
-    const container = document.getElementById(containerId);
-    if (!container) {
-        return;
-    }
-    const eventIds = getEventIds();
-    container.innerHTML = '';
-    eventIds.forEach((eventId) => {
-        container.appendChild(createEventSelectorButton(eventId));
-    });
-}
-
-function renderAllEventSelectors() {
-    renderEventSelector('selectionEventSelector');
-}
-
-function normalizeStoredEventsData(rawData) {
-    const source = rawData && typeof rawData === 'object' ? rawData : {};
-    const normalized = {};
-    Object.keys(source).forEach((rawId) => {
-        const eventId = normalizeEventId(rawId);
-        if (!eventId) {
-            return;
-        }
-        const entry = source[rawId];
-        if (!entry || typeof entry !== 'object') {
-            return;
-        }
-        normalized[eventId] = {
-            name: typeof entry.name === 'string' ? entry.name.trim().slice(0, EVENT_NAME_LIMIT) : '',
-            logoDataUrl: isImageDataUrl(entry.logoDataUrl, EVENT_LOGO_DATA_URL_LIMIT) ? entry.logoDataUrl.trim() : '',
-            mapDataUrl: isImageDataUrl(entry.mapDataUrl, EVENT_MAP_DATA_URL_LIMIT) ? entry.mapDataUrl.trim() : '',
-            assignmentAlgorithmId: normalizeAssignmentAlgorithmId(entry.assignmentAlgorithmId),
-            buildingConfig: Array.isArray(entry.buildingConfig) ? entry.buildingConfig : null,
-            buildingPositions: entry.buildingPositions && typeof entry.buildingPositions === 'object' ? entry.buildingPositions : null,
-        };
-    });
-    return normalized;
-}
-
-function buildRegistryFromStorage() {
-    const legacyRegistry = window.DSCoreEvents.cloneLegacyEventRegistry
-        ? window.DSCoreEvents.cloneLegacyEventRegistry()
-        : window.DSCoreEvents.cloneEventRegistry();
-    const nextRegistry = {};
-
-    Object.keys(legacyRegistry).forEach((eventId) => {
-        nextRegistry[eventId] = { ...legacyRegistry[eventId] };
-    });
-
-    const storedEvents = (() => {
-        if (typeof FirebaseService === 'undefined' || !FirebaseService.getAllEventData) {
-            return {};
-        }
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
-            return {};
-        }
-        return normalizeStoredEventsData(FirebaseService.getAllEventData(gameplayContext));
-    })();
-
-    Object.keys(storedEvents).forEach((eventId) => {
-        const stored = storedEvents[eventId];
-        const base = nextRegistry[eventId] || {};
-        const gameplayContext = getGameplayContext();
-        const baseBuildings = Array.isArray(base.buildings) ? base.buildings : [];
-        const storedBuildings = Array.isArray(stored.buildingConfig)
-            ? normalizeBuildingConfig(stored.buildingConfig, stored.buildingConfig)
-            : null;
-        const buildings = Array.isArray(storedBuildings) && storedBuildings.length > 0
-            ? storedBuildings
-            : baseBuildings;
-        const validNames = new Set(buildings.map((item) => item.name));
-        const defaultPositions = stored.buildingPositions
-            ? window.DSCoreBuildings.normalizeBuildingPositions(stored.buildingPositions, validNames)
-            : (base.defaultPositions || {});
-        const mapDataUrl = stored.mapDataUrl || '';
-        const nextName = stored.name || base.name || eventId;
-        const nextAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(stored.assignmentAlgorithmId)
-            || normalizeAssignmentAlgorithmId(base.assignmentAlgorithmId)
-            || resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : '');
-        const preserveTitleKey = !stored.name || !base.name || stored.name === base.name;
-
-        nextRegistry[eventId] = {
-            ...base,
-            id: eventId,
-            name: nextName,
-            titleKey: preserveTitleKey ? (base.titleKey || '') : '',
-            mapFile: mapDataUrl || '',
-            previewMapFile: mapDataUrl || '',
-            exportMapFile: mapDataUrl || '',
-            mapTitle: nextName.toUpperCase().slice(0, 50),
-            excelPrefix: normalizeEventId(base.excelPrefix || eventId) || eventId,
-            logoDataUrl: stored.logoDataUrl || '',
-            mapDataUrl: mapDataUrl,
-            assignmentAlgorithmId: nextAssignmentAlgorithmId,
-            buildings: buildings,
-            defaultPositions: defaultPositions,
-            buildingAnchors: base.buildingAnchors || {},
-        };
-    });
-
-    window.DSCoreEvents.setEventRegistry(nextRegistry);
-    syncRuntimeStateWithRegistry();
-    getEventIds().forEach((eventId) => resetMapStateForEvent(eventId));
-}
-
-function getEventMapFile(eventId, purpose) {
-    ensureEventRuntimeState(eventId);
-    const evt = window.DSCoreEvents.getEvent(eventId);
-    if (!evt) return null;
-    const mapDataUrl = typeof evt.mapDataUrl === 'string' ? evt.mapDataUrl.trim() : '';
-    return mapDataUrl || null;
-}
-
-function loadMapImage(eventId, purpose) {
-    const eid = eventId || currentEvent;
-    const mapPurpose = normalizeMapPurpose(purpose);
-    ensureEventRuntimeState(eid);
-    const mapState = ensureMapRuntimeState(eid, mapPurpose);
-    if (mapState.loaded) {
-        return Promise.resolve(true);
-    }
-    if (mapState.promise) {
-        return mapState.promise;
-    }
-
-    const primaryFile = getEventMapFile(eid, mapPurpose);
-    const candidateFiles = primaryFile ? [primaryFile] : [];
-    const mapSourceSignature = candidateFiles.join('|');
-
-    if (mapState.sourceSignature !== mapSourceSignature) {
-        mapState.loaded = false;
-        mapState.unavailable = false;
-        mapState.retries = 0;
-        mapState.promise = null;
-        mapState.sourceSignature = mapSourceSignature;
-    }
-
-    mapState.promise = new Promise((resolve, reject) => {
-        const imageEl = mapState.image;
-        let candidateIndex = 0;
-
-        const tryLoadCandidate = () => {
-            const src = candidateFiles[candidateIndex];
-            if (!src) {
-                mapState.unavailable = true;
-                mapState.promise = null;
-                reject(new Error(`No map source available for ${eid}/${mapPurpose}`));
-                return;
-            }
-            // Data/blob URLs cannot be cache-busted via query params.
-            if (typeof src === 'string' && /^(data:|blob:)/i.test(src.trim())) {
-                imageEl.src = src;
-                return;
-            }
-            const bust = src.includes('?') ? '&' : '?';
-            imageEl.src = `${src}${bust}v=${Date.now()}`;
-        };
-
-        imageEl.onload = () => {
-            mapState.loaded = true;
-            mapState.unavailable = false;
-            mapState.retries = 0;
-            mapState.promise = null;
-            console.log(`Map loaded for ${eid}/${mapPurpose}`);
-            resolve(true);
-        };
-
-        imageEl.onerror = () => {
-            if (candidateIndex < candidateFiles.length - 1) {
-                candidateIndex += 1;
-                tryLoadCandidate();
-                return;
-            }
-
-            const retry = mapState.retries + 1;
-            console.error(`Map failed to load for ${eid}/${mapPurpose}, attempt: ${retry}`);
-            if (mapState.retries < maxRetries) {
-                mapState.retries += 1;
-                setTimeout(() => {
-                    candidateIndex = 0;
-                    tryLoadCandidate();
-                }, 700 * mapState.retries);
-            } else {
-                console.error(`Map loading failed for ${eid}/${mapPurpose} after ${maxRetries} attempts`);
-                mapState.unavailable = true;
-                mapState.promise = null;
-                reject(new Error(`Map failed to load: ${eid}/${mapPurpose}`));
-            }
-        };
-
-        tryLoadCandidate();
-    });
-
-    return mapState.promise;
-}
-
-const BUILDING_POSITIONS_VERSION = 2;
-const BUILDING_CONFIG_VERSION = 2;
-
-const textColors = { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' };
-const bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)',
-                  4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' };
-
-const MAX_BUILDING_SLOTS_TOTAL = 20;
-const MIN_BUILDING_SLOTS = 0;
-
-function switchEvent(eventId) {
-    const activeGameId = enforceGameplayContext();
-    if (!activeGameId) {
-        return;
-    }
-    const targetEventId = normalizeEventId(eventId);
-    if (!targetEventId || !window.DSCoreEvents.getEvent(targetEventId)) return;
-    if (targetEventId === currentEvent) {
-        eventEditorCurrentId = targetEventId;
-        eventEditorIsEditMode = false;
-        applySelectedEventToEditor();
-        renderEventsList();
-        updateEventEditorState();
-        return;
-    }
-    ensureEventRuntimeState(targetEventId);
-    currentEvent = targetEventId;
-    eventEditorCurrentId = targetEventId;
-    eventEditorIsEditMode = false;
-
-    renderAllEventSelectors();
-    renderEventsList();
-    updateEventEditorTitle();
-    applySelectedEventToEditor();
-    refreshEventEditorDeleteState();
-    updateEventEditorState();
-
-    // Load building config for new event
-    loadBuildingConfig();
-    loadBuildingPositions();
-
-    // Re-render buildings table if configuration page is visible
-    if (isConfigurationPageVisible()) {
-        renderBuildingsTable();
-    }
-
-    // Rebind coordinate picker to the selected event if open
-    const coordOverlay = document.getElementById('coordPickerOverlay');
-    if (coordOverlay && !coordOverlay.classList.contains('hidden')) {
-        refreshCoordinatesPickerForCurrentEvent();
-    }
-
-    // Clear old event's assignments
-    assignmentsA = [];
-    assignmentsB = [];
-    substitutesA = [];
-    substitutesB = [];
-
-    // Update generate button event labels
-    updateGenerateEventLabels();
-
-    // If the coordinate picker is currently open, warm the export map so picker/export sizes match.
-    const coordOverlayVisible = coordOverlay && !coordOverlay.classList.contains('hidden');
-    const exportMapState = getMapRuntimeState(targetEventId, MAP_EXPORT);
-    if (coordOverlayVisible && exportMapState && !exportMapState.loaded) {
-        loadMapImage(targetEventId, MAP_EXPORT).catch(() => {
-            console.warn(targetEventId + ' export map failed to load');
-        });
-    }
-}
-
-function updateGenerateEventLabels() {
-    const activeEvent = getActiveEvent();
-    const label = activeEvent ? activeEvent.mapTitle : '';
-    const elA = document.getElementById('generateEventLabelA');
-    const elB = document.getElementById('generateEventLabelB');
-    if (elA) elA.textContent = label;
-    if (elB) elB.textContent = label;
-}
-
-const PROTECTED_EVENT_IDS = new Set(
-    Object.keys(window.DSCoreEvents.cloneLegacyEventRegistry ? window.DSCoreEvents.cloneLegacyEventRegistry() : {
-        desert_storm: true,
-        canyon_battlefield: true,
-    })
-);
-
-function hashString(value) {
-    const input = String(value || '');
-    let hash = 2166136261;
-    for (let index = 0; index < input.length; index += 1) {
-        hash ^= input.charCodeAt(index);
-        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-    }
-    return Math.abs(hash >>> 0);
-}
-
-function generateEventAvatarDataUrl(nameSeed, idSeed) {
-    const seed = `${nameSeed || ''}|${idSeed || ''}|event-avatar`;
-    const hue = hashString(seed) % 360;
-    const canvas = document.createElement('canvas');
-    canvas.width = 96;
-    canvas.height = 96;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        return '';
-    }
-    const grad = ctx.createLinearGradient(0, 0, 96, 96);
-    grad.addColorStop(0, `hsl(${hue}, 78%, 50%)`);
-    grad.addColorStop(1, `hsl(${(hue + 60) % 360}, 72%, 40%)`);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 96, 96);
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.font = 'bold 34px Trebuchet MS';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(getAvatarInitials(nameSeed || 'Event', ''), 48, 50);
-    return canvas.toDataURL('image/png');
-}
-
-function updateEventLogoPreview() {
-    const image = document.getElementById('eventLogoPreviewImage');
-    if (!image) {
-        return;
-    }
-    const nameInput = document.getElementById('eventNameInput');
-    const seedName = nameInput && typeof nameInput.value === 'string' && nameInput.value.trim()
-        ? nameInput.value.trim()
-        : (eventEditorCurrentId || 'Event');
-    image.src = eventDraftLogoDataUrl || generateEventAvatarDataUrl(seedName, eventEditorCurrentId || seedName);
-}
-
-function getEventMapPreviewSource(eventId) {
-    if (!eventId) {
-        return '';
-    }
-    const event = window.DSCoreEvents.getEvent(eventId);
-    if (!event) {
-        return '';
-    }
-    return event.mapDataUrl || '';
-}
-
-function updateEventMapPreview() {
-    const image = document.getElementById('eventMapPreviewImage');
-    const placeholder = document.getElementById('eventMapPreviewPlaceholder');
-    if (!image || !placeholder) {
-        return;
-    }
-    const fallbackMapSource = eventDraftMapRemoved ? '' : getEventMapPreviewSource(eventEditorCurrentId);
-    const mapSource = eventDraftMapDataUrl || fallbackMapSource;
-    if (mapSource) {
-        image.src = mapSource;
-        image.classList.remove('hidden');
-        placeholder.classList.add('hidden');
-    } else {
-        image.src = '';
-        image.classList.add('hidden');
-        placeholder.classList.remove('hidden');
-    }
-}
-
-function updateEventEditorTitle() {
-    const titleEl = document.getElementById('eventEditorTitle');
-    if (!titleEl) {
-        return;
-    }
-    if (!eventEditorCurrentId) {
-        titleEl.textContent = t('events_manager_create_title');
-        return;
-    }
-    const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
-    const eventName = event ? (event.name || eventEditorCurrentId) : eventEditorCurrentId;
-    titleEl.textContent = eventEditorIsEditMode
-        ? t('events_manager_edit_title', { name: eventName })
-        : eventName;
-}
-
-function isEventMapAvailable(eventId) {
-    if (!eventId) {
-        return false;
-    }
-    return Boolean(getEventMapPreviewSource(eventId));
-}
-
-function updateEventCoordinatesButton() {
-    const button = document.getElementById('eventCoordinatesBtn');
-    const row = document.getElementById('eventCoordinatesRow');
-    if (!button) {
-        return;
-    }
-    const hasDraftMap = Boolean(eventDraftMapDataUrl);
-    const hasSavedMap = !eventDraftMapRemoved && isEventMapAvailable(eventEditorCurrentId);
-    const showButton = hasDraftMap || hasSavedMap;
-    if (row) {
-        row.classList.toggle('hidden', !showButton);
-    }
-    button.classList.toggle('hidden', !showButton);
-    button.disabled = !showButton;
-}
-
-function updateEventMapActionButtons(readOnly) {
-    const uploadBtn = document.getElementById('eventMapUploadBtn');
-    const removeBtn = document.getElementById('eventMapRemoveBtn');
-    const hasDraftMap = Boolean(eventDraftMapDataUrl);
-    const hasSavedMap = !eventDraftMapRemoved && isEventMapAvailable(eventEditorCurrentId);
-    const hasMap = hasDraftMap || hasSavedMap;
-    const canEditMap = !readOnly;
-
-    if (uploadBtn) {
-        const showUpload = canEditMap && !hasMap;
-        uploadBtn.classList.toggle('hidden', !showUpload);
-        uploadBtn.disabled = !showUpload;
-    }
-    if (removeBtn) {
-        const showRemove = canEditMap && hasMap;
-        removeBtn.classList.toggle('hidden', !showRemove);
-        removeBtn.disabled = !showRemove;
-    }
-}
-
-function updateEventEditorState() {
-    const isNewDraft = !eventEditorCurrentId;
-    const readOnly = !isNewDraft && !eventEditorIsEditMode;
-
-    const eventNameInput = document.getElementById('eventNameInput');
-    if (eventNameInput) {
-        eventNameInput.disabled = readOnly;
-    }
-
-    ['eventLogoUploadBtn', 'eventLogoRandomBtn', 'eventAddBuildingBtn', 'eventSaveBtn', 'eventCancelEditBtn', 'eventAssignmentAlgorithmInput'].forEach((id) => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.disabled = readOnly;
-        }
-    });
-
-    ['eventLogoInput', 'eventMapInput'].forEach((id) => {
-        const input = document.getElementById(id);
-        if (input) {
-            input.disabled = readOnly;
-        }
-    });
-
-    const rows = document.querySelectorAll(
-        '#eventBuildingsEditorBody input, #eventBuildingsEditorBody button[data-action="remove-row"], #eventBuildingsEditorBody .display-toggle-btn'
-    );
-    rows.forEach((element) => {
-        element.disabled = readOnly;
-    });
-
-    const deleteBtn = document.getElementById('eventDeleteBtn');
-    if (deleteBtn) {
-        deleteBtn.disabled = readOnly || !eventEditorCurrentId || PROTECTED_EVENT_IDS.has(eventEditorCurrentId);
-    }
-
-    const editBtn = document.getElementById('eventEditModeBtn');
-    if (editBtn) {
-        const showEditBtn = !isNewDraft && !eventEditorIsEditMode;
-        editBtn.classList.toggle('hidden', !showEditBtn);
-        editBtn.disabled = !showEditBtn;
-        editBtn.title = t('events_manager_edit_action');
-        editBtn.setAttribute('aria-label', t('events_manager_edit_action'));
-    }
-
-    const cancelBtn = document.getElementById('eventCancelEditBtn');
-    if (cancelBtn) {
-        const showCancelBtn = eventEditorIsEditMode;
-        cancelBtn.classList.toggle('hidden', !showCancelBtn);
-        cancelBtn.disabled = !showCancelBtn;
-        cancelBtn.title = t('settings_cancel');
-        cancelBtn.setAttribute('aria-label', t('settings_cancel'));
-    }
-
-    const logoUploadBtn = document.getElementById('eventLogoUploadBtn');
-    const logoRandomBtn = document.getElementById('eventLogoRandomBtn');
-    const addBuildingBtn = document.getElementById('eventAddBuildingBtn');
-    if (addBuildingBtn) {
-        addBuildingBtn.title = t('events_manager_add_building');
-        addBuildingBtn.setAttribute('aria-label', t('events_manager_add_building'));
-    }
-    if (logoUploadBtn) {
-        logoUploadBtn.title = t('events_manager_logo_upload');
-        logoUploadBtn.setAttribute('aria-label', t('events_manager_logo_upload'));
-        logoUploadBtn.classList.toggle('hidden', readOnly);
-    }
-    if (logoRandomBtn) {
-        logoRandomBtn.title = t('events_manager_logo_randomize');
-        logoRandomBtn.setAttribute('aria-label', t('events_manager_logo_randomize'));
-        logoRandomBtn.classList.toggle('hidden', readOnly);
-    }
-
-    const mapUploadBtn = document.getElementById('eventMapUploadBtn');
-    const mapRemoveBtn = document.getElementById('eventMapRemoveBtn');
-    if (mapUploadBtn) {
-        mapUploadBtn.title = t('events_manager_map_upload');
-        mapUploadBtn.setAttribute('aria-label', t('events_manager_map_upload'));
-    }
-    if (mapRemoveBtn) {
-        mapRemoveBtn.title = t('events_manager_map_remove');
-        mapRemoveBtn.setAttribute('aria-label', t('events_manager_map_remove'));
-    }
-
-    updateEventMapActionButtons(readOnly);
-    updateEventCoordinatesButton();
-    updateEventEditorTitle();
-}
-
-function enterEventEditMode() {
-    if (!eventEditorCurrentId) {
-        return;
-    }
-    eventEditorIsEditMode = true;
-    updateEventEditorState();
-}
-
-function cancelEventEditing() {
-    if (!eventEditorIsEditMode) {
-        return;
-    }
-    if (!eventEditorCurrentId) {
-        const fallbackEventId = (currentEvent && window.DSCoreEvents.getEvent(currentEvent))
-            ? currentEvent
-            : (getEventIds()[0] || '');
-        eventEditorCurrentId = fallbackEventId;
-    }
-
-    if (!eventEditorCurrentId || !window.DSCoreEvents.getEvent(eventEditorCurrentId)) {
-        startNewEventDraft();
-        return;
-    }
-
-    eventEditorIsEditMode = false;
-    applySelectedEventToEditor();
-    renderEventsList();
-    refreshEventEditorDeleteState();
-    const statusEl = document.getElementById('eventsStatus');
-    if (statusEl) {
-        statusEl.replaceChildren();
-    }
-}
-
-function openCoordinatesPickerFromEditor() {
-    if (!eventEditorCurrentId) {
-        showMessage('eventsStatus', t('events_manager_coordinates_save_first'), 'warning');
-        return;
-    }
-    if ((!isEventMapAvailable(eventEditorCurrentId) || eventDraftMapRemoved) && !eventDraftMapDataUrl) {
-        showMessage('eventsStatus', t('events_manager_coordinates_missing_map'), 'warning');
-        return;
-    }
-    if (currentEvent !== eventEditorCurrentId) {
-        switchEvent(eventEditorCurrentId);
-    }
-    openCoordinatesPicker();
-}
-
-function createEditorBuildingRow(rowData) {
-    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.createEditorBuildingRow === 'function') {
-        return window.DSEventBuildingsEditorUI.createEditorBuildingRow({
-            rowData: rowData,
-            translate: t,
-            escapeAttribute: escapeAttribute,
-            clampSlots: clampSlots,
-            clampPriority: clampPriority,
-            minSlots: MIN_BUILDING_SLOTS,
-            maxSlots: MAX_BUILDING_SLOTS_TOTAL,
-        });
-    }
-    return document.createElement('tr');
-}
-
-function renderEventBuildingsEditor(buildings) {
-    const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.renderEventBuildingsEditor === 'function') {
-        window.DSEventBuildingsEditorUI.renderEventBuildingsEditor({
-            tbody: tbody,
-            buildings: buildings,
-            defaultRows: [{ name: '', slots: 0, priority: 1, showOnMap: true }],
-            createRow: createEditorBuildingRow,
-        });
-        return;
-    }
-    if (tbody) {
-        tbody.innerHTML = '';
-        tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1, showOnMap: true }));
-    }
-}
-
-function addEventBuildingRow() {
-    const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.addEventBuildingRow === 'function') {
-        window.DSEventBuildingsEditorUI.addEventBuildingRow({
-            tbody: tbody,
-            canEdit: eventEditorIsEditMode,
-            createRow: createEditorBuildingRow,
-            rowData: { name: '', slots: 0, priority: 1, showOnMap: true },
-        });
-        return;
-    }
-    if (!eventEditorIsEditMode || !tbody) {
-        return;
-    }
-    tbody.appendChild(createEditorBuildingRow({ name: '', slots: 0, priority: 1, showOnMap: true }));
-}
-
-function readEventBuildingsEditor() {
-    const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.readEventBuildingsEditor === 'function') {
-        return window.DSEventBuildingsEditorUI.readEventBuildingsEditor({
-            tbody: tbody,
-            translate: t,
-            clampSlots: clampSlots,
-            clampPriority: clampPriority,
-        });
-    }
-    if (!tbody) {
-        return { buildings: [], error: t('events_manager_buildings_required') };
-    }
-    return { buildings: [], error: null };
-}
-
-function bindEventEditorTableActions() {
-    const tbody = document.getElementById('eventBuildingsEditorBody');
-    if (window.DSEventBuildingsEditorUI && typeof window.DSEventBuildingsEditorUI.bindEventEditorTableActions === 'function') {
-        window.DSEventBuildingsEditorUI.bindEventEditorTableActions({
-            tbody: tbody,
-            canEdit: () => eventEditorIsEditMode,
-            ensureAtLeastOneRow: () => addEventBuildingRow(),
-        });
-        return;
-    }
-}
-
-function setEditorName(value) {
-    const input = document.getElementById('eventNameInput');
-    if (input) {
-        input.value = value || '';
-    }
-}
-
-function getEventAlgorithmSelectElement() {
-    return document.getElementById('eventAssignmentAlgorithmInput');
-}
-
-function listSelectableAssignmentAlgorithmsForActiveGame() {
-    const gameplayContext = getGameplayContext();
-    const gameId = gameplayContext ? gameplayContext.gameId : '';
-    if (window.DSAssignmentRegistry && typeof window.DSAssignmentRegistry.listAlgorithmsForGame === 'function') {
-        const algorithms = window.DSAssignmentRegistry.listAlgorithmsForGame(gameId);
-        if (Array.isArray(algorithms) && algorithms.length > 0) {
-            return algorithms
-                .filter((entry) => entry && typeof entry.id === 'string')
-                .map((entry) => ({
-                    id: normalizeAssignmentAlgorithmId(entry.id),
-                    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : entry.id,
-                }))
-                .filter((entry) => !!entry.id);
-        }
-    }
-    return [{
-        id: DEFAULT_ASSIGNMENT_ALGORITHM_ID,
-        name: 'Balanced Round Robin',
-    }];
-}
-
-function renderEventAssignmentAlgorithmOptions(selectedAlgorithmId) {
-    const select = getEventAlgorithmSelectElement();
-    if (!select) {
-        return;
-    }
-    const algorithms = listSelectableAssignmentAlgorithmsForActiveGame();
-    const fallbackId = algorithms[0] ? algorithms[0].id : DEFAULT_ASSIGNMENT_ALGORITHM_ID;
-    const selectedId = normalizeAssignmentAlgorithmId(selectedAlgorithmId) || fallbackId;
-    select.innerHTML = '';
-    algorithms.forEach((algorithm) => {
-        const option = document.createElement('option');
-        option.value = algorithm.id;
-        option.textContent = algorithm.name;
-        select.appendChild(option);
-    });
-    const hasSelected = algorithms.some((algorithm) => algorithm.id === selectedId);
-    select.value = hasSelected ? selectedId : fallbackId;
-}
-
-function getSelectedEventAssignmentAlgorithmId() {
-    const select = getEventAlgorithmSelectElement();
-    const selected = select && typeof select.value === 'string' ? normalizeAssignmentAlgorithmId(select.value) : '';
-    if (selected) {
-        return selected;
-    }
-    const algorithms = listSelectableAssignmentAlgorithmsForActiveGame();
-    return algorithms[0] ? algorithms[0].id : DEFAULT_ASSIGNMENT_ALGORITHM_ID;
-}
-
-function applySelectedEventToEditor() {
-    if (!eventEditorCurrentId) {
-        eventEditorCurrentId = currentEvent;
-    }
-    const event = window.DSCoreEvents.getEvent(eventEditorCurrentId);
-    if (!event) {
-        startNewEventDraft();
-        return;
-    }
-    setEditorName(event.name || eventEditorCurrentId);
-    eventDraftLogoDataUrl = event.logoDataUrl || generateEventAvatarDataUrl(event.name || eventEditorCurrentId, eventEditorCurrentId);
-    eventDraftMapDataUrl = event.mapDataUrl || '';
-    eventDraftMapRemoved = false;
-    renderEventAssignmentAlgorithmOptions(event.assignmentAlgorithmId);
-    updateEventLogoPreview();
-    updateEventMapPreview();
-    renderEventBuildingsEditor(Array.isArray(event.buildings) ? event.buildings : []);
-    updateEventEditorState();
-}
-
-function renderEventsList() {
-    if (window.DSEventListUI && typeof window.DSEventListUI.renderEventsList === 'function') {
-        window.DSEventListUI.renderEventsList({
-            listElement: document.getElementById('eventsList'),
-            eventIds: getEventIds(),
-            getEventById: (eventId) => window.DSCoreEvents.getEvent(eventId),
-            currentEventId: currentEvent,
-            eventEditorCurrentId: eventEditorCurrentId,
-            generateAvatarDataUrl: generateEventAvatarDataUrl,
-            translate: t,
-            onSelectEvent: (eventId) => {
-                eventEditorCurrentId = eventId;
-                switchEvent(eventId);
-            },
-            onStartNewEvent: () => {
-                startNewEventDraft();
-                renderEventsList();
-            },
-        });
-        return;
-    }
-
-    const listEl = document.getElementById('eventsList');
-    if (!listEl) {
-        return;
-    }
-}
-
-function startNewEventDraft() {
-    eventEditorCurrentId = '';
-    eventEditorIsEditMode = true;
-    setEditorName('');
-    renderEventAssignmentAlgorithmOptions(resolveDefaultAssignmentAlgorithmId(getGameplayContext() ? getGameplayContext().gameId : ''));
-    eventDraftLogoDataUrl = '';
-    eventDraftMapDataUrl = '';
-    eventDraftMapRemoved = false;
-    updateEventLogoPreview();
-    updateEventMapPreview();
-    renderEventBuildingsEditor([{ name: 'Bomb Squad', slots: 4, priority: 1, showOnMap: true }]);
-    updateEventEditorState();
-    const deleteBtn = document.getElementById('eventDeleteBtn');
-    if (deleteBtn) {
-        deleteBtn.disabled = true;
-    }
-}
-
-function refreshEventEditorDeleteState() {
-    const deleteBtn = document.getElementById('eventDeleteBtn');
-    if (!deleteBtn) {
-        return;
-    }
-    deleteBtn.disabled = !eventEditorCurrentId || PROTECTED_EVENT_IDS.has(eventEditorCurrentId) || !eventEditorIsEditMode;
-}
-
-function triggerEventLogoUpload() {
-    if (!eventEditorIsEditMode) {
-        return;
-    }
-    const input = document.getElementById('eventLogoInput');
-    if (input) {
-        input.click();
-    }
-}
-
-function triggerEventMapUpload() {
-    if (!eventEditorIsEditMode) {
-        return;
-    }
-    const input = document.getElementById('eventMapInput');
-    if (input) {
-        input.click();
-    }
-}
-
-function removeEventLogo() {
-    if (!eventEditorIsEditMode) {
-        return;
-    }
-    eventDraftLogoDataUrl = '';
-    const input = document.getElementById('eventLogoInput');
-    if (input) {
-        input.value = '';
-    }
-    updateEventLogoPreview();
-}
-
-function removeEventMap() {
-    if (!eventEditorIsEditMode) {
-        return;
-    }
-    eventDraftMapDataUrl = '';
-    eventDraftMapRemoved = true;
-    const input = document.getElementById('eventMapInput');
-    if (input) {
-        input.value = '';
-    }
-    updateEventMapPreview();
-    updateEventEditorState();
-}
-
-async function createEventImageDataUrl(file, options) {
-    const opts = options && typeof options === 'object' ? options : {};
-    const maxBytes = Number(opts.maxBytes) || AVATAR_MAX_UPLOAD_BYTES;
-    const minDimension = Number(opts.minDimension) || AVATAR_MIN_DIMENSION;
-    const maxSide = Number(opts.maxSide) || 512;
-    const maxDataUrlLength = Number(opts.maxDataUrlLength) || EVENT_MAP_DATA_URL_LIMIT;
-    const tooLargeMessage = opts.tooLargeMessage || t('events_manager_image_too_large');
-    const tooSmallMessage = opts.tooSmallMessage || t('events_manager_image_too_small', { min: minDimension });
-
-    if (!isAllowedAvatarFile(file)) {
-        throw new Error(t('events_manager_invalid_image'));
-    }
-    if (typeof file.size === 'number' && file.size > maxBytes) {
-        throw new Error(tooLargeMessage);
-    }
-    const rawDataUrl = await readFileAsDataUrl(file);
-    const img = await loadImageFromDataUrl(rawDataUrl);
-    if ((img.width || 0) < minDimension || (img.height || 0) < minDimension) {
-        throw new Error(tooSmallMessage);
-    }
-
-    const longestSide = Math.max(img.width || 1, img.height || 1);
-    const scale = Math.min(1, maxSide / longestSide);
-    const width = Math.max(1, Math.round((img.width || 1) * scale));
-    const height = Math.max(1, Math.round((img.height || 1) * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        throw new Error(t('events_manager_image_process_failed'));
-    }
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-    ctx.drawImage(img, 0, 0, width, height);
-
-    const qualities = [0.9, 0.8, 0.7, 0.6];
-    for (const quality of qualities) {
-        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
-        if (jpegDataUrl.length <= maxDataUrlLength) {
-            return jpegDataUrl;
-        }
-    }
-    const pngDataUrl = canvas.toDataURL('image/png');
-    if (pngDataUrl.length <= maxDataUrlLength) {
-        return pngDataUrl;
-    }
-    throw new Error(t('events_manager_image_data_too_large'));
-}
-
-async function createContainedSquareImageDataUrl(sourceDataUrl, options) {
-    const opts = options && typeof options === 'object' ? options : {};
-    const sideRaw = Number(opts.side);
-    const side = Number.isFinite(sideRaw) && sideRaw > 0 ? Math.round(sideRaw) : 320;
-    const maxDataUrlLength = Number(opts.maxDataUrlLength) || EVENT_LOGO_DATA_URL_LIMIT;
-    const img = await loadImageFromDataUrl(sourceDataUrl);
-    const canvas = document.createElement('canvas');
-    canvas.width = side;
-    canvas.height = side;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-        throw new Error(t('events_manager_image_process_failed'));
-    }
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, side, side);
-
-    const sourceWidth = Math.max(1, Number(img.width) || 1);
-    const sourceHeight = Math.max(1, Number(img.height) || 1);
-    const drawScale = Math.min(side / sourceWidth, side / sourceHeight);
-    const drawWidth = Math.max(1, Math.round(sourceWidth * drawScale));
-    const drawHeight = Math.max(1, Math.round(sourceHeight * drawScale));
-    const offsetX = Math.round((side - drawWidth) / 2);
-    const offsetY = Math.round((side - drawHeight) / 2);
-    ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-
-    const qualities = [0.9, 0.8, 0.7, 0.6];
-    for (const quality of qualities) {
-        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
-        if (jpegDataUrl.length <= maxDataUrlLength) {
-            return jpegDataUrl;
-        }
-    }
-    const pngDataUrl = canvas.toDataURL('image/png');
-    if (pngDataUrl.length <= maxDataUrlLength) {
-        return pngDataUrl;
-    }
-    throw new Error(t('events_manager_image_data_too_large'));
-}
-
-async function createGameMetadataLogoDataUrl(file) {
-    const resized = await createEventImageDataUrl(file, {
-        maxBytes: AVATAR_MAX_UPLOAD_BYTES,
-        minDimension: AVATAR_MIN_DIMENSION,
-        maxSide: 320,
-        maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
-        tooLargeMessage: t('events_manager_logo_too_large'),
-    });
-    return createContainedSquareImageDataUrl(resized, {
-        side: 320,
-        maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
-    });
-}
-
-async function handleEventLogoChange(event) {
-    const input = event && event.target ? event.target : document.getElementById('eventLogoInput');
-    const file = input && input.files ? input.files[0] : null;
-    if (!file) {
-        return;
-    }
-    try {
-        eventDraftLogoDataUrl = await createEventImageDataUrl(file, {
-            maxBytes: AVATAR_MAX_UPLOAD_BYTES,
-            minDimension: AVATAR_MIN_DIMENSION,
-            maxSide: 320,
-            maxDataUrlLength: EVENT_LOGO_DATA_URL_LIMIT,
-            tooLargeMessage: t('events_manager_logo_too_large'),
-        });
-        updateEventLogoPreview();
-        showMessage('eventsStatus', t('events_manager_logo_saved'), 'success');
-    } catch (error) {
-        showMessage('eventsStatus', error.message || t('events_manager_image_process_failed'), 'error');
-    } finally {
-        if (input) {
-            input.value = '';
-        }
-    }
-}
-
-async function handleEventMapChange(event) {
-    const input = event && event.target ? event.target : document.getElementById('eventMapInput');
-    const file = input && input.files ? input.files[0] : null;
-    if (!file) {
-        return;
-    }
-    try {
-        eventDraftMapDataUrl = await createEventImageDataUrl(file, {
-            maxBytes: 4 * 1024 * 1024,
-            minDimension: 320,
-            maxSide: MAP_UPLOAD_MAX_SIDE,
-            maxDataUrlLength: EVENT_MAP_DATA_URL_LIMIT,
-            tooLargeMessage: t('events_manager_map_too_large'),
-        });
-        eventDraftMapRemoved = false;
-        updateEventMapPreview();
-        updateEventEditorState();
-        showMessage('eventsStatus', t('events_manager_map_saved'), 'success');
-    } catch (error) {
-        showMessage('eventsStatus', error.message || t('events_manager_image_process_failed'), 'error');
-    } finally {
-        if (input) {
-            input.value = '';
-        }
-    }
-}
-
-function buildEventDefinition(eventId, name, buildings, assignmentAlgorithmId) {
-    const existing = window.DSCoreEvents.getEvent(eventId) || {};
-    const mapDataUrl = eventDraftMapDataUrl || '';
-    const logoDataUrl = eventDraftLogoDataUrl || generateEventAvatarDataUrl(name, eventId);
-    const normalizedAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(assignmentAlgorithmId)
-        || normalizeAssignmentAlgorithmId(existing.assignmentAlgorithmId)
-        || resolveDefaultAssignmentAlgorithmId(getGameplayContext() ? getGameplayContext().gameId : '');
-    const validNames = new Set(buildings.map((item) => item.name));
-    const currentPositions = buildingPositionsMap[eventId] || (existing.defaultPositions || {});
-    const normalizedPositions = window.DSCoreBuildings.normalizeBuildingPositions(currentPositions, validNames);
-    return {
-        id: eventId,
-        name: name,
-        titleKey: existing.titleKey || '',
-        mapFile: mapDataUrl || '',
-        previewMapFile: mapDataUrl || '',
-        exportMapFile: mapDataUrl || '',
-        mapTitle: name.toUpperCase().slice(0, 50),
-        excelPrefix: normalizeEventId(existing.excelPrefix || eventId) || eventId,
-        logoDataUrl: logoDataUrl,
-        mapDataUrl: mapDataUrl,
-        assignmentAlgorithmId: normalizedAssignmentAlgorithmId,
-        buildings: buildings,
-        defaultPositions: normalizedPositions,
-        buildingAnchors: existing.buildingAnchors || {},
-    };
-}
-
-async function saveEventDefinition() {
-    const gameplayContext = getGameplayContext('eventsStatus');
-    if (!gameplayContext) {
-        return;
-    }
-    if (!eventEditorIsEditMode) {
-        showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
-        return;
-    }
-    const nameInput = document.getElementById('eventNameInput');
-    const rawName = nameInput && typeof nameInput.value === 'string' ? nameInput.value.trim() : '';
-    const eventName = rawName.slice(0, EVENT_NAME_LIMIT);
-    if (!eventName) {
-        showMessage('eventsStatus', t('events_manager_name_required'), 'error');
-        return;
-    }
-
-    const { buildings, error } = readEventBuildingsEditor();
-    if (error) {
-        showMessage('eventsStatus', error, 'error');
-        return;
-    }
-
-    const existingIds = getEventIds();
-    const eventId = eventEditorCurrentId || window.DSCoreEvents.slugifyEventId(eventName, existingIds);
-    const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
-    const assignmentAlgorithmId = getSelectedEventAssignmentAlgorithmId();
-    const definition = buildEventDefinition(eventId, eventName, buildings, assignmentAlgorithmId);
-    const isNewEvent = !eventEditorCurrentId;
-
-    window.DSCoreEvents.upsertEvent(eventId, definition);
-    ensureEventRuntimeState(eventId);
-    buildingConfigs[eventId] = normalizeBuildingConfig(buildings, buildings);
-    const validNames = new Set(buildings.map((item) => item.name));
-    buildingPositionsMap[eventId] = window.DSCoreBuildings.normalizeBuildingPositions(
-        buildingPositionsMap[eventId] || definition.defaultPositions || {},
-        validNames
-    );
-    resetMapStateForEvent(eventId);
-
-    if (typeof FirebaseService !== 'undefined') {
-        if (FirebaseService.upsertEvent) {
-            FirebaseService.upsertEvent(eventId, {
-                id: eventId,
-                name: definition.name,
-                logoDataUrl: definition.logoDataUrl,
-                mapDataUrl: definition.mapDataUrl,
-                assignmentAlgorithmId: definition.assignmentAlgorithmId,
-                buildingConfig: buildingConfigs[eventId],
-                buildingPositions: buildingPositionsMap[eventId],
-            }, eventContext);
-        }
-        FirebaseService.setBuildingConfig(eventId, buildingConfigs[eventId], eventContext);
-        FirebaseService.setBuildingConfigVersion(eventId, getTargetBuildingConfigVersion(), eventContext);
-        FirebaseService.setBuildingPositions(eventId, buildingPositionsMap[eventId], eventContext);
-        FirebaseService.setBuildingPositionsVersion(eventId, getTargetBuildingPositionsVersion(), eventContext);
-        const saveResult = await FirebaseService.saveUserData(undefined, gameplayContext);
-        if (!saveResult || !saveResult.success) {
-            showMessage('eventsStatus', t('events_manager_save_failed', { error: (saveResult && saveResult.error) || 'unknown' }), 'error');
-            return;
-        }
-    }
-
-    eventEditorCurrentId = eventId;
-    currentEvent = eventId;
-    eventEditorIsEditMode = false;
-    syncRuntimeStateWithRegistry();
-    renderAllEventSelectors();
-    renderEventsList();
-    refreshEventEditorDeleteState();
-    updateEventEditorState();
-    updateGenerateEventLabels();
-    loadBuildingConfig();
-    loadBuildingPositions();
-    renderBuildingsTable();
-    showMessage('eventsStatus', t('events_manager_saved'), 'success');
-
-    if (isNewEvent && definition.mapDataUrl) {
-        openCoordinatesPicker();
-    }
-}
-
-async function deleteSelectedEvent() {
-    const gameplayContext = getGameplayContext('eventsStatus');
-    if (!gameplayContext) {
-        return;
-    }
-    if (!eventEditorIsEditMode) {
-        showMessage('eventsStatus', t('events_manager_edit_first'), 'warning');
-        return;
-    }
-    if (!eventEditorCurrentId) {
-        showMessage('eventsStatus', t('events_manager_delete_pick_event'), 'error');
-        return;
-    }
-    if (PROTECTED_EVENT_IDS.has(eventEditorCurrentId)) {
-        showMessage('eventsStatus', t('events_manager_delete_protected'), 'warning');
-        return;
-    }
-    if (!confirm(t('events_manager_delete_confirm'))) {
-        return;
-    }
-
-    const eventId = eventEditorCurrentId;
-    const eventContext = { gameId: gameplayContext.gameId, eventId: eventId };
-    const removed = window.DSCoreEvents.removeEvent(eventId);
-    if (!removed) {
-        showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
-        return;
-    }
-
-    delete buildingConfigs[eventId];
-    delete buildingPositionsMap[eventId];
-    deleteMapRuntimeStateForEvent(eventId);
-    delete coordMapWarningShown[eventId];
-
-    if (typeof FirebaseService !== 'undefined' && FirebaseService.removeEvent) {
-        FirebaseService.removeEvent(eventId, eventContext);
-        const result = await FirebaseService.saveUserData(undefined, gameplayContext);
-        if (!result || !result.success) {
-            showMessage('eventsStatus', t('events_manager_delete_failed'), 'error');
-            return;
-        }
-    }
-
-    syncRuntimeStateWithRegistry();
-    const firstEvent = getEventIds()[0] || '';
-    if (firstEvent) {
-        currentEvent = firstEvent;
-    }
-    startNewEventDraft();
-    renderAllEventSelectors();
-    renderEventsList();
-    updateGenerateEventLabels();
-    loadBuildingConfig();
-    loadBuildingPositions();
-    renderBuildingsTable();
-    showMessage('eventsStatus', t('events_manager_deleted'), 'success');
-}
+const DEFAULT_ASSIGNMENT_ALGORITHM_ID = window.DSEventsRegistryController.DEFAULT_ASSIGNMENT_ALGORITHM_ID;
+const MAP_PREVIEW = window.DSEventsRegistryController.MAP_PREVIEW;
+const MAP_EXPORT = window.DSEventsRegistryController.MAP_EXPORT;
+const MAP_CANVAS_WIDTH = window.DSEventsRegistryController.MAP_CANVAS_WIDTH;
+const MAP_CANVAS_FALLBACK_HEIGHT = window.DSEventsRegistryController.MAP_CANVAS_FALLBACK_HEIGHT;
+const MAP_GRID_STEP = window.DSEventsRegistryController.MAP_GRID_STEP;
+const MAP_UPLOAD_MAX_SIDE = window.DSEventsRegistryController.MAP_UPLOAD_MAX_SIDE;
+const BUILDING_POSITIONS_VERSION = window.DSEventsRegistryController.BUILDING_POSITIONS_VERSION;
+const BUILDING_CONFIG_VERSION = window.DSEventsRegistryController.BUILDING_CONFIG_VERSION;
+const MAX_BUILDING_SLOTS_TOTAL = window.DSEventsRegistryController.MAX_BUILDING_SLOTS_TOTAL;
+const MIN_BUILDING_SLOTS = window.DSEventsRegistryController.MIN_BUILDING_SLOTS;
+const textColors = window.DSEventsRegistryController.textColors;
+const bgColors = window.DSEventsRegistryController.bgColors;
+
+// Initialise the controller with app.js dependencies
+window.DSEventsRegistryController.init({
+    // translation
+    t: function () { return t.apply(null, arguments); },
+    // state accessors
+    getCurrentEvent: function () { return currentEvent; },
+    setCurrentEvent: function (v) { currentEvent = v; },
+    getEventEditorCurrentId: function () { return eventEditorCurrentId; },
+    setEventEditorCurrentId: function (v) { eventEditorCurrentId = v; },
+    getEventEditorIsEditMode: function () { return eventEditorIsEditMode; },
+    setEventEditorIsEditMode: function (v) { eventEditorIsEditMode = v; },
+    getEventDraftLogoDataUrl: function () { return eventDraftLogoDataUrl; },
+    setEventDraftLogoDataUrl: function (v) { eventDraftLogoDataUrl = v; },
+    getEventDraftMapDataUrl: function () { return eventDraftMapDataUrl; },
+    setEventDraftMapDataUrl: function (v) { eventDraftMapDataUrl = v; },
+    getEventDraftMapRemoved: function () { return eventDraftMapRemoved; },
+    setEventDraftMapRemoved: function (v) { eventDraftMapRemoved = v; },
+    // constants
+    EVENT_NAME_LIMIT: EVENT_NAME_LIMIT,
+    EVENT_LOGO_DATA_URL_LIMIT: EVENT_LOGO_DATA_URL_LIMIT,
+    EVENT_MAP_DATA_URL_LIMIT: EVENT_MAP_DATA_URL_LIMIT,
+    AVATAR_MAX_UPLOAD_BYTES: AVATAR_MAX_UPLOAD_BYTES,
+    AVATAR_MIN_DIMENSION: AVATAR_MIN_DIMENSION,
+    // app helpers
+    enforceGameplayContext: function () { return enforceGameplayContext(); },
+    getGameplayContext: function (statusId) { return getGameplayContext(statusId); },
+    getFirebaseService: function () { return typeof FirebaseService !== 'undefined' ? FirebaseService : null; },
+    showMessage: function (id, msg, type) { return showMessage(id, msg, type); },
+    normalizeBuildingConfig: function (a, b) { return normalizeBuildingConfig(a, b); },
+    loadBuildingConfig: function () { return loadBuildingConfig(); },
+    loadBuildingPositions: function () { return loadBuildingPositions(); },
+    renderBuildingsTable: function () { return renderBuildingsTable(); },
+    isConfigurationPageVisible: function () { return isConfigurationPageVisible(); },
+    refreshCoordinatesPickerForCurrentEvent: function () { return refreshCoordinatesPickerForCurrentEvent(); },
+    openCoordinatesPicker: function () { return openCoordinatesPicker(); },
+    getTargetBuildingConfigVersion: function () { return getTargetBuildingConfigVersion(); },
+    getTargetBuildingPositionsVersion: function () { return getTargetBuildingPositionsVersion(); },
+    getAvatarInitials: function (a, b) { return getAvatarInitials(a, b); },
+    escapeAttribute: function (s) { return escapeAttribute(s); },
+    clampSlots: function (v) { return clampSlots(v); },
+    clampPriority: function (v) { return clampPriority(v); },
+    isAllowedAvatarFile: function (f) { return isAllowedAvatarFile(f); },
+    readFileAsDataUrl: function (f) { return readFileAsDataUrl(f); },
+    loadImageFromDataUrl: function (u) { return loadImageFromDataUrl(u); },
+    clearAssignments: function () { assignmentsA = []; assignmentsB = []; substitutesA = []; substitutesB = []; },
+});
+
+currentEvent = window.DSEventsRegistryController.getEventIds()[0] || 'desert_storm';
+
+// Thin wrappers — delegate to controller
+function getEventIds() { return window.DSEventsRegistryController.getEventIds(); }
+function normalizeAssignmentAlgorithmId(v) { return window.DSEventsRegistryController.normalizeAssignmentAlgorithmId(v); }
+function normalizeGameId(v) { return window.DSEventsRegistryController.normalizeGameId(v); }
+function normalizeEventId(v) { return window.DSEventsRegistryController.normalizeEventId(v); }
+function normalizeMapPurpose(p) { return window.DSEventsRegistryController.normalizeMapPurpose(p); }
+function resolveDefaultAssignmentAlgorithmId(g) { return window.DSEventsRegistryController.resolveDefaultAssignmentAlgorithmId(g); }
+function getActiveEvent() { return window.DSEventsRegistryController.getActiveEvent(); }
+function getEventDisplayName(id) { return window.DSEventsRegistryController.getEventDisplayName(id); }
+function createEventSelectorButton(id) { return window.DSEventsRegistryController.createEventSelectorButton(id); }
+function renderEventSelector(id) { return window.DSEventsRegistryController.renderEventSelector(id); }
+function renderAllEventSelectors() { return window.DSEventsRegistryController.renderAllEventSelectors(); }
+function normalizeStoredEventsData(d) { return window.DSEventsRegistryController.normalizeStoredEventsData(d); }
+function buildRegistryFromStorage() { return window.DSEventsRegistryController.buildRegistryFromStorage(); }
+function ensureEventRuntimeState(id) { return window.DSEventsRegistryController.ensureEventRuntimeState(id); }
+function resetMapStateForEvent(id) { return window.DSEventsRegistryController.resetMapStateForEvent(id); }
+function syncRuntimeStateWithRegistry() { return window.DSEventsRegistryController.syncRuntimeStateWithRegistry(); }
+function getMapRuntimeState(id, p) { return window.DSEventsRegistryController.getMapRuntimeState(id, p); }
+function deleteMapRuntimeStateForEvent(id) { return window.DSEventsRegistryController.deleteMapRuntimeStateForEvent(id); }
+function getEventMapFile(id, p) { return window.DSEventsRegistryController.getEventMapFile(id, p); }
+function loadMapImage(id, p) { return window.DSEventsRegistryController.loadMapImage(id, p); }
+function isImageDataUrl(v, m) { return window.DSEventsRegistryController.isImageDataUrl(v, m); }
+function hashString(v) { return window.DSEventsRegistryController.hashString(v); }
+function switchEvent(id) { return window.DSEventsRegistryController.switchEvent(id); }
+function updateGenerateEventLabels() { return window.DSEventsRegistryController.updateGenerateEventLabels(); }
+function generateEventAvatarDataUrl(n, i) { return window.DSEventsRegistryController.generateEventAvatarDataUrl(n, i); }
+function updateEventLogoPreview() { return window.DSEventsRegistryController.updateEventLogoPreview(); }
+function getEventMapPreviewSource(id) { return window.DSEventsRegistryController.getEventMapPreviewSource(id); }
+function updateEventMapPreview() { return window.DSEventsRegistryController.updateEventMapPreview(); }
+function updateEventEditorTitle() { return window.DSEventsRegistryController.updateEventEditorTitle(); }
+function isEventMapAvailable(id) { return window.DSEventsRegistryController.isEventMapAvailable(id); }
+function updateEventCoordinatesButton() { return window.DSEventsRegistryController.updateEventCoordinatesButton(); }
+function updateEventMapActionButtons(ro) { return window.DSEventsRegistryController.updateEventMapActionButtons(ro); }
+function updateEventEditorState() { return window.DSEventsRegistryController.updateEventEditorState(); }
+function enterEventEditMode() { return window.DSEventsRegistryController.enterEventEditMode(); }
+function cancelEventEditing() { return window.DSEventsRegistryController.cancelEventEditing(); }
+function openCoordinatesPickerFromEditor() { return window.DSEventsRegistryController.openCoordinatesPickerFromEditor(); }
+function createEditorBuildingRow(d) { return window.DSEventsRegistryController.createEditorBuildingRow(d); }
+function renderEventBuildingsEditor(b) { return window.DSEventsRegistryController.renderEventBuildingsEditor(b); }
+function addEventBuildingRow() { return window.DSEventsRegistryController.addEventBuildingRow(); }
+function readEventBuildingsEditor() { return window.DSEventsRegistryController.readEventBuildingsEditor(); }
+function bindEventEditorTableActions() { return window.DSEventsRegistryController.bindEventEditorTableActions(); }
+function setEditorName(v) { return window.DSEventsRegistryController.setEditorName(v); }
+function listSelectableAssignmentAlgorithmsForActiveGame() { return window.DSEventsRegistryController.listSelectableAssignmentAlgorithmsForActiveGame(); }
+function renderEventAssignmentAlgorithmOptions(id) { return window.DSEventsRegistryController.renderEventAssignmentAlgorithmOptions(id); }
+function getSelectedEventAssignmentAlgorithmId() { return window.DSEventsRegistryController.getSelectedEventAssignmentAlgorithmId(); }
+function applySelectedEventToEditor() { return window.DSEventsRegistryController.applySelectedEventToEditor(); }
+function renderEventsList() { return window.DSEventsRegistryController.renderEventsList(); }
+function startNewEventDraft() { return window.DSEventsRegistryController.startNewEventDraft(); }
+function refreshEventEditorDeleteState() { return window.DSEventsRegistryController.refreshEventEditorDeleteState(); }
+function triggerEventLogoUpload() { return window.DSEventsRegistryController.triggerEventLogoUpload(); }
+function triggerEventMapUpload() { return window.DSEventsRegistryController.triggerEventMapUpload(); }
+function removeEventLogo() { return window.DSEventsRegistryController.removeEventLogo(); }
+function removeEventMap() { return window.DSEventsRegistryController.removeEventMap(); }
+function createEventImageDataUrl(f, o) { return window.DSEventsRegistryController.createEventImageDataUrl(f, o); }
+function createContainedSquareImageDataUrl(s, o) { return window.DSEventsRegistryController.createContainedSquareImageDataUrl(s, o); }
+function createGameMetadataLogoDataUrl(f) { return window.DSEventsRegistryController.createGameMetadataLogoDataUrl(f); }
+function handleEventLogoChange(e) { return window.DSEventsRegistryController.handleEventLogoChange(e); }
+function handleEventMapChange(e) { return window.DSEventsRegistryController.handleEventMapChange(e); }
+function buildEventDefinition(id, n, b, a) { return window.DSEventsRegistryController.buildEventDefinition(id, n, b, a); }
+function saveEventDefinition() { return window.DSEventsRegistryController.saveEventDefinition(); }
+function deleteSelectedEvent() { return window.DSEventsRegistryController.deleteSelectedEvent(); }
+
+// State objects now live in the controller — provide property-like access for remaining app.js code
+var buildingConfigs = window.DSEventsRegistryController.getBuildingConfigs();
+var buildingPositionsMap = window.DSEventsRegistryController.getBuildingPositionsMap();
+var coordMapWarningShown = window.DSEventsRegistryController.getCoordMapWarningShown();
+var PROTECTED_EVENT_IDS = window.DSEventsRegistryController.getProtectedEventIds();
 
 // ============================================================
 // FIREBASE INTEGRATION
@@ -5941,86 +4674,101 @@ async function handleResendInvitation(invitationId, statusElementId) {
 
 let pendingUploadFile = null;
 
+function _getUploadDeps() {
+    return {
+        t: t,
+        showMessage: showMessage,
+        getGameplayContext: getGameplayContext,
+        FirebaseService: typeof FirebaseService !== 'undefined' ? FirebaseService : undefined,
+        loadPlayerData: loadPlayerData,
+        ensureXLSXLoaded: ensureXLSXLoaded,
+        document: document,
+        openModalOverlay: openModalOverlay,
+        normalizePlayerRecordForUi: normalizePlayerRecordForUi,
+        setAllPlayers: function (rows) { allPlayers = rows; },
+        renderPlayersManagementPanel: renderPlayersManagementPanel,
+        renderPlayersTable: renderPlayersTable,
+        updateTeamCounters: updateTeamCounters,
+    };
+}
+
+function _getBuildingDeps() {
+    return {
+        t: t,
+        showMessage: showMessage,
+        document: document,
+        currentEvent: currentEvent,
+        FirebaseService: typeof FirebaseService !== 'undefined' ? FirebaseService : undefined,
+        getGameplayContext: getGameplayContext,
+        getEventGameplayContext: getEventGameplayContext,
+        normalizeEventId: normalizeEventId,
+        getBuildingConfig: getBuildingConfig,
+        setBuildingConfig: setBuildingConfig,
+        getBuildingPositions: getBuildingPositions,
+        setBuildingPositionsLocal: setBuildingPositionsLocal,
+        getBuildingSlotsTotal: getBuildingSlotsTotal,
+        normalizeBuildingConfig: normalizeBuildingConfig,
+        clampPriority: clampPriority,
+        clampSlots: clampSlots,
+        escapeAttribute: escapeAttribute,
+        isConfigurationPageVisible: isConfigurationPageVisible,
+        getActiveEvent: getActiveEvent,
+        getMapRuntimeState: getMapRuntimeState,
+        loadMapImage: loadMapImage,
+        openModalOverlay: openModalOverlay,
+        closeModalOverlay: closeModalOverlay,
+        getEventDisplayName: getEventDisplayName,
+        switchEvent: switchEvent,
+        loadBuildingConfig: loadBuildingConfig,
+        loadBuildingPositions: loadBuildingPositions,
+        EVENT_REGISTRY: EVENT_REGISTRY,
+        MIN_BUILDING_SLOTS: MIN_BUILDING_SLOTS,
+        MAX_BUILDING_SLOTS_TOTAL: MAX_BUILDING_SLOTS_TOTAL,
+        BUILDING_CONFIG_VERSION: BUILDING_CONFIG_VERSION,
+        BUILDING_POSITIONS_VERSION: BUILDING_POSITIONS_VERSION,
+        MAP_EXPORT: MAP_EXPORT,
+        MAP_CANVAS_WIDTH: MAP_CANVAS_WIDTH,
+        MAP_CANVAS_FALLBACK_HEIGHT: MAP_CANVAS_FALLBACK_HEIGHT,
+        MAP_GRID_STEP: MAP_GRID_STEP,
+    };
+}
+
+function getTargetBuildingConfigVersion() {
+    return window.DSBuildingsConfigManager.getTargetBuildingConfigVersion(BUILDING_CONFIG_VERSION, typeof FirebaseService !== 'undefined' ? FirebaseService : undefined);
+}
+
+function getTargetBuildingPositionsVersion() {
+    return window.DSBuildingsConfigManager.getTargetBuildingPositionsVersion(BUILDING_POSITIONS_VERSION, typeof FirebaseService !== 'undefined' ? FirebaseService : undefined);
+}
+
+function refreshCoordinatesPickerForCurrentEvent() {
+    return window.DSCoordinatePickerController.refreshCoordinatesPickerForCurrentEvent(_coordState, _getCoordDeps());
+}
+
 function hasAllianceUploadAccess(gameplayContext) {
-    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getAllianceId !== 'function') {
-        return false;
-    }
-
-    const allianceId = FirebaseService.getAllianceId(gameplayContext || undefined);
-    if (!allianceId) {
-        return false;
-    }
-
-    if (typeof FirebaseService.getAllianceData !== 'function') {
-        return true;
-    }
-
-    const allianceState = FirebaseService.getAllianceData(gameplayContext || undefined);
-    if (!allianceState || typeof allianceState !== 'object') {
-        return false;
-    }
-
-    if (typeof FirebaseService.getCurrentUser !== 'function') {
-        return true;
-    }
-
-    const currentUser = FirebaseService.getCurrentUser();
-    const uid = currentUser && typeof currentUser.uid === 'string' ? currentUser.uid : '';
-    if (!uid) {
-        return true;
-    }
-
-    const members = allianceState.members && typeof allianceState.members === 'object'
-        ? allianceState.members
-        : null;
-    return !!(members && members[uid]);
+    return window.DSPlayerDataUpload.hasAllianceUploadAccess(gameplayContext, typeof FirebaseService !== 'undefined' ? FirebaseService : undefined);
 }
 
 async function resolveAllianceUploadAccess(gameplayContext) {
-    const context = gameplayContext || getGameplayContext();
-    if (!context || typeof FirebaseService === 'undefined') {
-        return false;
-    }
-
-    if (
-        typeof FirebaseService.loadAllianceData === 'function'
-        && typeof FirebaseService.isSignedIn === 'function'
-        && FirebaseService.isSignedIn()
-    ) {
-        try {
-            await FirebaseService.loadAllianceData(context);
-        } catch (error) {
-            // Best effort refresh for upload decision only.
-        }
-    }
-
-    return hasAllianceUploadAccess(context);
+    return window.DSPlayerDataUpload.resolveAllianceUploadAccess(gameplayContext, _getUploadDeps());
 }
 
 async function uploadPlayerData() {
     const activeGameId = enforceGameplayContext('uploadMessage');
-    if (!activeGameId) {
-        return;
-    }
+    if (!activeGameId) return;
     if (typeof FirebaseService === 'undefined') {
         showMessage('uploadMessage', t('error_firebase_not_loaded'), 'error');
         return;
     }
-
     const fileInput = document.getElementById('playerFileInput');
     const file = fileInput.files[0];
-
     if (!file) return;
-
-    try {
-        await ensureXLSXLoaded();
-    } catch (error) {
+    try { await ensureXLSXLoaded(); } catch (error) {
         console.error(error);
         showMessage('uploadMessage', t('error_xlsx_missing'), 'error');
         fileInput.value = '';
         return;
     }
-
     const gameplayContext = getGameplayContext('uploadMessage');
     const hasAlliance = await resolveAllianceUploadAccess(gameplayContext);
     if (hasAlliance) {
@@ -6029,35 +4777,17 @@ async function uploadPlayerData() {
     } else {
         await performUpload(file, 'personal');
     }
-
     fileInput.value = '';
 }
 
 function closeUploadTargetModal() {
     pendingUploadFile = null;
     const modal = document.getElementById('uploadTargetModal');
-    if (modal) {
-        closeModalOverlay(modal);
-    }
+    if (modal) closeModalOverlay(modal);
 }
 
 function openUploadTargetModal(options) {
-    const modal = document.getElementById('uploadTargetModal');
-    if (!modal) {
-        return;
-    }
-    const config = options && typeof options === 'object' ? options : {};
-    const gameplayContext = config.gameplayContext || getGameplayContext();
-    const hasAlliance = config.hasAlliance === true
-        ? true
-        : hasAllianceUploadAccess(gameplayContext);
-    const personalBtn = document.getElementById('uploadPersonalBtn');
-    const allianceBtn = document.getElementById('uploadAllianceBtn');
-    const bothBtn = document.getElementById('uploadBothBtn');
-    if (personalBtn) personalBtn.classList.remove('hidden');
-    if (allianceBtn) allianceBtn.classList.toggle('hidden', !hasAlliance);
-    if (bothBtn) bothBtn.classList.toggle('hidden', !hasAlliance);
-    openModalOverlay(modal, { initialFocusSelector: '#uploadPersonalBtn' });
+    window.DSPlayerDataUpload.openUploadTargetModal(options, _getUploadDeps());
 }
 
 async function uploadToPersonal() {
@@ -6079,149 +4809,20 @@ async function uploadToBoth() {
 }
 
 function getUploadErrorMessage(resultOrError) {
-    if (resultOrError && typeof resultOrError === 'object') {
-        if (resultOrError.errorKey) {
-            return t(resultOrError.errorKey, resultOrError.errorParams || {});
-        }
-        if (typeof resultOrError.error === 'string' && resultOrError.error) {
-            return resultOrError.error;
-        }
-        if (typeof resultOrError.message === 'string' && resultOrError.message) {
-            return resultOrError.message;
-        }
-    }
-    return String(resultOrError || 'unknown');
+    return window.DSPlayerDataUpload.getUploadErrorMessage(resultOrError, t);
 }
 
 async function performUpload(file, target) {
-    try {
-        await ensureXLSXLoaded();
-    } catch (error) {
-        console.error(error);
-        showMessage('uploadMessage', t('error_xlsx_missing'), 'error');
-        return;
-    }
-
-    showMessage('uploadMessage', t('message_upload_processing'), 'processing');
-    const gameplayContext = getGameplayContext('uploadMessage');
-    if (!gameplayContext) {
-        return;
-    }
-    const normalizedTarget = typeof target === 'string' ? target.trim().toLowerCase() : '';
-    if (normalizedTarget !== 'personal' && normalizedTarget !== 'alliance' && normalizedTarget !== 'both') {
-        showMessage('uploadMessage', t('message_upload_failed', { error: t('players_list_error_invalid_source') }), 'error');
-        return;
-    }
-    const hasAlliance = hasAllianceUploadAccess(gameplayContext);
-    if ((normalizedTarget === 'alliance' || normalizedTarget === 'both') && !hasAlliance) {
-        showMessage('uploadMessage', t('players_list_error_no_alliance'), 'error');
-        return;
-    }
-
-    try {
-        if (normalizedTarget === 'both') {
-            let personalResult = null;
-            let allianceResult = null;
-            let personalError = '';
-            let allianceError = '';
-
-            try {
-                personalResult = await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
-            } catch (error) {
-                personalError = getUploadErrorMessage(error);
-            }
-
-            try {
-                allianceResult = await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext);
-            } catch (error) {
-                allianceError = getUploadErrorMessage(error);
-            }
-
-            const personalOk = !!(personalResult && personalResult.success);
-            const allianceOk = !!(allianceResult && allianceResult.success);
-            if (personalOk && allianceOk) {
-                showMessage('uploadMessage', `${personalResult.message} | ${allianceResult.message}`, 'success');
-                loadPlayerData();
-                return;
-            }
-
-            if (personalOk || allianceOk) {
-                const personalStatus = personalOk ? t('success_generic') : t('message_upload_failed', { error: personalError || getUploadErrorMessage(personalResult) });
-                const allianceStatus = allianceOk ? t('success_generic') : t('message_upload_failed', { error: allianceError || getUploadErrorMessage(allianceResult) });
-                showMessage('uploadMessage', `${t('upload_target_personal')}: ${personalStatus} | ${t('upload_target_alliance')}: ${allianceStatus}`, 'warning');
-                loadPlayerData();
-                return;
-            }
-
-            const mergedError = [personalError || getUploadErrorMessage(personalResult), allianceError || getUploadErrorMessage(allianceResult)]
-                .filter(Boolean)
-                .join(' | ');
-            showMessage('uploadMessage', t('message_upload_failed', { error: mergedError || 'unknown' }), 'error');
-            return;
-        }
-
-        const result = normalizedTarget === 'alliance'
-            ? await FirebaseService.uploadAlliancePlayerDatabase(file, gameplayContext)
-            : await FirebaseService.uploadPlayerDatabase(file, gameplayContext);
-
-        if (!result || !result.success) {
-            showMessage('uploadMessage', t('message_upload_failed', { error: getUploadErrorMessage(result) }), 'error');
-            return;
-        }
-        showMessage('uploadMessage', result.message, 'success');
-        loadPlayerData();
-    } catch (error) {
-        showMessage('uploadMessage', t('message_upload_failed', { error: getUploadErrorMessage(error) }), 'error');
-    }
+    return window.DSPlayerDataUpload.performUpload(file, target, _getUploadDeps());
 }
 
 function syncPlayersFromActiveDatabase(options) {
-    if (typeof FirebaseService === 'undefined') {
-        return;
-    }
-
-    const config = options && typeof options === 'object' ? options : {};
-    const gameplayContext = getGameplayContext();
-    if (!gameplayContext) {
-        return;
-    }
-    const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
-    const source = FirebaseService.getPlayerSource(gameplayContext);
-    const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
-    const count = playerDB && typeof playerDB === 'object' ? Object.keys(playerDB).length : 0;
-
-    allPlayers = Object.keys(playerDB || {}).map((name) => ({
-        ...normalizePlayerRecordForUi(name, playerDB[name]),
-    }));
-
-    const playerCountEl = document.getElementById('playerCount');
-    if (playerCountEl) {
-        playerCountEl.textContent = t('player_count_with_source', { count: count, source: sourceLabel });
-    }
-
-    const uploadHintEl = document.getElementById('uploadHint');
-    if (uploadHintEl) {
-        uploadHintEl.textContent = count > 0 ? t('upload_hint') : '';
-    }
-
-    renderSelectionSourceControls();
-    renderPlayersManagementPanel();
-
-    if (config.renderGeneratorViews !== false) {
-        renderPlayersTable();
-        updateTeamCounters();
-    }
+    window.DSPlayerDataUpload.syncPlayersFromActiveDatabase(options, _getUploadDeps());
 }
 
 function handleAllianceDataRealtimeUpdate() {
-    if (typeof FirebaseService === 'undefined') {
-        return;
-    }
-
-    if (getCurrentPageViewState() === 'alliance') {
-        renderAlliancePanel();
-    }
-
+    if (typeof FirebaseService === 'undefined') return;
+    if (getCurrentPageViewState() === 'alliance') renderAlliancePanel();
     const gameplayContext = getGameplayContext();
     const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || undefined) : 'personal';
     if (source === 'alliance') {
@@ -6229,49 +4830,33 @@ function handleAllianceDataRealtimeUpdate() {
     } else {
         renderPlayersManagementPanel();
     }
-
     updateAllianceHeaderDisplay();
     updateFloatingButtonsVisibility();
 }
 
 function loadPlayerData() {
     const gameplayContext = getGameplayContext('uploadMessage');
-    if (!gameplayContext) {
-        console.error('missing-active-game');
-        return;
-    }
-    if (typeof FirebaseService === 'undefined') {
-        console.error('FirebaseService not available');
-        return;
-    }
-
+    if (!gameplayContext) { console.error('missing-active-game'); return; }
+    if (typeof FirebaseService === 'undefined') { console.error('FirebaseService not available'); return; }
     buildRegistryFromStorage();
     syncRuntimeStateWithRegistry();
     renderAllEventSelectors();
     renderEventsList();
     updateGenerateEventLabels();
-    if (!eventEditorCurrentId || !window.DSCoreEvents.getEvent(eventEditorCurrentId)) {
-        applySelectedEventToEditor();
-    }
+    if (!eventEditorCurrentId || !window.DSCoreEvents.getEvent(eventEditorCurrentId)) { applySelectedEventToEditor(); }
     updateEventEditorState();
-    
     const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
     const count = Object.keys(playerDB).length;
     const source = FirebaseService.getPlayerSource(gameplayContext);
     const sourceLabel = source === 'alliance' ? t('player_source_alliance') : t('player_source_personal');
     renderSelectionSourceControls();
-
     document.getElementById('playerCount').textContent = t('player_count_with_source', { count: count, source: sourceLabel });
-    
     if (count > 0) {
         allPlayers = Object.keys(playerDB).map((name) => normalizePlayerRecordForUi(name, playerDB[name]));
-        
-        // Collapse upload panel and show selection
         uploadPanelExpanded = false;
         document.getElementById('uploadContent').classList.add('collapsed');
         document.getElementById('uploadExpandIcon').classList.remove('rotated');
         document.getElementById('uploadHint').textContent = t('upload_hint');
-        
         showSelectionInterface();
     } else {
         allPlayers = [];
@@ -6281,8 +4866,6 @@ function loadPlayerData() {
         assignmentsB = [];
         substitutesA = [];
         substitutesB = [];
-
-        // Keep upload panel expanded
         uploadPanelExpanded = true;
         document.getElementById('uploadContent').classList.remove('collapsed');
         document.getElementById('uploadExpandIcon').classList.add('rotated');
@@ -6292,7 +4875,6 @@ function loadPlayerData() {
         updateTeamCounters();
         showPlayersManagementPage();
     }
-
     renderPlayersManagementPanel();
 }
 
@@ -6305,28 +4887,7 @@ function showSelectionInterface() {
 }
 
 function renderSelectionSourceControls() {
-    const controls = document.getElementById('selectionSourceControls');
-    const personalBtn = document.getElementById('selectionSourcePersonalBtn');
-    const allianceBtn = document.getElementById('selectionSourceAllianceBtn');
-    if (!controls || !personalBtn || !allianceBtn || typeof FirebaseService === 'undefined') {
-        return;
-    }
-
-    const gameplayContext = getGameplayContext();
-    const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || undefined));
-    if (!hasAlliance) {
-        controls.classList.add('hidden');
-        return;
-    }
-    controls.classList.remove('hidden');
-
-    const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || undefined) : 'personal';
-    const personalActive = source !== 'alliance';
-    const allianceActive = source === 'alliance';
-    personalBtn.classList.toggle('secondary', !personalActive);
-    allianceBtn.classList.toggle('secondary', !allianceActive);
-    personalBtn.disabled = personalActive;
-    allianceBtn.disabled = allianceActive;
+    window.DSPlayerDataUpload.renderSelectionSourceControls(_getUploadDeps());
 }
 
 function toggleBuildingsPanel() {
@@ -6334,8 +4895,7 @@ function toggleBuildingsPanel() {
 }
 
 function getDefaultBuildings() {
-    const defaults = window.DSCoreEvents.cloneEventBuildings(currentEvent);
-    return Array.isArray(defaults) ? defaults : [];
+    return window.DSBuildingsConfigManager.getDefaultBuildings(currentEvent);
 }
 
 function toggleEventsPanel() {
@@ -6364,57 +4924,19 @@ function getBuildingConfig() {
 }
 
 function getBuildingDisplayName(internalName) {
-    const building = getBuildingConfig().find((b) => b.name === internalName);
-    if (!building) {
-        return internalName;
-    }
-    return (typeof building.label === 'string' && building.label.trim()) ? building.label.trim() : internalName;
+    return window.DSBuildingsConfigManager.getBuildingDisplayName(internalName, getBuildingConfig());
 }
 
 function isBuildingShownOnMap(internalName) {
-    const building = getBuildingConfig().find((b) => b.name === internalName);
-    if (!building) {
-        return true;
-    }
-    return building.showOnMap !== false;
+    return window.DSBuildingsConfigManager.isBuildingShownOnMap(internalName, getBuildingConfig());
 }
 
 function getBuildingEditIcon(editing) {
-    if (editing) {
-        return `
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-            </svg>
-        `;
-    }
-    return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 20h9"/>
-            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-        </svg>
-    `;
+    return window.DSBuildingsConfigManager.getBuildingEditIcon(editing);
 }
 
 function toggleBuildingFieldEdit(buttonEl) {
-    const row = buttonEl.closest('tr');
-    const field = buttonEl.getAttribute('data-field');
-    if (!row || !field) return;
-    const input = row.querySelector(`input[data-field="${field}"]`);
-    if (!input) return;
-
-    const nextEditing = input.disabled;
-    input.disabled = !nextEditing;
-    buttonEl.classList.toggle('is-editing', nextEditing);
-    buttonEl.setAttribute('aria-label', nextEditing ? `Lock ${field}` : `Edit ${field}`);
-    buttonEl.title = nextEditing ? `Lock ${field}` : `Edit ${field}`;
-    buttonEl.innerHTML = getBuildingEditIcon(nextEditing);
-
-    if (nextEditing) {
-        input.focus();
-        if (typeof input.select === 'function' && input.type === 'text') {
-            input.select();
-        }
-    }
+    window.DSBuildingsConfigManager.toggleBuildingFieldEdit(buttonEl);
 }
 
 function setBuildingConfig(config) {
@@ -6454,220 +4976,36 @@ function normalizeBuildingConfig(config, defaultsOverride) {
     );
 }
 
-function getDefaultBuildingPositions() {
-    return window.DSCoreEvents.cloneDefaultPositions(currentEvent);
-}
-
 function normalizeBuildingPositions(positions) {
-    const activeEvent = getActiveEvent();
-    const validNames = new Set((activeEvent && Array.isArray(activeEvent.buildings) ? activeEvent.buildings : []).map((b) => b.name));
-    return window.DSCoreBuildings.normalizeBuildingPositions(positions, validNames);
-}
-
-function getGlobalDefaultBuildingPositions() {
-    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getGlobalDefaultBuildingPositions !== 'function') {
-        return {};
-    }
-    return normalizeBuildingPositions(FirebaseService.getGlobalDefaultBuildingPositions(currentEvent));
-}
-
-function getResolvedDefaultBuildingPositions() {
-    return {
-        ...getDefaultBuildingPositions(),
-        ...getGlobalDefaultBuildingPositions(),
-    };
-}
-
-function getTargetBuildingPositionsVersion() {
-    let targetVersion = BUILDING_POSITIONS_VERSION;
-    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getGlobalDefaultBuildingPositionsVersion === 'function') {
-        const sharedVersion = Number(FirebaseService.getGlobalDefaultBuildingPositionsVersion());
-        if (Number.isFinite(sharedVersion) && sharedVersion > targetVersion) {
-            targetVersion = sharedVersion;
-        }
-    }
-    return targetVersion;
+    return window.DSBuildingsConfigManager.normalizeBuildingPositions(positions, currentEvent);
 }
 
 function getEffectiveBuildingPositions() {
-    return { ...getResolvedDefaultBuildingPositions(), ...getBuildingPositions() };
+    return window.DSBuildingsConfigManager.getEffectiveBuildingPositions(_getBuildingDeps());
 }
 
 function getEffectiveBuildingConfig() {
-    return normalizeBuildingConfig(getBuildingConfig(), getResolvedDefaultBuildingConfig());
-}
-
-function getGlobalDefaultBuildingConfig() {
-    if (typeof FirebaseService === 'undefined' || typeof FirebaseService.getGlobalDefaultBuildingConfig !== 'function') {
-        return null;
-    }
-    const config = FirebaseService.getGlobalDefaultBuildingConfig(currentEvent);
-    return Array.isArray(config) ? config : null;
+    return window.DSBuildingsConfigManager.getEffectiveBuildingConfig(_getBuildingDeps());
 }
 
 function getResolvedDefaultBuildingConfig() {
-    const baseDefaults = getDefaultBuildings();
-    const globalDefaults = getGlobalDefaultBuildingConfig();
-    if (!Array.isArray(globalDefaults) || globalDefaults.length === 0) {
-        return baseDefaults;
-    }
-    return normalizeBuildingConfig(globalDefaults, baseDefaults);
-}
-
-function getTargetBuildingConfigVersion() {
-    let targetVersion = BUILDING_CONFIG_VERSION;
-    if (typeof FirebaseService !== 'undefined' && typeof FirebaseService.getGlobalDefaultBuildingConfigVersion === 'function') {
-        const sharedVersion = Number(FirebaseService.getGlobalDefaultBuildingConfigVersion());
-        if (Number.isFinite(sharedVersion) && sharedVersion > targetVersion) {
-            targetVersion = sharedVersion;
-        }
-    }
-    return targetVersion;
+    return window.DSBuildingsConfigManager.getResolvedDefaultBuildingConfig(currentEvent, _getBuildingDeps());
 }
 
 function loadBuildingConfig() {
-    if (typeof FirebaseService === 'undefined') {
-        setBuildingConfig(getResolvedDefaultBuildingConfig());
-        renderBuildingsTable();
-        return;
-    }
-    const eventContext = getEventGameplayContext(currentEvent);
-    const stored = FirebaseService.getBuildingConfig(currentEvent, eventContext || undefined);
-    const defaultConfig = getResolvedDefaultBuildingConfig();
-    const targetVersion = getTargetBuildingConfigVersion();
-    const shouldResetToDefaults = !Array.isArray(stored) || stored.length === 0;
-    const normalized = shouldResetToDefaults
-        ? normalizeBuildingConfig(defaultConfig, defaultConfig)
-        : normalizeBuildingConfig(stored, stored);
-    setBuildingConfig(normalized);
-    const totalSlots = getBuildingSlotsTotal(normalized);
-    const slotsOverLimit = totalSlots > MAX_BUILDING_SLOTS_TOTAL;
-    if (slotsOverLimit) {
-        setBuildingConfig(normalizeBuildingConfig(defaultConfig, defaultConfig));
-        showMessage('buildingsStatus', t('buildings_slots_exceeded_saved', { max: MAX_BUILDING_SLOTS_TOTAL }), 'error');
-    }
-
-    const config = getBuildingConfig();
-    const needsSave = shouldResetToDefaults || slotsOverLimit || !Array.isArray(stored) || stored.length !== config.length || stored.some((item) => {
-        if (!item || !item.name) {
-            return true;
-        }
-        const match = config.find((b) => b.name === item.name);
-        if (!match) {
-            return true;
-        }
-        const priority = Number(item.priority);
-        const slots = Number(item.slots);
-        if (!Number.isFinite(priority) || priority !== match.priority) {
-            return true;
-        }
-        if (!Number.isFinite(slots) || slots !== match.slots) {
-            return true;
-        }
-        const storedLabel = (typeof item.label === 'string' && item.label.trim()) ? item.label.trim() : item.name;
-        if (storedLabel !== match.label) {
-            return true;
-        }
-        const storedShowOnMap = !Object.prototype.hasOwnProperty.call(item, 'showOnMap') || item.showOnMap !== false;
-        const matchShowOnMap = !Object.prototype.hasOwnProperty.call(match, 'showOnMap') || match.showOnMap !== false;
-        if (storedShowOnMap !== matchShowOnMap) {
-            return true;
-        }
-        return false;
-    });
-
-    if (needsSave) {
-        FirebaseService.setBuildingConfig(currentEvent, config, eventContext || undefined);
-        FirebaseService.setBuildingConfigVersion(currentEvent, targetVersion, eventContext || undefined);
-    }
-
-    renderBuildingsTable();
-    return needsSave;
+    return window.DSBuildingsConfigManager.loadBuildingConfig(_getBuildingDeps());
 }
 
 function loadBuildingPositions() {
-    if (typeof FirebaseService === 'undefined') {
-        setBuildingPositionsLocal({});
-        return false;
-    }
-    const eventContext = getEventGameplayContext(currentEvent);
-    const stored = FirebaseService.getBuildingPositions(currentEvent, eventContext || undefined);
-    const targetVersion = getTargetBuildingPositionsVersion();
-    const targetDefaults = getResolvedDefaultBuildingPositions();
-    setBuildingPositionsLocal(normalizeBuildingPositions(stored));
-    if (Object.keys(getBuildingPositions()).length === 0) {
-        setBuildingPositionsLocal(targetDefaults);
-        FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions(), eventContext || undefined);
-        FirebaseService.setBuildingPositionsVersion(currentEvent, targetVersion, eventContext || undefined);
-        return true;
-    }
-    return false;
+    return window.DSBuildingsConfigManager.loadBuildingPositions(_getBuildingDeps());
 }
 
 function renderBuildingsTable() {
-    const tbody = document.getElementById('buildingsTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-
-    getBuildingConfig().forEach((b, index) => {
-        const row = document.createElement('tr');
-        const labelEditing = false;
-        const slotsEditing = false;
-        const priorityEditing = false;
-        row.innerHTML = `
-            <td>
-                <div class="building-field-cell">
-                    <input type="text" value="${escapeAttribute((b.label || b.name))}" data-index="${index}" data-field="label" class="building-label-input" ${labelEditing ? '' : 'disabled'}>
-                    <button type="button" class="building-edit-btn ${labelEditing ? 'is-editing' : ''}" data-action="toggle-edit" data-field="label" title="${labelEditing ? 'Lock name' : 'Edit name'}" aria-label="${labelEditing ? 'Lock name' : 'Edit name'}">${getBuildingEditIcon(labelEditing)}</button>
-                </div>
-            </td>
-            <td data-label="${t('slots_label')}">
-                <div class="building-field-cell">
-                    <input type="number" min="${MIN_BUILDING_SLOTS}" max="${MAX_BUILDING_SLOTS_TOTAL}" value="${b.slots}" data-index="${index}" data-field="slots" class="building-slots-input" ${slotsEditing ? '' : 'disabled'}>
-                    <button type="button" class="building-edit-btn ${slotsEditing ? 'is-editing' : ''}" data-action="toggle-edit" data-field="slots" title="${slotsEditing ? 'Lock slots' : 'Edit slots'}" aria-label="${slotsEditing ? 'Lock slots' : 'Edit slots'}">${getBuildingEditIcon(slotsEditing)}</button>
-                </div>
-            </td>
-            <td data-label="${t('priority_label')}">
-                <div class="building-field-cell">
-                    <input type="number" min="1" max="6" value="${b.priority}" data-index="${index}" data-field="priority" class="building-priority-input" ${priorityEditing ? '' : 'disabled'}>
-                    <button type="button" class="building-edit-btn ${priorityEditing ? 'is-editing' : ''}" data-action="toggle-edit" data-field="priority" title="${priorityEditing ? 'Lock priority' : 'Edit priority'}" aria-label="${priorityEditing ? 'Lock priority' : 'Edit priority'}">${getBuildingEditIcon(priorityEditing)}</button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
+    window.DSBuildingsConfigManager.renderBuildingsTable(_getBuildingDeps());
 }
 
 function readBuildingConfigFromTable() {
-    const tbody = document.getElementById('buildingsTableBody');
-    const updated = getBuildingConfig().map((b) => ({ ...b }));
-    if (!tbody) {
-        return { updated, totalSlots: getBuildingSlotsTotal(updated) };
-    }
-    const inputs = tbody.querySelectorAll('input[data-index][data-field]');
-    inputs.forEach((input) => {
-        const index = Number(input.getAttribute('data-index'));
-        if (!Number.isFinite(index) || !updated[index]) {
-            return;
-        }
-        const field = input.getAttribute('data-field');
-        if (field === 'label') {
-            const raw = String(input.value || '').trim();
-            updated[index].label = raw || updated[index].name;
-            return;
-        }
-
-        const value = Number(input.value);
-        if (!Number.isFinite(value)) {
-            return;
-        }
-        if (field === 'priority') {
-            updated[index].priority = clampPriority(value, updated[index].priority);
-        } else if (field === 'slots') {
-            updated[index].slots = clampSlots(value, updated[index].slots);
-        }
-    });
-    return { updated, totalSlots: getBuildingSlotsTotal(updated) };
+    return window.DSBuildingsConfigManager.readBuildingConfigFromTable(_getBuildingDeps());
 }
 
 const buildingsTableBodyEl = document.getElementById('buildingsTableBody');
@@ -6680,448 +5018,60 @@ if (buildingsTableBodyEl) {
 }
 
 function resetBuildingsToDefault() {
-    setBuildingConfig(getResolvedDefaultBuildingConfig());
-    renderBuildingsTable();
+    window.DSBuildingsConfigManager.resetBuildingsToDefault(_getBuildingDeps());
 }
 
 async function saveBuildingConfig() {
-    const { updated, totalSlots } = readBuildingConfigFromTable();
-    if (totalSlots > MAX_BUILDING_SLOTS_TOTAL) {
-        showMessage('buildingsStatus', t('buildings_slots_exceeded', { max: MAX_BUILDING_SLOTS_TOTAL, total: totalSlots }), 'error');
-        return;
-    }
-
-    setBuildingConfig(normalizeBuildingConfig(updated, getResolvedDefaultBuildingConfig()));
-    renderBuildingsTable();
-
-    if (typeof FirebaseService === 'undefined') {
-        showMessage('buildingsStatus', t('buildings_changes_not_saved'), 'error');
-        return;
-    }
-    const gameplayContext = getGameplayContext('buildingsStatus');
-    if (!gameplayContext) {
-        return;
-    }
-    const eventContext = { gameId: gameplayContext.gameId, eventId: normalizeEventId(currentEvent) };
-
-    FirebaseService.setBuildingConfig(currentEvent, getBuildingConfig(), eventContext);
-    FirebaseService.setBuildingConfigVersion(currentEvent, getTargetBuildingConfigVersion(), eventContext);
-    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
-    if (result.success) {
-        showMessage('buildingsStatus', t('buildings_saved'), 'success');
-    } else {
-        showMessage('buildingsStatus', t('buildings_save_failed', { error: result.error }), 'error');
-    }
+    return window.DSBuildingsConfigManager.saveBuildingConfig(_getBuildingDeps());
 }
 
 function refreshBuildingConfigForAssignments() {
-    if (isConfigurationPageVisible()) {
-        return syncBuildingConfigFromTable();
-    }
-    loadBuildingConfig();
-    return true;
+    return window.DSBuildingsConfigManager.refreshBuildingConfigForAssignments(_getBuildingDeps());
 }
 
-function syncBuildingConfigFromTable() {
-    const tbody = document.getElementById('buildingsTableBody');
-    if (!tbody || !isConfigurationPageVisible()) {
-        return true;
-    }
-    const { updated, totalSlots } = readBuildingConfigFromTable();
-    if (totalSlots > MAX_BUILDING_SLOTS_TOTAL) {
-        showMessage('buildingsStatus', t('buildings_slots_exceeded', { max: MAX_BUILDING_SLOTS_TOTAL, total: totalSlots }), 'error');
-        return false;
-    }
-    setBuildingConfig(normalizeBuildingConfig(updated, getResolvedDefaultBuildingConfig()));
-    return true;
-}
+const _coordState = { coordBuildingIndex: 0, coordBuildings: [], coordCanvasMapHeight: 0, coordMapWarningShown: coordMapWarningShown };
 
-let coordBuildingIndex = 0;
-let coordBuildings = [];
-let coordCanvasMapHeight = 0;
-
-function getCoordinatePickerBuildingNames() {
-    const event = getActiveEvent();
-    if (!event) {
-        return [];
-    }
-
-    const sourceBuildings = Array.isArray(event.buildings) ? event.buildings : [];
-    const names = [];
-    const seen = new Set();
-
-    sourceBuildings.forEach((building) => {
-        if (!building || typeof building.name !== 'string') {
-            return;
-        }
-        const name = building.name.trim();
-        if (!name || seen.has(name)) {
-            return;
-        }
-        if (building.showOnMap === false) {
-            return;
-        }
-        seen.add(name);
-        names.push(name);
+function _getCoordDeps() {
+    return Object.assign({}, _getBuildingDeps(), {
+        loadBuildingConfig: loadBuildingConfig,
+        loadBuildingPositions: loadBuildingPositions,
     });
-
-    if (names.length > 0) {
-        return names;
-    }
-
-    return getBuildingConfig()
-        .filter((building) => building && building.showOnMap !== false && typeof building.name === 'string' && building.name.trim())
-        .map((building) => building.name.trim());
-}
-
-function getCoordinatePickerTeamBuildings() {
-    const event = getActiveEvent();
-    const teamBuildings = [];
-    const seen = new Set();
-
-    const collect = (sourceBuildings) => {
-        if (!Array.isArray(sourceBuildings)) {
-            return;
-        }
-        sourceBuildings.forEach((building) => {
-            if (!building || typeof building.name !== 'string') {
-                return;
-            }
-            const name = building.name.trim();
-            if (!name || seen.has(name)) {
-                return;
-            }
-            if (building.showOnMap !== false) {
-                return;
-            }
-            const label = typeof building.label === 'string' && building.label.trim()
-                ? building.label.trim()
-                : name;
-            seen.add(name);
-            teamBuildings.push({ name, label });
-        });
-    };
-
-    collect(event && Array.isArray(event.buildings) ? event.buildings : []);
-    if (teamBuildings.length > 0) {
-        return teamBuildings;
-    }
-
-    collect(getBuildingConfig());
-    return teamBuildings;
-}
-
-function fitCoordText(ctx, text, maxWidth, font) {
-    const value = String(text || '');
-    if (!value) {
-        return value;
-    }
-    if (!ctx || !Number.isFinite(maxWidth) || maxWidth <= 0) {
-        return value;
-    }
-    ctx.save();
-    if (font) {
-        ctx.font = font;
-    }
-    if (ctx.measureText(value).width <= maxWidth) {
-        ctx.restore();
-        return value;
-    }
-    const suffix = '...';
-    let trimmed = value;
-    while (trimmed.length > 1 && ctx.measureText(trimmed + suffix).width > maxWidth) {
-        trimmed = trimmed.slice(0, -1);
-    }
-    ctx.restore();
-    return trimmed + suffix;
-}
-
-function refreshCoordinatesPickerForCurrentEvent() {
-    if (!getActiveEvent()) {
-        showMessage('coordStatus', t('events_manager_no_events'), 'error');
-        return false;
-    }
-    loadBuildingConfig();
-    loadBuildingPositions();
-    coordBuildings = getCoordinatePickerBuildingNames();
-
-    if (coordBuildings.length === 0) {
-        showMessage('coordStatus', t('coord_no_mapped_buildings'), 'error');
-        return false;
-    }
-
-    coordBuildingIndex = 0;
-    drawCoordCanvas();
-    return true;
 }
 
 function openCoordinatesPicker() {
-    if (!getActiveEvent()) {
-        showMessage('coordStatus', t('events_manager_no_events'), 'error');
-        return;
-    }
-    const overlay = document.getElementById('coordPickerOverlay');
-    if (!overlay) {
-        return;
-    }
-    openModalOverlay(overlay, { initialFocusSelector: '#coordCloseBtn' });
-    refreshCoordinatesPickerForCurrentEvent();
+    window.DSCoordinatePickerController.openCoordinatesPicker(_coordState, _getCoordDeps());
 }
 
 function openCoordinatesPickerForEvent(eventId) {
-    if (EVENT_REGISTRY[eventId]) {
-        switchEvent(eventId);
-    }
-    openCoordinatesPicker();
+    window.DSCoordinatePickerController.openCoordinatesPickerForEvent(eventId, _coordState, _getCoordDeps());
 }
 
 function closeCoordinatesPicker() {
-    const overlay = document.getElementById('coordPickerOverlay');
-    if (overlay) {
-        closeModalOverlay(overlay);
-    }
-}
-
-function updateCoordLabel() {
-    const name = coordBuildings[coordBuildingIndex];
-    const displayName = name || '';
-    const pos = getBuildingPositions()[name];
-    const eventNameEl = document.getElementById('coordEventName');
-    if (eventNameEl) {
-        eventNameEl.textContent = getEventDisplayName(currentEvent);
-    }
-    document.getElementById('coordBuildingLabel').textContent = displayName || '';
-    document.getElementById('coordBuildingIndex').textContent = `(${coordBuildingIndex + 1}/${coordBuildings.length})`;
-    document.getElementById('coordBuildingValue').textContent = pos
-        ? t('coord_current', { x: pos[0], y: pos[1] })
-        : t('coord_current_not_set');
-    document.getElementById('coordPrompt').textContent = t('coord_select_prompt', { name: displayName });
+    window.DSCoordinatePickerController.closeCoordinatesPicker(_getCoordDeps());
 }
 
 function drawCoordCanvas() {
-    const canvas = document.getElementById('coordCanvas');
-    if (!canvas) return;
-
-    updateCoordLabel();
-
-    // Coordinate picker uses export map dimensions so picker/export coordinates stay identical.
-    const activeMapPurpose = MAP_EXPORT;
-    const activeMapState = getMapRuntimeState(currentEvent, activeMapPurpose);
-    const activeMapImage = activeMapState ? activeMapState.image : null;
-    const activeMapLoaded = activeMapState ? activeMapState.loaded : false;
-    const activeMapUnavailable = activeMapState ? activeMapState.unavailable : false;
-    const statusEl = document.getElementById('coordStatus');
-
-    if (!activeMapLoaded && !activeMapUnavailable) {
-        loadMapImage(currentEvent, activeMapPurpose)
-            .then(() => drawCoordCanvas())
-            .catch(() => {
-                drawCoordCanvas();
-            });
-        return;
-    }
-
-    const ctx = canvas.getContext('2d');
-    const hasMapBackground = !!(activeMapLoaded && activeMapImage && activeMapImage.width > 0 && activeMapImage.height > 0);
-    const mapWidth = MAP_CANVAS_WIDTH;
-    const mapHeight = hasMapBackground
-        ? Math.max(1, Math.floor(activeMapImage.height * (mapWidth / activeMapImage.width)))
-        : MAP_CANVAS_FALLBACK_HEIGHT;
-    const coordTeamBuildings = getCoordinatePickerTeamBuildings();
-    const hasTeamReservedArea = coordTeamBuildings.length > 0;
-    const teamAreaTopGap = hasTeamReservedArea ? 12 : 0;
-    const teamAreaHeaderHeight = hasTeamReservedArea ? 24 : 0;
-    const teamTagHeight = hasTeamReservedArea ? 28 : 0;
-    const teamTagGap = hasTeamReservedArea ? 8 : 0;
-    const teamTagColumns = hasTeamReservedArea ? Math.min(3, coordTeamBuildings.length) : 0;
-    const teamTagRows = hasTeamReservedArea ? Math.ceil(coordTeamBuildings.length / teamTagColumns) : 0;
-    const teamAreaHeight = hasTeamReservedArea
-        ? 12 + teamAreaHeaderHeight + (teamTagRows * teamTagHeight) + (Math.max(0, teamTagRows - 1) * teamTagGap) + 12
-        : 0;
-
-    coordCanvasMapHeight = mapHeight;
-    canvas.width = mapWidth;
-    canvas.height = mapHeight + teamAreaTopGap + teamAreaHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (hasMapBackground) {
-        ctx.drawImage(activeMapImage, 0, 0, mapWidth, mapHeight);
-        coordMapWarningShown[currentEvent] = false;
-        if (statusEl) {
-            statusEl.innerHTML = '';
-        }
-    } else {
-        const grad = ctx.createLinearGradient(0, 0, mapWidth, mapHeight);
-        grad.addColorStop(0, '#1f2238');
-        grad.addColorStop(1, '#2b2f4a');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, mapWidth, mapHeight);
-
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x <= mapWidth; x += MAP_GRID_STEP) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, mapHeight);
-            ctx.stroke();
-        }
-        for (let y = 0; y <= mapHeight; y += MAP_GRID_STEP) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(mapWidth, y);
-            ctx.stroke();
-        }
-
-        ctx.fillStyle = 'rgba(253, 200, 48, 0.9)';
-        ctx.font = 'bold 28px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('MAP PREVIEW UNAVAILABLE', mapWidth / 2, 52);
-        ctx.font = '16px Arial';
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.fillText(t('events_manager_map_placeholder'), mapWidth / 2, 80);
-
-        if (!coordMapWarningShown[currentEvent]) {
-            showMessage('coordStatus', t('coord_map_not_loaded'), 'warning');
-            coordMapWarningShown[currentEvent] = true;
-        }
-    }
-
-    const coordBuildingSet = new Set(coordBuildings);
-    Object.entries(getBuildingPositions()).forEach(([name, pos]) => {
-        if (!pos) return;
-        if (!coordBuildingSet.has(name)) return;
-        const isActive = name === coordBuildings[coordBuildingIndex];
-        ctx.beginPath();
-        ctx.arc(pos[0], pos[1], isActive ? 8 : 5, 0, Math.PI * 2);
-        ctx.fillStyle = isActive ? '#FDC830' : 'rgba(255,255,255,0.7)';
-        ctx.fill();
-        ctx.strokeStyle = isActive ? '#000' : 'rgba(0,0,0,0.6)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    });
-
-    if (hasTeamReservedArea) {
-        const panelX = 12;
-        const panelY = mapHeight + teamAreaTopGap;
-        const panelWidth = mapWidth - 24;
-        const panelHeight = teamAreaHeight;
-
-        const panelGrad = ctx.createLinearGradient(0, panelY, 0, panelY + panelHeight);
-        panelGrad.addColorStop(0, 'rgba(22, 27, 40, 0.93)');
-        panelGrad.addColorStop(1, 'rgba(18, 22, 34, 0.98)');
-        ctx.fillStyle = panelGrad;
-        ctx.beginPath();
-        ctx.roundRect(panelX, panelY, panelWidth, panelHeight, 12);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(253, 200, 48, 0.72)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-
-        ctx.font = 'bold 13px Arial';
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        const teamHeader = `${t('building_type_team')} ${t('coord_label_building')}`;
-        ctx.fillText(teamHeader, panelX + 12, panelY + 18);
-
-        ctx.font = '11px Arial';
-        ctx.fillStyle = 'rgba(255,255,255,0.72)';
-        ctx.textAlign = 'right';
-        ctx.fillText(String(coordTeamBuildings.length), panelX + panelWidth - 12, panelY + 18);
-
-        const cardsTop = panelY + 12 + teamAreaHeaderHeight;
-        const cardGap = 8;
-        const cardWidth = Math.floor((panelWidth - 24 - ((teamTagColumns - 1) * cardGap)) / teamTagColumns);
-
-        coordTeamBuildings.forEach((building, index) => {
-            const row = Math.floor(index / teamTagColumns);
-            const col = index % teamTagColumns;
-            const cardX = panelX + 12 + (col * (cardWidth + cardGap));
-            const cardY = cardsTop + (row * (teamTagHeight + teamTagGap));
-
-            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardWidth, cardY);
-            cardGrad.addColorStop(0, 'rgba(255,255,255,0.08)');
-            cardGrad.addColorStop(1, 'rgba(255,255,255,0.03)');
-            ctx.fillStyle = cardGrad;
-            ctx.beginPath();
-            ctx.roundRect(cardX, cardY, cardWidth, teamTagHeight, 8);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            const tagText = `${t('building_type_team')}: ${building.label}`;
-            ctx.font = 'bold 12px Arial';
-            ctx.fillStyle = 'rgba(253, 200, 48, 0.95)';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(
-                fitCoordText(ctx, tagText, cardWidth - 16, 'bold 12px Arial'),
-                cardX + 8,
-                cardY + (teamTagHeight / 2) + 0.5
-            );
-        });
-    }
+    window.DSCoordinatePickerController.drawCoordCanvas(_coordState, _getCoordDeps());
 }
 
 function coordCanvasClick(event) {
-    const canvas = document.getElementById('coordCanvas');
-    if (!canvas) return;
-    if (event && event.type === 'pointerdown' && event.button !== 0) return;
-    if (event && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-    }
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = Math.round((event.clientX - rect.left) * scaleX);
-    const y = Math.round((event.clientY - rect.top) * scaleY);
-    if (y > coordCanvasMapHeight) return;
-    const name = coordBuildings[coordBuildingIndex];
-    if (!name) return;
-    getBuildingPositions()[name] = [x, y];
-    updateCoordLabel();
-    drawCoordCanvas();
-    if (coordBuildingIndex < coordBuildings.length - 1) {
-        coordBuildingIndex += 1;
-        updateCoordLabel();
-        drawCoordCanvas();
-    }
+    window.DSCoordinatePickerController.coordCanvasClick(event, _coordState, _getCoordDeps());
 }
 
 function prevCoordBuilding() {
-    if (coordBuildingIndex > 0) {
-        coordBuildingIndex -= 1;
-        drawCoordCanvas();
-    }
+    window.DSCoordinatePickerController.prevCoordBuilding(_coordState, _getCoordDeps());
 }
 
 function nextCoordBuilding() {
-    if (coordBuildingIndex < coordBuildings.length - 1) {
-        coordBuildingIndex += 1;
-        drawCoordCanvas();
-    }
+    window.DSCoordinatePickerController.nextCoordBuilding(_coordState, _getCoordDeps());
 }
 
 async function saveBuildingPositions() {
-    if (typeof FirebaseService === 'undefined') {
-        showMessage('coordStatus', t('coord_changes_not_saved'), 'error');
-        return;
-    }
-    const gameplayContext = getGameplayContext('coordStatus');
-    if (!gameplayContext) {
-        return;
-    }
-    const eventContext = { gameId: gameplayContext.gameId, eventId: normalizeEventId(currentEvent) };
-    FirebaseService.setBuildingPositions(currentEvent, getBuildingPositions(), eventContext);
-    FirebaseService.setBuildingPositionsVersion(currentEvent, getTargetBuildingPositionsVersion(), eventContext);
-    const result = await FirebaseService.saveUserData(undefined, gameplayContext);
-    if (result.success) {
-        showMessage('coordStatus', t('coord_saved'), 'success');
-    } else {
-        showMessage('coordStatus', t('coord_save_failed', { error: result.error }), 'error');
-    }
+    return window.DSBuildingsConfigManager.saveBuildingPositions(_getBuildingDeps());
 }
+
+
+
 
 function reserveSpaceForFooter() {
     const bar = document.getElementById('floatingButtons');
@@ -7734,987 +5684,61 @@ function assignTeamToBuildings(players, algorithm) {
     });
 }
 // ============================================================
-// DOWNLOAD MODAL
+// DOWNLOAD MODAL (delegated to DSDownloadController)
 // ============================================================
 
-function openDownloadModal(team) {
-    const isA = team === 'A';
-    activeDownloadTeam = team;
+function _getDownloadDeps() {
+    return {
+        t: t,
+        showMessage: showMessage,
+        openModalOverlay: openModalOverlay,
+        closeModalOverlay: closeModalOverlay,
+        ensureXLSXLoaded: ensureXLSXLoaded,
+        getActiveEvent: getActiveEvent,
+        getEventDisplayName: getEventDisplayName,
+        getEventMapFile: getEventMapFile,
+        getMapRuntimeState: getMapRuntimeState,
+        loadMapImage: loadMapImage,
+        isImageDataUrl: isImageDataUrl,
+        getEffectiveBuildingPositions: getEffectiveBuildingPositions,
+        isBuildingShownOnMap: isBuildingShownOnMap,
+        getBuildingConfig: getBuildingConfig,
+        getBuildingDisplayName: getBuildingDisplayName,
+        getGameplayContext: getGameplayContext,
+        getCurrentEvent: function () { return currentEvent; },
+        getAssignmentsA: function () { return assignmentsA; },
+        getAssignmentsB: function () { return assignmentsB; },
+        getSubstitutesA: function () { return substitutesA; },
+        getSubstitutesB: function () { return substitutesB; },
+        setActiveDownloadTeam: function (v) { activeDownloadTeam = v; },
+        MAP_EXPORT: MAP_EXPORT,
+        MAP_CANVAS_WIDTH: MAP_CANVAS_WIDTH,
+        EVENT_LOGO_DATA_URL_LIMIT: EVENT_LOGO_DATA_URL_LIMIT,
+    };
+}
 
-    const modalCard = document.querySelector('#downloadModalOverlay .download-modal-card');
-    if (modalCard) {
-        modalCard.classList.toggle('download-modal-card--team-a', isA);
-        modalCard.classList.toggle('download-modal-card--team-b', !isA);
-    }
-    document.getElementById('downloadModalTitle').textContent = t('download_modal_title', { team: team });
-    document.getElementById('downloadModalSubtitle').textContent = t('download_modal_subtitle', { team: team });
-    document.getElementById('downloadMapBtn').onclick = () => downloadTeamMap(team);
-    document.getElementById('downloadExcelBtn').onclick = () => downloadTeamExcel(team);
-    const eventHistorySaveBtn = document.getElementById('eventHistorySaveBtn');
-    if (eventHistorySaveBtn && window._eventHistoryController && typeof window._eventHistoryController.saveAssignmentAsHistory === 'function') {
-        eventHistorySaveBtn.classList.remove('hidden');
-        eventHistorySaveBtn.onclick = () => {
-            const assignments = isA ? assignmentsA : assignmentsB;
-            const gameplayContext = getGameplayContext();
-            const currentAssignment = {
-                eventTypeId: currentEvent || '',
-                eventName: currentEvent || '',
-                gameId: (gameplayContext && gameplayContext.gameId) || '',
-                scheduledAt: new Date(),
-                teamA: isA ? assignments : [],
-                teamB: !isA ? assignments : [],
-            };
-            window._eventHistoryController.saveAssignmentAsHistory(currentAssignment)
-                .then((result) => {
-                    if (result && result.ok) {
-                        showMessage('downloadStatus', t('event_history_save_btn'), 'success');
-                    }
-                })
-                .catch(() => {});
-        };
-    } else if (eventHistorySaveBtn) {
-        eventHistorySaveBtn.classList.add('hidden');
-    }
-    document.getElementById('downloadStatus').innerHTML = '';
-    const overlay = document.getElementById('downloadModalOverlay');
-    if (overlay) {
-        openModalOverlay(overlay, { initialFocusSelector: '#downloadModalCloseBtn' });
-    }
+function openDownloadModal(team) {
+    if (!window.DSDownloadController) return;
+    window.DSDownloadController.openDownloadModal(team, _getDownloadDeps());
 }
 
 function closeDownloadModal() {
-    activeDownloadTeam = null;
-    const overlay = document.getElementById('downloadModalOverlay');
-    if (overlay) {
-        closeModalOverlay(overlay);
-    }
+    if (!window.DSDownloadController) return;
+    window.DSDownloadController.closeDownloadModal(_getDownloadDeps());
 }
 
 // ============================================================
-// DOWNLOAD FUNCTIONS
+// DOWNLOAD FUNCTIONS (delegated to DSDownloadController)
 // ============================================================
 
-async function downloadTeamExcel(team) {
-    try {
-        await ensureXLSXLoaded();
-    } catch (error) {
-        console.error(error);
-        showMessage('downloadStatus', t('error_xlsx_missing'), 'error');
-        return;
-    }
-
-    const wb = XLSX.utils.book_new();
-    const assignments = team === 'A' ? assignmentsA : assignmentsB;
-    
-    if (assignments.length === 0) {
-        alert(t('alert_no_assignments', { team: team }));
-        return;
-    }
-    
-    const data = assignments.map(a => ({
-        [t('excel_header_building')]: a.building,
-        [t('excel_header_priority')]: a.priority,
-        [t('excel_header_player')]: a.player
-    }));
-    
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), t('excel_sheet_name', { team: team }));
-    XLSX.writeFile(wb, `${getActiveEvent().excelPrefix}_team_${team}_assignments.xlsx`);
-    
-    const statusId = 'downloadStatus';
-    showMessage(statusId, t('message_excel_downloaded'), 'success');
+function downloadTeamExcel(team) {
+    if (!window.DSDownloadController) return;
+    return window.DSDownloadController.downloadTeamExcel(team, _getDownloadDeps());
 }
 
-async function downloadTeamMap(team) {
-    const assignments = team === 'A' ? assignmentsA : assignmentsB;
-    
-    if (assignments.length === 0) {
-        alert(t('alert_no_assignments', { team: team }));
-        return;
-    }
-    
-    const statusId = 'downloadStatus';
-    const uploadedMapSource = getEventMapFile(currentEvent, MAP_EXPORT);
-    if (!uploadedMapSource) {
-        await generateMapWithoutBackground(team, assignments, statusId);
-        return;
-    }
-    
-    const exportMapState = getMapRuntimeState(currentEvent, MAP_EXPORT);
-    if (!exportMapState || !exportMapState.loaded) {
-        showMessage(statusId, t('message_map_wait'), 'processing');
-        try {
-            await Promise.race([
-                loadMapImage(currentEvent, MAP_EXPORT),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
-            ]);
-        } catch (error) {
-            await generateMapWithoutBackground(team, assignments, statusId);
-            return;
-        }
-    }
-    
-    await generateMap(team, assignments, statusId);
-}
-
-function getMapHeaderTitle(team) {
-    const normalizedTeam = team === 'B' ? 'B' : 'A';
-    const eventName = getEventDisplayName(currentEvent);
-    return `TEAM ${normalizedTeam} ASSIGNMENTS - ${eventName}`;
-}
-
-function getActiveEventAvatarDataUrl() {
-    const activeEvent = getActiveEvent();
-    if (!activeEvent || typeof activeEvent.logoDataUrl !== 'string') {
-        return '';
-    }
-    const logoDataUrl = activeEvent.logoDataUrl.trim();
-    if (!logoDataUrl) {
-        return '';
-    }
-    return isImageDataUrl(logoDataUrl, EVENT_LOGO_DATA_URL_LIMIT) ? logoDataUrl : '';
-}
-
-async function loadActiveEventAvatarForHeader() {
-    const avatarDataUrl = getActiveEventAvatarDataUrl();
-    if (!avatarDataUrl) {
-        return null;
-    }
-
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = avatarDataUrl;
-    });
-}
-
-function fitCanvasHeaderText(ctx, text, maxWidth, font) {
-    const value = String(text || '');
-    const width = Number(maxWidth);
-    if (!Number.isFinite(width) || width <= 0) {
-        return value;
-    }
-
-    ctx.save();
-    ctx.font = font;
-    if (ctx.measureText(value).width <= width) {
-        ctx.restore();
-        return value;
-    }
-
-    let output = value;
-    while (output.length > 1 && ctx.measureText(output + '...').width > width) {
-        output = output.slice(0, -1);
-    }
-    ctx.restore();
-    return output + '...';
-}
-
-function drawGeneratedMapHeader(ctx, options) {
-    const cfg = options && typeof options === 'object' ? options : {};
-    const totalWidth = Number(cfg.totalWidth) || MAP_CANVAS_WIDTH;
-    const titleHeight = Number(cfg.titleHeight) || 100;
-    const teamPrimary = cfg.teamPrimary || '#4169E1';
-    const teamSecondary = cfg.teamSecondary || '#1E90FF';
-    const titleText = String(cfg.titleText || '');
-    const avatarImage = cfg.avatarImage || null;
-
-    const grad = ctx.createLinearGradient(0, 0, totalWidth, titleHeight);
-    grad.addColorStop(0, teamPrimary);
-    grad.addColorStop(1, teamSecondary);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, totalWidth, titleHeight);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(0, titleHeight - 1);
-    ctx.lineTo(totalWidth, titleHeight - 1);
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-
-    const paddingX = 24;
-    let textStartX = paddingX;
-
-    if (avatarImage && avatarImage.width > 0 && avatarImage.height > 0) {
-        const avatarSize = Math.max(36, Math.min(64, titleHeight - 24));
-        const avatarX = paddingX;
-        const avatarY = Math.floor((titleHeight - avatarSize) / 2);
-        const avatarCenterX = avatarX + (avatarSize / 2);
-        const avatarCenterY = avatarY + (avatarSize / 2);
-        const avatarRadius = avatarSize / 2;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(avatarCenterX, avatarCenterY, avatarRadius, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(avatarImage, avatarX, avatarY, avatarSize, avatarSize);
-        ctx.restore();
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(avatarCenterX, avatarCenterY, avatarRadius + 1, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-        ctx.lineWidth = 2.2;
-        ctx.stroke();
-        ctx.restore();
-
-        textStartX = avatarX + avatarSize + 16;
-    }
-
-    const textMaxWidth = Math.max(120, totalWidth - textStartX - paddingX);
-    const fittedTitle = fitCanvasHeaderText(ctx, titleText, textMaxWidth, 'bold 40px Arial');
-
-    ctx.save();
-    ctx.font = 'bold 40px Arial';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(fittedTitle, textStartX, titleHeight / 2);
-    ctx.restore();
-}
-
-async function generateMapWithoutBackground(team, assignments, statusId) {
-    showMessage(statusId, t('message_generating_map_no_bg', { team: team }), 'processing');
-    
-    try {
-        const headerAvatar = await loadActiveEventAvatarForHeader();
-        const headerTitle = getMapHeaderTitle(team);
-        const mappedAssignments = {};
-        const unmappedAssignments = {};
-        const effectivePositions = getEffectiveBuildingPositions();
-
-        assignments.forEach((a) => {
-            if (!a.player) return;
-            const buildingKey = a.buildingKey || a.building;
-            const showOnMap = isBuildingShownOnMap(buildingKey);
-            const hasCoordinates = Array.isArray(effectivePositions[buildingKey]);
-            if (showOnMap && hasCoordinates) {
-                if (!mappedAssignments[buildingKey]) mappedAssignments[buildingKey] = [];
-                mappedAssignments[buildingKey].push(a);
-                return;
-            }
-            if (!unmappedAssignments[buildingKey]) unmappedAssignments[buildingKey] = [];
-            unmappedAssignments[buildingKey].push(a);
-        });
-
-        const orderedBuildingKeys = getBuildingConfig().map((building) => building.name);
-        const orderedUnmappedKeys = [
-            ...orderedBuildingKeys.filter((key) => Array.isArray(unmappedAssignments[key]) && unmappedAssignments[key].length > 0),
-            ...Object.keys(unmappedAssignments).filter((key) => !orderedBuildingKeys.includes(key)),
-        ];
-        const unmappedGroups = orderedUnmappedKeys
-            .map((key) => {
-                const players = Array.isArray(unmappedAssignments[key])
-                    ? unmappedAssignments[key].filter((entry) => entry && entry.player)
-                    : [];
-                if (players.length === 0) {
-                    return null;
-                }
-                return {
-                    key: key,
-                    label: getBuildingDisplayName(key),
-                    players: players,
-                };
-            })
-            .filter(Boolean);
-        const unmappedPlayers = unmappedGroups.flatMap((group) => group.players);
-        
-        // Create simplified version without map
-        const canvas = document.createElement('canvas');
-        canvas.width = MAP_CANVAS_WIDTH;
-        canvas.height = 800;
-        const ctx = canvas.getContext('2d');
-        
-        // Background
-        ctx.fillStyle = team === 'A' ? '#E8F4FF' : '#FFE8E8';
-        ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 800);
-        
-        // Title
-        drawGeneratedMapHeader(ctx, {
-            totalWidth: MAP_CANVAS_WIDTH,
-            titleHeight: 100,
-            teamPrimary: team === 'A' ? '#4169E1' : '#DC143C',
-            teamSecondary: team === 'A' ? '#1E90FF' : '#FF6347',
-            titleText: headerTitle,
-            avatarImage: headerAvatar,
-        });
-
-        // List assignments
-        ctx.fillStyle = '#333';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'left';
-        let y = 150;
-        
-        assignments.forEach((a, i) => {
-            if (a.player) {
-                ctx.fillText(`${i+1}. ${a.player} → ${a.building}`, 50, y);
-                y += 30;
-            }
-        });
-        
-        // Download
-        const dataURL = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = dataURL;
-        a.download = `team_${team}_${getActiveEvent().excelPrefix}_nomap.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        showMessage(statusId, t('message_team_downloaded_list', { team: team }), 'success');
-    } catch (error) {
-        console.error(error);
-        showMessage(statusId, t('error_generic', { error: error.message }), 'error');
-    }
-}
-
-async function generateMap(team, assignments, statusId) {
-    showMessage(statusId, t('message_generating_map', { team: team }), 'processing');
-
-    try {
-        const headerAvatar = await loadActiveEventAvatarForHeader();
-        const headerTitle = getMapHeaderTitle(team);
-        const teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
-        const teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
-        const teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
-        const gameplayContext = getGameplayContext();
-        const activePlayerDB = (typeof FirebaseService !== 'undefined' && FirebaseService.getActivePlayerDatabase && gameplayContext)
-            ? FirebaseService.getActivePlayerDatabase(gameplayContext)
-            : {};
-
-        const mappedAssignments = {};
-        const unmappedAssignments = {};
-        const effectivePositions = getEffectiveBuildingPositions();
-
-        assignments.forEach((a) => {
-            if (!a.player) return;
-            const buildingKey = a.buildingKey || a.building;
-            const showOnMap = isBuildingShownOnMap(buildingKey);
-            const hasCoordinates = Array.isArray(effectivePositions[buildingKey]);
-            if (showOnMap && hasCoordinates) {
-                if (!mappedAssignments[buildingKey]) mappedAssignments[buildingKey] = [];
-                mappedAssignments[buildingKey].push(a);
-                return;
-            }
-            if (!unmappedAssignments[buildingKey]) unmappedAssignments[buildingKey] = [];
-            unmappedAssignments[buildingKey].push(a);
-        });
-
-        const orderedBuildingKeys = getBuildingConfig().map((building) => building.name);
-        const orderedUnmappedKeys = [
-            ...orderedBuildingKeys.filter((key) => Array.isArray(unmappedAssignments[key]) && unmappedAssignments[key].length > 0),
-            ...Object.keys(unmappedAssignments).filter((key) => !orderedBuildingKeys.includes(key)),
-        ];
-        const unmappedGroups = orderedUnmappedKeys
-            .map((key) => {
-                const players = Array.isArray(unmappedAssignments[key])
-                    ? unmappedAssignments[key].filter((entry) => entry && entry.player)
-                    : [];
-                if (players.length === 0) {
-                    return null;
-                }
-                return {
-                    key: key,
-                    label: getBuildingDisplayName(key),
-                    players: players,
-                };
-            })
-            .filter(Boolean);
-        const unmappedPlayers = unmappedGroups.flatMap((group) => group.players);
-
-        // Get substitutes for this team
-        const substitutes = team === 'A' ? substitutesA : substitutesB;
-
-        const titleHeight = 100;
-        const unmappedHeight = 280;
-        const exportMapState = getMapRuntimeState(currentEvent, MAP_EXPORT);
-        const activeMapImage = exportMapState ? exportMapState.image : null;
-        if (!activeMapImage || activeMapImage.width <= 0) {
-            throw new Error('Map image not loaded for export');
-        }
-        const mapHeight = Math.max(1, Math.floor(activeMapImage.height * (MAP_CANVAS_WIDTH / activeMapImage.width)));
-        const totalHeight = titleHeight + mapHeight + unmappedHeight;
-
-        // Add substitutes panel width if there are substitutes
-        const subsPanelWidth = substitutes.length > 0 ? 260 : 0;
-        const totalWidth = MAP_CANVAS_WIDTH + subsPanelWidth;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = totalWidth;
-        canvas.height = totalHeight;
-        const ctx = canvas.getContext('2d');
-
-        function drawCrosshairIcon(cx, cy, size, color) {
-            const radius = Math.max(8, Math.floor(size / 2));
-            ctx.save();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2.2;
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(cx - radius - 6, cy);
-            ctx.lineTo(cx + radius + 6, cy);
-            ctx.moveTo(cx, cy - radius - 6);
-            ctx.lineTo(cx, cy + radius + 6);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(cx, cy, 3.2, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function drawShieldIcon(x, y, width, height, color) {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(x + width / 2, y);
-            ctx.lineTo(x + width, y + height * 0.25);
-            ctx.lineTo(x + width * 0.88, y + height * 0.78);
-            ctx.lineTo(x + width / 2, y + height);
-            ctx.lineTo(x + width * 0.12, y + height * 0.78);
-            ctx.lineTo(x, y + height * 0.25);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        function fitText(text, maxWidth, font) {
-            ctx.save();
-            ctx.font = font;
-            if (ctx.measureText(text).width <= maxWidth) {
-                ctx.restore();
-                return text;
-            }
-            let output = text;
-            while (output.length > 1 && ctx.measureText(output + '...').width > maxWidth) {
-                output = output.slice(0, -1);
-            }
-            ctx.restore();
-            return output + '...';
-        }
-
-        // Coordinates always represent the top-left start point of the first label,
-        // consistently for every event.
-        function getStarterCardStartX(anchorX, cardWidth) {
-            return anchorX;
-        }
-
-        function getTroopKind(troops) {
-            const val = String(troops || '').trim().toLowerCase();
-            if (val.startsWith('tank')) return 'tank';
-            if (val.startsWith('aero') || val.startsWith('air')) return 'aero';
-            if (val.startsWith('missile')) return 'missile';
-            return 'unknown';
-        }
-
-        function drawTankIcon(cx, cy, color) {
-            ctx.save();
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = 1.4;
-            ctx.beginPath();
-            ctx.roundRect(cx - 6.5, cy - 2.8, 12, 5.6, 1.8);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.roundRect(cx - 1.8, cy - 5.4, 4.6, 2.8, 1);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(cx + 2.6, cy - 4);
-            ctx.lineTo(cx + 7.5, cy - 4);
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        function drawJetIcon(cx, cy, color) {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(cx - 7, cy + 1.2);
-            ctx.lineTo(cx + 5.8, cy - 2.8);
-            ctx.lineTo(cx + 2, cy + 0.3);
-            ctx.lineTo(cx + 5.8, cy + 3.2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(cx - 1.6, cy - 1.1);
-            ctx.lineTo(cx - 3.8, cy - 4.6);
-            ctx.lineTo(cx - 0.8, cy - 3);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function drawMissileLauncherIcon(cx, cy, color) {
-            ctx.save();
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = 1.4;
-            ctx.beginPath();
-            ctx.roundRect(cx - 6, cy + 0.8, 8.8, 4.2, 1.3);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.roundRect(cx - 5.2, cy - 3.8, 8.8, 2.5, 1);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(cx + 3.8, cy - 3.4);
-            ctx.lineTo(cx + 7, cy - 5.1);
-            ctx.lineTo(cx + 7.8, cy - 3.7);
-            ctx.lineTo(cx + 4.6, cy - 2.3);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function drawFunFallbackIcon(cx, cy, color, variant) {
-            ctx.save();
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = 1.3;
-            if (variant % 2 === 0) {
-                // Star
-                const r1 = 5.5;
-                const r2 = 2.5;
-                ctx.beginPath();
-                for (let p = 0; p < 10; p += 1) {
-                    const angle = (-Math.PI / 2) + (p * Math.PI / 5);
-                    const r = p % 2 === 0 ? r1 : r2;
-                    const x = cx + Math.cos(angle) * r;
-                    const y = cy + Math.sin(angle) * r;
-                    if (p === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.closePath();
-                ctx.stroke();
-            } else {
-                // Smiley
-                ctx.beginPath();
-                ctx.arc(cx, cy, 5.4, 0, Math.PI * 2);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(cx - 1.8, cy - 1.2, 0.7, 0, Math.PI * 2);
-                ctx.arc(cx + 1.8, cy - 1.2, 0.7, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(cx, cy + 0.8, 2.4, 0.2 * Math.PI, 0.8 * Math.PI);
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, totalWidth, totalHeight);
-
-        // Title bar (spans full width)
-        drawGeneratedMapHeader(ctx, {
-            totalWidth: totalWidth,
-            titleHeight: titleHeight,
-            teamPrimary: teamPrimary,
-            teamSecondary: teamSecondary,
-            titleText: headerTitle,
-            avatarImage: headerAvatar,
-        });
-
-        ctx.drawImage(activeMapImage, 0, titleHeight, MAP_CANVAS_WIDTH, mapHeight);
-
-        let drawnCount = 0;
-        const priorityPalette = {
-            1: '#FF4D5A',
-            2: '#FF8A3D',
-            3: '#F7C948',
-            4: '#40C9A2',
-            5: '#6BA8FF',
-        };
-        Object.keys(mappedAssignments).forEach((building) => {
-            const [x, y_base] = effectivePositions[building];
-            const y = y_base + titleHeight;
-            const players = mappedAssignments[building];
-            const starterCardWidth = 182;
-            const starterCardHeight = 28;
-            const starterGapY = 34;
-            const firstLabelStartX = x;
-            const firstLabelStartY = y;
-            const starterCardX = getStarterCardStartX(firstLabelStartX, starterCardWidth);
-
-            players.forEach((player, i) => {
-                const name = player.player;
-                const priorityColor = priorityPalette[player.priority] || teamPrimary;
-                const cardY = firstLabelStartY + (i * starterGapY);
-                const yPos = cardY + (starterCardHeight / 2);
-                const troopValue = player.troops || (activePlayerDB[name] && activePlayerDB[name].troops);
-                const troopKind = getTroopKind(troopValue);
-                const fittedName = fitText(name, starterCardWidth - 62, 'bold 13px Arial');
-                const cardX = starterCardX;
-
-                // Tactical starter card.
-                const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + starterCardWidth, cardY);
-                cardGrad.addColorStop(0, 'rgba(26, 31, 44, 0.95)');
-                cardGrad.addColorStop(1, 'rgba(18, 22, 32, 0.95)');
-                ctx.fillStyle = cardGrad;
-                ctx.beginPath();
-                ctx.roundRect(cardX, cardY, starterCardWidth, starterCardHeight, 8);
-                ctx.fill();
-
-                ctx.strokeStyle = 'rgba(255,255,255,0.44)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                // Priority accent strip.
-                ctx.fillStyle = priorityColor;
-                ctx.beginPath();
-                ctx.roundRect(cardX + 1.4, cardY + 1.4, 6, starterCardHeight - 2.8, 4);
-                ctx.fill();
-
-                // Index chip.
-                const chipX = cardX + 16;
-                ctx.beginPath();
-                ctx.arc(chipX, yPos, 8, 0, Math.PI * 2);
-                ctx.fillStyle = teamPrimary;
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.font = 'bold 9px Arial';
-                ctx.fillStyle = '#FFFFFF';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(String(i + 1), chipX, yPos + 0.5);
-
-                // Name.
-                ctx.font = 'bold 13px Arial';
-                ctx.fillStyle = '#F3F6FF';
-                ctx.textAlign = 'left';
-                ctx.fillText(fittedName, cardX + 30, yPos + 0.5);
-
-                const badgeW = 20;
-                const badgeH = 18;
-                const badgeX = cardX + starterCardWidth - badgeW - 6;
-                const badgeY = yPos - (badgeH / 2);
-                ctx.fillStyle = 'rgba(255,255,255,0.12)';
-                ctx.beginPath();
-                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(255,255,255,0.38)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                const iconColor = troopKind === 'unknown' ? '#FFE28A' : priorityColor;
-                const iconCx = badgeX + (badgeW / 2);
-                const iconCy = badgeY + (badgeH / 2) + 0.4;
-                if (troopKind === 'tank') {
-                    drawTankIcon(iconCx, iconCy, iconColor);
-                } else if (troopKind === 'aero') {
-                    drawJetIcon(iconCx, iconCy, iconColor);
-                } else if (troopKind === 'missile') {
-                    drawMissileLauncherIcon(iconCx, iconCy, iconColor);
-                } else {
-                    drawFunFallbackIcon(iconCx, iconCy, iconColor, i);
-                }
-
-                drawnCount++;
-            });
-        });
-
-        // Bottom area for buildings that are not rendered on the map itself.
-        // Each building gets its own panel.
-        const unmappedArea = {
-            x: 24,
-            y: titleHeight + mapHeight + 22,
-            width: 1032,
-            height: 236,
-        };
-        const panelGapX = 14;
-        const panelGapY = 12;
-        const groupCount = unmappedGroups.length;
-        const panelColumns = groupCount <= 1 ? 1 : Math.min(3, groupCount);
-        const panelRows = groupCount > 0 ? Math.ceil(groupCount / panelColumns) : 0;
-        const panelWidth = panelRows > 0
-            ? Math.floor((unmappedArea.width - ((panelColumns - 1) * panelGapX)) / panelColumns)
-            : 0;
-        const panelHeight = panelRows > 0
-            ? Math.floor((unmappedArea.height - ((panelRows - 1) * panelGapY)) / panelRows)
-            : 0;
-
-        unmappedGroups.forEach((group, groupIndex) => {
-            const row = Math.floor(groupIndex / panelColumns);
-            const col = groupIndex % panelColumns;
-            const panelX = unmappedArea.x + (col * (panelWidth + panelGapX));
-            const panelY = unmappedArea.y + (row * (panelHeight + panelGapY));
-            const panelRadius = 16;
-
-            const panelGrad = ctx.createLinearGradient(0, panelY, 0, panelY + panelHeight);
-            panelGrad.addColorStop(0, '#2A3344');
-            panelGrad.addColorStop(1, '#1A202C');
-            ctx.fillStyle = panelGrad;
-            ctx.beginPath();
-            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, panelRadius);
-            ctx.fill();
-            ctx.strokeStyle = teamPrimary;
-            ctx.lineWidth = 1.8;
-            ctx.stroke();
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.roundRect(panelX + 1, panelY + 1, panelWidth - 2, panelHeight - 2, panelRadius);
-            ctx.clip();
-            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-            ctx.lineWidth = 1;
-            for (let gx = panelX + 14; gx < panelX + panelWidth; gx += 20) {
-                ctx.beginPath();
-                ctx.moveTo(gx, panelY);
-                ctx.lineTo(gx, panelY + panelHeight);
-                ctx.stroke();
-            }
-            for (let gy = panelY + 14; gy < panelY + panelHeight; gy += 20) {
-                ctx.beginPath();
-                ctx.moveTo(panelX, gy);
-                ctx.lineTo(panelX + panelWidth, gy);
-                ctx.stroke();
-            }
-            ctx.restore();
-
-            drawCrosshairIcon(panelX + 20, panelY + 24, 16, '#FFB84C');
-            ctx.font = 'bold 15px Arial';
-            ctx.fillStyle = '#F6F7FB';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(fitText(group.label, panelWidth - 132, 'bold 15px Arial'), panelX + 36, panelY + 24);
-
-            ctx.font = '11px Arial';
-            ctx.fillStyle = 'rgba(255,255,255,0.75)';
-            ctx.textAlign = 'right';
-            ctx.fillText(`${group.players.length} ${t('map_unmapped_count_suffix')}`, panelX + panelWidth - 12, panelY + 24);
-
-            const cardsTop = panelY + 44;
-            const cardGapX = 10;
-            const cardGapY = 8;
-            const cardColumns = panelWidth >= 340 ? 2 : 1;
-            const cardWidth = Math.floor((panelWidth - 20 - ((cardColumns - 1) * cardGapX)) / cardColumns);
-            const cardHeight = 28;
-            const rowsCapacity = Math.max(1, Math.floor((panelHeight - (cardsTop - panelY) - 10) / (cardHeight + cardGapY)));
-            const cardCapacity = rowsCapacity * cardColumns;
-            const visiblePlayers = group.players.slice(0, cardCapacity);
-
-            visiblePlayers.forEach((player, playerIndex) => {
-                const rowIndex = Math.floor(playerIndex / cardColumns);
-                const colIndex = playerIndex % cardColumns;
-                const cardX = panelX + 10 + (colIndex * (cardWidth + cardGapX));
-                const cardY = cardsTop + (rowIndex * (cardHeight + cardGapY));
-                const troopValue = player.troops || (activePlayerDB[player.player] && activePlayerDB[player.player].troops);
-                const troopKind = getTroopKind(troopValue);
-                const displayName = fitText(player.player, cardWidth - 56, 'bold 12px Arial');
-
-                const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX + cardWidth, cardY);
-                cardGrad.addColorStop(0, 'rgba(255,255,255,0.94)');
-                cardGrad.addColorStop(1, 'rgba(236,240,248,0.98)');
-                ctx.fillStyle = cardGrad;
-                ctx.beginPath();
-                ctx.roundRect(cardX, cardY, cardWidth, cardHeight, 7);
-                ctx.fill();
-
-                ctx.strokeStyle = teamPrimary;
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
-
-                ctx.fillStyle = teamPrimary;
-                ctx.beginPath();
-                ctx.arc(cardX + 10, cardY + (cardHeight / 2), 3.6, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.font = 'bold 12px Arial';
-                ctx.fillStyle = '#1A1E29';
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(displayName, cardX + 19, cardY + (cardHeight / 2) + 0.5);
-
-                const badgeW = 18;
-                const badgeH = 16;
-                const badgeX = cardX + cardWidth - badgeW - 6;
-                const badgeY = cardY + ((cardHeight - badgeH) / 2);
-                const iconColor = troopKind === 'unknown' ? '#7F5A00' : teamPrimary;
-                const iconCx = badgeX + (badgeW / 2);
-                const iconCy = badgeY + (badgeH / 2) + 0.3;
-
-                ctx.fillStyle = 'rgba(255,255,255,0.88)';
-                ctx.beginPath();
-                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(32, 38, 52, 0.5)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                if (troopKind === 'tank') {
-                    drawTankIcon(iconCx, iconCy, iconColor);
-                } else if (troopKind === 'aero') {
-                    drawJetIcon(iconCx, iconCy, iconColor);
-                } else if (troopKind === 'missile') {
-                    drawMissileLauncherIcon(iconCx, iconCy, iconColor);
-                } else {
-                    drawFunFallbackIcon(iconCx, iconCy, iconColor, groupIndex + playerIndex);
-                }
-            });
-
-            if (group.players.length > cardCapacity) {
-                ctx.font = '11px Arial';
-                ctx.fillStyle = 'rgba(255,255,255,0.82)';
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'alphabetic';
-                ctx.fillText(`+${group.players.length - cardCapacity} more`, panelX + panelWidth - 10, panelY + panelHeight - 8);
-            }
-        });
-
-        // Substitutes Panel (right side)
-        if (substitutes.length > 0) {
-            const panelX = MAP_CANVAS_WIDTH;
-            const panelY = titleHeight;
-            const panelHeight = mapHeight + unmappedHeight;
-
-            // Panel background
-            const subsGrad = ctx.createLinearGradient(panelX, panelY, panelX + subsPanelWidth, panelY + panelHeight);
-            subsGrad.addColorStop(0, '#1D2330');
-            subsGrad.addColorStop(1, '#141925');
-            ctx.fillStyle = subsGrad;
-            ctx.fillRect(panelX, panelY, subsPanelWidth, panelHeight);
-
-            // Tactical texture.
-            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-            ctx.lineWidth = 1;
-            for (let sy = panelY + 14; sy < panelY + panelHeight; sy += 20) {
-                ctx.beginPath();
-                ctx.moveTo(panelX + 8, sy);
-                ctx.lineTo(panelX + subsPanelWidth - 8, sy);
-                ctx.stroke();
-            }
-
-            // Panel border
-            ctx.strokeStyle = teamPrimary;
-            ctx.lineWidth = 1.8;
-            ctx.strokeRect(panelX + 0.9, panelY + 0.9, subsPanelWidth - 1.8, panelHeight - 1.8);
-
-            const subsHeaderH = 72;
-            const headGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + subsHeaderH);
-            headGrad.addColorStop(0, teamSoft);
-            headGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
-            ctx.fillStyle = headGrad;
-            ctx.fillRect(panelX, panelY, subsPanelWidth, subsHeaderH);
-            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-            ctx.beginPath();
-            ctx.moveTo(panelX + 10, panelY + subsHeaderH);
-            ctx.lineTo(panelX + subsPanelWidth - 10, panelY + subsHeaderH);
-            ctx.stroke();
-
-            drawShieldIcon(panelX + 14, panelY + 16, 20, 24, teamSecondary);
-            ctx.font = 'bold 16px Arial';
-            ctx.fillStyle = '#F6F7FB';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(t('map_substitutes_title'), panelX + 42, panelY + 30);
-
-            ctx.font = '13px Arial';
-            ctx.fillStyle = 'rgba(255,255,255,0.72)';
-            ctx.fillText('♞ ' + t('map_substitutes_subtitle'), panelX + 42, panelY + 50);
-
-            // Draw substitute roster rows (single or double column if many rows).
-            const rowStartY = panelY + subsHeaderH + 14;
-            const rowHeight = 28;
-            const rowGap = 8;
-            const availableRowsHeight = panelHeight - (rowStartY - panelY) - 18;
-            const rowsPerColumn = Math.max(1, Math.floor(availableRowsHeight / (rowHeight + rowGap)));
-            const useTwoCols = substitutes.length > rowsPerColumn;
-            const colCount = useTwoCols ? 2 : 1;
-            const colGap = 10;
-            const rowWidth = Math.floor((subsPanelWidth - 20 - ((colCount - 1) * colGap)) / colCount);
-
-            substitutes.forEach((sub, index) => {
-                const col = Math.floor(index / rowsPerColumn);
-                if (col >= colCount) {
-                    return;
-                }
-                const row = index % rowsPerColumn;
-                const rowX = panelX + 10 + col * (rowWidth + colGap);
-                const rowY = rowStartY + row * (rowHeight + rowGap);
-                const reserveTag = 'R' + String(index + 1);
-                const troopValue = sub.troops || (activePlayerDB[sub.name] && activePlayerDB[sub.name].troops);
-                const troopKind = getTroopKind(troopValue);
-                const name = fitText(sub.name, rowWidth - 70, 'bold 12px Arial');
-
-                ctx.fillStyle = 'rgba(255,255,255,0.92)';
-                ctx.beginPath();
-                ctx.roundRect(rowX, rowY, rowWidth, rowHeight, 7);
-                ctx.fill();
-                ctx.strokeStyle = teamPrimary;
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
-
-                ctx.fillStyle = teamPrimary;
-                ctx.beginPath();
-                ctx.roundRect(rowX + 3, rowY + 3, 28, rowHeight - 6, 5);
-                ctx.fill();
-
-                ctx.font = 'bold 11px Arial';
-                ctx.fillStyle = '#FFFFFF';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(reserveTag, rowX + 17, rowY + rowHeight / 2 + 0.5);
-
-                ctx.font = 'bold 12px Arial';
-                ctx.fillStyle = '#1B2230';
-                ctx.textAlign = 'left';
-                ctx.fillText(name, rowX + 36, rowY + rowHeight / 2 + 0.5);
-
-                const badgeW = 18;
-                const badgeH = 16;
-                const badgeX = rowX + rowWidth - badgeW - 6;
-                const badgeY = rowY + ((rowHeight - badgeH) / 2);
-                const iconColor = troopKind === 'unknown' ? '#8A6400' : teamPrimary;
-                const iconCx = badgeX + (badgeW / 2);
-                const iconCy = badgeY + (badgeH / 2) + 0.3;
-
-                ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                ctx.beginPath();
-                ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-                ctx.fill();
-                ctx.strokeStyle = 'rgba(32, 38, 52, 0.45)';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                if (troopKind === 'tank') {
-                    drawTankIcon(iconCx, iconCy, iconColor);
-                } else if (troopKind === 'aero') {
-                    drawJetIcon(iconCx, iconCy, iconColor);
-                } else if (troopKind === 'missile') {
-                    drawMissileLauncherIcon(iconCx, iconCy, iconColor);
-                } else {
-                    drawFunFallbackIcon(iconCx, iconCy, iconColor, index);
-                }
-            });
-        }
-
-        ctx.font = '12px Arial';
-        ctx.fillStyle = 'rgba(90,90,90,0.95)';
-        ctx.textAlign = 'center';
-        ctx.fillText(t('map_footer_text'), 540, totalHeight - 14);
-
-        const dataURL = canvas.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = dataURL;
-        a.download = `team_${team}_${getActiveEvent().excelPrefix}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        showMessage(statusId, t('message_team_map_downloaded', { team: team, drawnCount: drawnCount, bombSquad: unmappedPlayers.length, substitutes: substitutes.length }), 'success');
-    } catch (error) {
-        console.error(error);
-        showMessage(statusId, t('error_generic', { error: error.message }), 'error');
-    }
+function downloadTeamMap(team) {
+    if (!window.DSDownloadController) return;
+    return window.DSDownloadController.downloadTeamMap(team, _getDownloadDeps());
 }
 
 // ============================================================

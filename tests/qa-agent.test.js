@@ -326,9 +326,12 @@ test('qa: index.html — styles.css linked', () => {
 test('qa: index.html — all <script> tags use defer (no render-blocking scripts)', () => {
   const html = fs.readFileSync(paths.indexHtml, 'utf8');
   const scriptTags = html.match(/<script\s[^>]*src=[^>]*>/g) || [];
+  // firebase-config.js is intentionally non-defer so it loads before the deferred bundle
+  const exempted = ['firebase-config.js'];
   scriptTags.forEach((tag) => {
+    const isExempt = exempted.some((f) => tag.includes(f));
     assert.ok(
-      tag.includes('defer') || tag.includes('async'),
+      isExempt || tag.includes('defer') || tag.includes('async'),
       `Script tag missing defer/async: ${tag}`
     );
   });

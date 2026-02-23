@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.googleapis.com; font-src 'self' data:; base-uri 'none'; frame-src https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://last-war-game-desert-storm.firebaseapp.com; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-9Y+AWdzI5R7avyG9q1z9RoVlp3f9kC+fOhyLjDSp+QM=' https://apis.google.com https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.googleapis.com; font-src 'self' data:; base-uri 'none'; frame-src https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://last-war-game-desert-storm.firebaseapp.com; form-action 'self';">
     <link rel="icon" href="data:,">
     <title>Video Games Events Players Selection</title>
     <!-- Firebase SDKs -->
     <script defer src="vendor/firebase-app-compat.js"></script>
     <script defer src="vendor/firebase-auth-compat.js"></script>
     <script defer src="vendor/firebase-firestore-compat.js"></script>
-    <script defer src="firebase-config.js"></script>
-    <script defer src="firebase-module.js"></script>
-
+    <script src="firebase-config.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -982,62 +980,8 @@
         </div>
     </main>
 
-    <script defer src="translations.js"></script>
-    <script defer src="js/core/games.js"></script>
-    <script defer src="js/core/events.js"></script>
-    <script defer src="js/core/assignment-registry.js"></script>
-    <script defer src="js/core/assignment.js"></script>
-    <script defer src="js/core/generator-assignment.js"></script>
-    <script defer src="js/core/buildings.js"></script>
-    <script defer src="js/core/player-table.js"></script>
-    <script defer src="js/features/generator/team-selection-core.js"></script>
-    <script defer src="js/features/generator/generator-actions.js"></script>
-    <script defer src="js/features/generator/generator-view.js"></script>
-    <script defer src="js/features/generator/generator-controller.js"></script>
-    <script defer src="js/features/players-management/players-management-core.js"></script>
-    <script defer src="js/features/players-management/players-management-actions.js"></script>
-    <script defer src="js/features/players-management/players-management-view.js"></script>
-    <script defer src="js/features/players-management/players-management-controller.js"></script>
-    <script defer src="js/features/events-manager/event-selector-view.js"></script>
-    <script defer src="js/features/events-manager/events-manager-actions.js"></script>
-    <script defer src="js/features/events-manager/events-manager-controller.js"></script>
-    <script defer src="js/features/notifications/notifications-core.js"></script>
-    <script defer src="js/features/alliance/alliance-controller.js"></script>
-    <script defer src="js/features/notifications/notifications-controller.js"></script>
-    <script defer src="js/ui/player-table-ui.js"></script>
-    <script defer src="js/ui/alliance-panel-ui.js"></script>
-    <script defer src="js/ui/event-list-ui.js"></script>
-    <script defer src="js/ui/event-buildings-editor-ui.js"></script>
-    <script defer src="js/core/i18n.js"></script>
-    <script defer src="js/shared/state/state-store-contract.js"></script>
-    <script defer src="js/shared/state/app-state-store.js"></script>
-    <script defer src="js/shared/data/data-gateway-contract.js"></script>
-    <script defer src="js/shared/data/firebase-gateway-utils.js"></script>
-    <script defer src="js/shared/data/firebase-auth-gateway.js"></script>
-    <script defer src="js/shared/data/firebase-players-gateway.js"></script>
-    <script defer src="js/shared/data/firebase-events-gateway.js"></script>
-    <script defer src="js/shared/data/firebase-alliance-gateway.js"></script>
-    <script defer src="js/shared/data/firebase-notifications-gateway.js"></script>
-    <script defer src="js/shared/data/firebase-event-history-gateway.js"></script>
-    <script defer src="js/shared/data/firebase-player-updates-gateway.js"></script>
-    <script defer src="js/services/firebase-service.js"></script>
-    <script defer src="js/core/firestore-utils.js"></script>
-    <script defer src="js/core/reliability.js"></script>
-    <script defer src="js/features/event-history/event-history-core.js"></script>
-    <script defer src="js/features/event-history/event-history-actions.js"></script>
-    <script defer src="js/features/event-history/event-history-view.js"></script>
-    <script defer src="js/features/event-history/event-history-controller.js"></script>
-    <script defer src="js/features/player-updates/player-updates-core.js"></script>
-    <script defer src="js/features/player-updates/player-updates-actions.js"></script>
-    <script defer src="js/features/player-updates/player-updates-view.js"></script>
-    <script defer src="js/features/player-updates/player-updates-controller.js"></script>
-    <script defer src="js/shell/bootstrap/app-shell-contracts.js"></script>
-    <script defer src="js/shell/navigation/navigation-controller.js"></script>
-    <script defer src="js/shell/overlays/modal-controller.js"></script>
-    <script defer src="js/shell/overlays/notifications-sheet-controller.js"></script>
-    <script defer src="js/shell/bootstrap/app-shell-bootstrap.js"></script>
-    <script defer src="app.js"></script>
-    <script defer src="js/app-init.js"></script>
+    <!-- Rollback switch: append ?legacy=1 to URL to load individual scripts instead of bundle -->
+    <script>(function(){var q=/[?&]legacy=1/.test(location.search);if(q){var f=["firebase-module.js","translations.js","js/core/games.js","js/core/events.js","js/core/assignment-registry.js","js/core/assignment.js","js/core/generator-assignment.js","js/core/buildings.js","js/core/player-table.js","js/features/generator/team-selection-core.js","js/features/generator/generator-actions.js","js/features/generator/generator-view.js","js/features/generator/generator-controller.js","js/features/generator/download-controller.js","js/features/players-management/players-management-core.js","js/features/players-management/players-management-actions.js","js/features/players-management/players-management-view.js","js/features/players-management/players-management-controller.js","js/features/players-management/player-data-upload.js","js/features/buildings/buildings-config-manager.js","js/features/buildings/coordinate-picker-controller.js","js/features/events-manager/event-selector-view.js","js/features/events-manager/events-manager-actions.js","js/features/events-manager/events-manager-controller.js","js/features/events-manager/events-registry-controller.js","js/features/notifications/notifications-core.js","js/features/alliance/alliance-controller.js","js/features/notifications/notifications-controller.js","js/ui/player-table-ui.js","js/ui/alliance-panel-ui.js","js/ui/event-list-ui.js","js/ui/event-buildings-editor-ui.js","js/core/i18n.js","js/shared/state/state-store-contract.js","js/shared/state/app-state-store.js","js/shared/data/data-gateway-contract.js","js/shared/data/firebase-gateway-utils.js","js/shared/data/firebase-auth-gateway.js","js/shared/data/firebase-players-gateway.js","js/shared/data/firebase-events-gateway.js","js/shared/data/firebase-alliance-gateway.js","js/shared/data/firebase-notifications-gateway.js","js/shared/data/firebase-event-history-gateway.js","js/shared/data/firebase-player-updates-gateway.js","js/services/firebase-service.js","js/core/firestore-utils.js","js/core/reliability.js","js/features/event-history/event-history-core.js","js/features/event-history/event-history-actions.js","js/features/event-history/event-history-view.js","js/features/event-history/event-history-controller.js","js/features/player-updates/player-updates-core.js","js/features/player-updates/player-updates-actions.js","js/features/player-updates/player-updates-view.js","js/features/player-updates/player-updates-controller.js","js/shell/bootstrap/app-shell-contracts.js","js/shell/navigation/navigation-controller.js","js/shell/overlays/modal-controller.js","js/shell/overlays/notifications-sheet-controller.js","js/shell/bootstrap/app-shell-bootstrap.js","app.js","js/app-init.js"];f.forEach(function(u){var s=document.createElement("script");s.defer=true;s.src=u;document.head.appendChild(s)})}else{var s=document.createElement("script");s.defer=true;s.src="dist/bundle.js";document.head.appendChild(s)}})()</script>
     <script type="module" src="js/main.mjs" defer></script>
 </body>
 </html>

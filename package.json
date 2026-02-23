@@ -9,7 +9,7 @@
     "test": "npm run test:unit",
     "test:ci": "npm run lint:ci && npm run check:budgets && npm run test:unit && npm run test:e2e:smoke",
     "test:unit": "node --test tests/*.test.js tests/helpers/*.test.js",
-    "test:coverage": "c8 node --test tests/*.test.js tests/helpers/*.test.js",
+    "test:coverage": "c8 --check-coverage --lines 80 --include 'js/core/**' --include 'js/shared/data/**' node --test tests/*.test.js tests/helpers/*.test.js",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.emulator.js\"",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test:e2e": "playwright test",
