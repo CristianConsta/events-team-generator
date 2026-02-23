@@ -27,3 +27,5 @@ node_modules/
 nul
 playwright-report/
 test-results/
+.eslintcache
+coverage/
