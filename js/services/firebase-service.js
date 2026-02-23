@@ -263,17 +263,39 @@
 
     function fallbackPlayerUpdatesGateway(gatewayUtils) {
         return {
-            createUpdateToken: async function createUpdateToken() { return gatewayUtils.notLoadedResult(); },
-            saveTokenBatch: async function saveTokenBatch() { return gatewayUtils.notLoadedResult(); },
-            loadPendingUpdates: async function loadPendingUpdates() { return []; },
-            updatePendingUpdateStatus: async function updatePendingUpdateStatus() { return gatewayUtils.notLoadedResult(); },
-            revokeToken: async function revokeToken() { return gatewayUtils.notLoadedResult(); },
-            loadActiveTokens: async function loadActiveTokens() { return []; },
-            subscribePendingUpdatesCount: function subscribePendingUpdatesCount() { return function noop() {}; },
-            createPersonalUpdateToken: async function createPersonalUpdateToken() { return gatewayUtils.notLoadedResult(); },
-            createPersonalPendingUpdate: async function createPersonalPendingUpdate() { return gatewayUtils.notLoadedResult(); },
-            loadPersonalPendingUpdates: async function loadPersonalPendingUpdates() { return []; },
-            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus() { return gatewayUtils.notLoadedResult(); },
+            createUpdateToken: async function createUpdateToken(allianceId, playerName, options) {
+                return gatewayUtils.withManager(function (svc) { return svc.createUpdateToken(allianceId, playerName, options); }, gatewayUtils.notLoadedResult());
+            },
+            saveTokenBatch: async function saveTokenBatch(allianceId, tokenDocs) {
+                return gatewayUtils.withManager(function (svc) { return svc.saveTokenBatch(allianceId, tokenDocs); }, gatewayUtils.notLoadedResult());
+            },
+            loadPendingUpdates: async function loadPendingUpdates(allianceId, status) {
+                return gatewayUtils.withManager(function (svc) { return svc.loadPendingUpdates(allianceId, status); }, []);
+            },
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision) {
+                return gatewayUtils.withManager(function (svc) { return svc.updatePendingUpdateStatus(allianceId, updateId, decision); }, gatewayUtils.notLoadedResult());
+            },
+            revokeToken: async function revokeToken(allianceId, tokenId) {
+                return gatewayUtils.withManager(function (svc) { return svc.revokeToken(allianceId, tokenId); }, gatewayUtils.notLoadedResult());
+            },
+            loadActiveTokens: async function loadActiveTokens(allianceId) {
+                return gatewayUtils.withManager(function (svc) { return svc.loadActiveTokens(allianceId); }, []);
+            },
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
+                return gatewayUtils.withManager(function (svc) { return svc.subscribePendingUpdatesCount(allianceId, callback); }, function noop() {});
+            },
+            createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
+                return gatewayUtils.withManager(function (svc) { return svc.createPersonalUpdateToken(uid, playerName, options); }, gatewayUtils.notLoadedResult());
+            },
+            createPersonalPendingUpdate: async function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
+                return gatewayUtils.withManager(function (svc) { return svc.createPersonalPendingUpdate(uid, pendingUpdateDoc); }, gatewayUtils.notLoadedResult());
+            },
+            loadPersonalPendingUpdates: async function loadPersonalPendingUpdates(uid, status) {
+                return gatewayUtils.withManager(function (svc) { return svc.loadPersonalPendingUpdates(uid, status); }, []);
+            },
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+                return gatewayUtils.withManager(function (svc) { return svc.updatePersonalPendingUpdateStatus(uid, updateId, decision); }, gatewayUtils.notLoadedResult());
+            },
         };
     }
 

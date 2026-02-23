@@ -9,8 +9,7 @@
         function withManager(fn, fallback) {
             const svc = manager();
             if (!svc) {
-                console.warn('[gateway-utils] withManager: FirebaseManager not found. host===window?', host === window, 'window.FirebaseManager?', typeof window.FirebaseManager, 'host.FirebaseManager?', typeof host.FirebaseManager);
-                return typeof fallback === 'function' ? fallback() : fallback;
+return typeof fallback === 'function' ? fallback() : fallback;
             }
             return fn(svc);
         }
