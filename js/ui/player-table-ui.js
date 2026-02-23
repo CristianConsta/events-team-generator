@@ -66,7 +66,6 @@
         const thpCell = document.createElement('td');
         thpCell.className = 'player-thp';
         thpCell.textContent = String(player.thp);
-        thpCell.setAttribute('data-inline-label', t('table_header_thp'));
 
         const troopsCell = document.createElement('td');
         troopsCell.className = 'player-troops';
@@ -102,7 +101,6 @@
         const thpCell = row.querySelector('.player-thp');
         if (thpCell) {
             thpCell.textContent = String(player.thp);
-            thpCell.setAttribute('data-inline-label', t('table_header_thp'));
         }
 
         const troopsCell = row.querySelector('.player-troops');

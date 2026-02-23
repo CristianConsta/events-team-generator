@@ -3035,9 +3035,9 @@ select {
         row-gap: 4px;
         align-items: center;
     }
-    #playersTable tr:hover { background: rgba(255,255,255,0.07); }
-    #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.2); border-color: rgba(var(--team-a-rgb),0.4); }
-    #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.2); border-color: rgba(var(--team-b-rgb),0.4); }
+    #playersTable tr:hover { background: rgba(255,255,255,0.06); }
+    #playersTable tr.selected-a { background: rgba(var(--team-a-rgb),0.15); border-color: rgba(var(--team-a-rgb),0.3); }
+    #playersTable tr.selected-b { background: rgba(var(--team-b-rgb),0.15); border-color: rgba(var(--team-b-rgb),0.3); }
 
     .responsive-table-card td,
     #playersTable td, #buildingsTable td, #playersMgmtTable td, #eventBuildingsEditorTable td {
@@ -3104,40 +3104,62 @@ select {
         content: attr(data-label);
     }
 
-    /* Players: name + power + THP + troops on one line, buttons below */
+    /* Players table: remove container border on mobile */
+    .players-table { border: none; background: transparent; }
+
+    /* Players card: compact padding, subtle border */
+    #playersTable tr {
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: rgba(255,255,255,0.04);
+    }
+
+    /* Players: name (row 1 left) */
     #playersTable td:first-child {
-        flex: 1;
+        order: 1;
+        flex: 1 1 0;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    #playersTable td:first-child strong { font-size: 14px; }
+    #playersTable td:first-child strong { font-size: 15px; font-weight: 700; }
 
-    #playersTable td:nth-child(2) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
-    #playersTable td:nth-child(2)::before {
-        content: '⚡ ';
-        opacity: 0.75;
-        margin-right: 2px;
-    }
-    #playersTable td:nth-child(3) { flex: 0 0 auto; white-space: nowrap; opacity: 0.85; font-size: 13px; }
-    #playersTable td:nth-child(3)::before {
-        content: ' | ⛨ ' attr(data-inline-label) ': ';
-        opacity: 0.8;
-        margin-right: 2px;
-    }
-    #playersTable td:nth-child(4) { flex: 0 0 auto; white-space: nowrap; font-size: 13px; }
-    #playersTable td:nth-child(4)::before {
-        content: ' | ';
-        opacity: 0.78;
-        margin-right: 2px;
-    }
-
+    /* Actions (row 1 right) */
     #playersTable td:nth-child(5) {
-        width: 100%;
-        padding-top: 8px;
-        border-top: 1px solid rgba(255,255,255,0.08);
-        margin-top: 2px;
+        order: 2;
+        flex: 0 0 auto;
+        width: auto !important;
+        border-top: none !important;
+        padding-top: 0 !important;
+        margin-top: 0;
+    }
+
+    /* Stats (row 2) */
+    #playersTable td:nth-child(2) { order: 3; }
+    #playersTable td:nth-child(3) { order: 4; }
+    #playersTable td:nth-child(4) { order: 5; }
+
+    #playersTable td:nth-child(2),
+    #playersTable td:nth-child(3),
+    #playersTable td:nth-child(4) {
+        flex: 0 0 auto;
+        font-size: 12px;
+        color: var(--text-muted);
+        padding: 1px 0;
+        white-space: nowrap;
+    }
+    #playersTable td:nth-child(2)::before { content: none; }
+    #playersTable td:nth-child(3)::before {
+        content: '\00B7';
+        opacity: 0.4;
+        margin: 0 5px;
+    }
+    #playersTable td:nth-child(4)::before {
+        content: '\00B7';
+        opacity: 0.4;
+        margin: 0 5px;
     }
     #playersMgmtTable tr {
         display: block;
@@ -3207,6 +3229,13 @@ select {
         align-items: center;
         justify-content: center;
     }
+
+    /* Compact team buttons for #playersTable */
+    #playersTable .team-btn { padding: 6px 10px; min-height: 36px; font-size: 13px; }
+    #playersTable .team-select-group { gap: 6px; }
+    #playersTable .role-btn { padding: 6px 8px; min-height: 36px; font-size: 12px; min-width: 64px; }
+    #playersTable .team-clear-btn { min-width: 56px; padding: 6px 8px; min-height: 36px; font-size: 12px; width: auto; }
+    #playersTable .team-actions-stack { flex-wrap: nowrap; width: auto; }
 
     /* Role toggle — touch-friendly */
     .role-toggle { flex: 1; }
