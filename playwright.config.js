@@ -1,29 +1,31 @@
-﻿// @ts-check
+// @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 
 /**
  * Playwright E2E configuration - Events Team Generator
  *
  * Runs against a local file:// URL (no dev server needed).
- * Primary browser: Microsoft Edge (msedge).
- * Also runs in a mobile viewport project for responsive workflow checks.
+ * Browsers: Microsoft Edge + Google Chrome (both Chromium-based).
+ * Also runs in mobile viewport projects for responsive workflow checks.
  *
  * Usage:
- *   npm run test:e2e        - run Edge desktop + Edge mobile viewport projects
- *   npm run test:e2e:edge   - Edge desktop only
- *   npm run test:e2e:mobile - mobile viewport only
- *   npm run test:e2e:headed - Edge desktop in headed mode
+ *   npm run test:e2e          - run all projects (Edge + Chrome, desktop + mobile)
+ *   npm run test:e2e:edge     - Edge desktop only
+ *   npm run test:e2e:chrome   - Chrome desktop only
+ *   npm run test:e2e:mobile   - mobile viewports only (Edge + Chrome)
+ *   npm run test:e2e:headed   - Edge desktop in headed mode
  */
 
 /** Absolute path to index.html served as a file:// URL */
 const INDEX_URL = `file://${__dirname}/index.html`.replace(/\\/g, '/');
-const PLAYWRIGHT_CHANNEL = (process.env.PLAYWRIGHT_CHANNEL || 'msedge').trim();
+const PLAYWRIGHT_CHANNEL = (process.env.PLAYWRIGHT_CHANNEL || '').trim();
 
-function withChannel(useConfig) {
-  if (!PLAYWRIGHT_CHANNEL || PLAYWRIGHT_CHANNEL === 'default') {
+function withChannel(useConfig, defaultChannel) {
+  const channel = PLAYWRIGHT_CHANNEL || defaultChannel;
+  if (!channel || channel === 'default') {
     return Object.assign({}, useConfig);
   }
-  return Object.assign({}, useConfig, { channel: PLAYWRIGHT_CHANNEL });
+  return Object.assign({}, useConfig, { channel: channel });
 }
 
 module.exports = defineConfig({
@@ -55,14 +57,27 @@ module.exports = defineConfig({
     {
       name: 'edge-desktop',
       use: {
-        ...withChannel(devices['Desktop Edge']),
+        ...withChannel(devices['Desktop Edge'], 'msedge'),
         viewport: { width: 1280, height: 800 },
       },
     },
     {
       name: 'edge-mobile',
       use: {
-        ...withChannel(devices['Pixel 5']),
+        ...withChannel(devices['Pixel 5'], 'msedge'),
+      },
+    },
+    {
+      name: 'chrome-desktop',
+      use: {
+        ...withChannel(devices['Desktop Chrome'], 'chrome'),
+        viewport: { width: 1280, height: 800 },
+      },
+    },
+    {
+      name: 'chrome-mobile',
+      use: {
+        ...withChannel(devices['Pixel 5'], 'chrome'),
       },
     },
   ],

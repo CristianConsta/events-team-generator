@@ -81,7 +81,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('package-lock.json') }}
 
-      - name: Install Playwright Chromium
+      - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
@@ -92,7 +92,6 @@ jobs:
       - name: Run E2E smoke tests
         env:
           CI: "true"
-          PLAYWRIGHT_CHANNEL: "chromium"
         run: npm run test:e2e:smoke
 
   package-and-deploy:
