@@ -155,6 +155,7 @@ dist/                   # Generated bundle (do not edit manually)
 - Applied by calling `DSI18N.applyTranslations()`
 - Supported languages: EN, FR, DE, IT, KO, RO
 - All user-visible strings must be added to `translations.js`
+- **MANDATORY**: When adding or modifying any i18n key, you MUST add the translation for ALL 6 languages (EN, FR, DE, IT, KO, RO). Never add a key to only one language. The `tests/i18n-keys.core.test.js` test enforces parity and will fail if any language is missing a key.
 
 ## Key Conventions
 
