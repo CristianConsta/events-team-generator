@@ -199,12 +199,12 @@
 
         if (target === 'personal' || target === 'both') {
             applyPromises.push(
-                _gateway.applyPlayerUpdateToPersonal(playerName, proposed)
+                _gateway.applyPlayerUpdateToPersonal(playerName, proposed, update.gameId || null)
             );
         }
         if ((target === 'alliance' || target === 'both') && allianceId) {
             applyPromises.push(
-                _gateway.applyPlayerUpdateToAlliance(playerName, proposed)
+                _gateway.applyPlayerUpdateToAlliance(playerName, proposed, update.gameId || null)
             );
         }
 

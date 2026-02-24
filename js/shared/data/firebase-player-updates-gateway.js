@@ -44,15 +44,15 @@
                     function noop() {}
                 );
             },
-            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
                 return gatewayUtils.withManager(
-                    (svc) => svc.applyPlayerUpdateToPersonal(playerName, proposedValues),
+                    (svc) => svc.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId),
                     gatewayUtils.notLoadedResult()
                 );
             },
-            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
                 return gatewayUtils.withManager(
-                    (svc) => svc.applyPlayerUpdateToAlliance(playerName, proposedValues),
+                    (svc) => svc.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId),
                     gatewayUtils.notLoadedResult()
                 );
             },
