@@ -1318,25 +1318,31 @@ function bindStaticUiActions() {
     on('passwordResetBtn', 'click', handlePasswordReset);
 
     function refreshPlayerUpdatesPanel() {
-        const allianceId = window.FirebaseService && window.FirebaseService.getAllianceId
-            ? window.FirebaseService.getAllianceId()
-            : null;
+        const fs = window.FirebaseService;
         const container = document.getElementById('playerUpdatesReviewContainer');
-        if (allianceId && window.FirebaseService && window.FirebaseService.loadPendingUpdates) {
-            window.FirebaseService.loadPendingUpdates(allianceId, 'pending').then(function(updates) {
-                if (container && window.DSFeaturePlayerUpdatesView) {
-                    window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, updates);
-                }
-            }).catch(function() {
-                if (container && window.DSFeaturePlayerUpdatesView) {
-                    window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
-                }
-            });
-        } else {
+        if (!container || !window.DSFeaturePlayerUpdatesView || !fs) {
             if (container && window.DSFeaturePlayerUpdatesView) {
                 window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
             }
+            return;
         }
+        const allianceId = fs.getAllianceId ? fs.getAllianceId() : null;
+        const currentUser = fs.getCurrentUser ? fs.getCurrentUser() : null;
+        const uid = currentUser ? currentUser.uid : null;
+
+        var alliancePromise = (allianceId && fs.loadPendingUpdates)
+            ? fs.loadPendingUpdates(allianceId, 'pending').catch(function() { return []; })
+            : Promise.resolve([]);
+        var personalPromise = (uid && fs.loadPersonalPendingUpdates)
+            ? fs.loadPersonalPendingUpdates(uid, 'pending').catch(function() { return []; })
+            : Promise.resolve([]);
+
+        Promise.all([alliancePromise, personalPromise]).then(function(results) {
+            var combined = (results[0] || []).concat(results[1] || []);
+            window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, combined);
+        }).catch(function() {
+            window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
+        });
     }
     window.refreshPlayerUpdatesPanel = refreshPlayerUpdatesPanel;
 
@@ -1347,6 +1353,7 @@ function bindStaticUiActions() {
     on('navAllianceBtn', 'click', showAlliancePage);
     on('navSupportBtn', 'click', showSupportPage);
     on('navEventHistoryBtn', 'click', function() {
+        hideAllMainPages();
         if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === 'function') {
             window._eventHistoryController.showEventHistoryView();
         }
@@ -1359,6 +1366,7 @@ function bindStaticUiActions() {
         closeNavigationMenu();
     });
     on('navPlayerUpdatesBtn', 'click', function() {
+        hideAllMainPages();
         const playerUpdatesReviewView = document.getElementById('playerUpdatesReviewView');
         if (playerUpdatesReviewView) {
             const allViewSections = document.querySelectorAll('.view-section');
@@ -2426,7 +2434,20 @@ function updateFloatingButtonsVisibility() {
     reserveSpaceForFooter();
 }
 
+function hideAllMainPages() {
+    var pages = ['generatorPage', 'configurationPage', 'playersManagementPage', 'alliancePage', 'supportPage'];
+    pages.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    updateFloatingButtonsVisibility();
+}
+
 function setPageView(view) {
+    // Hide any feature view-sections (Event History, Player Updates) when switching to a main page
+    var allViewSections = document.querySelectorAll('.view-section');
+    allViewSections.forEach(function(s) { s.classList.add('hidden'); });
+
     const generatorPage = document.getElementById('generatorPage');
     const configurationPage = document.getElementById('configurationPage');
     const playersManagementPage = document.getElementById('playersManagementPage');
