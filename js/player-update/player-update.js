@@ -82,6 +82,7 @@
         var hex = params.token || '';
         var aid = params.alliance || params.aid || '';
         var uidParam = params.uid || '';
+        var gameIdParam = params.gid || params.gameId || '';
         var lang = params.lang || 'EN';
 
         // Step 2: set i18n language
@@ -127,18 +128,61 @@
             .then(function (userCredential) {
                 var anonUid = userCredential.user.uid;
 
-                // Step 5: fetch token document by ID
-                var tokenRef = isPersonal
-                    ? firebase.firestore()
-                        .collection('users').doc(uidParam)
-                        .collection('update_tokens')
-                        .doc(hex)
-                    : firebase.firestore()
-                        .collection('alliances').doc(aid)
-                        .collection('update_tokens')
-                        .doc(hex);
+                // Step 5: fetch token document by ID — try new game-centric path first
+                function buildLegacyTokenRef() {
+                    return isPersonal
+                        ? firebase.firestore()
+                            .collection('users').doc(uidParam)
+                            .collection('update_tokens')
+                            .doc(hex)
+                        : firebase.firestore()
+                            .collection('alliances').doc(aid)
+                            .collection('update_tokens')
+                            .doc(hex);
+                }
 
-                return tokenRef.get()
+                function buildNewTokenRef(gid) {
+                    if (!gid) { return null; }
+                    try {
+                        if (isPersonal) {
+                            return firebase.firestore()
+                                .collection('games').doc(gid)
+                                .collection('soloplayers').doc(uidParam)
+                                .collection('update_tokens')
+                                .doc(hex);
+                        } else {
+                            return firebase.firestore()
+                                .collection('games').doc(gid)
+                                .collection('alliances').doc(aid)
+                                .collection('update_tokens')
+                                .doc(hex);
+                        }
+                    } catch (e) {
+                        return null;
+                    }
+                }
+
+                function resolveTokenRef() {
+                    var newRef = buildNewTokenRef(gameIdParam);
+                    if (!newRef) {
+                        return Promise.resolve(buildLegacyTokenRef());
+                    }
+                    return newRef.get().then(function(snap) {
+                        if (snap.exists) {
+                            return snap.ref;
+                        }
+                        return buildLegacyTokenRef();
+                    }).catch(function() {
+                        return buildLegacyTokenRef();
+                    });
+                }
+
+                var tokenRef;
+                return resolveTokenRef()
+                    .then(function(resolvedRef) {
+                        tokenRef = resolvedRef;
+                        return tokenRef.get();
+                    })
                     .then(function (snapshot) {
                         // Step 6: token not found
                         if (!snapshot.exists) {
@@ -214,7 +258,7 @@
                                 tokenId: hex,
                             };
 
-                            var pendingRef = isPersonal
+                            var legacyPendingRef = isPersonal
                                 ? firebase.firestore()
                                     .collection('users').doc(uidParam)
                                     .collection('pending_updates')
@@ -222,14 +266,41 @@
                                     .collection('alliances').doc(aid)
                                     .collection('pending_updates');
 
-                            pendingRef
+                            var effectiveGameId = tokenDoc.gameId || gameIdParam || '';
+                            function buildNewPendingRef(gid) {
+                                if (!gid) { return null; }
+                                try {
+                                    if (isPersonal) {
+                                        return firebase.firestore()
+                                            .collection('games').doc(gid)
+                                            .collection('soloplayers').doc(uidParam)
+                                            .collection('pending_updates');
+                                    } else {
+                                        return firebase.firestore()
+                                            .collection('games').doc(gid)
+                                            .collection('alliances').doc(aid)
+                                            .collection('pending_updates');
+                                    }
+                                } catch (e) {
+                                    return null;
+                                }
+                            }
+
+                            legacyPendingRef
                                 .add(pendingUpdateDoc)
-                                .then(function () {
-                                    // update token as used
-                                    return tokenRef.update({
-                                        used: true,
-                                        usedAt: firebase.firestore.Timestamp.now(),
-                                        usedByAnonUid: anonUid,
+                                .then(function (newDocRef) {
+                                    // Dual-write to game-scoped pending_updates
+                                    var newPendingRef = buildNewPendingRef(effectiveGameId);
+                                    var dualWritePromise = newPendingRef
+                                        ? newPendingRef.doc(newDocRef.id).set(pendingUpdateDoc).catch(function() {})
+                                        : Promise.resolve();
+                                    return dualWritePromise.then(function() {
+                                        // update token as used
+                                        return tokenRef.update({
+                                            used: true,
+                                            usedAt: firebase.firestore.Timestamp.now(),
+                                            usedByAnonUid: anonUid,
+                                        });
                                     });
                                 })
                                 .then(function () {
