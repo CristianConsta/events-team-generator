@@ -4986,17 +4986,73 @@
             return { ok: false, error: err.message };
           }
         }
-        function subscribePendingUpdatesCount(allianceIdParam, callback) {
-          if (!db || !allianceIdParam || typeof callback !== "function") {
+        function subscribePendingUpdatesCount(allianceIdParam, uidParam, callback) {
+          if (typeof uidParam === "function") {
+            callback = uidParam;
+            uidParam = null;
+          }
+          if (!db || typeof callback !== "function") {
             return function noop() {
             };
           }
-          return db.collection("alliances").doc(allianceIdParam).collection("pending_updates").where("status", "==", "pending").onSnapshot(function(snapshot) {
-            callback(snapshot.size);
-          }, function(err) {
-            console.error("subscribePendingUpdatesCount error:", err);
-            callback(0);
-          });
+          var counts = { alliance: 0, personal: 0 };
+          var unsubFns = [];
+          function emit() {
+            callback(counts.alliance + counts.personal);
+          }
+          if (allianceIdParam) {
+            var unsubAlliance = db.collection("alliances").doc(allianceIdParam).collection("pending_updates").where("status", "==", "pending").onSnapshot(function(snap) {
+              counts.alliance = snap.size;
+              emit();
+            }, function() {
+              counts.alliance = 0;
+              emit();
+            });
+            unsubFns.push(unsubAlliance);
+          }
+          if (uidParam) {
+            var unsubPersonal = db.collection("users").doc(uidParam).collection("pending_updates").where("status", "==", "pending").onSnapshot(function(snap) {
+              counts.personal = snap.size;
+              emit();
+            }, function() {
+              counts.personal = 0;
+              emit();
+            });
+            unsubFns.push(unsubPersonal);
+          }
+          return function unsubscribe() {
+            unsubFns.forEach(function(fn) {
+              fn();
+            });
+          };
+        }
+        async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+          if (!currentUser) {
+            return { ok: false, error: "Not signed in" };
+          }
+          var nextPlayer = {
+            name: playerName,
+            power: proposedValues.power,
+            thp: proposedValues.thp,
+            troops: proposedValues.troops
+          };
+          var gameContext = resolveGameplayContext("applyPlayerUpdateToPersonal", null);
+          var result = await upsertPlayerEntry("personal", "", nextPlayer, gameContext);
+          return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
+        }
+        async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+          if (!currentUser || !allianceId) {
+            return { ok: false, error: "Not in alliance" };
+          }
+          var nextPlayer = {
+            name: playerName,
+            power: proposedValues.power,
+            thp: proposedValues.thp,
+            troops: proposedValues.troops
+          };
+          var gameContext = resolveGameplayContext("applyPlayerUpdateToAlliance", null);
+          var result = await upsertPlayerEntry("alliance", "", nextPlayer, gameContext);
+          return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
         }
         return {
           // Initialization
@@ -5236,6 +5292,8 @@
           revokeToken,
           loadActiveTokens,
           subscribePendingUpdatesCount,
+          applyPlayerUpdateToPersonal,
+          applyPlayerUpdateToAlliance,
           // Personal Player Updates
           createPersonalUpdateToken,
           createPersonalPendingUpdate,
@@ -5733,6 +5791,16 @@
           player_updates_col_proposed: "Proposed",
           player_updates_col_change: "Change",
           player_updates_refresh: "Refresh",
+          player_updates_apply_target_title: "Apply Update To",
+          player_updates_apply_target_desc: 'Choose which database to apply this update to. "Both" is selected by default.',
+          player_updates_apply_my_db: "My Database",
+          player_updates_apply_alliance_db: "Alliance Database",
+          player_updates_apply_both: "Both (Default)",
+          player_updates_source_personal: "Personal",
+          player_updates_source_alliance: "Alliance",
+          player_updates_approve_success: "Update approved and applied.",
+          player_updates_reject_success: "Update rejected.",
+          player_updates_apply_failed: "Failed to apply update. Please try again.",
           freshness_dot_fresh: "Updated recently",
           freshness_dot_stale: "Not updated in over 30 days",
           freshness_dot_very_stale: "Not updated in over 90 days",
@@ -6180,6 +6248,16 @@
           player_updates_col_proposed: "Propose",
           player_updates_col_change: "Modification",
           player_updates_refresh: "Actualiser",
+          player_updates_apply_target_title: "Appliquer la mise \xE0 jour \xE0",
+          player_updates_apply_target_desc: 'Choisissez la base de donn\xE9es o\xF9 appliquer cette mise \xE0 jour. "Les deux" est s\xE9lectionn\xE9 par d\xE9faut.',
+          player_updates_apply_my_db: "Ma base de donn\xE9es",
+          player_updates_apply_alliance_db: "Base de l'alliance",
+          player_updates_apply_both: "Les deux (par d\xE9faut)",
+          player_updates_source_personal: "Personnel",
+          player_updates_source_alliance: "Alliance",
+          player_updates_approve_success: "Mise \xE0 jour approuv\xE9e et appliqu\xE9e.",
+          player_updates_reject_success: "Mise \xE0 jour refus\xE9e.",
+          player_updates_apply_failed: "\xC9chec de l'application. Veuillez r\xE9essayer.",
           freshness_dot_fresh: "Mis a jour recemment",
           freshness_dot_stale: "Pas mis a jour depuis plus de 30 jours",
           freshness_dot_very_stale: "Pas mis a jour depuis plus de 90 jours",
@@ -6627,6 +6705,16 @@
           player_updates_col_proposed: "Vorgeschlagen",
           player_updates_col_change: "Aenderung",
           player_updates_refresh: "Aktualisieren",
+          player_updates_apply_target_title: "Update anwenden auf",
+          player_updates_apply_target_desc: 'W\xE4hlen Sie, wo dieses Update angewendet werden soll. "Beide" ist standardm\xE4\xDFig ausgew\xE4hlt.',
+          player_updates_apply_my_db: "Meine Datenbank",
+          player_updates_apply_alliance_db: "Allianz-Datenbank",
+          player_updates_apply_both: "Beide (Standard)",
+          player_updates_source_personal: "Pers\xF6nlich",
+          player_updates_source_alliance: "Allianz",
+          player_updates_approve_success: "Update genehmigt und angewendet.",
+          player_updates_reject_success: "Update abgelehnt.",
+          player_updates_apply_failed: "Anwendung fehlgeschlagen. Bitte erneut versuchen.",
           freshness_dot_fresh: "Kuerzlich aktualisiert",
           freshness_dot_stale: "Seit mehr als 30 Tagen nicht aktualisiert",
           freshness_dot_very_stale: "Seit mehr als 90 Tagen nicht aktualisiert",
@@ -7074,6 +7162,16 @@
           player_updates_col_proposed: "Proposto",
           player_updates_col_change: "Modifica",
           player_updates_refresh: "Aggiorna",
+          player_updates_apply_target_title: "Applica aggiornamento a",
+          player_updates_apply_target_desc: 'Scegli il database dove applicare questo aggiornamento. "Entrambi" \xE8 selezionato per impostazione predefinita.',
+          player_updates_apply_my_db: "Il mio database",
+          player_updates_apply_alliance_db: "Database alleanza",
+          player_updates_apply_both: "Entrambi (predefinito)",
+          player_updates_source_personal: "Personale",
+          player_updates_source_alliance: "Alleanza",
+          player_updates_approve_success: "Aggiornamento approvato e applicato.",
+          player_updates_reject_success: "Aggiornamento rifiutato.",
+          player_updates_apply_failed: "Applicazione fallita. Riprova.",
           freshness_dot_fresh: "Aggiornato di recente",
           freshness_dot_stale: "Non aggiornato da piu di 30 giorni",
           freshness_dot_very_stale: "Non aggiornato da piu di 90 giorni",
@@ -7521,6 +7619,16 @@
           player_updates_col_proposed: "\uC81C\uC548",
           player_updates_col_change: "\uBCC0\uACBD",
           player_updates_refresh: "\uC0C8\uB85C \uACE0\uCE68",
+          player_updates_apply_target_title: "\uC5C5\uB370\uC774\uD2B8 \uC801\uC6A9 \uB300\uC0C1",
+          player_updates_apply_target_desc: '\uC774 \uC5C5\uB370\uC774\uD2B8\uB97C \uC801\uC6A9\uD560 \uB370\uC774\uD130\uBCA0\uC774\uC2A4\uB97C \uC120\uD0DD\uD558\uC138\uC694. "\uB458 \uB2E4"\uAC00 \uAE30\uBCF8\uC73C\uB85C \uC120\uD0DD\uB429\uB2C8\uB2E4.',
+          player_updates_apply_my_db: "\uB0B4 \uB370\uC774\uD130\uBCA0\uC774\uC2A4",
+          player_updates_apply_alliance_db: "\uB3D9\uB9F9 \uB370\uC774\uD130\uBCA0\uC774\uC2A4",
+          player_updates_apply_both: "\uB458 \uB2E4 (\uAE30\uBCF8\uAC12)",
+          player_updates_source_personal: "\uAC1C\uC778",
+          player_updates_source_alliance: "\uB3D9\uB9F9",
+          player_updates_approve_success: "\uC5C5\uB370\uC774\uD2B8\uAC00 \uC2B9\uC778\uB418\uACE0 \uC801\uC6A9\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
+          player_updates_reject_success: "\uC5C5\uB370\uC774\uD2B8\uAC00 \uAC70\uBD80\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
+          player_updates_apply_failed: "\uC5C5\uB370\uC774\uD2B8 \uC801\uC6A9\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.",
           freshness_dot_fresh: "\uCD5C\uADFC\uC5D0 \uC5C5\uB370\uC774\uD2B8\uB428",
           freshness_dot_stale: "30\uC77C \uC774\uC0C1 \uC5C5\uB370\uC774\uD2B8\uB418\uC9C0 \uC54A\uC74C",
           freshness_dot_very_stale: "90\uC77C \uC774\uC0C1 \uC5C5\uB370\uC774\uD2B8\uB418\uC9C0 \uC54A\uC74C",
@@ -7968,6 +8076,16 @@
           player_updates_col_proposed: "Propus",
           player_updates_col_change: "Modificare",
           player_updates_refresh: "Reincarca",
+          player_updates_apply_target_title: "Aplic\u0103 actualizarea la",
+          player_updates_apply_target_desc: 'Alege\u021Bi baza de date unde s\u0103 aplica\u021Bi aceast\u0103 actualizare. "Ambele" este selectat implicit.',
+          player_updates_apply_my_db: "Baza mea de date",
+          player_updates_apply_alliance_db: "Baza alian\u021Bei",
+          player_updates_apply_both: "Ambele (implicit)",
+          player_updates_source_personal: "Personal",
+          player_updates_source_alliance: "Alian\u021B\u0103",
+          player_updates_approve_success: "Actualizare aprobat\u0103 \u0219i aplicat\u0103.",
+          player_updates_reject_success: "Actualizare respins\u0103.",
+          player_updates_apply_failed: "Aplicarea a e\u0219uat. \xCEncerca\u021Bi din nou.",
           freshness_dot_fresh: "Actualizat recent",
           freshness_dot_stale: "Neactualizat de peste 30 de zile",
           freshness_dot_very_stale: "Neactualizat de peste 90 de zile",
@@ -13787,20 +13905,24 @@
           return { valid: errors.length === 0, errors };
         }
         function calculateDeltas(old, proposed) {
-          var oldPower = Number(old && old.power);
-          var newPower = Number(proposed && proposed.power);
-          var powerDelta = newPower - oldPower;
+          var rawOldPower = old && old.power != null ? Number(old.power) : null;
+          var oldPower = rawOldPower !== null && Number.isFinite(rawOldPower) ? rawOldPower : null;
+          var rawNewPower = proposed && proposed.power != null ? Number(proposed.power) : null;
+          var newPower = rawNewPower !== null && Number.isFinite(rawNewPower) ? rawNewPower : null;
+          var powerDelta = oldPower !== null && newPower !== null ? newPower - oldPower : null;
           var powerFlagged;
-          if (!Number.isFinite(oldPower) || oldPower === 0) {
+          if (oldPower === null || oldPower === 0) {
             powerFlagged = true;
           } else {
             powerFlagged = Math.abs(powerDelta / oldPower) > 0.2;
           }
-          var oldThp = Number(old && old.thp);
-          var newThp = Number(proposed && proposed.thp);
-          var thpDelta = newThp - oldThp;
+          var rawOldThp = old && old.thp != null ? Number(old.thp) : null;
+          var oldThp = rawOldThp !== null && Number.isFinite(rawOldThp) ? rawOldThp : null;
+          var rawNewThp = proposed && proposed.thp != null ? Number(proposed.thp) : null;
+          var newThp = rawNewThp !== null && Number.isFinite(rawNewThp) ? rawNewThp : null;
+          var thpDelta = oldThp !== null && newThp !== null ? newThp - oldThp : null;
           var thpFlagged;
-          if (!Number.isFinite(oldThp) || oldThp === 0) {
+          if (oldThp === null || oldThp === 0) {
             thpFlagged = true;
           } else {
             thpFlagged = Math.abs(thpDelta / oldThp) > 0.2;
@@ -13985,6 +14107,10 @@
           nameEl.className = "review-player-name";
           nameEl.textContent = update.playerName || "";
           header.appendChild(nameEl);
+          var sourceBadge = document.createElement("span");
+          sourceBadge.className = "review-source-badge review-source-badge--" + (update.contextType || "unknown");
+          sourceBadge.textContent = update.contextType === "personal" ? global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_source_personal") : "Personal" : global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_source_alliance") : "Alliance";
+          header.appendChild(sourceBadge);
           row.appendChild(header);
           var table = document.createElement("table");
           table.className = "review-comparison-table";
@@ -14005,15 +14131,22 @@
           table.appendChild(thead);
           var tbody = document.createElement("tbody");
           if (deltas) {
+            let fmtVal2 = function(v) {
+              return v !== null && Number.isFinite(v) ? String(v) : "\u2014";
+            }, fmtDelta2 = function(v) {
+              if (v === null || !Number.isFinite(v)) return "\u2014";
+              return (v > 0 ? "+" : "") + String(v);
+            };
+            var fmtVal = fmtVal2, fmtDelta = fmtDelta2;
             var powerTr = document.createElement("tr");
             if (deltas.power && deltas.power.flagged) {
               powerTr.className = "flagged";
             }
             [
               "Power",
-              deltas.power ? String(deltas.power.old) : "",
-              deltas.power ? String(deltas.power.new) : "",
-              deltas.power ? (deltas.power.delta > 0 ? "+" : "") + String(deltas.power.delta) : ""
+              deltas.power ? fmtVal2(deltas.power.old) : "",
+              deltas.power ? fmtVal2(deltas.power.new) : "",
+              deltas.power ? fmtDelta2(deltas.power.delta) : ""
             ].forEach(function(text) {
               var td = document.createElement("td");
               td.textContent = text;
@@ -14026,9 +14159,9 @@
             }
             [
               "THP",
-              deltas.thp ? String(deltas.thp.old) : "",
-              deltas.thp ? String(deltas.thp.new) : "",
-              deltas.thp ? (deltas.thp.delta > 0 ? "+" : "") + String(deltas.thp.delta) : ""
+              deltas.thp ? fmtVal2(deltas.thp.old) : "",
+              deltas.thp ? fmtVal2(deltas.thp.new) : "",
+              deltas.thp ? fmtDelta2(deltas.thp.delta) : ""
             ].forEach(function(text) {
               var td = document.createElement("td");
               td.textContent = text;
@@ -14055,18 +14188,57 @@
           row.appendChild(table);
           var decisionGroup = document.createElement("div");
           decisionGroup.className = "review-decision-group";
-          ["approved", "rejected"].forEach(function(decision) {
-            var label = document.createElement("label");
-            var radio = document.createElement("input");
-            radio.type = "radio";
-            radio.name = "review_decision_" + (update.id || "");
-            radio.value = decision;
-            radio.className = "review-decision-radio";
-            radio.setAttribute("data-update-id", update.id || "");
-            label.appendChild(radio);
-            label.appendChild(document.createTextNode(" " + (decision === "approved" ? "Approve" : "Reject")));
-            decisionGroup.appendChild(label);
+          var approveBtn = document.createElement("button");
+          approveBtn.type = "button";
+          approveBtn.className = "primary review-approve-btn";
+          approveBtn.setAttribute("data-update-id", update.id || "");
+          approveBtn.setAttribute("data-i18n", "player_updates_approve_btn");
+          approveBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_approve_btn") : "Approve";
+          var rejectBtn = document.createElement("button");
+          rejectBtn.type = "button";
+          rejectBtn.className = "secondary review-reject-btn";
+          rejectBtn.setAttribute("data-update-id", update.id || "");
+          rejectBtn.setAttribute("data-i18n", "player_updates_reject_btn");
+          rejectBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_reject_btn") : "Reject";
+          approveBtn.addEventListener("click", function() {
+            var updateId = approveBtn.getAttribute("data-update-id");
+            if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.approveUpdate === "function") {
+              approveBtn.disabled = true;
+              rejectBtn.disabled = true;
+              global.DSFeaturePlayerUpdatesController.approveUpdate(updateId).then(function(result) {
+                if (result && result.cancelled) {
+                  approveBtn.disabled = false;
+                  rejectBtn.disabled = false;
+                  return;
+                }
+                if (result && result.ok) {
+                  row.classList.add("review-decision-applied");
+                  row.setAttribute("aria-disabled", "true");
+                } else {
+                  approveBtn.disabled = false;
+                  rejectBtn.disabled = false;
+                }
+              });
+            }
           });
+          rejectBtn.addEventListener("click", function() {
+            var updateId = rejectBtn.getAttribute("data-update-id");
+            if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.rejectUpdate === "function") {
+              rejectBtn.disabled = true;
+              approveBtn.disabled = true;
+              global.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
+                if (result && result.ok) {
+                  row.classList.add("review-decision-applied");
+                  row.setAttribute("aria-disabled", "true");
+                } else {
+                  rejectBtn.disabled = false;
+                  approveBtn.disabled = false;
+                }
+              });
+            }
+          });
+          decisionGroup.appendChild(approveBtn);
+          decisionGroup.appendChild(rejectBtn);
           row.appendChild(decisionGroup);
           return row;
         }
@@ -14120,6 +14292,7 @@
         var _gateway = null;
         var _unsubscribe = null;
         var _badgeUnsub = null;
+        var _pendingUpdateDocs = {};
         var _autoApproveThresholds = {
           powerMaxDeltaPct: null,
           thpMaxDeltaPct: null,
@@ -14142,13 +14315,24 @@
           }
           _gateway = null;
         }
-        function subscribeBadge(allianceId) {
+        function setPendingUpdateDocs(updates) {
+          _pendingUpdateDocs = {};
+          if (Array.isArray(updates)) {
+            updates.forEach(function(u) {
+              if (u && u.id) {
+                _pendingUpdateDocs[u.id] = u;
+              }
+            });
+          }
+        }
+        function subscribeBadge(allianceId, uid) {
           if (_badgeUnsub) {
             _badgeUnsub();
             _badgeUnsub = null;
           }
-          if (!_gateway || !allianceId || typeof _gateway.subscribePendingUpdatesCount !== "function") return;
-          _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, function(count) {
+          if (!_gateway || typeof _gateway.subscribePendingUpdatesCount !== "function") return;
+          if (!allianceId && !uid) return;
+          _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, uid, function(count) {
             var badge = document.getElementById("playerUpdatesPendingBadge");
             if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === "function") {
               global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
@@ -14220,29 +14404,133 @@
             console.error("[PlayerUpdatesController] saveTokenBatch failed:", err);
           });
         }
+        function _showApplyTargetPrompt() {
+          return new Promise(function(resolve) {
+            var modal = document.getElementById("applyTargetModal");
+            if (!modal) {
+              resolve("both");
+              return;
+            }
+            modal.classList.remove("hidden");
+            modal.focus();
+            function close(target) {
+              modal.classList.add("hidden");
+              cleanup();
+              resolve(target);
+            }
+            function onPersonal() {
+              close("personal");
+            }
+            function onAlliance() {
+              close("alliance");
+            }
+            function onBoth() {
+              close("both");
+            }
+            function onCancel() {
+              close(null);
+            }
+            function onKeydown(e) {
+              if (e.key === "Escape") {
+                close(null);
+              }
+            }
+            var personalBtn = document.getElementById("applyTargetPersonalBtn");
+            var allianceBtn = document.getElementById("applyTargetAllianceBtn");
+            var bothBtn = document.getElementById("applyTargetBothBtn");
+            var cancelBtn = document.getElementById("applyTargetCancelBtn");
+            if (personalBtn) personalBtn.addEventListener("click", onPersonal);
+            if (allianceBtn) allianceBtn.addEventListener("click", onAlliance);
+            if (bothBtn) bothBtn.addEventListener("click", onBoth);
+            if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
+            document.addEventListener("keydown", onKeydown);
+            function cleanup() {
+              if (personalBtn) personalBtn.removeEventListener("click", onPersonal);
+              if (allianceBtn) allianceBtn.removeEventListener("click", onAlliance);
+              if (bothBtn) bothBtn.removeEventListener("click", onBoth);
+              if (cancelBtn) cancelBtn.removeEventListener("click", onCancel);
+              document.removeEventListener("keydown", onKeydown);
+            }
+          });
+        }
+        function _doApprove(updateId, update, allianceId, target) {
+          var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
+          var proposed = update.proposedValues || {};
+          var playerName = update.playerName;
+          var contextType = update.contextType;
+          var applyPromises = [];
+          if (target === "personal" || target === "both") {
+            applyPromises.push(
+              _gateway.applyPlayerUpdateToPersonal(playerName, proposed)
+            );
+          }
+          if ((target === "alliance" || target === "both") && allianceId) {
+            applyPromises.push(
+              _gateway.applyPlayerUpdateToAlliance(playerName, proposed)
+            );
+          }
+          return Promise.all(applyPromises).then(function(applyResults) {
+            var anyFailed = applyResults.some(function(r) {
+              return !r || !r.ok;
+            });
+            if (anyFailed) {
+              return { ok: false, error: "apply_failed" };
+            }
+            var decision = {
+              status: "approved",
+              reviewedBy,
+              reviewedAt: /* @__PURE__ */ new Date(),
+              appliedTo: target
+            };
+            if (contextType === "personal") {
+              var ownerUid = update.ownerUid;
+              return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision).catch(function(err) {
+                return { ok: false, error: err && err.message };
+              });
+            } else {
+              return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision).catch(function(err) {
+                return { ok: false, error: err && err.message };
+              });
+            }
+          });
+        }
         function approveUpdate(updateId) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
+          var update = _pendingUpdateDocs[updateId];
+          if (!update) return Promise.resolve({ ok: false, error: "update not found" });
           var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-          var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
-          return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
-            status: "approved",
-            reviewedBy,
-            reviewedAt: /* @__PURE__ */ new Date()
-          }).catch(function(err) {
-            return { ok: false, error: err && err.message };
-          });
+          var isAllianceUser = !!allianceId;
+          if (isAllianceUser) {
+            return _showApplyTargetPrompt().then(function(target) {
+              if (!target) {
+                return { ok: false, cancelled: true };
+              }
+              return _doApprove(updateId, update, allianceId, target);
+            });
+          } else {
+            return _doApprove(updateId, update, null, "personal");
+          }
         }
         function rejectUpdate(updateId) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
+          var update = _pendingUpdateDocs[updateId];
           var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
           var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
-          return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
+          var decision = {
             status: "rejected",
             reviewedBy,
             reviewedAt: /* @__PURE__ */ new Date()
-          }).catch(function(err) {
-            return { ok: false, error: err && err.message };
-          });
+          };
+          if (update && update.contextType === "personal") {
+            var ownerUid = update.ownerUid;
+            return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision).catch(function(err) {
+              return { ok: false, error: err && err.message };
+            });
+          } else {
+            return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision).catch(function(err) {
+              return { ok: false, error: err && err.message };
+            });
+          }
         }
         function revokeToken(tokenId) {
           if (!_gateway || !tokenId) return Promise.resolve({ ok: false, error: "not initialized" });
@@ -14261,7 +14549,8 @@
           approveUpdate,
           rejectUpdate,
           revokeToken,
-          setAutoApproveThresholds
+          setAutoApproveThresholds,
+          setPendingUpdateDocs
         };
       })(window);
     }
@@ -15917,11 +16206,23 @@
                 []
               );
             },
-            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
               return gatewayUtils.withManager(
-                (svc) => svc.subscribePendingUpdatesCount(allianceId, callback),
+                (svc) => svc.subscribePendingUpdatesCount(allianceId, uid, callback),
                 function noop() {
                 }
+              );
+            },
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+              return gatewayUtils.withManager(
+                (svc) => svc.applyPlayerUpdateToPersonal(playerName, proposedValues),
+                gatewayUtils.notLoadedResult()
+              );
+            },
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+              return gatewayUtils.withManager(
+                (svc) => svc.applyPlayerUpdateToAlliance(playerName, proposedValues),
+                gatewayUtils.notLoadedResult()
               );
             },
             createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
@@ -16259,11 +16560,21 @@
                 return svc.loadActiveTokens(allianceId);
               }, []);
             },
-            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
               return gatewayUtils.withManager(function(svc) {
-                return svc.subscribePendingUpdatesCount(allianceId, callback);
+                return svc.subscribePendingUpdatesCount(allianceId, uid, callback);
               }, function noop() {
               });
+            },
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.applyPlayerUpdateToPersonal(playerName, proposedValues);
+              }, gatewayUtils.notLoadedResult());
+            },
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.applyPlayerUpdateToAlliance(playerName, proposedValues);
+              }, gatewayUtils.notLoadedResult());
             },
             createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
               return gatewayUtils.withManager(function(svc) {
@@ -17016,8 +17327,14 @@
           loadActiveTokens: function loadActiveTokens(allianceId) {
             return playerUpdatesGateway.loadActiveTokens(allianceId);
           },
-          subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
-            return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, callback);
+          subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
+            return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);
+          },
+          applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues);
+          },
+          applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues);
           },
           createPersonalUpdateToken: function createPersonalUpdateToken(uid, playerName, options) {
             return playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, options);
@@ -18439,6 +18756,9 @@
           }) : Promise.resolve([]);
           Promise.all([alliancePromise, personalPromise]).then(function(results) {
             var combined = (results[0] || []).concat(results[1] || []);
+            if (window._playerUpdatesController && typeof window._playerUpdatesController.setPendingUpdateDocs === "function") {
+              window._playerUpdatesController.setPendingUpdateDocs(combined);
+            }
             window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, combined);
           }).catch(function() {
             window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
@@ -22535,7 +22855,8 @@
               if (global._playerUpdatesController && typeof global._playerUpdatesController.subscribeBadge === "function") {
                 const puAllianceId = global.FirebaseService.getAllianceId ? global.FirebaseService.getAllianceId() : null;
                 if (puAllianceId) {
-                  global._playerUpdatesController.subscribeBadge(puAllianceId);
+                  var puUid = global.currentAuthUser ? global.currentAuthUser.uid : null;
+                  global._playerUpdatesController.subscribeBadge(puAllianceId, puUid);
                 }
               }
             });

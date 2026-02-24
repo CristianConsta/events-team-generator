@@ -82,21 +82,25 @@
     }
 
     function calculateDeltas(old, proposed) {
-        var oldPower = Number(old && old.power);
-        var newPower = Number(proposed && proposed.power);
-        var powerDelta = newPower - oldPower;
+        var rawOldPower = (old && old.power != null) ? Number(old.power) : null;
+        var oldPower = (rawOldPower !== null && Number.isFinite(rawOldPower)) ? rawOldPower : null;
+        var rawNewPower = (proposed && proposed.power != null) ? Number(proposed.power) : null;
+        var newPower = (rawNewPower !== null && Number.isFinite(rawNewPower)) ? rawNewPower : null;
+        var powerDelta = (oldPower !== null && newPower !== null) ? newPower - oldPower : null;
         var powerFlagged;
-        if (!Number.isFinite(oldPower) || oldPower === 0) {
+        if (oldPower === null || oldPower === 0) {
             powerFlagged = true;
         } else {
             powerFlagged = Math.abs(powerDelta / oldPower) > 0.20;
         }
 
-        var oldThp = Number(old && old.thp);
-        var newThp = Number(proposed && proposed.thp);
-        var thpDelta = newThp - oldThp;
+        var rawOldThp = (old && old.thp != null) ? Number(old.thp) : null;
+        var oldThp = (rawOldThp !== null && Number.isFinite(rawOldThp)) ? rawOldThp : null;
+        var rawNewThp = (proposed && proposed.thp != null) ? Number(proposed.thp) : null;
+        var newThp = (rawNewThp !== null && Number.isFinite(rawNewThp)) ? rawNewThp : null;
+        var thpDelta = (oldThp !== null && newThp !== null) ? newThp - oldThp : null;
         var thpFlagged;
-        if (!Number.isFinite(oldThp) || oldThp === 0) {
+        if (oldThp === null || oldThp === 0) {
             thpFlagged = true;
         } else {
             thpFlagged = Math.abs(thpDelta / oldThp) > 0.20;

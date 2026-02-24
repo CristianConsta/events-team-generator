@@ -988,12 +988,12 @@
         </div>
         <!-- Apply Target Modal (for alliance users approving a player update) -->
         <div id="applyTargetModal" class="coord-overlay hidden" role="dialog" aria-modal="true"
-             aria-labelledby="applyTargetModalTitle" tabindex="-1">
+             aria-labelledby="applyTargetModalTitle" aria-describedby="applyTargetModalDesc" tabindex="-1">
             <div class="modal-shell modal-shell--apply-target">
                 <div class="modal-header">
                     <h2 id="applyTargetModalTitle" class="modal-title" data-i18n="player_updates_apply_target_title">Apply Update To</h2>
                 </div>
-                <p class="modal-description" data-i18n="player_updates_apply_target_desc">
+                <p id="applyTargetModalDesc" class="modal-description" data-i18n="player_updates_apply_target_desc">
                     Choose which database to update. "Both" is selected by default.
                 </p>
                 <div class="apply-target-grid">

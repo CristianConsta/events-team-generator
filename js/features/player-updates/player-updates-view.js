@@ -144,6 +144,13 @@
         var tbody = document.createElement('tbody');
 
         if (deltas) {
+            // Helper: format a numeric value or show dash for null/NaN
+            function fmtVal(v) { return v !== null && Number.isFinite(v) ? String(v) : '\u2014'; }
+            function fmtDelta(v) {
+                if (v === null || !Number.isFinite(v)) return '\u2014';
+                return (v > 0 ? '+' : '') + String(v);
+            }
+
             // Power row
             var powerTr = document.createElement('tr');
             if (deltas.power && deltas.power.flagged) {
@@ -151,9 +158,9 @@
             }
             [
                 'Power',
-                deltas.power ? String(deltas.power.old) : '',
-                deltas.power ? String(deltas.power.new) : '',
-                deltas.power ? (deltas.power.delta > 0 ? '+' : '') + String(deltas.power.delta) : '',
+                deltas.power ? fmtVal(deltas.power.old) : '',
+                deltas.power ? fmtVal(deltas.power.new) : '',
+                deltas.power ? fmtDelta(deltas.power.delta) : '',
             ].forEach(function(text) {
                 var td = document.createElement('td');
                 td.textContent = text;
@@ -168,9 +175,9 @@
             }
             [
                 'THP',
-                deltas.thp ? String(deltas.thp.old) : '',
-                deltas.thp ? String(deltas.thp.new) : '',
-                deltas.thp ? (deltas.thp.delta > 0 ? '+' : '') + String(deltas.thp.delta) : '',
+                deltas.thp ? fmtVal(deltas.thp.old) : '',
+                deltas.thp ? fmtVal(deltas.thp.new) : '',
+                deltas.thp ? fmtDelta(deltas.thp.delta) : '',
             ].forEach(function(text) {
                 var td = document.createElement('td');
                 td.textContent = text;
