@@ -426,6 +426,7 @@
         removeGameMetadataLogo: removeGameMetadataLogo,
         handleGameMetadataLogoChange: handleGameMetadataLogoChange,
         saveGameMetadata: saveGameMetadata,
+        updateGameMetadataLogoPreview: updateGameMetadataLogoPreview,
         generateGameAvatarDataUrl: generateGameAvatarDataUrl,
     };
 })(window);

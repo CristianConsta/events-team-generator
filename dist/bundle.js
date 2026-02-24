@@ -744,10 +744,10 @@
           }
         }
         function getCurrentUser() {
-          return deps.getCurrentUser();
+          return typeof deps.getCurrentUser === "function" ? deps.getCurrentUser() : null;
         }
         function isSignedIn() {
-          return deps.getCurrentUser() !== null;
+          return getCurrentUser() !== null;
         }
         global2.DSFirebaseAuth = {
           configure,
@@ -19580,7 +19580,7 @@
             logoInput.value = "";
           }
           gameMetadataDraftLogoDataUrl = "";
-          updateGameMetadataLogoPreview2();
+          updateGameMetadataLogoPreview();
         }
         function clearGameMetadataStatus() {
           var status = document.getElementById("gameMetadataStatus");
@@ -19640,7 +19640,7 @@
         function generateGameAvatarDataUrl(nameSeed, idSeed) {
           return generateEventAvatarDataUrl(nameSeed || "Game", (idSeed || "") + "|game-avatar");
         }
-        function updateGameMetadataLogoPreview2() {
+        function updateGameMetadataLogoPreview() {
           var previewImage = document.getElementById("gameMetadataLogoPreviewImage");
           var previewInitials = document.getElementById("gameMetadataLogoPreviewInitials");
           if (!previewImage || !previewInitials) {
@@ -19722,7 +19722,7 @@
             logoInput.value = "";
           }
           gameMetadataDraftLogoDataUrl = metadata.logo || "";
-          updateGameMetadataLogoPreview2();
+          updateGameMetadataLogoPreview();
         }
         function formatGameMetadataError(errorOrResult) {
           if (errorOrResult && typeof errorOrResult === "object") {
@@ -19826,7 +19826,7 @@
           if (input) {
             input.value = "";
           }
-          updateGameMetadataLogoPreview2();
+          updateGameMetadataLogoPreview();
         }
         async function handleGameMetadataLogoChange(event) {
           var input = event && event.target ? event.target : document.getElementById("gameMetadataLogoInput");
@@ -19836,7 +19836,7 @@
           }
           try {
             gameMetadataDraftLogoDataUrl = await createGameMetadataLogoDataUrl(file);
-            updateGameMetadataLogoPreview2();
+            updateGameMetadataLogoPreview();
           } catch (error) {
             showMessage("gameMetadataStatus", error.message || t2("events_manager_image_process_failed"), "error");
           } finally {
@@ -19904,6 +19904,7 @@
           removeGameMetadataLogo,
           handleGameMetadataLogoChange,
           saveGameMetadata,
+          updateGameMetadataLogoPreview,
           generateGameAvatarDataUrl
         };
       })(window);
@@ -20732,6 +20733,9 @@
       }
       function saveGameMetadata() {
         return DSGameMetadataAdminController.saveGameMetadata();
+      }
+      function updateGameMetadataLogoPreview() {
+        return DSGameMetadataAdminController.updateGameMetadataLogoPreview();
       }
       window.t = t2;
       window.initLanguage = initLanguage2;

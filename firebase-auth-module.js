@@ -186,11 +186,11 @@
     // ── Auth query helpers ───────────────────────────────────────────────────
 
     function getCurrentUser() {
-        return deps.getCurrentUser();
+        return typeof deps.getCurrentUser === 'function' ? deps.getCurrentUser() : null;
     }
 
     function isSignedIn() {
-        return deps.getCurrentUser() !== null;
+        return getCurrentUser() !== null;
     }
 
     // ── Public API ───────────────────────────────────────────────────────────

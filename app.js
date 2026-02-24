@@ -374,6 +374,7 @@ function triggerGameMetadataLogoUpload() { return DSGameMetadataAdminController.
 function removeGameMetadataLogo() { return DSGameMetadataAdminController.removeGameMetadataLogo(); }
 function handleGameMetadataLogoChange(e) { return DSGameMetadataAdminController.handleGameMetadataLogoChange(e); }
 function saveGameMetadata() { return DSGameMetadataAdminController.saveGameMetadata(); }
+function updateGameMetadataLogoPreview() { return DSGameMetadataAdminController.updateGameMetadataLogoPreview(); }
 
 window.t = t;
 window.initLanguage = initLanguage;
