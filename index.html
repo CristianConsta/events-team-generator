@@ -954,10 +954,18 @@
         </div>
 
         <!-- Player Updates Review View -->
-        <section id="playerUpdatesReviewView" class="view-section hidden" aria-labelledby="playerUpdatesReviewHeading">
-            <h2 id="playerUpdatesReviewHeading" class="view-heading" data-i18n="player_updates_review_title">Pending Player Updates</h2>
-            <div id="playerUpdatesReviewContainer"></div>
-        </section>
+        <div id="playerUpdatesReviewView" class="view-section hidden">
+            <div class="container">
+                <div class="app-view screen-shell">
+                    <div class="page-header screen-header">
+                        <h2 id="playerUpdatesReviewHeading" class="config-title" data-i18n="player_updates_review_title">Pending Player Updates</h2>
+                    </div>
+                    <div class="card screen-panel">
+                        <div id="playerUpdatesReviewContainer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Token Generation Modal -->
         <div id="tokenGenerationModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle">
