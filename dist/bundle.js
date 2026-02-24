@@ -610,6 +610,10 @@
               deps[key] = options[key];
             }
           });
+          if (_pendingAuthCallback && typeof deps.setOnAuthCallback === "function") {
+            deps.setOnAuthCallback(_pendingAuthCallback);
+            _pendingAuthCallback = null;
+          }
         }
         function isPasswordProvider(user) {
           if (!user || !user.providerData) {
@@ -654,8 +658,13 @@
             }
           }
         }
+        var _pendingAuthCallback = null;
         function setAuthCallback(callback) {
-          deps.setOnAuthCallback(callback);
+          if (typeof deps.setOnAuthCallback === "function") {
+            deps.setOnAuthCallback(callback);
+          } else {
+            _pendingAuthCallback = callback;
+          }
         }
         async function signInWithGoogle() {
           try {
@@ -6404,9 +6413,13 @@
         window.FirebaseManager = FirebaseManager;
       }
       if (typeof firebase !== "undefined") {
-        document.addEventListener("DOMContentLoaded", () => {
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", () => {
+            FirebaseManager.init();
+          });
+        } else {
           FirebaseManager.init();
-        });
+        }
       }
     }
   });
@@ -18794,8 +18807,12 @@
         global2.DSAppShellBootstrap = {
           boot
         };
-        if (global2.document && typeof global2.document.addEventListener === "function") {
-          global2.document.addEventListener("DOMContentLoaded", boot);
+        if (global2.document) {
+          if (global2.document.readyState === "loading") {
+            global2.document.addEventListener("DOMContentLoaded", boot);
+          } else {
+            setTimeout(boot, 0);
+          }
         }
       })(window);
     }

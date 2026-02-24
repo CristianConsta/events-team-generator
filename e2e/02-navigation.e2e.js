@@ -26,6 +26,14 @@ test.describe('Navigation workflows', () => {
     await navigateTo(page, 'navAllianceBtn');
     await assertOnlyPageVisible(page, 'alliancePage');
 
+    // Event History is not in the navigateTo page map — click directly via JS.
+    await page.evaluate(() => {
+      const btn = document.getElementById('navEventHistoryBtn');
+      if (btn instanceof HTMLElement) { btn.click(); }
+    });
+    await expect(page.locator('#alliancePage')).toBeHidden();
+    await expect(page.locator('#eventHistoryView')).toBeVisible();
+
     await navigateTo(page, 'navGeneratorBtn');
     await assertOnlyPageVisible(page, 'generatorPage');
   });

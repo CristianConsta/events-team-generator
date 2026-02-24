@@ -6241,9 +6241,13 @@ if (typeof window !== 'undefined') {
 
 // Auto-initialize on load
 if (typeof firebase !== 'undefined') {
-    document.addEventListener('DOMContentLoaded', () => {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            FirebaseManager.init();
+        });
+    } else {
         FirebaseManager.init();
-    });
+    }
 }
 
 

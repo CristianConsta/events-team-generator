@@ -41,6 +41,57 @@ test.describe('Players workflows', () => {
     await expect(page.locator('#playersMgmtTableBody')).toContainText('WorkflowPlayer');
   });
 
+  test('@smoke @players edit player details inline and save', async ({ page }) => {
+    const listHeader = page.locator('#playersListPanelHeader');
+    const firstRow = page.locator('#playersMgmtTableBody tr').first();
+    if (!(await firstRow.isVisible())) {
+      await listHeader.click();
+      await expect(firstRow).toBeVisible();
+    }
+
+    await firstRow.locator('button[data-pm-action="edit"]').click();
+
+    const editRow = page.locator('tr.players-mgmt-edit-row');
+    await expect(editRow).toBeVisible();
+    await expect(editRow.locator('input[data-field="name"]')).toBeVisible();
+    await expect(editRow.locator('input[data-field="power"]')).toBeVisible();
+    await expect(editRow.locator('select[data-field="troops"]')).toBeVisible();
+
+    const powerInput = editRow.locator('input[data-field="power"]');
+    await powerInput.clear();
+    await powerInput.fill('9999999');
+
+    await editRow.locator('button[data-pm-action="save"]').click();
+
+    await expect(page.locator('tr.players-mgmt-edit-row')).toBeHidden();
+    await expect(firstRow).toContainText('9999999');
+  });
+
+  test('@regression @players cancel edit preserves original values', async ({ page }) => {
+    const listHeader = page.locator('#playersListPanelHeader');
+    const firstRow = page.locator('#playersMgmtTableBody tr').first();
+    if (!(await firstRow.isVisible())) {
+      await listHeader.click();
+      await expect(firstRow).toBeVisible();
+    }
+
+    const originalText = await firstRow.innerText();
+
+    await firstRow.locator('button[data-pm-action="edit"]').click();
+    const editRow = page.locator('tr.players-mgmt-edit-row');
+    await expect(editRow).toBeVisible();
+
+    const powerInput = editRow.locator('input[data-field="power"]');
+    await powerInput.clear();
+    await powerInput.fill('1111111');
+
+    await editRow.locator('button[data-pm-action="cancel"]').click();
+
+    await expect(page.locator('tr.players-mgmt-edit-row')).toBeHidden();
+    const restoredText = await firstRow.innerText();
+    expect(restoredText).toBe(originalText);
+  });
+
   test('@regression @players sort and clear filters preserves list stability', async ({ page }) => {
     const searchInput = page.locator('#playersMgmtSearchFilter');
     if (!(await searchInput.isVisible())) {

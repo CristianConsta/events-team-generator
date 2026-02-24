@@ -33,6 +33,10 @@
                 deps[key] = options[key];
             }
         });
+        if (_pendingAuthCallback && typeof deps.setOnAuthCallback === 'function') {
+            deps.setOnAuthCallback(_pendingAuthCallback);
+            _pendingAuthCallback = null;
+        }
     }
 
     // ── Pure helpers ─────────────────────────────────────────────────────────
@@ -83,8 +87,14 @@
 
     // ── Auth callback setter ─────────────────────────────────────────────────
 
+    var _pendingAuthCallback = null;
+
     function setAuthCallback(callback) {
-        deps.setOnAuthCallback(callback);
+        if (typeof deps.setOnAuthCallback === 'function') {
+            deps.setOnAuthCallback(callback);
+        } else {
+            _pendingAuthCallback = callback;
+        }
     }
 
     // ── Auth operations ──────────────────────────────────────────────────────
