@@ -5788,6 +5788,9 @@ const FirebaseManager = (function() {
         if (!currentUser) {
             return { ok: false, error: 'Not signed in' };
         }
+        if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
+            return { ok: false, error: 'snapshot_integrity_error' };
+        }
         var nextPlayer = {
             name: playerName,
             power: proposedValues.power,
@@ -5802,6 +5805,9 @@ const FirebaseManager = (function() {
     async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
         if (!currentUser || !allianceId) {
             return { ok: false, error: 'Not in alliance' };
+        }
+        if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
+            return { ok: false, error: 'snapshot_integrity_error' };
         }
         var nextPlayer = {
             name: playerName,
