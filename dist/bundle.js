@@ -10190,8 +10190,9 @@
         function createController(deps) {
           const dependencies = deps && typeof deps === "object" ? deps : {};
           function getRoleLimits() {
-            if (global.DSFeatureGeneratorActions && typeof global.DSFeatureGeneratorActions.buildRoleLimits === "function") {
-              return global.DSFeatureGeneratorActions.buildRoleLimits(dependencies.roleLimits);
+            var actions = dependencies.generatorActions || global.DSFeatureGeneratorActions;
+            if (actions && typeof actions.buildRoleLimits === "function") {
+              return actions.buildRoleLimits(dependencies.roleLimits);
             }
             return {
               maxTotal: 30,
@@ -10205,7 +10206,8 @@
                 return;
               }
               const nextRaw = event && event.target ? event.target.value : dependencies.defaultAlgorithm;
-              const normalized = global.DSFeatureGeneratorActions && typeof global.DSFeatureGeneratorActions.normalizeAssignmentSelection === "function" ? global.DSFeatureGeneratorActions.normalizeAssignmentSelection(
+              var actions = dependencies.generatorActions || global.DSFeatureGeneratorActions;
+              const normalized = actions && typeof actions.normalizeAssignmentSelection === "function" ? actions.normalizeAssignmentSelection(
                 nextRaw,
                 dependencies.normalizeAssignmentAlgorithm,
                 dependencies.defaultAlgorithm
@@ -10213,8 +10215,9 @@
               if (typeof dependencies.setAssignmentAlgorithm === "function") {
                 dependencies.setAssignmentAlgorithm(normalized);
               }
-              if (global.DSFeatureGeneratorView && typeof global.DSFeatureGeneratorView.syncAssignmentAlgorithmControl === "function") {
-                global.DSFeatureGeneratorView.syncAssignmentAlgorithmControl({
+              var view = dependencies.generatorView || global.DSFeatureGeneratorView;
+              if (view && typeof view.syncAssignmentAlgorithmControl === "function") {
+                view.syncAssignmentAlgorithmControl({
                   document: dependencies.document || global.document,
                   value: normalized
                 });
@@ -12443,6 +12446,353 @@
     }
   });
 
+  // js/features/events-manager/events-image-processor.js
+  var require_events_image_processor = __commonJS({
+    "js/features/events-manager/events-image-processor.js"() {
+      (function initEventsImageProcessor(global) {
+        "use strict";
+        function isImageDataUrl(value, maxLength) {
+          var dataUrl = typeof value === "string" ? value.trim() : "";
+          if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+            return false;
+          }
+          return dataUrl.length <= maxLength;
+        }
+        function hashString(value) {
+          var input = String(value || "");
+          var hash = 2166136261;
+          for (var index = 0; index < input.length; index += 1) {
+            hash ^= input.charCodeAt(index);
+            hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+          }
+          return Math.abs(hash >>> 0);
+        }
+        function generateEventAvatarDataUrl(nameSeed, idSeed, deps) {
+          var seed = (nameSeed || "") + "|" + (idSeed || "") + "|event-avatar";
+          var hue = hashString(seed) % 360;
+          var canvas = document.createElement("canvas");
+          canvas.width = 96;
+          canvas.height = 96;
+          var ctx = canvas.getContext("2d");
+          if (!ctx) {
+            return "";
+          }
+          var grad = ctx.createLinearGradient(0, 0, 96, 96);
+          grad.addColorStop(0, "hsl(" + hue + ", 78%, 50%)");
+          grad.addColorStop(1, "hsl(" + (hue + 60) % 360 + ", 72%, 40%)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, 96, 96);
+          ctx.fillStyle = "rgba(255,255,255,0.92)";
+          ctx.font = "bold 34px Trebuchet MS";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(deps.getAvatarInitials(nameSeed || "Event", ""), 48, 50);
+          return canvas.toDataURL("image/png");
+        }
+        async function createEventImageDataUrl(file, options, deps) {
+          var opts = options && typeof options === "object" ? options : {};
+          var maxBytes = Number(opts.maxBytes) || deps.AVATAR_MAX_UPLOAD_BYTES;
+          var minDimension = Number(opts.minDimension) || deps.AVATAR_MIN_DIMENSION;
+          var maxSide = Number(opts.maxSide) || 512;
+          var maxDataUrlLength = Number(opts.maxDataUrlLength) || deps.EVENT_MAP_DATA_URL_LIMIT;
+          var tooLargeMessage = opts.tooLargeMessage || deps.t("events_manager_image_too_large");
+          var tooSmallMessage = opts.tooSmallMessage || deps.t("events_manager_image_too_small", { min: minDimension });
+          if (!deps.isAllowedAvatarFile(file)) {
+            throw new Error(deps.t("events_manager_invalid_image"));
+          }
+          if (typeof file.size === "number" && file.size > maxBytes) {
+            throw new Error(tooLargeMessage);
+          }
+          var rawDataUrl = await deps.readFileAsDataUrl(file);
+          var img = await deps.loadImageFromDataUrl(rawDataUrl);
+          if ((img.width || 0) < minDimension || (img.height || 0) < minDimension) {
+            throw new Error(tooSmallMessage);
+          }
+          var longestSide = Math.max(img.width || 1, img.height || 1);
+          var scale = Math.min(1, maxSide / longestSide);
+          var width = Math.max(1, Math.round((img.width || 1) * scale));
+          var height = Math.max(1, Math.round((img.height || 1) * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          var ctx = canvas.getContext("2d");
+          if (!ctx) {
+            throw new Error(deps.t("events_manager_image_process_failed"));
+          }
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          var qualities = [0.9, 0.8, 0.7, 0.6];
+          for (var i = 0; i < qualities.length; i++) {
+            var jpegDataUrl = canvas.toDataURL("image/jpeg", qualities[i]);
+            if (jpegDataUrl.length <= maxDataUrlLength) {
+              return jpegDataUrl;
+            }
+          }
+          var pngDataUrl = canvas.toDataURL("image/png");
+          if (pngDataUrl.length <= maxDataUrlLength) {
+            return pngDataUrl;
+          }
+          throw new Error(deps.t("events_manager_image_data_too_large"));
+        }
+        async function createContainedSquareImageDataUrl(sourceDataUrl, options, deps) {
+          var opts = options && typeof options === "object" ? options : {};
+          var sideRaw = Number(opts.side);
+          var side = Number.isFinite(sideRaw) && sideRaw > 0 ? Math.round(sideRaw) : 320;
+          var maxDataUrlLength = Number(opts.maxDataUrlLength) || deps.EVENT_LOGO_DATA_URL_LIMIT;
+          var img = await deps.loadImageFromDataUrl(sourceDataUrl);
+          var canvas = document.createElement("canvas");
+          canvas.width = side;
+          canvas.height = side;
+          var ctx = canvas.getContext("2d");
+          if (!ctx) {
+            throw new Error(deps.t("events_manager_image_process_failed"));
+          }
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, side, side);
+          var sourceWidth = Math.max(1, Number(img.width) || 1);
+          var sourceHeight = Math.max(1, Number(img.height) || 1);
+          var drawScale = Math.min(side / sourceWidth, side / sourceHeight);
+          var drawWidth = Math.max(1, Math.round(sourceWidth * drawScale));
+          var drawHeight = Math.max(1, Math.round(sourceHeight * drawScale));
+          var offsetX = Math.round((side - drawWidth) / 2);
+          var offsetY = Math.round((side - drawHeight) / 2);
+          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+          var qualities = [0.9, 0.8, 0.7, 0.6];
+          for (var i = 0; i < qualities.length; i++) {
+            var jpegDataUrl = canvas.toDataURL("image/jpeg", qualities[i]);
+            if (jpegDataUrl.length <= maxDataUrlLength) {
+              return jpegDataUrl;
+            }
+          }
+          var pngDataUrl = canvas.toDataURL("image/png");
+          if (pngDataUrl.length <= maxDataUrlLength) {
+            return pngDataUrl;
+          }
+          throw new Error(deps.t("events_manager_image_data_too_large"));
+        }
+        async function createGameMetadataLogoDataUrl(file, deps) {
+          var resized = await createEventImageDataUrl(file, {
+            maxBytes: deps.AVATAR_MAX_UPLOAD_BYTES,
+            minDimension: deps.AVATAR_MIN_DIMENSION,
+            maxSide: 320,
+            maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT,
+            tooLargeMessage: deps.t("events_manager_logo_too_large")
+          }, deps);
+          return createContainedSquareImageDataUrl(resized, {
+            side: 320,
+            maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT
+          }, deps);
+        }
+        global.DSEventsImageProcessor = {
+          isImageDataUrl,
+          hashString,
+          generateEventAvatarDataUrl,
+          createEventImageDataUrl,
+          createContainedSquareImageDataUrl,
+          createGameMetadataLogoDataUrl
+        };
+      })(window);
+    }
+  });
+
+  // js/features/events-manager/events-map-controller.js
+  var require_events_map_controller = __commonJS({
+    "js/features/events-manager/events-map-controller.js"() {
+      (function initEventsMapController(global) {
+        "use strict";
+        var MAP_PREVIEW = "preview";
+        var MAP_EXPORT = "export";
+        var MAP_CANVAS_WIDTH = 1080;
+        var MAP_CANVAS_FALLBACK_HEIGHT = 720;
+        var MAP_GRID_STEP = 90;
+        var MAP_UPLOAD_MAX_SIDE = MAP_CANVAS_WIDTH;
+        var maxRetries = 3;
+        var textColors = { 1: "#8B0000", 2: "#B85C00", 3: "#006464", 4: "#006699", 5: "#226644", 6: "#556B2F" };
+        var bgColors = {
+          1: "rgba(255,230,230,0.9)",
+          2: "rgba(255,240,220,0.9)",
+          3: "rgba(230,255,250,0.9)",
+          4: "rgba(230,245,255,0.9)",
+          5: "rgba(240,255,240,0.9)",
+          6: "rgba(245,255,235,0.9)"
+        };
+        var mapRuntimeState = /* @__PURE__ */ new Map();
+        function normalizeEventId(value) {
+          if (typeof value !== "string") {
+            return "";
+          }
+          return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        }
+        function normalizeMapPurpose(purpose) {
+          return purpose === MAP_EXPORT ? MAP_EXPORT : MAP_PREVIEW;
+        }
+        function getMapRuntimeStateKey(eventId, purpose) {
+          return normalizeMapPurpose(purpose) + "::" + normalizeEventId(eventId);
+        }
+        function createMapRuntimeState() {
+          return {
+            image: new Image(),
+            loaded: false,
+            retries: 0,
+            unavailable: false,
+            promise: null,
+            sourceSignature: ""
+          };
+        }
+        function ensureMapRuntimeState(eventId, purpose) {
+          var key = getMapRuntimeStateKey(eventId, purpose);
+          if (!mapRuntimeState.has(key)) {
+            mapRuntimeState.set(key, createMapRuntimeState());
+          }
+          return mapRuntimeState.get(key);
+        }
+        function getMapRuntimeStateFn(eventId, purpose) {
+          var eid = normalizeEventId(eventId);
+          if (!eid) {
+            return null;
+          }
+          return ensureMapRuntimeState(eid, purpose);
+        }
+        function deleteMapRuntimeStateForEvent(eventId) {
+          var eid = normalizeEventId(eventId);
+          if (!eid) {
+            return;
+          }
+          [MAP_PREVIEW, MAP_EXPORT].forEach(function(purpose) {
+            mapRuntimeState.delete(getMapRuntimeStateKey(eid, purpose));
+          });
+        }
+        function resetMapStateForEvent(eventId) {
+          var event = normalizeEventId(eventId);
+          if (!event) {
+            return;
+          }
+          [MAP_PREVIEW, MAP_EXPORT].forEach(function(purpose) {
+            var state = ensureMapRuntimeState(event, purpose);
+            state.loaded = false;
+            state.retries = 0;
+            state.unavailable = false;
+            state.promise = null;
+            state.sourceSignature = "";
+            if (state.image) {
+              state.image.src = "";
+            }
+          });
+        }
+        function cleanupOrphanedMapState(eventIdSet) {
+          Array.from(mapRuntimeState.keys()).forEach(function(key) {
+            var parts = key.split("::");
+            var eventId = parts.length > 1 ? parts[1] : "";
+            if (!eventIdSet.has(eventId)) {
+              mapRuntimeState.delete(key);
+            }
+          });
+        }
+        function getEventMapFile(eventId) {
+          var evt = global.DSCoreEvents.getEvent(eventId);
+          if (!evt) return null;
+          var mapDataUrl = typeof evt.mapDataUrl === "string" ? evt.mapDataUrl.trim() : "";
+          return mapDataUrl || null;
+        }
+        function loadMapImage(eventId, purpose, getCurrentEvent) {
+          var currentEvent = typeof getCurrentEvent === "function" ? getCurrentEvent() : eventId;
+          var eid = eventId || currentEvent;
+          var mapPurpose = normalizeMapPurpose(purpose);
+          var mapState = ensureMapRuntimeState(normalizeEventId(eid), mapPurpose);
+          if (mapState.loaded) {
+            return Promise.resolve(true);
+          }
+          if (mapState.promise) {
+            return mapState.promise;
+          }
+          var primaryFile = getEventMapFile(eid, mapPurpose);
+          var candidateFiles = primaryFile ? [primaryFile] : [];
+          var mapSourceSignature = candidateFiles.join("|");
+          if (mapState.sourceSignature !== mapSourceSignature) {
+            mapState.loaded = false;
+            mapState.unavailable = false;
+            mapState.retries = 0;
+            mapState.promise = null;
+            mapState.sourceSignature = mapSourceSignature;
+          }
+          mapState.promise = new Promise(function(resolve, reject) {
+            var imageEl = mapState.image;
+            var candidateIndex = 0;
+            var tryLoadCandidate = function() {
+              var src = candidateFiles[candidateIndex];
+              if (!src) {
+                mapState.unavailable = true;
+                mapState.promise = null;
+                reject(new Error("No map source available for " + eid + "/" + mapPurpose));
+                return;
+              }
+              if (typeof src === "string" && /^(data:|blob:)/i.test(src.trim())) {
+                imageEl.src = src;
+                return;
+              }
+              var bust = src.includes("?") ? "&" : "?";
+              imageEl.src = src + bust + "v=" + Date.now();
+            };
+            imageEl.onload = function() {
+              mapState.loaded = true;
+              mapState.unavailable = false;
+              mapState.retries = 0;
+              mapState.promise = null;
+              console.log("Map loaded for " + eid + "/" + mapPurpose);
+              resolve(true);
+            };
+            imageEl.onerror = function() {
+              if (candidateIndex < candidateFiles.length - 1) {
+                candidateIndex += 1;
+                tryLoadCandidate();
+                return;
+              }
+              var retry = mapState.retries + 1;
+              console.error("Map failed to load for " + eid + "/" + mapPurpose + ", attempt: " + retry);
+              if (mapState.retries < maxRetries) {
+                mapState.retries += 1;
+                setTimeout(function() {
+                  candidateIndex = 0;
+                  tryLoadCandidate();
+                }, 700 * mapState.retries);
+              } else {
+                console.error("Map loading failed for " + eid + "/" + mapPurpose + " after " + maxRetries + " attempts");
+                mapState.unavailable = true;
+                mapState.promise = null;
+                reject(new Error("Map failed to load: " + eid + "/" + mapPurpose));
+              }
+            };
+            tryLoadCandidate();
+          });
+          return mapState.promise;
+        }
+        global.DSEventsMapController = {
+          // constants
+          MAP_PREVIEW,
+          MAP_EXPORT,
+          MAP_CANVAS_WIDTH,
+          MAP_CANVAS_FALLBACK_HEIGHT,
+          MAP_GRID_STEP,
+          MAP_UPLOAD_MAX_SIDE,
+          textColors,
+          bgColors,
+          // runtime state
+          ensureMapRuntimeState,
+          getMapRuntimeState: getMapRuntimeStateFn,
+          deleteMapRuntimeStateForEvent,
+          resetMapStateForEvent,
+          cleanupOrphanedMapState,
+          // map file
+          getEventMapFile,
+          loadMapImage,
+          // re-export helpers for consistency
+          normalizeMapPurpose
+        };
+      })(window);
+    }
+  });
+
   // js/features/events-manager/events-registry-controller.js
   var require_events_registry_controller = __commonJS({
     "js/features/events-manager/events-registry-controller.js"() {
@@ -12459,7 +12809,6 @@
         var BUILDING_CONFIG_VERSION = 2;
         var MAX_BUILDING_SLOTS_TOTAL = 20;
         var MIN_BUILDING_SLOTS = 0;
-        var maxRetries = 3;
         var textColors = { 1: "#8B0000", 2: "#B85C00", 3: "#006464", 4: "#006699", 5: "#226644", 6: "#556B2F" };
         var bgColors = {
           1: "rgba(255,230,230,0.9)",
@@ -12471,7 +12820,6 @@
         };
         var buildingConfigs = {};
         var buildingPositionsMap = {};
-        var mapRuntimeState = /* @__PURE__ */ new Map();
         var coordMapWarningShown = {};
         var PROTECTED_EVENT_IDS = null;
         var deps = null;
@@ -12529,56 +12877,19 @@
           return PROTECTED_EVENT_IDS;
         }
         function isImageDataUrl(value, maxLength) {
-          var dataUrl = typeof value === "string" ? value.trim() : "";
-          if (!dataUrl || !dataUrl.startsWith("data:image/")) {
-            return false;
-          }
-          return dataUrl.length <= maxLength;
+          return global.DSEventsImageProcessor.isImageDataUrl(value, maxLength);
         }
         function hashString(value) {
-          var input = String(value || "");
-          var hash = 2166136261;
-          for (var index = 0; index < input.length; index += 1) {
-            hash ^= input.charCodeAt(index);
-            hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-          }
-          return Math.abs(hash >>> 0);
-        }
-        function getMapRuntimeStateKey(eventId, purpose) {
-          return normalizeMapPurpose(purpose) + "::" + normalizeEventId(eventId);
-        }
-        function createMapRuntimeState() {
-          return {
-            image: new Image(),
-            loaded: false,
-            retries: 0,
-            unavailable: false,
-            promise: null,
-            sourceSignature: ""
-          };
+          return global.DSEventsImageProcessor.hashString(value);
         }
         function ensureMapRuntimeState(eventId, purpose) {
-          var key = getMapRuntimeStateKey(eventId, purpose);
-          if (!mapRuntimeState.has(key)) {
-            mapRuntimeState.set(key, createMapRuntimeState());
-          }
-          return mapRuntimeState.get(key);
+          return global.DSEventsMapController.ensureMapRuntimeState(eventId, purpose);
         }
         function getMapRuntimeStateFn(eventId, purpose) {
-          var eid = normalizeEventId(eventId);
-          if (!eid) {
-            return null;
-          }
-          return ensureMapRuntimeState(eid, purpose);
+          return global.DSEventsMapController.getMapRuntimeState(eventId, purpose);
         }
         function deleteMapRuntimeStateForEvent(eventId) {
-          var eid = normalizeEventId(eventId);
-          if (!eid) {
-            return;
-          }
-          [MAP_PREVIEW, MAP_EXPORT].forEach(function(purpose) {
-            mapRuntimeState.delete(getMapRuntimeStateKey(eid, purpose));
-          });
+          global.DSEventsMapController.deleteMapRuntimeStateForEvent(eventId);
         }
         function ensureEventRuntimeState(eventId) {
           var event = normalizeEventId(eventId);
@@ -12591,9 +12902,8 @@
           if (!Object.prototype.hasOwnProperty.call(buildingPositionsMap, event)) {
             buildingPositionsMap[event] = {};
           }
-          [MAP_PREVIEW, MAP_EXPORT].forEach(function(purpose) {
-            ensureMapRuntimeState(event, purpose);
-          });
+          global.DSEventsMapController.ensureMapRuntimeState(event, MAP_PREVIEW);
+          global.DSEventsMapController.ensureMapRuntimeState(event, MAP_EXPORT);
           if (!Object.prototype.hasOwnProperty.call(coordMapWarningShown, event)) {
             coordMapWarningShown[event] = false;
           }
@@ -12604,17 +12914,7 @@
             return;
           }
           ensureEventRuntimeState(event);
-          [MAP_PREVIEW, MAP_EXPORT].forEach(function(purpose) {
-            var state = ensureMapRuntimeState(event, purpose);
-            state.loaded = false;
-            state.retries = 0;
-            state.unavailable = false;
-            state.promise = null;
-            state.sourceSignature = "";
-            if (state.image) {
-              state.image.src = "";
-            }
-          });
+          global.DSEventsMapController.resetMapStateForEvent(event);
           coordMapWarningShown[event] = false;
         }
         function syncRuntimeStateWithRegistry() {
@@ -12633,13 +12933,7 @@
               delete buildingPositionsMap[eventId];
             }
           });
-          Array.from(mapRuntimeState.keys()).forEach(function(key) {
-            var parts = key.split("::");
-            var eventId = parts.length > 1 ? parts[1] : "";
-            if (!eventIdSet.has(eventId)) {
-              mapRuntimeState.delete(key);
-            }
-          });
+          global.DSEventsMapController.cleanupOrphanedMapState(eventIdSet);
           Object.keys(coordMapWarningShown).forEach(function(eventId) {
             if (!eventIdSet.has(eventId)) {
               delete coordMapWarningShown[eventId];
@@ -12814,83 +13108,12 @@
         }
         function getEventMapFile(eventId) {
           ensureEventRuntimeState(eventId);
-          var evt = global.DSCoreEvents.getEvent(eventId);
-          if (!evt) return null;
-          var mapDataUrl = typeof evt.mapDataUrl === "string" ? evt.mapDataUrl.trim() : "";
-          return mapDataUrl || null;
+          return global.DSEventsMapController.getEventMapFile(eventId);
         }
         function loadMapImage(eventId, purpose) {
-          var currentEvent = deps.getCurrentEvent();
-          var eid = eventId || currentEvent;
-          var mapPurpose = normalizeMapPurpose(purpose);
+          var eid = eventId || deps.getCurrentEvent();
           ensureEventRuntimeState(eid);
-          var mapState = ensureMapRuntimeState(eid, mapPurpose);
-          if (mapState.loaded) {
-            return Promise.resolve(true);
-          }
-          if (mapState.promise) {
-            return mapState.promise;
-          }
-          var primaryFile = getEventMapFile(eid, mapPurpose);
-          var candidateFiles = primaryFile ? [primaryFile] : [];
-          var mapSourceSignature = candidateFiles.join("|");
-          if (mapState.sourceSignature !== mapSourceSignature) {
-            mapState.loaded = false;
-            mapState.unavailable = false;
-            mapState.retries = 0;
-            mapState.promise = null;
-            mapState.sourceSignature = mapSourceSignature;
-          }
-          mapState.promise = new Promise(function(resolve, reject) {
-            var imageEl = mapState.image;
-            var candidateIndex = 0;
-            var tryLoadCandidate = function() {
-              var src = candidateFiles[candidateIndex];
-              if (!src) {
-                mapState.unavailable = true;
-                mapState.promise = null;
-                reject(new Error("No map source available for " + eid + "/" + mapPurpose));
-                return;
-              }
-              if (typeof src === "string" && /^(data:|blob:)/i.test(src.trim())) {
-                imageEl.src = src;
-                return;
-              }
-              var bust = src.includes("?") ? "&" : "?";
-              imageEl.src = src + bust + "v=" + Date.now();
-            };
-            imageEl.onload = function() {
-              mapState.loaded = true;
-              mapState.unavailable = false;
-              mapState.retries = 0;
-              mapState.promise = null;
-              console.log("Map loaded for " + eid + "/" + mapPurpose);
-              resolve(true);
-            };
-            imageEl.onerror = function() {
-              if (candidateIndex < candidateFiles.length - 1) {
-                candidateIndex += 1;
-                tryLoadCandidate();
-                return;
-              }
-              var retry = mapState.retries + 1;
-              console.error("Map failed to load for " + eid + "/" + mapPurpose + ", attempt: " + retry);
-              if (mapState.retries < maxRetries) {
-                mapState.retries += 1;
-                setTimeout(function() {
-                  candidateIndex = 0;
-                  tryLoadCandidate();
-                }, 700 * mapState.retries);
-              } else {
-                console.error("Map loading failed for " + eid + "/" + mapPurpose + " after " + maxRetries + " attempts");
-                mapState.unavailable = true;
-                mapState.promise = null;
-                reject(new Error("Map failed to load: " + eid + "/" + mapPurpose));
-              }
-            };
-            tryLoadCandidate();
-          });
-          return mapState.promise;
+          return global.DSEventsMapController.loadMapImage(eid, purpose, deps.getCurrentEvent);
         }
         function switchEvent(eventId) {
           ensureDeps();
@@ -12947,26 +13170,7 @@
           if (elB) elB.textContent = label;
         }
         function generateEventAvatarDataUrl(nameSeed, idSeed) {
-          var seed = (nameSeed || "") + "|" + (idSeed || "") + "|event-avatar";
-          var hue = hashString(seed) % 360;
-          var canvas = document.createElement("canvas");
-          canvas.width = 96;
-          canvas.height = 96;
-          var ctx = canvas.getContext("2d");
-          if (!ctx) {
-            return "";
-          }
-          var grad = ctx.createLinearGradient(0, 0, 96, 96);
-          grad.addColorStop(0, "hsl(" + hue + ", 78%, 50%)");
-          grad.addColorStop(1, "hsl(" + (hue + 60) % 360 + ", 72%, 40%)");
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, 96, 96);
-          ctx.fillStyle = "rgba(255,255,255,0.92)";
-          ctx.font = "bold 34px Trebuchet MS";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(deps.getAvatarInitials(nameSeed || "Event", ""), 48, 50);
-          return canvas.toDataURL("image/png");
+          return global.DSEventsImageProcessor.generateEventAvatarDataUrl(nameSeed, idSeed, deps);
         }
         function updateEventLogoPreview() {
           var image = document.getElementById("eventLogoPreviewImage");
@@ -13444,100 +13648,14 @@
           updateEventMapPreview();
           updateEventEditorState();
         }
-        async function createEventImageDataUrl(file, options) {
-          var opts = options && typeof options === "object" ? options : {};
-          var maxBytes = Number(opts.maxBytes) || deps.AVATAR_MAX_UPLOAD_BYTES;
-          var minDimension = Number(opts.minDimension) || deps.AVATAR_MIN_DIMENSION;
-          var maxSide = Number(opts.maxSide) || 512;
-          var maxDataUrlLength = Number(opts.maxDataUrlLength) || deps.EVENT_MAP_DATA_URL_LIMIT;
-          var tooLargeMessage = opts.tooLargeMessage || deps.t("events_manager_image_too_large");
-          var tooSmallMessage = opts.tooSmallMessage || deps.t("events_manager_image_too_small", { min: minDimension });
-          if (!deps.isAllowedAvatarFile(file)) {
-            throw new Error(deps.t("events_manager_invalid_image"));
-          }
-          if (typeof file.size === "number" && file.size > maxBytes) {
-            throw new Error(tooLargeMessage);
-          }
-          var rawDataUrl = await deps.readFileAsDataUrl(file);
-          var img = await deps.loadImageFromDataUrl(rawDataUrl);
-          if ((img.width || 0) < minDimension || (img.height || 0) < minDimension) {
-            throw new Error(tooSmallMessage);
-          }
-          var longestSide = Math.max(img.width || 1, img.height || 1);
-          var scale = Math.min(1, maxSide / longestSide);
-          var width = Math.max(1, Math.round((img.width || 1) * scale));
-          var height = Math.max(1, Math.round((img.height || 1) * scale));
-          var canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          var ctx = canvas.getContext("2d");
-          if (!ctx) {
-            throw new Error(deps.t("events_manager_image_process_failed"));
-          }
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
-          var qualities = [0.9, 0.8, 0.7, 0.6];
-          for (var i = 0; i < qualities.length; i++) {
-            var jpegDataUrl = canvas.toDataURL("image/jpeg", qualities[i]);
-            if (jpegDataUrl.length <= maxDataUrlLength) {
-              return jpegDataUrl;
-            }
-          }
-          var pngDataUrl = canvas.toDataURL("image/png");
-          if (pngDataUrl.length <= maxDataUrlLength) {
-            return pngDataUrl;
-          }
-          throw new Error(deps.t("events_manager_image_data_too_large"));
+        function createEventImageDataUrl(file, options) {
+          return global.DSEventsImageProcessor.createEventImageDataUrl(file, options, deps);
         }
-        async function createContainedSquareImageDataUrl(sourceDataUrl, options) {
-          var opts = options && typeof options === "object" ? options : {};
-          var sideRaw = Number(opts.side);
-          var side = Number.isFinite(sideRaw) && sideRaw > 0 ? Math.round(sideRaw) : 320;
-          var maxDataUrlLength = Number(opts.maxDataUrlLength) || deps.EVENT_LOGO_DATA_URL_LIMIT;
-          var img = await deps.loadImageFromDataUrl(sourceDataUrl);
-          var canvas = document.createElement("canvas");
-          canvas.width = side;
-          canvas.height = side;
-          var ctx = canvas.getContext("2d");
-          if (!ctx) {
-            throw new Error(deps.t("events_manager_image_process_failed"));
-          }
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, side, side);
-          var sourceWidth = Math.max(1, Number(img.width) || 1);
-          var sourceHeight = Math.max(1, Number(img.height) || 1);
-          var drawScale = Math.min(side / sourceWidth, side / sourceHeight);
-          var drawWidth = Math.max(1, Math.round(sourceWidth * drawScale));
-          var drawHeight = Math.max(1, Math.round(sourceHeight * drawScale));
-          var offsetX = Math.round((side - drawWidth) / 2);
-          var offsetY = Math.round((side - drawHeight) / 2);
-          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-          var qualities = [0.9, 0.8, 0.7, 0.6];
-          for (var i = 0; i < qualities.length; i++) {
-            var jpegDataUrl = canvas.toDataURL("image/jpeg", qualities[i]);
-            if (jpegDataUrl.length <= maxDataUrlLength) {
-              return jpegDataUrl;
-            }
-          }
-          var pngDataUrl = canvas.toDataURL("image/png");
-          if (pngDataUrl.length <= maxDataUrlLength) {
-            return pngDataUrl;
-          }
-          throw new Error(deps.t("events_manager_image_data_too_large"));
+        function createContainedSquareImageDataUrl(sourceDataUrl, options) {
+          return global.DSEventsImageProcessor.createContainedSquareImageDataUrl(sourceDataUrl, options, deps);
         }
-        async function createGameMetadataLogoDataUrl(file) {
-          var resized = await createEventImageDataUrl(file, {
-            maxBytes: deps.AVATAR_MAX_UPLOAD_BYTES,
-            minDimension: deps.AVATAR_MIN_DIMENSION,
-            maxSide: 320,
-            maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT,
-            tooLargeMessage: deps.t("events_manager_logo_too_large")
-          });
-          return createContainedSquareImageDataUrl(resized, {
-            side: 320,
-            maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT
-          });
+        function createGameMetadataLogoDataUrl(file) {
+          return global.DSEventsImageProcessor.createGameMetadataLogoDataUrl(file, deps);
         }
         async function handleEventLogoChange(event) {
           var input = event && event.target ? event.target : document.getElementById("eventLogoInput");
@@ -14248,7 +14366,7 @@
             openBtn.setAttribute("data-action", "open-attendance");
             openBtn.setAttribute("title", "Mark attendance for " + (record.eventName || "event"));
             openBtn.setAttribute("aria-label", "Mark attendance for " + (record.eventName || "event"));
-            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span>';
+            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span>';
             item.appendChild(name);
             item.appendChild(date);
             item.appendChild(status);
@@ -14259,13 +14377,10 @@
           });
           container.appendChild(list);
         }
-        function renderAttendancePanel(container, historyDoc, attendanceDocs) {
+        function renderAttendancePanel(container, historyDoc, attendanceDocs, options) {
           if (!container) return;
           container.innerHTML = "";
-          var stalenessCheck = null;
-          if (global.DSFeatureEventHistoryCore && typeof global.DSFeatureEventHistoryCore.checkFinalizationStaleness === "function") {
-            stalenessCheck = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, /* @__PURE__ */ new Date());
-          }
+          var stalenessCheck = options && options.stalenessCheck || null;
           if (stalenessCheck && stalenessCheck.stale) {
             var warning = document.createElement("div");
             warning.className = "attendance-staleness-warning";
@@ -14313,11 +14428,8 @@
             container.appendChild(row);
           });
         }
-        function renderReliabilityDot(score) {
-          var tier = { cssClass: "reliability-new", label: "No history" };
-          if (global.DSCoreReliability && typeof global.DSCoreReliability.getReliabilityTier === "function") {
-            tier = global.DSCoreReliability.getReliabilityTier(score);
-          }
+        function renderReliabilityDot(score, tier) {
+          tier = tier || { cssClass: "reliability-new", label: "No history" };
           var dot = document.createElement("span");
           dot.className = "reliability-dot " + tier.cssClass;
           var ariaLabel = score !== null && score !== void 0 ? "Reliability: " + score + "% (" + tier.label + ")" : "No history yet";
@@ -14452,9 +14564,13 @@
               }) || null;
               _currentHistoryDoc = historyDoc;
             }
+            var stalenessCheck = null;
+            if (global.DSFeatureEventHistoryCore && typeof global.DSFeatureEventHistoryCore.checkFinalizationStaleness === "function") {
+              stalenessCheck = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, /* @__PURE__ */ new Date());
+            }
             var container = document.getElementById("attendancePanelBody");
             if (global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderAttendancePanel === "function") {
-              global.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs);
+              global.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs, { stalenessCheck });
             }
             var modal = document.getElementById("attendancePanelModal");
             if (modal) {
@@ -14773,7 +14889,7 @@
             var playerName = token && token.playerName || "player";
             copyBtn.setAttribute("title", "Copy link for " + playerName);
             copyBtn.setAttribute("aria-label", "Copy link for " + playerName);
-            copyBtn.innerHTML = '<span class="action-btn-text">Copy</span><span class="action-btn-icon" aria-hidden="true">&#128203;</span>';
+            copyBtn.innerHTML = '<span class="action-btn-text">Copy</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6,1h4v2H6z"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="10" x2="10.5" y2="10"/></svg></span>';
             item.appendChild(nameEl);
             item.appendChild(linkEl);
             item.appendChild(copyBtn);
@@ -15821,14 +15937,14 @@
             });
             const acceptBtn = cardTemplate.querySelector('[data-invite-action="accept"]');
             if (acceptBtn) {
-              acceptBtn.innerHTML = '<span class="action-btn-text">' + t2("notification_accept") + '</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span>';
+              acceptBtn.innerHTML = '<span class="action-btn-text">' + t2("notification_accept") + '</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span>';
               acceptBtn.setAttribute("title", t2("notification_accept"));
               acceptBtn.setAttribute("aria-label", "Accept invitation");
               acceptBtn.classList.add("alliance-action-btn--primary");
             }
             const rejectBtn = cardTemplate.querySelector('[data-invite-action="reject"]');
             if (rejectBtn) {
-              rejectBtn.innerHTML = '<span class="action-btn-text">' + t2("notification_reject") + '</span><span class="action-btn-icon" aria-hidden="true">&#10005;</span>';
+              rejectBtn.innerHTML = '<span class="action-btn-text">' + t2("notification_reject") + '</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></span>';
               rejectBtn.setAttribute("title", t2("notification_reject"));
               rejectBtn.setAttribute("aria-label", "Reject invitation");
               rejectBtn.classList.add("alliance-action-btn--danger");
@@ -15878,7 +15994,7 @@
           setElementPlaceholder(joinTemplate, "#newAllianceName", t2("alliance_name_placeholder"));
           var createActionBtn = joinTemplate.querySelector("#allianceCreateActionBtn");
           if (createActionBtn) {
-            createActionBtn.innerHTML = '<span class="action-btn-text">' + t2("alliance_create_button") + '</span><span class="action-btn-icon" aria-hidden="true">&#43;</span>';
+            createActionBtn.innerHTML = '<span class="action-btn-text">' + t2("alliance_create_button") + '</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg></span>';
             createActionBtn.setAttribute("title", "Create alliance");
             createActionBtn.setAttribute("aria-label", "Create alliance");
           }
@@ -15908,14 +16024,14 @@
           setElementPlaceholder(memberTemplate, "#inviteEmail", t2("alliance_invite_placeholder"));
           var inviteActionBtn = memberTemplate.querySelector("#allianceInviteActionBtn");
           if (inviteActionBtn) {
-            inviteActionBtn.innerHTML = '<span class="action-btn-text">' + t2("alliance_invite_button") + '</span><span class="action-btn-icon" aria-hidden="true">&#8599;</span>';
+            inviteActionBtn.innerHTML = '<span class="action-btn-text">' + t2("alliance_invite_button") + '</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="12" y2="4"/><polyline points="7,4 12,4 12,9"/></svg></span>';
             inviteActionBtn.setAttribute("title", "Send alliance invitation");
             inviteActionBtn.setAttribute("aria-label", "Send alliance invitation");
           }
           setElementText(memberTemplate, "#allianceInviteHint", t2("alliance_invite_platform_hint"));
           var leaveBtnEl = memberTemplate.querySelector("#allianceLeaveBtn");
           if (leaveBtnEl) {
-            leaveBtnEl.innerHTML = '<span class="action-btn-text">' + t2("alliance_leave_button") + '</span><span class="action-btn-icon" aria-hidden="true">&#8592;</span>';
+            leaveBtnEl.innerHTML = '<span class="action-btn-text">' + t2("alliance_leave_button") + '</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="13" y1="8" x2="3" y2="8"/><polyline points="7,4 3,8 7,12"/></svg></span>';
             leaveBtnEl.setAttribute("title", "Leave alliance");
             leaveBtnEl.setAttribute("aria-label", "Leave alliance");
           }
@@ -16337,6 +16453,12 @@
               troopsFilter: "",
               sortFilter: "power-desc"
             }
+          },
+          eventHistory: {
+            filterGameId: ""
+          },
+          playerUpdates: {
+            reviewFilter: ""
           }
         };
         function cloneDeep(value) {
@@ -16444,6 +16566,12 @@
                 return item && item.role === "substitute";
               }).length
             };
+          },
+          selectEventHistoryFilter: function selectEventHistoryFilter(state) {
+            return state && state.eventHistory && state.eventHistory.filterGameId ? state.eventHistory.filterGameId : "";
+          },
+          selectPlayerUpdatesFilter: function selectPlayerUpdatesFilter(state) {
+            return state && state.playerUpdates && state.playerUpdates.reviewFilter ? state.playerUpdates.reviewFilter : "";
           },
           selectPlayersManagementFilters: function selectPlayersManagementFilters(state) {
             const filters = state && state.playersManagement && state.playersManagement.filters ? state.playersManagement.filters : {};
@@ -18299,6 +18427,1563 @@
     }
   });
 
+  // js/shell/onboarding-controller.js
+  var require_onboarding_controller = __commonJS({
+    "js/shell/onboarding-controller.js"() {
+      (function initOnboardingController(global) {
+        "use strict";
+        var ONBOARDING_STEPS = [
+          { titleKey: "onboarding_step1_title", descKey: "onboarding_step1_desc", targetSelector: "#navMenuBtn", position: "bottom" },
+          { titleKey: "onboarding_step2_title", descKey: "onboarding_step2_desc", targetSelector: "#navPlayersBtn", position: "bottom" },
+          { titleKey: "onboarding_step3_title", descKey: "onboarding_step3_desc", targetSelector: "#downloadTemplateBtn", position: "bottom" },
+          { titleKey: "onboarding_step4_title", descKey: "onboarding_step4_desc", targetSelector: "#uploadPlayerBtn", position: "bottom" },
+          { titleKey: "onboarding_step5_title", descKey: "onboarding_step5_desc", targetSelector: "#playersMgmtAddPanelHeader", position: "bottom" },
+          { titleKey: "onboarding_step6_title", descKey: "onboarding_step6_desc", targetSelector: "#navConfigBtn", position: "bottom" },
+          { titleKey: "onboarding_step7_title", descKey: "onboarding_step7_desc", targetSelector: "#eventsList", position: "top" },
+          { titleKey: "onboarding_step8_title", descKey: "onboarding_step8_desc", targetSelector: "#mapCoordinatesBtn", position: "top" },
+          { titleKey: "onboarding_step9_title", descKey: "onboarding_step9_desc", targetSelector: "#navGeneratorBtn", position: "bottom" },
+          { titleKey: "onboarding_step10_title", descKey: "onboarding_step10_desc", targetSelector: "#navAllianceBtn", position: "bottom" },
+          { titleKey: "onboarding_step11_title", descKey: "onboarding_step11_desc", targetSelector: "#alliancePage", position: "top" }
+        ];
+        var onboardingActive = false;
+        var currentOnboardingStep = 0;
+        var pendingOnboardingStep = null;
+        var currentHighlightTarget = null;
+        var deps = null;
+        function t2(key, params) {
+          return deps && typeof deps.t === "function" ? deps.t(key, params) : key;
+        }
+        function initOnboarding2() {
+          try {
+            if (localStorage.getItem("ds_onboarding_done")) return;
+          } catch (e) {
+            return;
+          }
+          onboardingActive = true;
+          currentOnboardingStep = 0;
+          showOnboardingStep(0);
+        }
+        function showOnboardingStep(index) {
+          if (index >= ONBOARDING_STEPS.length) {
+            completeOnboarding();
+            return;
+          }
+          var step = ONBOARDING_STEPS[index];
+          if (step.targetSelector === "#navPlayersBtn" || step.targetSelector === "#navConfigBtn" || step.targetSelector === "#navGeneratorBtn" || step.targetSelector === "#navAllianceBtn") {
+            if (deps && typeof deps.openNavigationMenu === "function") {
+              deps.openNavigationMenu();
+            }
+          }
+          var target = document.querySelector(step.targetSelector);
+          if (!target || target.closest(".hidden") || getComputedStyle(target).display === "none") {
+            pendingOnboardingStep = index;
+            return;
+          }
+          pendingOnboardingStep = null;
+          currentOnboardingStep = index;
+          if (currentHighlightTarget) {
+            currentHighlightTarget.classList.remove("onboarding-highlight");
+          }
+          currentHighlightTarget = target;
+          target.classList.add("onboarding-highlight");
+          document.getElementById("onboardingStepLabel").textContent = t2("onboarding_step", { current: index + 1, total: ONBOARDING_STEPS.length });
+          document.getElementById("onboardingTitle").textContent = t2(step.titleKey);
+          document.getElementById("onboardingDesc").textContent = t2(step.descKey);
+          document.getElementById("onboardingSkip").textContent = t2("onboarding_skip");
+          var tooltip = document.getElementById("onboardingTooltip");
+          tooltip.classList.remove("hidden");
+          positionOnboardingTooltip();
+        }
+        function positionOnboardingTooltip() {
+          var tooltip = document.getElementById("onboardingTooltip");
+          if (!tooltip || tooltip.classList.contains("hidden")) return;
+          var step = ONBOARDING_STEPS[currentOnboardingStep];
+          var target = document.querySelector(step.targetSelector);
+          if (!target) return;
+          var rect = target.getBoundingClientRect();
+          var tWidth = tooltip.offsetWidth || 280;
+          var tHeight = tooltip.offsetHeight || 160;
+          var vw = window.innerWidth;
+          var vh = window.innerHeight;
+          var gap = 10;
+          var place = step.position;
+          if (place === "bottom" && rect.bottom + gap + tHeight > vh) place = "top";
+          if (place === "top" && rect.top - gap - tHeight < 0) place = "bottom";
+          var top;
+          if (place === "bottom") {
+            top = rect.bottom + gap;
+            tooltip.setAttribute("data-arrow", "top");
+          } else {
+            top = rect.top - gap - tHeight;
+            tooltip.setAttribute("data-arrow", "bottom");
+          }
+          var left = rect.left + rect.width / 2 - tWidth / 2;
+          left = Math.max(8, Math.min(left, vw - tWidth - 8));
+          var arrowOffset = rect.left + rect.width / 2 - left - 7;
+          arrowOffset = Math.max(12, Math.min(arrowOffset, tWidth - 26));
+          tooltip.style.top = top + "px";
+          tooltip.style.left = left + "px";
+          tooltip.style.setProperty("--arrow-offset", arrowOffset + "px");
+        }
+        function dismissOnboardingStep() {
+          if (!onboardingActive) return;
+          if (currentHighlightTarget) {
+            currentHighlightTarget.classList.remove("onboarding-highlight");
+            currentHighlightTarget = null;
+          }
+          document.getElementById("onboardingTooltip").classList.add("hidden");
+          var next = currentOnboardingStep + 1;
+          if (next >= ONBOARDING_STEPS.length) {
+            completeOnboarding();
+          } else {
+            showOnboardingStep(next);
+          }
+        }
+        function completeOnboarding() {
+          onboardingActive = false;
+          if (currentHighlightTarget) {
+            currentHighlightTarget.classList.remove("onboarding-highlight");
+            currentHighlightTarget = null;
+          }
+          document.getElementById("onboardingTooltip").classList.add("hidden");
+          try {
+            localStorage.setItem("ds_onboarding_done", "true");
+          } catch (e) {
+          }
+        }
+        function updateOnboardingTooltip() {
+          if (!onboardingActive) return;
+          var step = ONBOARDING_STEPS[currentOnboardingStep];
+          document.getElementById("onboardingStepLabel").textContent = t2("onboarding_step", { current: currentOnboardingStep + 1, total: ONBOARDING_STEPS.length });
+          document.getElementById("onboardingTitle").textContent = t2(step.titleKey);
+          document.getElementById("onboardingDesc").textContent = t2(step.descKey);
+          document.getElementById("onboardingSkip").textContent = t2("onboarding_skip");
+        }
+        function resumePendingOnboardingStep() {
+          if (pendingOnboardingStep === null) {
+            return;
+          }
+          var pending = pendingOnboardingStep;
+          pendingOnboardingStep = null;
+          showOnboardingStep(pending);
+        }
+        function isOnboardingActive() {
+          return onboardingActive;
+        }
+        function bindOnboardingListeners() {
+          document.addEventListener("click", function(event) {
+            if (!onboardingActive) return;
+            var step = ONBOARDING_STEPS[currentOnboardingStep];
+            if (!step) return;
+            var target = document.querySelector(step.targetSelector);
+            if (!target) return;
+            if (target.contains(event.target)) {
+              dismissOnboardingStep();
+            }
+          });
+          var skipEl = document.getElementById("onboardingSkip");
+          if (skipEl) {
+            skipEl.addEventListener("click", completeOnboarding);
+          }
+        }
+        ["scroll", "resize"].forEach(function(ev) {
+          window.addEventListener(ev, function() {
+            if (onboardingActive) positionOnboardingTooltip();
+          }, { passive: true });
+        });
+        global.DSOnboardingController = {
+          init: function(dependencies) {
+            deps = dependencies;
+          },
+          initOnboarding: initOnboarding2,
+          showOnboardingStep,
+          dismissOnboardingStep,
+          completeOnboarding,
+          updateOnboardingTooltip,
+          resumePendingOnboardingStep,
+          isOnboardingActive,
+          bindOnboardingListeners
+        };
+      })(window);
+    }
+  });
+
+  // js/shell/theme-controller.js
+  var require_theme_controller = __commonJS({
+    "js/shell/theme-controller.js"() {
+      (function initThemeController(global) {
+        "use strict";
+        var THEME_STORAGE_KEY = "ds_theme";
+        var THEME_STANDARD = "standard";
+        var THEME_LAST_WAR = "last-war";
+        var SUPPORTED_THEMES = /* @__PURE__ */ new Set([THEME_STANDARD, THEME_LAST_WAR]);
+        function normalizeThemePreference(theme) {
+          if (typeof theme !== "string") {
+            return THEME_STANDARD;
+          }
+          var normalized = theme.trim().toLowerCase();
+          return SUPPORTED_THEMES.has(normalized) ? normalized : THEME_STANDARD;
+        }
+        function getStoredThemePreference() {
+          try {
+            return normalizeThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
+          } catch (error) {
+            return THEME_STANDARD;
+          }
+        }
+        function persistThemePreference(theme) {
+          try {
+            localStorage.setItem(THEME_STORAGE_KEY, normalizeThemePreference(theme));
+          } catch (error) {
+          }
+        }
+        function applyPlatformTheme(theme, options) {
+          var nextTheme = normalizeThemePreference(theme);
+          var root = document.documentElement;
+          if (root) {
+            root.setAttribute("data-theme", nextTheme);
+          }
+          if (document.body) {
+            document.body.setAttribute("data-theme", nextTheme);
+          }
+          if (!options || options.skipPersist !== true) {
+            persistThemePreference(nextTheme);
+          }
+          return nextTheme;
+        }
+        function getCurrentAppliedTheme() {
+          var root = document.documentElement;
+          if (!root) {
+            return THEME_STANDARD;
+          }
+          return normalizeThemePreference(root.getAttribute("data-theme"));
+        }
+        applyPlatformTheme(getStoredThemePreference(), { skipPersist: true });
+        global.DSThemeController = {
+          THEME_STANDARD,
+          THEME_LAST_WAR,
+          normalizeThemePreference,
+          getStoredThemePreference,
+          persistThemePreference,
+          applyPlatformTheme,
+          getCurrentAppliedTheme
+        };
+      })(window);
+    }
+  });
+
+  // js/shell/auth-ui-controller.js
+  var require_auth_ui_controller = __commonJS({
+    "js/shell/auth-ui-controller.js"() {
+      (function initAuthUiController(global) {
+        "use strict";
+        var PROFILE_TEXT_LIMIT = 60;
+        var PROFILE_AVATAR_DATA_URL_LIMIT = 4e5;
+        var AVATAR_ALLOWED_TYPES = /* @__PURE__ */ new Set(["image/jpeg", "image/png", "image/webp"]);
+        var AVATAR_ALLOWED_EXTENSIONS = /* @__PURE__ */ new Set([".jpg", ".jpeg", ".png", ".webp"]);
+        var AVATAR_MIN_DIMENSION = 96;
+        var AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+        var DELETE_ACCOUNT_CONFIRM_WORD = "delete";
+        var deps = null;
+        var settingsDraftAvatarDataUrl = "";
+        var settingsDraftTheme = "standard";
+        var googleSignInInProgress = false;
+        function t2(key, params) {
+          return deps && typeof deps.t === "function" ? deps.t(key, params) : key;
+        }
+        function getFirebaseService() {
+          return deps && typeof deps.getFirebaseService === "function" ? deps.getFirebaseService() : null;
+        }
+        function readFileAsDataUrl(file) {
+          return new Promise(function(resolve, reject) {
+            var reader = new FileReader();
+            reader.onload = function(event) {
+              resolve(event.target.result);
+            };
+            reader.onerror = function() {
+              reject(new Error(t2("settings_avatar_processing_failed")));
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+        function loadImageFromDataUrl(dataUrl) {
+          return new Promise(function(resolve, reject) {
+            var img = new Image();
+            img.onload = function() {
+              resolve(img);
+            };
+            img.onerror = function() {
+              reject(new Error(t2("settings_avatar_processing_failed")));
+            };
+            img.src = dataUrl;
+          });
+        }
+        function getFileExtension(name) {
+          if (typeof name !== "string") {
+            return "";
+          }
+          var normalized = name.trim().toLowerCase();
+          var dotIndex = normalized.lastIndexOf(".");
+          if (dotIndex <= 0) {
+            return "";
+          }
+          return normalized.slice(dotIndex);
+        }
+        function isAllowedAvatarFile(file) {
+          if (!file) {
+            return false;
+          }
+          var type = typeof file.type === "string" ? file.type.trim().toLowerCase() : "";
+          var extension = getFileExtension(file.name);
+          if (type && !AVATAR_ALLOWED_TYPES.has(type)) {
+            return false;
+          }
+          if (extension && !AVATAR_ALLOWED_EXTENSIONS.has(extension)) {
+            return false;
+          }
+          return Boolean(type && AVATAR_ALLOWED_TYPES.has(type) || extension && AVATAR_ALLOWED_EXTENSIONS.has(extension));
+        }
+        async function createAvatarDataUrl(file) {
+          if (!isAllowedAvatarFile(file)) {
+            throw new Error(t2("settings_avatar_invalid_type"));
+          }
+          if (typeof file.size === "number" && file.size > AVATAR_MAX_UPLOAD_BYTES) {
+            throw new Error(t2("settings_avatar_file_too_large", { maxMb: Math.floor(AVATAR_MAX_UPLOAD_BYTES / (1024 * 1024)) }));
+          }
+          var rawDataUrl = await readFileAsDataUrl(file);
+          var img = await loadImageFromDataUrl(rawDataUrl);
+          if ((img.width || 0) < AVATAR_MIN_DIMENSION || (img.height || 0) < AVATAR_MIN_DIMENSION) {
+            throw new Error(t2("settings_avatar_too_small", { min: AVATAR_MIN_DIMENSION }));
+          }
+          var maxSide = 256;
+          var longestSide = Math.max(img.width || 1, img.height || 1);
+          var scale = Math.min(1, maxSide / longestSide);
+          var width = Math.max(1, Math.round((img.width || 1) * scale));
+          var height = Math.max(1, Math.round((img.height || 1) * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          var ctx = canvas.getContext("2d");
+          if (!ctx) {
+            throw new Error(t2("settings_avatar_processing_failed"));
+          }
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          var jpegQualities = [0.9, 0.8, 0.7, 0.6, 0.5];
+          for (var i = 0; i < jpegQualities.length; i++) {
+            var jpegDataUrl = canvas.toDataURL("image/jpeg", jpegQualities[i]);
+            if (jpegDataUrl.length <= PROFILE_AVATAR_DATA_URL_LIMIT) {
+              return jpegDataUrl;
+            }
+          }
+          var pngDataUrl = canvas.toDataURL("image/png");
+          if (pngDataUrl.length <= PROFILE_AVATAR_DATA_URL_LIMIT) {
+            return pngDataUrl;
+          }
+          throw new Error(t2("settings_avatar_too_large"));
+        }
+        function updateUserHeaderIdentity2(user) {
+          if (typeof user !== "undefined") {
+            deps.setCurrentAuthUser(user);
+          }
+          var currentAuthUser = deps.getCurrentAuthUser();
+          var profile = deps.getProfileFromService();
+          var resolvedTheme = currentAuthUser ? profile.theme : deps.getStoredThemePreference();
+          deps.applyPlatformTheme(resolvedTheme);
+          var nickname = profile.nickname || "";
+          var displayName = profile.displayName || "";
+          var visibleLabel = nickname || displayName;
+          var labelEl = document.getElementById("userIdentityLabel");
+          if (labelEl) {
+            labelEl.textContent = visibleLabel;
+          }
+          var userTextEl = document.getElementById("headerUserText");
+          if (userTextEl) {
+            userTextEl.classList.toggle("hidden", !visibleLabel);
+          }
+          var avatarImageEl = document.getElementById("headerAvatarImage");
+          var avatarInitialsEl = document.getElementById("headerAvatarInitials");
+          var initialsSource = visibleLabel || deps.getSignInDisplayName(currentAuthUser);
+          deps.applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, deps.getAvatarInitials(initialsSource, ""));
+          deps.syncGameMetadataMenuAvailability();
+        }
+        function updateSettingsAvatarPreview() {
+          var displayInput = document.getElementById("settingsDisplayNameInput");
+          var nicknameInput = document.getElementById("settingsNicknameInput");
+          var currentAuthUser = deps.getCurrentAuthUser();
+          var name = displayInput && displayInput.value ? displayInput.value.trim() : deps.getSignInDisplayName(currentAuthUser);
+          var nickname = nicknameInput && nicknameInput.value ? nicknameInput.value.trim().replace(/^@+/, "") : "";
+          var previewImg = document.getElementById("settingsAvatarImage");
+          var previewInitials = document.getElementById("settingsAvatarInitials");
+          deps.applyAvatar(settingsDraftAvatarDataUrl, previewImg, previewInitials, deps.getAvatarInitials(name, nickname));
+        }
+        function openSettingsModal() {
+          deps.closeNavigationMenu();
+          var modal = document.getElementById("settingsModal");
+          if (!modal) {
+            return;
+          }
+          var profile = deps.getProfileFromService();
+          var displayInput = document.getElementById("settingsDisplayNameInput");
+          var nicknameInput = document.getElementById("settingsNicknameInput");
+          var languageSelect = document.getElementById("languageSelect");
+          var themeSelect = document.getElementById("settingsThemeSelect");
+          var currentAuthUser = deps.getCurrentAuthUser();
+          var signInName = deps.getSignInDisplayName(currentAuthUser);
+          if (displayInput) {
+            displayInput.value = profile.displayName || signInName || "";
+          }
+          if (nicknameInput) {
+            nicknameInput.value = profile.nickname || "";
+          }
+          if (languageSelect && global.DSI18N && global.DSI18N.getLanguage) {
+            languageSelect.value = global.DSI18N.getLanguage();
+          }
+          settingsDraftTheme = deps.normalizeThemePreference(profile.theme || deps.getCurrentAppliedTheme());
+          if (themeSelect) {
+            themeSelect.value = settingsDraftTheme;
+          }
+          settingsDraftAvatarDataUrl = profile.avatarDataUrl || "";
+          var statusEl = document.getElementById("settingsStatus");
+          if (statusEl) {
+            statusEl.innerHTML = "";
+          }
+          var deleteConfirmInput = document.getElementById("settingsDeleteConfirmInput");
+          if (deleteConfirmInput) {
+            deleteConfirmInput.value = "";
+          }
+          var deleteBtn = document.getElementById("settingsDeleteBtn");
+          if (deleteBtn) {
+            deleteBtn.disabled = false;
+          }
+          updateSettingsAvatarPreview();
+          deps.openModalOverlay(modal, { initialFocusSelector: "#settingsDisplayNameInput" });
+        }
+        function closeSettingsModal() {
+          var modal = document.getElementById("settingsModal");
+          if (modal) {
+            deps.closeModalOverlay(modal);
+          }
+        }
+        function triggerSettingsAvatarUpload() {
+          var input = document.getElementById("settingsAvatarInput");
+          if (input) {
+            input.click();
+          }
+        }
+        function removeSettingsAvatar() {
+          settingsDraftAvatarDataUrl = "";
+          var input = document.getElementById("settingsAvatarInput");
+          if (input) {
+            input.value = "";
+          }
+          updateSettingsAvatarPreview();
+        }
+        async function handleSettingsAvatarChange(event) {
+          var input = event && event.target ? event.target : document.getElementById("settingsAvatarInput");
+          var file = input && input.files ? input.files[0] : null;
+          if (!file) {
+            return;
+          }
+          try {
+            settingsDraftAvatarDataUrl = await createAvatarDataUrl(file);
+            var statusEl = document.getElementById("settingsStatus");
+            if (statusEl) {
+              statusEl.innerHTML = "";
+            }
+            updateSettingsAvatarPreview();
+          } catch (error) {
+            deps.showMessage("settingsStatus", error.message || t2("settings_avatar_processing_failed"), "error");
+          } finally {
+            if (input) {
+              input.value = "";
+            }
+          }
+        }
+        async function saveSettings() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            deps.showMessage("settingsStatus", t2("error_firebase_not_loaded"), "error");
+            return;
+          }
+          var gameplayContext = deps.getGameplayContext("settingsStatus");
+          if (!gameplayContext) {
+            return;
+          }
+          var displayInput = document.getElementById("settingsDisplayNameInput");
+          var nicknameInput = document.getElementById("settingsNicknameInput");
+          var displayName = displayInput && typeof displayInput.value === "string" ? displayInput.value.trim().slice(0, PROFILE_TEXT_LIMIT) : "";
+          var nickname = nicknameInput && typeof nicknameInput.value === "string" ? nicknameInput.value.trim().replace(/^@+/, "").slice(0, PROFILE_TEXT_LIMIT) : "";
+          var themeSelect = document.getElementById("settingsThemeSelect");
+          var selectedTheme = deps.normalizeThemePreference(
+            themeSelect && typeof themeSelect.value === "string" ? themeSelect.value : settingsDraftTheme
+          );
+          if (FirebaseService2.setUserProfile) {
+            FirebaseService2.setUserProfile({
+              displayName,
+              nickname,
+              avatarDataUrl: settingsDraftAvatarDataUrl || ""
+            }, gameplayContext);
+          }
+          var result = await FirebaseService2.saveUserData(void 0, gameplayContext);
+          if (result && result.success) {
+            settingsDraftTheme = selectedTheme;
+            deps.applyPlatformTheme(selectedTheme);
+            updateUserHeaderIdentity2(deps.getCurrentAuthUser());
+            deps.showMessage("settingsStatus", t2("settings_saved"), "success");
+            setTimeout(function() {
+              closeSettingsModal();
+            }, 600);
+          } else {
+            var errorText = result && result.error ? result.error : t2("settings_avatar_processing_failed");
+            deps.showMessage("settingsStatus", t2("settings_save_failed", { error: errorText }), "error");
+          }
+        }
+        async function deleteAccountFromSettings() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2 || typeof FirebaseService2.deleteUserAccountAndData !== "function") {
+            deps.showMessage("settingsStatus", t2("error_firebase_not_loaded"), "error");
+            return;
+          }
+          var inputEl = document.getElementById("settingsDeleteConfirmInput");
+          var typedValue = inputEl && typeof inputEl.value === "string" ? inputEl.value.trim().toLowerCase() : "";
+          if (typedValue !== DELETE_ACCOUNT_CONFIRM_WORD) {
+            deps.showMessage("settingsStatus", t2("settings_delete_account_word_error", { word: DELETE_ACCOUNT_CONFIRM_WORD }), "error");
+            return;
+          }
+          if (!confirm(t2("settings_delete_account_confirm_final"))) {
+            return;
+          }
+          var deleteBtn = document.getElementById("settingsDeleteBtn");
+          if (deleteBtn) {
+            deleteBtn.disabled = true;
+          }
+          deps.showMessage("settingsStatus", t2("settings_delete_account_processing"), "processing");
+          try {
+            var result = await FirebaseService2.deleteUserAccountAndData();
+            if (result && (result.success || result.accountDeleted)) {
+              deps.showMessage("settingsStatus", t2("settings_delete_account_success"), "success");
+              return;
+            }
+            if (result && result.dataDeleted && result.reauthRequired) {
+              deps.showMessage("settingsStatus", t2("settings_delete_account_reauth"), "warning");
+              return;
+            }
+            var errorText = result && result.error ? result.error : t2("error_generic", { error: "unknown" });
+            deps.showMessage("settingsStatus", t2("settings_delete_account_failed", { error: errorText }), "error");
+          } catch (error) {
+            deps.showMessage("settingsStatus", t2("settings_delete_account_failed", { error: error.message || "unknown" }), "error");
+          } finally {
+            if (FirebaseService2 && typeof FirebaseService2.signOut === "function") {
+              try {
+                await FirebaseService2.signOut();
+              } catch (signOutError) {
+                console.warn("Sign-out after account deletion flow failed:", signOutError && signOutError.message ? signOutError.message : signOutError);
+              }
+            }
+            closeSettingsModal();
+            if (deleteBtn) {
+              deleteBtn.disabled = false;
+            }
+          }
+        }
+        async function handleGoogleSignIn() {
+          if (googleSignInInProgress) {
+            return;
+          }
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            alert(t2("error_firebase_not_loaded"));
+            return;
+          }
+          var btn = document.getElementById("googleSignInBtn");
+          googleSignInInProgress = true;
+          if (btn) {
+            btn.disabled = true;
+          }
+          try {
+            var result = await FirebaseService2.signInWithGoogle();
+            if (!result.success) {
+              alert(t2("error_sign_in_failed", { error: result.error }));
+            }
+          } finally {
+            googleSignInInProgress = false;
+            if (btn) {
+              btn.disabled = false;
+            }
+          }
+        }
+        async function handleEmailSignIn() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            alert(t2("error_firebase_not_loaded"));
+            return;
+          }
+          var email = document.getElementById("emailInput").value;
+          var password = document.getElementById("passwordInput").value;
+          if (!email || !password) {
+            alert(t2("error_enter_email_password"));
+            return;
+          }
+          var result = await FirebaseService2.signInWithEmail(email, password);
+          if (!result.success) {
+            alert(t2("error_sign_in_failed", { error: result.error }));
+          }
+        }
+        function showSignUpForm() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            alert(t2("error_firebase_not_loaded"));
+            return;
+          }
+          var email = document.getElementById("emailInput").value;
+          var password = document.getElementById("passwordInput").value;
+          if (!email || !password) {
+            alert(t2("error_enter_email_password"));
+            return;
+          }
+          if (password.length < 6) {
+            alert(t2("error_password_length"));
+            return;
+          }
+          if (confirm(t2("confirm_create_account", { email }))) {
+            handleSignUp(email, password);
+          }
+        }
+        async function handleSignUp(email, password) {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            alert(t2("error_firebase_not_loaded"));
+            return;
+          }
+          var result = await FirebaseService2.signUpWithEmail(email, password);
+          if (result.success) {
+            alert(t2("success_account_created"));
+          } else {
+            alert(t2("error_sign_up_failed", { error: result.error }));
+          }
+        }
+        async function handlePasswordReset() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            alert(t2("error_firebase_not_loaded"));
+            return;
+          }
+          var email = document.getElementById("emailInput").value;
+          if (!email) {
+            alert(t2("error_enter_email"));
+            return;
+          }
+          var result = await FirebaseService2.resetPassword(email);
+          if (result.success) {
+            alert(t2("success_password_reset"));
+          } else {
+            alert(t2("error_failed", { error: result.error }));
+          }
+        }
+        async function handleSignOut() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2) {
+            alert(t2("error_firebase_not_loaded"));
+            return;
+          }
+          if (confirm(t2("confirm_sign_out"))) {
+            await FirebaseService2.signOut();
+          }
+        }
+        global.DSAuthUiController = {
+          // constants
+          PROFILE_TEXT_LIMIT,
+          PROFILE_AVATAR_DATA_URL_LIMIT,
+          AVATAR_MIN_DIMENSION,
+          AVATAR_MAX_UPLOAD_BYTES,
+          // init
+          init: function(dependencies) {
+            deps = dependencies;
+          },
+          // file/image helpers (shared with events registry)
+          readFileAsDataUrl,
+          loadImageFromDataUrl,
+          getFileExtension,
+          isAllowedAvatarFile,
+          createAvatarDataUrl,
+          // header identity
+          updateUserHeaderIdentity: updateUserHeaderIdentity2,
+          // settings modal
+          openSettingsModal,
+          closeSettingsModal,
+          triggerSettingsAvatarUpload,
+          removeSettingsAvatar,
+          updateSettingsAvatarPreview,
+          handleSettingsAvatarChange,
+          saveSettings,
+          deleteAccountFromSettings,
+          // auth actions
+          handleGoogleSignIn,
+          handleEmailSignIn,
+          showSignUpForm,
+          handleSignUp,
+          handlePasswordReset,
+          handleSignOut
+        };
+      })(window);
+    }
+  });
+
+  // js/shell/game-metadata-admin-controller.js
+  var require_game_metadata_admin_controller = __commonJS({
+    "js/shell/game-metadata-admin-controller.js"() {
+      (function initGameMetadataAdminController(global) {
+        "use strict";
+        var GAME_METADATA_SUPER_ADMIN_UID = "2z2BdO8aVsUovqQWWL9WCRMdV933";
+        var gameMetadataCatalogCache = [];
+        var gameMetadataDraftLogoDataUrl = "";
+        var t2;
+        var showMessage;
+        var getFirebaseService;
+        var getCurrentAuthUser;
+        var getActiveGame;
+        var ensureActiveGameContext;
+        var updateActiveGameBadge;
+        var refreshGameSelectorMenuAvailability;
+        var applyAvatar;
+        var getAvatarInitials;
+        var closeNavigationMenu;
+        var generateEventAvatarDataUrl;
+        var createGameMetadataLogoDataUrl;
+        var getSelectableGameById;
+        function init(deps) {
+          t2 = deps.t;
+          showMessage = deps.showMessage;
+          getFirebaseService = deps.getFirebaseService;
+          getCurrentAuthUser = deps.getCurrentAuthUser;
+          getActiveGame = deps.getActiveGame;
+          ensureActiveGameContext = deps.ensureActiveGameContext;
+          updateActiveGameBadge = deps.updateActiveGameBadge;
+          refreshGameSelectorMenuAvailability = deps.refreshGameSelectorMenuAvailability;
+          applyAvatar = deps.applyAvatar;
+          getAvatarInitials = deps.getAvatarInitials;
+          closeNavigationMenu = deps.closeNavigationMenu;
+          generateEventAvatarDataUrl = deps.generateEventAvatarDataUrl;
+          createGameMetadataLogoDataUrl = deps.createGameMetadataLogoDataUrl;
+          getSelectableGameById = deps.getSelectableGameById;
+        }
+        function isGameMetadataSuperAdmin(userOrUid) {
+          var FirebaseService2 = getFirebaseService();
+          if (typeof FirebaseService2 !== "undefined" && FirebaseService2 !== null && typeof FirebaseService2.isGameMetadataSuperAdmin === "function") {
+            return FirebaseService2.isGameMetadataSuperAdmin(userOrUid);
+          }
+          if (typeof userOrUid === "string") {
+            return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
+          }
+          var uid = userOrUid && typeof userOrUid === "object" && typeof userOrUid.uid === "string" ? userOrUid.uid.trim() : "";
+          return uid === GAME_METADATA_SUPER_ADMIN_UID;
+        }
+        function syncGameMetadataMenuAvailability() {
+          var navGameMetadataBtn = document.getElementById("navGameMetadataBtn");
+          if (!navGameMetadataBtn) {
+            return;
+          }
+          var allowed = isGameMetadataSuperAdmin(getCurrentAuthUser());
+          navGameMetadataBtn.classList.toggle("hidden", !allowed);
+          navGameMetadataBtn.disabled = !allowed;
+          if (!allowed) {
+            closeGameMetadataOverlay();
+          }
+        }
+        function clearGameMetadataForm() {
+          var nameInput = document.getElementById("gameMetadataNameInput");
+          var companyInput = document.getElementById("gameMetadataCompanyInput");
+          if (nameInput) {
+            nameInput.value = "";
+          }
+          if (companyInput) {
+            companyInput.value = "";
+          }
+          var logoInput = document.getElementById("gameMetadataLogoInput");
+          if (logoInput) {
+            logoInput.value = "";
+          }
+          gameMetadataDraftLogoDataUrl = "";
+          updateGameMetadataLogoPreview2();
+        }
+        function clearGameMetadataStatus() {
+          var status = document.getElementById("gameMetadataStatus");
+          if (status) {
+            status.replaceChildren();
+          }
+        }
+        function setGameMetadataFormDisabled(disabled) {
+          [
+            "gameMetadataSelect",
+            "gameMetadataNameInput",
+            "gameMetadataLogoUploadBtn",
+            "gameMetadataLogoRemoveBtn",
+            "gameMetadataLogoInput",
+            "gameMetadataCompanyInput",
+            "gameMetadataSaveBtn"
+          ].forEach(function(id) {
+            var element = document.getElementById(id);
+            if (element) {
+              element.disabled = disabled;
+            }
+          });
+        }
+        function normalizeGameMetadataEntry(entry) {
+          var source = entry && typeof entry === "object" ? entry : {};
+          var id = typeof source.id === "string" ? source.id.trim() : "";
+          if (!id) {
+            return null;
+          }
+          return {
+            id,
+            name: typeof source.name === "string" && source.name.trim() ? source.name.trim() : id,
+            logo: typeof source.logo === "string" ? source.logo.trim() : "",
+            company: typeof source.company === "string" ? source.company : ""
+          };
+        }
+        function resolveSelectedMetadataGameId() {
+          var select = document.getElementById("gameMetadataSelect");
+          if (!select || typeof select.value !== "string") {
+            return "";
+          }
+          return select.value.trim();
+        }
+        function resolveGameMetadataDraftName() {
+          var nameInput = document.getElementById("gameMetadataNameInput");
+          var explicitName = nameInput && typeof nameInput.value === "string" ? nameInput.value.trim() : "";
+          if (explicitName) {
+            return explicitName;
+          }
+          var selectedGameId = resolveSelectedMetadataGameId();
+          var selectedGame = selectedGameId ? getSelectableGameById(selectedGameId) : null;
+          if (selectedGame && selectedGame.name) {
+            return selectedGame.name;
+          }
+          return selectedGameId || "Game";
+        }
+        function generateGameAvatarDataUrl(nameSeed, idSeed) {
+          return generateEventAvatarDataUrl(nameSeed || "Game", (idSeed || "") + "|game-avatar");
+        }
+        function updateGameMetadataLogoPreview2() {
+          var previewImage = document.getElementById("gameMetadataLogoPreviewImage");
+          var previewInitials = document.getElementById("gameMetadataLogoPreviewInitials");
+          if (!previewImage || !previewInitials) {
+            return;
+          }
+          var selectedGameId = resolveSelectedMetadataGameId();
+          var seedName = resolveGameMetadataDraftName();
+          var fallbackAvatar = generateGameAvatarDataUrl(seedName, selectedGameId || seedName);
+          applyAvatar(gameMetadataDraftLogoDataUrl || fallbackAvatar, previewImage, previewInitials, getAvatarInitials(seedName, "G"));
+        }
+        function renderGameMetadataSelect(games, preferredGameId) {
+          var select = document.getElementById("gameMetadataSelect");
+          if (!select) {
+            return "";
+          }
+          select.replaceChildren();
+          var normalizedGames = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+          normalizedGames.forEach(function(game) {
+            var option = document.createElement("option");
+            option.value = game.id;
+            option.textContent = game.name;
+            select.appendChild(option);
+          });
+          var preferred = typeof preferredGameId === "string" ? preferredGameId.trim() : "";
+          if (preferred && normalizedGames.some(function(game) {
+            return game.id === preferred;
+          })) {
+            select.value = preferred;
+          } else if (normalizedGames.length > 0) {
+            select.value = normalizedGames[0].id;
+          } else {
+            select.value = "";
+          }
+          return select.value;
+        }
+        async function reloadGameMetadataCatalog(preferredGameId) {
+          var preferred = typeof preferredGameId === "string" ? preferredGameId.trim() : "";
+          await refreshGameMetadataCatalogCache({ silent: true, preferredGameId: preferred });
+          return renderGameMetadataSelect(gameMetadataCatalogCache, preferred);
+        }
+        async function refreshGameMetadataCatalogCache(options) {
+          var FirebaseService2 = getFirebaseService();
+          if (typeof FirebaseService2 === "undefined" || FirebaseService2 === null || typeof FirebaseService2.listGameMetadata !== "function") {
+            return gameMetadataCatalogCache;
+          }
+          var config = options && typeof options === "object" ? options : {};
+          var silent = config.silent === true;
+          var preferredGameId = typeof config.preferredGameId === "string" ? config.preferredGameId.trim() : "";
+          try {
+            var games = await FirebaseService2.listGameMetadata();
+            gameMetadataCatalogCache = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
+            var activeGameId = preferredGameId || getActiveGame() || "";
+            updateActiveGameBadge(activeGameId);
+            refreshGameSelectorMenuAvailability();
+            return gameMetadataCatalogCache;
+          } catch (error) {
+            if (!silent) {
+              console.warn("Failed to refresh game metadata catalog cache:", error);
+            }
+            return gameMetadataCatalogCache;
+          }
+        }
+        function fillGameMetadataForm(game) {
+          var metadata = normalizeGameMetadataEntry(game);
+          if (!metadata) {
+            clearGameMetadataForm();
+            return;
+          }
+          var nameInput = document.getElementById("gameMetadataNameInput");
+          var companyInput = document.getElementById("gameMetadataCompanyInput");
+          if (nameInput) {
+            nameInput.value = metadata.name || "";
+          }
+          if (companyInput) {
+            companyInput.value = metadata.company || "";
+          }
+          var logoInput = document.getElementById("gameMetadataLogoInput");
+          if (logoInput) {
+            logoInput.value = "";
+          }
+          gameMetadataDraftLogoDataUrl = metadata.logo || "";
+          updateGameMetadataLogoPreview2();
+        }
+        function formatGameMetadataError(errorOrResult) {
+          if (errorOrResult && typeof errorOrResult === "object") {
+            if (errorOrResult.errorKey) {
+              return t2(errorOrResult.errorKey, errorOrResult.errorParams || {});
+            }
+            if (typeof errorOrResult.error === "string" && errorOrResult.error.trim()) {
+              return errorOrResult.error;
+            }
+            if (typeof errorOrResult.message === "string" && errorOrResult.message.trim()) {
+              return errorOrResult.message;
+            }
+          }
+          return String(errorOrResult || "unknown");
+        }
+        async function loadGameMetadataForSelection(gameId) {
+          var FirebaseService2 = getFirebaseService();
+          var normalizedGameId = typeof gameId === "string" ? gameId.trim() : "";
+          if (!normalizedGameId) {
+            clearGameMetadataForm();
+            return;
+          }
+          setGameMetadataFormDisabled(true);
+          try {
+            var metadata = null;
+            if (typeof FirebaseService2 !== "undefined" && FirebaseService2 !== null && typeof FirebaseService2.getGameMetadata === "function") {
+              metadata = await FirebaseService2.getGameMetadata(normalizedGameId);
+            }
+            if (!metadata) {
+              metadata = gameMetadataCatalogCache.find(function(game) {
+                return game && game.id === normalizedGameId;
+              }) || null;
+            }
+            if (!metadata) {
+              showMessage("gameMetadataStatus", t2("game_metadata_unknown_game"), "error");
+              clearGameMetadataForm();
+              return;
+            }
+            fillGameMetadataForm(metadata);
+          } catch (error) {
+            showMessage("gameMetadataStatus", t2("game_metadata_load_failed", { error: formatGameMetadataError(error) }), "error");
+            clearGameMetadataForm();
+          } finally {
+            setGameMetadataFormDisabled(false);
+          }
+        }
+        async function openGameMetadataOverlay() {
+          closeNavigationMenu();
+          if (!isGameMetadataSuperAdmin(getCurrentAuthUser())) {
+            alert(t2("game_metadata_forbidden"));
+            return;
+          }
+          var overlay = document.getElementById("gameMetadataOverlay");
+          if (!overlay) {
+            return;
+          }
+          overlay.classList.remove("hidden");
+          clearGameMetadataStatus();
+          clearGameMetadataForm();
+          try {
+            showMessage("gameMetadataStatus", t2("message_upload_processing"), "processing");
+            var preferredGameId = getActiveGame() || ensureActiveGameContext() || "";
+            var selectedGameId = await reloadGameMetadataCatalog(preferredGameId);
+            clearGameMetadataStatus();
+            if (!selectedGameId) {
+              showMessage("gameMetadataStatus", t2("game_selector_no_games"), "warning");
+              return;
+            }
+            await loadGameMetadataForSelection(selectedGameId);
+          } catch (error) {
+            showMessage("gameMetadataStatus", t2("game_metadata_load_failed", { error: formatGameMetadataError(error) }), "error");
+          }
+        }
+        function closeGameMetadataOverlay() {
+          var overlay = document.getElementById("gameMetadataOverlay");
+          if (!overlay) {
+            return;
+          }
+          overlay.classList.add("hidden");
+          clearGameMetadataStatus();
+        }
+        function handleGameMetadataOverlayClick(event) {
+          if (event && event.target && event.target.id === "gameMetadataOverlay") {
+            closeGameMetadataOverlay();
+          }
+        }
+        async function handleGameMetadataSelectionChange() {
+          clearGameMetadataStatus();
+          var selectedGameId = resolveSelectedMetadataGameId();
+          await loadGameMetadataForSelection(selectedGameId);
+        }
+        function triggerGameMetadataLogoUpload() {
+          var input = document.getElementById("gameMetadataLogoInput");
+          if (input) {
+            input.click();
+          }
+        }
+        function removeGameMetadataLogo() {
+          gameMetadataDraftLogoDataUrl = "";
+          var input = document.getElementById("gameMetadataLogoInput");
+          if (input) {
+            input.value = "";
+          }
+          updateGameMetadataLogoPreview2();
+        }
+        async function handleGameMetadataLogoChange(event) {
+          var input = event && event.target ? event.target : document.getElementById("gameMetadataLogoInput");
+          var file = input && input.files ? input.files[0] : null;
+          if (!file) {
+            return;
+          }
+          try {
+            gameMetadataDraftLogoDataUrl = await createGameMetadataLogoDataUrl(file);
+            updateGameMetadataLogoPreview2();
+          } catch (error) {
+            showMessage("gameMetadataStatus", error.message || t2("events_manager_image_process_failed"), "error");
+          } finally {
+            if (input) {
+              input.value = "";
+            }
+          }
+        }
+        async function saveGameMetadata() {
+          var FirebaseService2 = getFirebaseService();
+          if (typeof FirebaseService2 === "undefined" || FirebaseService2 === null || typeof FirebaseService2.setGameMetadata !== "function") {
+            showMessage("gameMetadataStatus", t2("error_firebase_not_loaded"), "error");
+            return;
+          }
+          if (!isGameMetadataSuperAdmin(getCurrentAuthUser())) {
+            showMessage("gameMetadataStatus", t2("game_metadata_forbidden"), "error");
+            return;
+          }
+          var selectedGameId = resolveSelectedMetadataGameId();
+          if (!selectedGameId) {
+            showMessage("gameMetadataStatus", t2("game_metadata_unknown_game"), "error");
+            return;
+          }
+          var nameInput = document.getElementById("gameMetadataNameInput");
+          var companyInput = document.getElementById("gameMetadataCompanyInput");
+          var nameValue = nameInput && typeof nameInput.value === "string" ? nameInput.value.trim() : "";
+          var resolvedLogoDataUrl = gameMetadataDraftLogoDataUrl || generateGameAvatarDataUrl(nameValue || selectedGameId, selectedGameId);
+          var payload = {
+            name: nameValue,
+            logo: resolvedLogoDataUrl,
+            company: companyInput && typeof companyInput.value === "string" ? companyInput.value.trim() : ""
+          };
+          setGameMetadataFormDisabled(true);
+          showMessage("gameMetadataStatus", t2("message_upload_processing"), "processing");
+          try {
+            var result = await FirebaseService2.setGameMetadata(selectedGameId, payload);
+            if (!result || !result.success) {
+              showMessage("gameMetadataStatus", formatGameMetadataError(result), "error");
+              return;
+            }
+            await reloadGameMetadataCatalog(selectedGameId);
+            await loadGameMetadataForSelection(selectedGameId);
+            showMessage("gameMetadataStatus", t2("game_metadata_saved"), "success");
+            updateActiveGameBadge();
+          } catch (error) {
+            showMessage("gameMetadataStatus", formatGameMetadataError(error), "error");
+          } finally {
+            setGameMetadataFormDisabled(false);
+          }
+        }
+        global.DSGameMetadataAdminController = {
+          init,
+          isGameMetadataSuperAdmin,
+          syncGameMetadataMenuAvailability,
+          normalizeGameMetadataEntry,
+          getGameMetadataCatalogCache: function() {
+            return gameMetadataCatalogCache;
+          },
+          refreshGameMetadataCatalogCache,
+          openGameMetadataOverlay,
+          closeGameMetadataOverlay,
+          handleGameMetadataOverlayClick,
+          handleGameMetadataSelectionChange,
+          triggerGameMetadataLogoUpload,
+          removeGameMetadataLogo,
+          handleGameMetadataLogoChange,
+          saveGameMetadata,
+          generateGameAvatarDataUrl
+        };
+      })(window);
+    }
+  });
+
+  // js/shell/game-selector-controller.js
+  var require_game_selector_controller = __commonJS({
+    "js/shell/game-selector-controller.js"() {
+      (function initGameSelectorController(global) {
+        "use strict";
+        var gameSelectorRequiresChoice = false;
+        var postAuthSelectorShownThisSession = false;
+        var postAuthGameSelectionPending = false;
+        var t2;
+        var showMessage;
+        var getFirebaseService;
+        var getActiveGame;
+        var setActiveGame;
+        var ensureActiveGameContext;
+        var applyAvatar;
+        var getAvatarInitials;
+        var generateGameAvatarDataUrl;
+        var closeNavigationMenu;
+        var normalizeEventId;
+        var getCurrentEvent;
+        var listSelectableGames;
+        var getSelectableGameById;
+        var resolveActiveGameName;
+        var refreshGameSelectorMenuAvailability;
+        var refreshGameMetadataCatalogCache;
+        var resetTransientPlanningState;
+        var loadPlayerData2;
+        var updateAllianceHeaderDisplay2;
+        var renderAlliancePanel;
+        var getCurrentPageView;
+        var closeDownloadModal;
+        function init(deps) {
+          t2 = deps.t;
+          showMessage = deps.showMessage;
+          getFirebaseService = deps.getFirebaseService;
+          getActiveGame = deps.getActiveGame;
+          setActiveGame = deps.setActiveGame;
+          ensureActiveGameContext = deps.ensureActiveGameContext;
+          applyAvatar = deps.applyAvatar;
+          getAvatarInitials = deps.getAvatarInitials;
+          generateGameAvatarDataUrl = deps.generateGameAvatarDataUrl;
+          closeNavigationMenu = deps.closeNavigationMenu;
+          normalizeEventId = deps.normalizeEventId;
+          getCurrentEvent = deps.getCurrentEvent;
+          listSelectableGames = deps.listSelectableGames;
+          getSelectableGameById = deps.getSelectableGameById;
+          resolveActiveGameName = deps.resolveActiveGameName;
+          refreshGameSelectorMenuAvailability = deps.refreshGameSelectorMenuAvailability;
+          refreshGameMetadataCatalogCache = deps.refreshGameMetadataCatalogCache;
+          resetTransientPlanningState = deps.resetTransientPlanningState;
+          loadPlayerData2 = deps.loadPlayerData;
+          updateAllianceHeaderDisplay2 = deps.updateAllianceHeaderDisplay;
+          renderAlliancePanel = deps.renderAlliancePanel;
+          getCurrentPageView = deps.getCurrentPageView;
+          closeDownloadModal = deps.closeDownloadModal;
+        }
+        function createMissingActiveGameError() {
+          var error = new Error("missing-active-game");
+          error.code = "missing-active-game";
+          error.errorKey = "missing-active-game";
+          return error;
+        }
+        function getActiveGameContext() {
+          var FirebaseService2 = getFirebaseService();
+          if (!FirebaseService2 || typeof FirebaseService2.getActiveGame !== "function") {
+            return { gameId: "", source: "none" };
+          }
+          var context = FirebaseService2.getActiveGame();
+          if (!context || typeof context !== "object") {
+            return { gameId: "", source: "none" };
+          }
+          var gameId = typeof context.gameId === "string" ? context.gameId.trim() : "";
+          return {
+            gameId,
+            source: typeof context.source === "string" ? context.source : "none"
+          };
+        }
+        function requireActiveGameContext() {
+          var FirebaseService2 = getFirebaseService();
+          if (FirebaseService2 && typeof FirebaseService2.requireActiveGame === "function") {
+            return FirebaseService2.requireActiveGame();
+          }
+          var gameId = getActiveGame();
+          if (!gameId) {
+            throw createMissingActiveGameError();
+          }
+          return gameId;
+        }
+        function enforceGameplayContext(statusElementId) {
+          try {
+            return requireActiveGameContext();
+          } catch (error) {
+            if (error && error.code === "missing-active-game") {
+              if (postAuthGameSelectionPending) {
+                if (statusElementId) {
+                  showMessage(statusElementId, t2("game_selector_invalid"), "warning");
+                }
+                return "";
+              }
+              var FirebaseService2 = getFirebaseService();
+              var signedIn = FirebaseService2 && typeof FirebaseService2.isSignedIn === "function" && FirebaseService2.isSignedIn() === true;
+              if (signedIn) {
+                var fallbackId = ensureActiveGameContext();
+                if (fallbackId) {
+                  return fallbackId;
+                }
+              }
+              if (statusElementId) {
+                showMessage(statusElementId, t2("game_selector_invalid"), "error");
+              }
+              return "";
+            }
+            throw error;
+          }
+        }
+        function getGameplayContext(statusElementId) {
+          var gameId = enforceGameplayContext(statusElementId);
+          if (!gameId) {
+            return null;
+          }
+          return { gameId };
+        }
+        function getEventGameplayContext(eventId, statusElementId) {
+          var gameplayContext = getGameplayContext(statusElementId);
+          if (!gameplayContext) {
+            return null;
+          }
+          var normalizedEventId = normalizeEventId(eventId || getCurrentEvent());
+          if (!normalizedEventId) {
+            return gameplayContext;
+          }
+          return {
+            gameId: gameplayContext.gameId,
+            eventId: normalizedEventId
+          };
+        }
+        function isPostAuthGameSelectorEnabled() {
+          var FirebaseService2 = getFirebaseService();
+          if (FirebaseService2 && typeof FirebaseService2.isFeatureFlagEnabled === "function") {
+            var liveFlag = FirebaseService2.isFeatureFlagEnabled("MULTIGAME_GAME_SELECTOR_ENABLED");
+            if (liveFlag === true) {
+              return true;
+            }
+            if (liveFlag === false) {
+              return false;
+            }
+          }
+          if (global.__APP_FEATURE_FLAGS && typeof global.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === "boolean") {
+            return global.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
+          }
+          return false;
+        }
+        function renderGameSelectorOptions(preferredGameId) {
+          var selector = document.getElementById("gameSelectorInput");
+          var list = document.getElementById("gameSelectorList");
+          if (!selector || !list) {
+            return [];
+          }
+          var games = listSelectableGames();
+          selector.replaceChildren();
+          list.replaceChildren();
+          games.forEach(function(game) {
+            var option = document.createElement("option");
+            option.value = game.id;
+            option.textContent = game.name;
+            selector.appendChild(option);
+            var row = document.createElement("button");
+            row.type = "button";
+            row.className = "game-selector-option";
+            row.dataset.gameId = game.id;
+            row.setAttribute("role", "option");
+            row.setAttribute("aria-selected", "false");
+            var avatar = document.createElement("span");
+            avatar.className = "header-avatar game-selector-option-avatar";
+            avatar.setAttribute("aria-hidden", "true");
+            var avatarImage = document.createElement("img");
+            avatarImage.className = "hidden";
+            avatarImage.alt = (game.name || game.id) + " logo";
+            var avatarInitials = document.createElement("span");
+            avatarInitials.textContent = "G";
+            avatar.appendChild(avatarImage);
+            avatar.appendChild(avatarInitials);
+            var body = document.createElement("span");
+            body.className = "game-selector-option-body";
+            var name = document.createElement("span");
+            name.className = "game-selector-option-name";
+            name.textContent = game.name || game.id;
+            body.appendChild(name);
+            var check = document.createElement("span");
+            check.className = "game-selector-option-check";
+            check.setAttribute("aria-hidden", "true");
+            check.textContent = "\u2713";
+            var fallbackLogo = generateGameAvatarDataUrl(game.name || game.id, game.id);
+            applyAvatar(game.logo || fallbackLogo, avatarImage, avatarInitials, getAvatarInitials(game.name || game.id, "G"));
+            row.appendChild(avatar);
+            row.appendChild(body);
+            row.appendChild(check);
+            list.appendChild(row);
+          });
+          var preferred = typeof preferredGameId === "string" ? preferredGameId.trim() : "";
+          var selectedId = "";
+          if (preferred && games.some(function(game) {
+            return game.id === preferred;
+          })) {
+            selectedId = preferred;
+          } else if (games.length > 0) {
+            selectedId = games[0].id;
+          }
+          selector.value = selectedId;
+          setGameSelectorSelection(selectedId);
+          return games;
+        }
+        function setGameSelectorSelection(gameId) {
+          var selector = document.getElementById("gameSelectorInput");
+          var list = document.getElementById("gameSelectorList");
+          var selectedId = typeof gameId === "string" ? gameId.trim() : "";
+          if (!selector || !list || !selectedId) {
+            return false;
+          }
+          var row = Array.from(list.querySelectorAll(".game-selector-option")).find(function(option) {
+            return (option.dataset.gameId || "").trim() === selectedId;
+          }) || null;
+          if (!row) {
+            return false;
+          }
+          selector.value = selectedId;
+          list.querySelectorAll(".game-selector-option").forEach(function(option) {
+            var isSelected = option === row;
+            option.classList.toggle("is-selected", isSelected);
+            option.setAttribute("aria-selected", isSelected ? "true" : "false");
+          });
+          return true;
+        }
+        function closeGameSelector(forceClose) {
+          if (gameSelectorRequiresChoice && forceClose !== true) {
+            return;
+          }
+          var overlay = document.getElementById("gameSelectorOverlay");
+          if (!overlay) {
+            return;
+          }
+          overlay.classList.add("hidden");
+          gameSelectorRequiresChoice = false;
+          var statusEl = document.getElementById("gameSelectorStatus");
+          if (statusEl) {
+            statusEl.replaceChildren();
+          }
+        }
+        async function openGameSelector(options) {
+          var config = options && typeof options === "object" ? options : {};
+          var overlay = document.getElementById("gameSelectorOverlay");
+          var cancelBtn = document.getElementById("gameSelectorCancelBtn");
+          var selector = document.getElementById("gameSelectorInput");
+          var list = document.getElementById("gameSelectorList");
+          if (!overlay || !cancelBtn || !selector || !list) {
+            return;
+          }
+          closeNavigationMenu();
+          refreshGameSelectorMenuAvailability();
+          if (typeof refreshGameMetadataCatalogCache === "function") {
+            await refreshGameMetadataCatalogCache({ silent: true, preferredGameId: getActiveGame() || "" });
+          }
+          var activeGameId = getActiveGame() || ensureActiveGameContext();
+          var games = renderGameSelectorOptions(activeGameId);
+          var statusEl = document.getElementById("gameSelectorStatus");
+          if (statusEl) {
+            statusEl.replaceChildren();
+          }
+          gameSelectorRequiresChoice = config.requireChoice === true;
+          cancelBtn.hidden = gameSelectorRequiresChoice;
+          cancelBtn.disabled = gameSelectorRequiresChoice;
+          if (games.length === 0) {
+            showMessage("gameSelectorStatus", t2("game_selector_no_games"), "warning");
+          }
+          overlay.classList.remove("hidden");
+          var selectedOption = list.querySelector(".game-selector-option.is-selected") || list.querySelector(".game-selector-option");
+          if (selectedOption) {
+            selectedOption.focus();
+          }
+        }
+        function handleGameSelectorOverlayClick(event) {
+          if (event && event.target && event.target.id === "gameSelectorOverlay") {
+            closeGameSelector(false);
+          }
+        }
+        function resolveGameSelectorOptionFromEvent(event) {
+          if (!event || !event.target) {
+            return null;
+          }
+          var option = event.target.closest(".game-selector-option");
+          if (!option || !(option instanceof HTMLElement)) {
+            return null;
+          }
+          var gameId = typeof option.dataset.gameId === "string" ? option.dataset.gameId.trim() : "";
+          if (!gameId) {
+            return null;
+          }
+          return { option, gameId };
+        }
+        function handleGameSelectorListClick(event) {
+          var resolved = resolveGameSelectorOptionFromEvent(event);
+          if (!resolved) {
+            return;
+          }
+          if (!setGameSelectorSelection(resolved.gameId)) {
+            return;
+          }
+          var status = document.getElementById("gameSelectorStatus");
+          if (status) {
+            status.replaceChildren();
+          }
+          confirmGameSelectorChoice();
+        }
+        function handleGameSelectorListKeydown(event) {
+          if (!event || event.key !== "Enter" && event.key !== " ") {
+            return;
+          }
+          var resolved = resolveGameSelectorOptionFromEvent(event);
+          if (!resolved) {
+            return;
+          }
+          event.preventDefault();
+          if (!setGameSelectorSelection(resolved.gameId)) {
+            return;
+          }
+          var status = document.getElementById("gameSelectorStatus");
+          if (status) {
+            status.replaceChildren();
+          }
+          confirmGameSelectorChoice();
+        }
+        async function applyGameSwitch(gameId, options) {
+          var config = options && typeof options === "object" ? options : {};
+          var statusElementId = typeof config.statusElementId === "string" ? config.statusElementId : "";
+          var result = setActiveGame(gameId);
+          if (!result || !result.success || !result.gameId) {
+            if (statusElementId) {
+              showMessage(statusElementId, t2("game_selector_invalid"), "error");
+            }
+            return false;
+          }
+          var shouldReload = result.changed === true || config.forceReload === true;
+          if (shouldReload) {
+            resetTransientPlanningState({ renderPlayersTable: false });
+            var FirebaseService2 = getFirebaseService();
+            if (FirebaseService2 && typeof FirebaseService2.loadUserData === "function" && typeof FirebaseService2.getCurrentUser === "function" && typeof FirebaseService2.isSignedIn === "function" && FirebaseService2.isSignedIn()) {
+              var activeUser = FirebaseService2.getCurrentUser();
+              if (activeUser && activeUser.uid) {
+                try {
+                  await FirebaseService2.loadUserData(activeUser, { gameId: result.gameId });
+                } catch (error) {
+                  if (statusElementId) {
+                    showMessage(statusElementId, t2("error_generic", { error: String(error && error.message ? error.message : error || "unknown") }), "error");
+                  }
+                  return false;
+                }
+              }
+            }
+            loadPlayerData2();
+            updateAllianceHeaderDisplay2();
+            if (FirebaseService2 && typeof FirebaseService2.loadAllianceData === "function" && FirebaseService2.isSignedIn()) {
+              try {
+                await FirebaseService2.loadAllianceData({ gameId: result.gameId });
+                if (getCurrentPageView() === "alliance") {
+                  renderAlliancePanel();
+                  updateAllianceHeaderDisplay2();
+                }
+              } catch (_err) {
+              }
+            }
+          }
+          closeGameSelector(true);
+          return true;
+        }
+        async function confirmGameSelectorChoice() {
+          var selector = document.getElementById("gameSelectorInput");
+          if (!selector) {
+            return;
+          }
+          var selectedGameId = typeof selector.value === "string" ? selector.value.trim() : "";
+          if (!selectedGameId) {
+            showMessage("gameSelectorStatus", t2("game_selector_invalid"), "error");
+            return;
+          }
+          var switched = await applyGameSwitch(selectedGameId, {
+            statusElementId: "gameSelectorStatus",
+            forceReload: true
+          });
+          if (switched) {
+            postAuthGameSelectionPending = false;
+          }
+        }
+        function showPostAuthGameSelector() {
+          refreshGameSelectorMenuAvailability();
+          if (!isPostAuthGameSelectorEnabled()) {
+            postAuthGameSelectionPending = false;
+            return;
+          }
+          if (postAuthSelectorShownThisSession) {
+            return;
+          }
+          postAuthSelectorShownThisSession = true;
+          var games = listSelectableGames();
+          if (!Array.isArray(games) || games.length === 0) {
+            postAuthGameSelectionPending = false;
+            return;
+          }
+          if (getActiveGame()) {
+            postAuthGameSelectionPending = false;
+            return;
+          }
+          postAuthGameSelectionPending = true;
+          openGameSelector({ requireChoice: true });
+        }
+        function resetPostAuthGameSelectorState() {
+          postAuthSelectorShownThisSession = false;
+          postAuthGameSelectionPending = false;
+          closeGameSelector(true);
+        }
+        function isPostAuthGameSelectionPendingFn() {
+          return postAuthGameSelectionPending === true;
+        }
+        global.DSGameSelectorController = {
+          init,
+          createMissingActiveGameError,
+          getActiveGameContext,
+          requireActiveGameContext,
+          enforceGameplayContext,
+          getGameplayContext,
+          getEventGameplayContext,
+          isPostAuthGameSelectorEnabled,
+          renderGameSelectorOptions,
+          setGameSelectorSelection,
+          closeGameSelector,
+          openGameSelector,
+          handleGameSelectorOverlayClick,
+          handleGameSelectorListClick,
+          handleGameSelectorListKeydown,
+          applyGameSwitch,
+          confirmGameSelectorChoice,
+          showPostAuthGameSelector,
+          resetPostAuthGameSelectorState,
+          isPostAuthGameSelectionPending: isPostAuthGameSelectionPendingFn
+        };
+      })(window);
+    }
+  });
+
   // app.js
   var require_app = __commonJS({
     "app.js"() {
@@ -18443,12 +20128,6 @@
         overlay.classList.add("hidden");
         return true;
       }
-      function createMissingActiveGameError() {
-        const error = new Error("missing-active-game");
-        error.code = "missing-active-game";
-        error.errorKey = "missing-active-game";
-        return error;
-      }
       function listSelectableGames() {
         if (typeof FirebaseService === "undefined" || typeof FirebaseService.listAvailableGames !== "function") {
           return [];
@@ -18458,8 +20137,9 @@
           return [];
         }
         const metadataById = /* @__PURE__ */ new Map();
-        if (Array.isArray(gameMetadataCatalogCache)) {
-          gameMetadataCatalogCache.map(normalizeGameMetadataEntry).filter(Boolean).forEach((metadata) => {
+        const _gmCache = DSGameMetadataAdminController.getGameMetadataCatalogCache();
+        if (Array.isArray(_gmCache)) {
+          _gmCache.map(normalizeGameMetadataEntry).filter(Boolean).forEach((metadata) => {
             metadataById.set(metadata.id, metadata);
           });
         }
@@ -18485,7 +20165,8 @@
         if (selectableGame) {
           return selectableGame;
         }
-        const cachedGame = Array.isArray(gameMetadataCatalogCache) ? gameMetadataCatalogCache.find((game) => game && game.id === normalizedId) : null;
+        const _gmCache2 = DSGameMetadataAdminController.getGameMetadataCatalogCache();
+        const cachedGame = Array.isArray(_gmCache2) ? _gmCache2.find((game) => game && game.id === normalizedId) : null;
         return cachedGame ? normalizeGameMetadataEntry(cachedGame) : null;
       }
       function resolveActiveGameName(gameId) {
@@ -18544,18 +20225,7 @@
         switchBtn.disabled = !hasGames;
       }
       function getActiveGameContext() {
-        if (typeof FirebaseService === "undefined" || typeof FirebaseService.getActiveGame !== "function") {
-          return { gameId: "", source: "none" };
-        }
-        const context = FirebaseService.getActiveGame();
-        if (!context || typeof context !== "object") {
-          return { gameId: "", source: "none" };
-        }
-        const gameId = typeof context.gameId === "string" ? context.gameId.trim() : "";
-        return {
-          gameId,
-          source: typeof context.source === "string" ? context.source : "none"
-        };
+        return DSGameSelectorController.getActiveGameContext();
       }
       function getActiveGame() {
         return getActiveGameContext().gameId;
@@ -18581,257 +20251,32 @@
         updateActiveGameBadge(gameId);
         return gameId;
       }
-      function requireActiveGameContext() {
-        if (typeof FirebaseService !== "undefined" && typeof FirebaseService.requireActiveGame === "function") {
-          return FirebaseService.requireActiveGame();
-        }
-        const gameId = getActiveGame();
-        if (!gameId) {
-          throw createMissingActiveGameError();
-        }
-        return gameId;
+      function enforceGameplayContext(s) {
+        return DSGameSelectorController.enforceGameplayContext(s);
       }
-      function enforceGameplayContext(statusElementId) {
-        try {
-          return requireActiveGameContext();
-        } catch (error) {
-          if (error && error.code === "missing-active-game") {
-            if (postAuthGameSelectionPending) {
-              if (statusElementId) {
-                showMessage(statusElementId, t2("game_selector_invalid"), "warning");
-              }
-              return "";
-            }
-            const signedIn = typeof FirebaseService !== "undefined" && typeof FirebaseService.isSignedIn === "function" && FirebaseService.isSignedIn() === true;
-            if (signedIn) {
-              const fallbackId = ensureActiveGameContext();
-              if (fallbackId) {
-                return fallbackId;
-              }
-            }
-            if (statusElementId) {
-              showMessage(statusElementId, t2("game_selector_invalid"), "error");
-            }
-            return "";
-          }
-          throw error;
-        }
+      function getGameplayContext(s) {
+        return DSGameSelectorController.getGameplayContext(s);
       }
-      function getGameplayContext(statusElementId) {
-        const gameId = enforceGameplayContext(statusElementId);
-        if (!gameId) {
-          return null;
-        }
-        return { gameId };
+      function getEventGameplayContext(e, s) {
+        return DSGameSelectorController.getEventGameplayContext(e, s);
       }
-      function getEventGameplayContext(eventId, statusElementId) {
-        const gameplayContext = getGameplayContext(statusElementId);
-        if (!gameplayContext) {
-          return null;
-        }
-        const normalizedEventId = normalizeEventId(eventId || currentEvent);
-        if (!normalizedEventId) {
-          return gameplayContext;
-        }
-        return {
-          gameId: gameplayContext.gameId,
-          eventId: normalizedEventId
-        };
+      function setGameSelectorSelection(g) {
+        return DSGameSelectorController.setGameSelectorSelection(g);
       }
-      var gameSelectorRequiresChoice = false;
-      var postAuthSelectorShownThisSession = false;
-      var postAuthGameSelectionPending = false;
-      function isPostAuthGameSelectorEnabled() {
-        if (typeof FirebaseService !== "undefined" && typeof FirebaseService.isFeatureFlagEnabled === "function") {
-          const liveFlag = FirebaseService.isFeatureFlagEnabled("MULTIGAME_GAME_SELECTOR_ENABLED");
-          if (liveFlag === true) {
-            return true;
-          }
-          if (liveFlag === false) {
-            return false;
-          }
-        }
-        if (window.__APP_FEATURE_FLAGS && typeof window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === "boolean") {
-          return window.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
-        }
-        return false;
+      function closeGameSelector(f) {
+        return DSGameSelectorController.closeGameSelector(f);
       }
-      function renderGameSelectorOptions(preferredGameId) {
-        const selector = document.getElementById("gameSelectorInput");
-        const list = document.getElementById("gameSelectorList");
-        if (!selector || !list) {
-          return [];
-        }
-        const games = listSelectableGames();
-        selector.replaceChildren();
-        list.replaceChildren();
-        games.forEach((game) => {
-          const option = document.createElement("option");
-          option.value = game.id;
-          option.textContent = game.name;
-          selector.appendChild(option);
-          const row = document.createElement("button");
-          row.type = "button";
-          row.className = "game-selector-option";
-          row.dataset.gameId = game.id;
-          row.setAttribute("role", "option");
-          row.setAttribute("aria-selected", "false");
-          const avatar = document.createElement("span");
-          avatar.className = "header-avatar game-selector-option-avatar";
-          avatar.setAttribute("aria-hidden", "true");
-          const avatarImage = document.createElement("img");
-          avatarImage.className = "hidden";
-          avatarImage.alt = `${game.name || game.id} logo`;
-          const avatarInitials = document.createElement("span");
-          avatarInitials.textContent = "G";
-          avatar.appendChild(avatarImage);
-          avatar.appendChild(avatarInitials);
-          const body = document.createElement("span");
-          body.className = "game-selector-option-body";
-          const name = document.createElement("span");
-          name.className = "game-selector-option-name";
-          name.textContent = game.name || game.id;
-          body.appendChild(name);
-          const check = document.createElement("span");
-          check.className = "game-selector-option-check";
-          check.setAttribute("aria-hidden", "true");
-          check.textContent = "\u2713";
-          const fallbackLogo = generateGameAvatarDataUrl(game.name || game.id, game.id);
-          applyAvatar(game.logo || fallbackLogo, avatarImage, avatarInitials, getAvatarInitials(game.name || game.id, "G"));
-          row.appendChild(avatar);
-          row.appendChild(body);
-          row.appendChild(check);
-          list.appendChild(row);
-        });
-        const preferred = typeof preferredGameId === "string" ? preferredGameId.trim() : "";
-        let selectedId = "";
-        if (preferred && games.some((game) => game.id === preferred)) {
-          selectedId = preferred;
-        } else if (games.length > 0) {
-          selectedId = games[0].id;
-        } else {
-          selectedId = "";
-        }
-        selector.value = selectedId;
-        setGameSelectorSelection(selectedId);
-        return games;
+      function openGameSelector(o) {
+        return DSGameSelectorController.openGameSelector(o);
       }
-      function setGameSelectorSelection(gameId) {
-        const selector = document.getElementById("gameSelectorInput");
-        const list = document.getElementById("gameSelectorList");
-        const selectedId = typeof gameId === "string" ? gameId.trim() : "";
-        if (!selector || !list || !selectedId) {
-          return false;
-        }
-        const row = Array.from(list.querySelectorAll(".game-selector-option")).find((option) => (option.dataset.gameId || "").trim() === selectedId) || null;
-        if (!row) {
-          return false;
-        }
-        selector.value = selectedId;
-        list.querySelectorAll(".game-selector-option").forEach((option) => {
-          const isSelected = option === row;
-          option.classList.toggle("is-selected", isSelected);
-          option.setAttribute("aria-selected", isSelected ? "true" : "false");
-        });
-        return true;
+      function handleGameSelectorOverlayClick(e) {
+        return DSGameSelectorController.handleGameSelectorOverlayClick(e);
       }
-      function closeGameSelector(forceClose) {
-        if (gameSelectorRequiresChoice && forceClose !== true) {
-          return;
-        }
-        const overlay = document.getElementById("gameSelectorOverlay");
-        if (!overlay) {
-          return;
-        }
-        overlay.classList.add("hidden");
-        gameSelectorRequiresChoice = false;
-        const statusEl = document.getElementById("gameSelectorStatus");
-        if (statusEl) {
-          statusEl.replaceChildren();
-        }
+      function handleGameSelectorListClick(e) {
+        return DSGameSelectorController.handleGameSelectorListClick(e);
       }
-      async function openGameSelector(options) {
-        const config = options && typeof options === "object" ? options : {};
-        const overlay = document.getElementById("gameSelectorOverlay");
-        const cancelBtn = document.getElementById("gameSelectorCancelBtn");
-        const selector = document.getElementById("gameSelectorInput");
-        const list = document.getElementById("gameSelectorList");
-        if (!overlay || !cancelBtn || !selector || !list) {
-          return;
-        }
-        closeNavigationMenu();
-        refreshGameSelectorMenuAvailability();
-        if (typeof refreshGameMetadataCatalogCache === "function") {
-          await refreshGameMetadataCatalogCache({ silent: true, preferredGameId: getActiveGame() || "" });
-        }
-        const activeGameId = getActiveGame() || ensureActiveGameContext();
-        const games = renderGameSelectorOptions(activeGameId);
-        const statusEl = document.getElementById("gameSelectorStatus");
-        if (statusEl) {
-          statusEl.replaceChildren();
-        }
-        gameSelectorRequiresChoice = config.requireChoice === true;
-        cancelBtn.hidden = gameSelectorRequiresChoice;
-        cancelBtn.disabled = gameSelectorRequiresChoice;
-        if (games.length === 0) {
-          showMessage("gameSelectorStatus", t2("game_selector_no_games"), "warning");
-        }
-        overlay.classList.remove("hidden");
-        const selectedOption = list.querySelector(".game-selector-option.is-selected") || list.querySelector(".game-selector-option");
-        if (selectedOption) {
-          selectedOption.focus();
-        }
-      }
-      function handleGameSelectorOverlayClick(event) {
-        if (event && event.target && event.target.id === "gameSelectorOverlay") {
-          closeGameSelector(false);
-        }
-      }
-      function resolveGameSelectorOptionFromEvent(event) {
-        if (!event || !event.target) {
-          return null;
-        }
-        const option = event.target.closest(".game-selector-option");
-        if (!option || !(option instanceof HTMLElement)) {
-          return null;
-        }
-        const gameId = typeof option.dataset.gameId === "string" ? option.dataset.gameId.trim() : "";
-        if (!gameId) {
-          return null;
-        }
-        return { option, gameId };
-      }
-      function handleGameSelectorListClick(event) {
-        const resolved = resolveGameSelectorOptionFromEvent(event);
-        if (!resolved) {
-          return;
-        }
-        if (!setGameSelectorSelection(resolved.gameId)) {
-          return;
-        }
-        const status = document.getElementById("gameSelectorStatus");
-        if (status) {
-          status.replaceChildren();
-        }
-        confirmGameSelectorChoice();
-      }
-      function handleGameSelectorListKeydown(event) {
-        if (!event || event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-        const resolved = resolveGameSelectorOptionFromEvent(event);
-        if (!resolved) {
-          return;
-        }
-        event.preventDefault();
-        if (!setGameSelectorSelection(resolved.gameId)) {
-          return;
-        }
-        const status = document.getElementById("gameSelectorStatus");
-        if (status) {
-          status.replaceChildren();
-        }
-        confirmGameSelectorChoice();
+      function handleGameSelectorListKeydown(e) {
+        return DSGameSelectorController.handleGameSelectorListKeydown(e);
       }
       function normalizeFilterPanels() {
         const troopsFilterBtn = document.getElementById("troopsFilterBtn");
@@ -18866,431 +20311,53 @@
         }
         updateTeamCounters();
       }
-      async function applyGameSwitch(gameId, options) {
-        const config = options && typeof options === "object" ? options : {};
-        const statusElementId = typeof config.statusElementId === "string" ? config.statusElementId : "";
-        const result = setActiveGame(gameId);
-        if (!result || !result.success || !result.gameId) {
-          if (statusElementId) {
-            showMessage(statusElementId, t2("game_selector_invalid"), "error");
-          }
-          return false;
-        }
-        const shouldReload = result.changed === true || config.forceReload === true;
-        if (shouldReload) {
-          resetTransientPlanningState({ renderPlayersTable: false });
-          if (typeof FirebaseService !== "undefined" && typeof FirebaseService.loadUserData === "function" && typeof FirebaseService.getCurrentUser === "function" && typeof FirebaseService.isSignedIn === "function" && FirebaseService.isSignedIn()) {
-            const activeUser = FirebaseService.getCurrentUser();
-            if (activeUser && activeUser.uid) {
-              try {
-                await FirebaseService.loadUserData(activeUser, { gameId: result.gameId });
-              } catch (error) {
-                if (statusElementId) {
-                  showMessage(statusElementId, t2("error_generic", { error: String(error && error.message ? error.message : error || "unknown") }), "error");
-                }
-                return false;
-              }
-            }
-          }
-          loadPlayerData2();
-          updateAllianceHeaderDisplay2();
-          if (typeof FirebaseService !== "undefined" && typeof FirebaseService.loadAllianceData === "function" && FirebaseService.isSignedIn()) {
-            try {
-              await FirebaseService.loadAllianceData({ gameId: result.gameId });
-              if (currentPageView === "alliance") {
-                renderAlliancePanel();
-                updateAllianceHeaderDisplay2();
-              }
-            } catch (error) {
-            }
-          }
-        }
-        closeGameSelector(true);
-        return true;
-      }
-      async function confirmGameSelectorChoice() {
-        const selector = document.getElementById("gameSelectorInput");
-        if (!selector) {
-          return;
-        }
-        const selectedGameId = typeof selector.value === "string" ? selector.value.trim() : "";
-        if (!selectedGameId) {
-          showMessage("gameSelectorStatus", t2("game_selector_invalid"), "error");
-          return;
-        }
-        const switched = await applyGameSwitch(selectedGameId, {
-          statusElementId: "gameSelectorStatus",
-          forceReload: true
-        });
-        if (switched) {
-          postAuthGameSelectionPending = false;
-        }
+      function confirmGameSelectorChoice() {
+        return DSGameSelectorController.confirmGameSelectorChoice();
       }
       function showPostAuthGameSelector() {
-        refreshGameSelectorMenuAvailability();
-        if (!isPostAuthGameSelectorEnabled()) {
-          postAuthGameSelectionPending = false;
-          return;
-        }
-        if (postAuthSelectorShownThisSession) {
-          return;
-        }
-        postAuthSelectorShownThisSession = true;
-        const games = listSelectableGames();
-        if (!Array.isArray(games) || games.length === 0) {
-          postAuthGameSelectionPending = false;
-          return;
-        }
-        if (getActiveGame()) {
-          postAuthGameSelectionPending = false;
-          return;
-        }
-        postAuthGameSelectionPending = true;
-        openGameSelector({ requireChoice: true });
+        return DSGameSelectorController.showPostAuthGameSelector();
       }
       function resetPostAuthGameSelectorState() {
-        postAuthSelectorShownThisSession = false;
-        postAuthGameSelectionPending = false;
-        closeGameSelector(true);
+        return DSGameSelectorController.resetPostAuthGameSelectorState();
       }
       function isPostAuthGameSelectionPending() {
-        return postAuthGameSelectionPending === true;
-      }
-      function isGameMetadataSuperAdmin(userOrUid) {
-        if (typeof FirebaseService !== "undefined" && typeof FirebaseService.isGameMetadataSuperAdmin === "function") {
-          return FirebaseService.isGameMetadataSuperAdmin(userOrUid);
-        }
-        if (typeof userOrUid === "string") {
-          return userOrUid.trim() === GAME_METADATA_SUPER_ADMIN_UID;
-        }
-        const uid = userOrUid && typeof userOrUid === "object" && typeof userOrUid.uid === "string" ? userOrUid.uid.trim() : "";
-        return uid === GAME_METADATA_SUPER_ADMIN_UID;
+        return DSGameSelectorController.isPostAuthGameSelectionPending();
       }
       function syncGameMetadataMenuAvailability() {
-        const navGameMetadataBtn = document.getElementById("navGameMetadataBtn");
-        if (!navGameMetadataBtn) {
-          return;
-        }
-        const allowed = isGameMetadataSuperAdmin(currentAuthUser);
-        navGameMetadataBtn.classList.toggle("hidden", !allowed);
-        navGameMetadataBtn.disabled = !allowed;
-        if (!allowed) {
-          closeGameMetadataOverlay();
-        }
+        return DSGameMetadataAdminController.syncGameMetadataMenuAvailability();
       }
-      function clearGameMetadataForm() {
-        const nameInput = document.getElementById("gameMetadataNameInput");
-        const companyInput = document.getElementById("gameMetadataCompanyInput");
-        if (nameInput) {
-          nameInput.value = "";
-        }
-        if (companyInput) {
-          companyInput.value = "";
-        }
-        const logoInput = document.getElementById("gameMetadataLogoInput");
-        if (logoInput) {
-          logoInput.value = "";
-        }
-        gameMetadataDraftLogoDataUrl = "";
-        updateGameMetadataLogoPreview();
+      function normalizeGameMetadataEntry(e) {
+        return DSGameMetadataAdminController.normalizeGameMetadataEntry(e);
       }
-      function clearGameMetadataStatus() {
-        const status = document.getElementById("gameMetadataStatus");
-        if (status) {
-          status.replaceChildren();
-        }
+      function generateGameAvatarDataUrl(n, i) {
+        return DSGameMetadataAdminController.generateGameAvatarDataUrl(n, i);
       }
-      function setGameMetadataFormDisabled(disabled) {
-        [
-          "gameMetadataSelect",
-          "gameMetadataNameInput",
-          "gameMetadataLogoUploadBtn",
-          "gameMetadataLogoRemoveBtn",
-          "gameMetadataLogoInput",
-          "gameMetadataCompanyInput",
-          "gameMetadataSaveBtn"
-        ].forEach((id) => {
-          const element = document.getElementById(id);
-          if (element) {
-            element.disabled = disabled;
-          }
-        });
+      async function refreshGameMetadataCatalogCache(o) {
+        return DSGameMetadataAdminController.refreshGameMetadataCatalogCache(o);
       }
-      function normalizeGameMetadataEntry(entry) {
-        const source = entry && typeof entry === "object" ? entry : {};
-        const id = typeof source.id === "string" ? source.id.trim() : "";
-        if (!id) {
-          return null;
-        }
-        return {
-          id,
-          name: typeof source.name === "string" && source.name.trim() ? source.name.trim() : id,
-          logo: typeof source.logo === "string" ? source.logo.trim() : "",
-          company: typeof source.company === "string" ? source.company : ""
-        };
-      }
-      function resolveGameMetadataDraftName() {
-        const nameInput = document.getElementById("gameMetadataNameInput");
-        const explicitName = nameInput && typeof nameInput.value === "string" ? nameInput.value.trim() : "";
-        if (explicitName) {
-          return explicitName;
-        }
-        const selectedGameId = resolveSelectedMetadataGameId();
-        const selectedGame = selectedGameId ? getSelectableGameById(selectedGameId) : null;
-        if (selectedGame && selectedGame.name) {
-          return selectedGame.name;
-        }
-        return selectedGameId || "Game";
-      }
-      function generateGameAvatarDataUrl(nameSeed, idSeed) {
-        return generateEventAvatarDataUrl(nameSeed || "Game", `${idSeed || ""}|game-avatar`);
-      }
-      function updateGameMetadataLogoPreview() {
-        const previewImage = document.getElementById("gameMetadataLogoPreviewImage");
-        const previewInitials = document.getElementById("gameMetadataLogoPreviewInitials");
-        if (!previewImage || !previewInitials) {
-          return;
-        }
-        const selectedGameId = resolveSelectedMetadataGameId();
-        const seedName = resolveGameMetadataDraftName();
-        const fallbackAvatar = generateGameAvatarDataUrl(seedName, selectedGameId || seedName);
-        applyAvatar(gameMetadataDraftLogoDataUrl || fallbackAvatar, previewImage, previewInitials, getAvatarInitials(seedName, "G"));
-      }
-      function renderGameMetadataSelect(games, preferredGameId) {
-        const select = document.getElementById("gameMetadataSelect");
-        if (!select) {
-          return "";
-        }
-        select.replaceChildren();
-        const normalizedGames = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
-        normalizedGames.forEach((game) => {
-          const option = document.createElement("option");
-          option.value = game.id;
-          option.textContent = game.name;
-          select.appendChild(option);
-        });
-        const preferred = typeof preferredGameId === "string" ? preferredGameId.trim() : "";
-        if (preferred && normalizedGames.some((game) => game.id === preferred)) {
-          select.value = preferred;
-        } else if (normalizedGames.length > 0) {
-          select.value = normalizedGames[0].id;
-        } else {
-          select.value = "";
-        }
-        return select.value;
-      }
-      async function reloadGameMetadataCatalog(preferredGameId) {
-        const preferred = typeof preferredGameId === "string" ? preferredGameId.trim() : "";
-        await refreshGameMetadataCatalogCache({ silent: true, preferredGameId: preferred });
-        return renderGameMetadataSelect(gameMetadataCatalogCache, preferred);
-      }
-      async function refreshGameMetadataCatalogCache(options) {
-        if (typeof FirebaseService === "undefined" || typeof FirebaseService.listGameMetadata !== "function") {
-          return gameMetadataCatalogCache;
-        }
-        const config = options && typeof options === "object" ? options : {};
-        const silent = config.silent === true;
-        const preferredGameId = typeof config.preferredGameId === "string" ? config.preferredGameId.trim() : "";
-        try {
-          const games = await FirebaseService.listGameMetadata();
-          gameMetadataCatalogCache = Array.isArray(games) ? games.map(normalizeGameMetadataEntry).filter(Boolean) : [];
-          const activeGameId = preferredGameId || getActiveGame() || "";
-          updateActiveGameBadge(activeGameId);
-          refreshGameSelectorMenuAvailability();
-          return gameMetadataCatalogCache;
-        } catch (error) {
-          if (!silent) {
-            console.warn("Failed to refresh game metadata catalog cache:", error);
-          }
-          return gameMetadataCatalogCache;
-        }
-      }
-      function fillGameMetadataForm(game) {
-        const metadata = normalizeGameMetadataEntry(game);
-        if (!metadata) {
-          clearGameMetadataForm();
-          return;
-        }
-        const nameInput = document.getElementById("gameMetadataNameInput");
-        const companyInput = document.getElementById("gameMetadataCompanyInput");
-        if (nameInput) {
-          nameInput.value = metadata.name || "";
-        }
-        if (companyInput) {
-          companyInput.value = metadata.company || "";
-        }
-        const logoInput = document.getElementById("gameMetadataLogoInput");
-        if (logoInput) {
-          logoInput.value = "";
-        }
-        gameMetadataDraftLogoDataUrl = metadata.logo || "";
-        updateGameMetadataLogoPreview();
-      }
-      function resolveSelectedMetadataGameId() {
-        const select = document.getElementById("gameMetadataSelect");
-        if (!select || typeof select.value !== "string") {
-          return "";
-        }
-        return select.value.trim();
-      }
-      function formatGameMetadataError(errorOrResult) {
-        if (errorOrResult && typeof errorOrResult === "object") {
-          if (errorOrResult.errorKey) {
-            return t2(errorOrResult.errorKey, errorOrResult.errorParams || {});
-          }
-          if (typeof errorOrResult.error === "string" && errorOrResult.error.trim()) {
-            return errorOrResult.error;
-          }
-          if (typeof errorOrResult.message === "string" && errorOrResult.message.trim()) {
-            return errorOrResult.message;
-          }
-        }
-        return String(errorOrResult || "unknown");
-      }
-      async function loadGameMetadataForSelection(gameId) {
-        const normalizedGameId = typeof gameId === "string" ? gameId.trim() : "";
-        if (!normalizedGameId) {
-          clearGameMetadataForm();
-          return;
-        }
-        setGameMetadataFormDisabled(true);
-        try {
-          let metadata = null;
-          if (typeof FirebaseService !== "undefined" && typeof FirebaseService.getGameMetadata === "function") {
-            metadata = await FirebaseService.getGameMetadata(normalizedGameId);
-          }
-          if (!metadata) {
-            metadata = gameMetadataCatalogCache.find((game) => game && game.id === normalizedGameId) || null;
-          }
-          if (!metadata) {
-            showMessage("gameMetadataStatus", t2("game_metadata_unknown_game"), "error");
-            clearGameMetadataForm();
-            return;
-          }
-          fillGameMetadataForm(metadata);
-        } catch (error) {
-          showMessage("gameMetadataStatus", t2("game_metadata_load_failed", { error: formatGameMetadataError(error) }), "error");
-          clearGameMetadataForm();
-        } finally {
-          setGameMetadataFormDisabled(false);
-        }
-      }
-      async function openGameMetadataOverlay() {
-        closeNavigationMenu();
-        if (!isGameMetadataSuperAdmin(currentAuthUser)) {
-          alert(t2("game_metadata_forbidden"));
-          return;
-        }
-        const overlay = document.getElementById("gameMetadataOverlay");
-        if (!overlay) {
-          return;
-        }
-        overlay.classList.remove("hidden");
-        clearGameMetadataStatus();
-        clearGameMetadataForm();
-        try {
-          showMessage("gameMetadataStatus", t2("message_upload_processing"), "processing");
-          const preferredGameId = getActiveGame() || ensureActiveGameContext() || "";
-          const selectedGameId = await reloadGameMetadataCatalog(preferredGameId);
-          clearGameMetadataStatus();
-          if (!selectedGameId) {
-            showMessage("gameMetadataStatus", t2("game_selector_no_games"), "warning");
-            return;
-          }
-          await loadGameMetadataForSelection(selectedGameId);
-        } catch (error) {
-          showMessage("gameMetadataStatus", t2("game_metadata_load_failed", { error: formatGameMetadataError(error) }), "error");
-        }
+      function openGameMetadataOverlay() {
+        return DSGameMetadataAdminController.openGameMetadataOverlay();
       }
       function closeGameMetadataOverlay() {
-        const overlay = document.getElementById("gameMetadataOverlay");
-        if (!overlay) {
-          return;
-        }
-        overlay.classList.add("hidden");
-        clearGameMetadataStatus();
+        return DSGameMetadataAdminController.closeGameMetadataOverlay();
       }
-      function handleGameMetadataOverlayClick(event) {
-        if (event && event.target && event.target.id === "gameMetadataOverlay") {
-          closeGameMetadataOverlay();
-        }
+      function handleGameMetadataOverlayClick(e) {
+        return DSGameMetadataAdminController.handleGameMetadataOverlayClick(e);
       }
-      async function handleGameMetadataSelectionChange() {
-        clearGameMetadataStatus();
-        const selectedGameId = resolveSelectedMetadataGameId();
-        await loadGameMetadataForSelection(selectedGameId);
+      function handleGameMetadataSelectionChange() {
+        return DSGameMetadataAdminController.handleGameMetadataSelectionChange();
       }
       function triggerGameMetadataLogoUpload() {
-        const input = document.getElementById("gameMetadataLogoInput");
-        if (input) {
-          input.click();
-        }
+        return DSGameMetadataAdminController.triggerGameMetadataLogoUpload();
       }
       function removeGameMetadataLogo() {
-        gameMetadataDraftLogoDataUrl = "";
-        const input = document.getElementById("gameMetadataLogoInput");
-        if (input) {
-          input.value = "";
-        }
-        updateGameMetadataLogoPreview();
+        return DSGameMetadataAdminController.removeGameMetadataLogo();
       }
-      async function handleGameMetadataLogoChange(event) {
-        const input = event && event.target ? event.target : document.getElementById("gameMetadataLogoInput");
-        const file = input && input.files ? input.files[0] : null;
-        if (!file) {
-          return;
-        }
-        try {
-          gameMetadataDraftLogoDataUrl = await createGameMetadataLogoDataUrl(file);
-          updateGameMetadataLogoPreview();
-        } catch (error) {
-          showMessage("gameMetadataStatus", error.message || t2("events_manager_image_process_failed"), "error");
-        } finally {
-          if (input) {
-            input.value = "";
-          }
-        }
+      function handleGameMetadataLogoChange(e) {
+        return DSGameMetadataAdminController.handleGameMetadataLogoChange(e);
       }
-      async function saveGameMetadata() {
-        if (typeof FirebaseService === "undefined" || typeof FirebaseService.setGameMetadata !== "function") {
-          showMessage("gameMetadataStatus", t2("error_firebase_not_loaded"), "error");
-          return;
-        }
-        if (!isGameMetadataSuperAdmin(currentAuthUser)) {
-          showMessage("gameMetadataStatus", t2("game_metadata_forbidden"), "error");
-          return;
-        }
-        const selectedGameId = resolveSelectedMetadataGameId();
-        if (!selectedGameId) {
-          showMessage("gameMetadataStatus", t2("game_metadata_unknown_game"), "error");
-          return;
-        }
-        const nameInput = document.getElementById("gameMetadataNameInput");
-        const companyInput = document.getElementById("gameMetadataCompanyInput");
-        const nameValue = nameInput && typeof nameInput.value === "string" ? nameInput.value.trim() : "";
-        const resolvedLogoDataUrl = gameMetadataDraftLogoDataUrl || generateGameAvatarDataUrl(nameValue || selectedGameId, selectedGameId);
-        const payload = {
-          name: nameValue,
-          logo: resolvedLogoDataUrl,
-          company: companyInput && typeof companyInput.value === "string" ? companyInput.value.trim() : ""
-        };
-        setGameMetadataFormDisabled(true);
-        showMessage("gameMetadataStatus", t2("message_upload_processing"), "processing");
-        try {
-          const result = await FirebaseService.setGameMetadata(selectedGameId, payload);
-          if (!result || !result.success) {
-            showMessage("gameMetadataStatus", formatGameMetadataError(result), "error");
-            return;
-          }
-          await reloadGameMetadataCatalog(selectedGameId);
-          await loadGameMetadataForSelection(selectedGameId);
-          showMessage("gameMetadataStatus", t2("game_metadata_saved"), "success");
-          updateActiveGameBadge();
-        } catch (error) {
-          showMessage("gameMetadataStatus", formatGameMetadataError(error), "error");
-        } finally {
-          setGameMetadataFormDisabled(false);
-        }
+      function saveGameMetadata() {
+        return DSGameMetadataAdminController.saveGameMetadata();
       }
       window.t = t2;
       window.initLanguage = initLanguage2;
@@ -19314,132 +20381,12 @@
       window.initializeApplicationUiRuntime = initializeApplicationUiRuntime;
       window.updateUserHeaderIdentity = updateUserHeaderIdentity2;
       window.handleAllianceDataRealtimeUpdate = handleAllianceDataRealtimeUpdate2;
-      var ONBOARDING_STEPS = [
-        { titleKey: "onboarding_step1_title", descKey: "onboarding_step1_desc", targetSelector: "#navMenuBtn", position: "bottom" },
-        { titleKey: "onboarding_step2_title", descKey: "onboarding_step2_desc", targetSelector: "#navPlayersBtn", position: "bottom" },
-        { titleKey: "onboarding_step3_title", descKey: "onboarding_step3_desc", targetSelector: "#downloadTemplateBtn", position: "bottom" },
-        { titleKey: "onboarding_step4_title", descKey: "onboarding_step4_desc", targetSelector: "#uploadPlayerBtn", position: "bottom" },
-        { titleKey: "onboarding_step5_title", descKey: "onboarding_step5_desc", targetSelector: "#playersMgmtAddPanelHeader", position: "bottom" },
-        { titleKey: "onboarding_step6_title", descKey: "onboarding_step6_desc", targetSelector: "#navConfigBtn", position: "bottom" },
-        { titleKey: "onboarding_step7_title", descKey: "onboarding_step7_desc", targetSelector: "#eventsList", position: "top" },
-        { titleKey: "onboarding_step8_title", descKey: "onboarding_step8_desc", targetSelector: "#mapCoordinatesBtn", position: "top" },
-        { titleKey: "onboarding_step9_title", descKey: "onboarding_step9_desc", targetSelector: "#navGeneratorBtn", position: "bottom" },
-        { titleKey: "onboarding_step10_title", descKey: "onboarding_step10_desc", targetSelector: "#navAllianceBtn", position: "bottom" },
-        { titleKey: "onboarding_step11_title", descKey: "onboarding_step11_desc", targetSelector: "#alliancePage", position: "top" }
-      ];
-      var onboardingActive = false;
-      var currentOnboardingStep = 0;
-      var pendingOnboardingStep = null;
-      var currentHighlightTarget = null;
       function initOnboarding2() {
-        try {
-          if (localStorage.getItem("ds_onboarding_done")) return;
-        } catch (e) {
-          return;
-        }
-        onboardingActive = true;
-        currentOnboardingStep = 0;
-        showOnboardingStep(0);
-      }
-      function showOnboardingStep(index) {
-        if (index >= ONBOARDING_STEPS.length) {
-          completeOnboarding();
-          return;
-        }
-        const step = ONBOARDING_STEPS[index];
-        if (step.targetSelector === "#navPlayersBtn" || step.targetSelector === "#navConfigBtn" || step.targetSelector === "#navGeneratorBtn" || step.targetSelector === "#navAllianceBtn") {
-          openNavigationMenu();
-        }
-        const target = document.querySelector(step.targetSelector);
-        if (!target || target.closest(".hidden") || getComputedStyle(target).display === "none") {
-          pendingOnboardingStep = index;
-          return;
-        }
-        pendingOnboardingStep = null;
-        currentOnboardingStep = index;
-        if (currentHighlightTarget) {
-          currentHighlightTarget.classList.remove("onboarding-highlight");
-        }
-        currentHighlightTarget = target;
-        target.classList.add("onboarding-highlight");
-        document.getElementById("onboardingStepLabel").textContent = t2("onboarding_step", { current: index + 1, total: ONBOARDING_STEPS.length });
-        document.getElementById("onboardingTitle").textContent = t2(step.titleKey);
-        document.getElementById("onboardingDesc").textContent = t2(step.descKey);
-        document.getElementById("onboardingSkip").textContent = t2("onboarding_skip");
-        const tooltip = document.getElementById("onboardingTooltip");
-        tooltip.classList.remove("hidden");
-        positionOnboardingTooltip();
-      }
-      function positionOnboardingTooltip() {
-        const tooltip = document.getElementById("onboardingTooltip");
-        if (!tooltip || tooltip.classList.contains("hidden")) return;
-        const step = ONBOARDING_STEPS[currentOnboardingStep];
-        const target = document.querySelector(step.targetSelector);
-        if (!target) return;
-        const rect = target.getBoundingClientRect();
-        const tWidth = tooltip.offsetWidth || 280;
-        const tHeight = tooltip.offsetHeight || 160;
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        const gap = 10;
-        let place = step.position;
-        if (place === "bottom" && rect.bottom + gap + tHeight > vh) place = "top";
-        if (place === "top" && rect.top - gap - tHeight < 0) place = "bottom";
-        let top, arrowOffset;
-        if (place === "bottom") {
-          top = rect.bottom + gap;
-          tooltip.setAttribute("data-arrow", "top");
-        } else {
-          top = rect.top - gap - tHeight;
-          tooltip.setAttribute("data-arrow", "bottom");
-        }
-        let left = rect.left + rect.width / 2 - tWidth / 2;
-        left = Math.max(8, Math.min(left, vw - tWidth - 8));
-        arrowOffset = rect.left + rect.width / 2 - left - 7;
-        arrowOffset = Math.max(12, Math.min(arrowOffset, tWidth - 26));
-        tooltip.style.top = top + "px";
-        tooltip.style.left = left + "px";
-        tooltip.style.setProperty("--arrow-offset", arrowOffset + "px");
-      }
-      function dismissOnboardingStep() {
-        if (!onboardingActive) return;
-        if (currentHighlightTarget) {
-          currentHighlightTarget.classList.remove("onboarding-highlight");
-          currentHighlightTarget = null;
-        }
-        document.getElementById("onboardingTooltip").classList.add("hidden");
-        const next = currentOnboardingStep + 1;
-        if (next >= ONBOARDING_STEPS.length) {
-          completeOnboarding();
-        } else {
-          showOnboardingStep(next);
-        }
-      }
-      function completeOnboarding() {
-        onboardingActive = false;
-        if (currentHighlightTarget) {
-          currentHighlightTarget.classList.remove("onboarding-highlight");
-          currentHighlightTarget = null;
-        }
-        document.getElementById("onboardingTooltip").classList.add("hidden");
-        try {
-          localStorage.setItem("ds_onboarding_done", "true");
-        } catch (e) {
-        }
+        window.DSOnboardingController.initOnboarding();
       }
       function updateOnboardingTooltip() {
-        if (!onboardingActive) return;
-        const step = ONBOARDING_STEPS[currentOnboardingStep];
-        document.getElementById("onboardingStepLabel").textContent = t2("onboarding_step", { current: currentOnboardingStep + 1, total: ONBOARDING_STEPS.length });
-        document.getElementById("onboardingTitle").textContent = t2(step.titleKey);
-        document.getElementById("onboardingDesc").textContent = t2(step.descKey);
-        document.getElementById("onboardingSkip").textContent = t2("onboarding_skip");
+        window.DSOnboardingController.updateOnboardingTooltip();
       }
-      ["scroll", "resize"].forEach(
-        (ev) => window.addEventListener(ev, () => {
-          if (onboardingActive) positionOnboardingTooltip();
-        }, { passive: true })
-      );
       function bindStaticUiActions() {
         const on = (id, eventName, handler) => {
           const el = document.getElementById(id);
@@ -19844,17 +20791,8 @@
         }
         appUiRuntimeInitialized = true;
         bindStaticUiActions();
-        document.addEventListener("click", (event) => {
-          if (!onboardingActive) return;
-          const step = ONBOARDING_STEPS[currentOnboardingStep];
-          if (!step) return;
-          const target = document.querySelector(step.targetSelector);
-          if (!target) return;
-          if (target.contains(event.target)) {
-            dismissOnboardingStep();
-          }
-        });
-        document.getElementById("onboardingSkip").addEventListener("click", completeOnboarding);
+        window.DSOnboardingController.init({ t: t2, openNavigationMenu });
+        window.DSOnboardingController.bindOnboardingListeners();
         const settingsDisplayNameInput = document.getElementById("settingsDisplayNameInput");
         if (settingsDisplayNameInput) {
           settingsDisplayNameInput.addEventListener("input", updateSettingsAvatarPreview);
@@ -19959,22 +20897,15 @@
       var substitutesA = [];
       var substitutesB = [];
       var currentAuthUser = null;
-      var settingsDraftAvatarDataUrl = "";
-      var settingsDraftTheme = "standard";
-      var PROFILE_TEXT_LIMIT = 60;
-      var PROFILE_AVATAR_DATA_URL_LIMIT = 4e5;
-      var AVATAR_ALLOWED_TYPES = /* @__PURE__ */ new Set(["image/jpeg", "image/png", "image/webp"]);
-      var AVATAR_ALLOWED_EXTENSIONS = /* @__PURE__ */ new Set([".jpg", ".jpeg", ".png", ".webp"]);
-      var AVATAR_MIN_DIMENSION = 96;
-      var AVATAR_MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+      var PROFILE_TEXT_LIMIT = window.DSAuthUiController.PROFILE_TEXT_LIMIT;
+      var PROFILE_AVATAR_DATA_URL_LIMIT = window.DSAuthUiController.PROFILE_AVATAR_DATA_URL_LIMIT;
+      var AVATAR_MIN_DIMENSION = window.DSAuthUiController.AVATAR_MIN_DIMENSION;
+      var AVATAR_MAX_UPLOAD_BYTES = window.DSAuthUiController.AVATAR_MAX_UPLOAD_BYTES;
       var EVENT_NAME_LIMIT = 30;
       var EVENT_LOGO_DATA_URL_LIMIT = 22e4;
       var EVENT_MAP_DATA_URL_LIMIT = 95e4;
-      var DELETE_ACCOUNT_CONFIRM_WORD = "delete";
-      var THEME_STORAGE_KEY = "ds_theme";
-      var THEME_STANDARD = "standard";
-      var THEME_LAST_WAR = "last-war";
-      var SUPPORTED_THEMES = /* @__PURE__ */ new Set([THEME_STANDARD, THEME_LAST_WAR]);
+      var THEME_STANDARD = window.DSThemeController.THEME_STANDARD;
+      var THEME_LAST_WAR = window.DSThemeController.THEME_LAST_WAR;
       var SUPPORT_DISCORD_HANDLE = "flashguru2000";
       var SUPPORT_DISCORD_URL = "https://discord.com/users/1239126582388592667";
       var SUPPORT_REPO_ISSUES_NEW_URL = "https://github.com/CristianConsta/events-team-generator/issues/new";
@@ -19982,7 +20913,6 @@
       var ASSIGNMENT_ALGO_AGGRESSIVE = "aggressive";
       var ASSIGNMENT_ALGO_DEFAULT = ASSIGNMENT_ALGO_BALANCED;
       var PLAYERS_MANAGEMENT_DEFAULT_SORT = "power-desc";
-      var GAME_METADATA_SUPER_ADMIN_UID = "2z2BdO8aVsUovqQWWL9WCRMdV933";
       var currentAssignmentAlgorithm = ASSIGNMENT_ALGO_DEFAULT;
       var currentPageView = "generator";
       var currentEvent = "desert_storm";
@@ -19991,8 +20921,6 @@
       var eventDraftMapDataUrl = "";
       var eventDraftMapRemoved = false;
       var eventEditorIsEditMode = false;
-      var gameMetadataCatalogCache = [];
-      var gameMetadataDraftLogoDataUrl = "";
       var appStateStore = window.DSAppStateStore && typeof window.DSAppStateStore.createDefaultStore === "function" ? window.DSAppStateStore.createDefaultStore({
         navigation: {
           currentView: currentPageView
@@ -20145,6 +21073,8 @@
         if (window.DSFeatureGeneratorController && typeof window.DSFeatureGeneratorController.createController === "function") {
           generatorFeatureController = window.DSFeatureGeneratorController.createController({
             document,
+            generatorActions: window.DSFeatureGeneratorActions,
+            generatorView: window.DSFeatureGeneratorView,
             defaultAlgorithm: ASSIGNMENT_ALGO_DEFAULT,
             normalizeAssignmentAlgorithm,
             setAssignmentAlgorithm: setCurrentAssignmentAlgorithmState,
@@ -20261,47 +21191,17 @@
       var activeDownloadTeam = null;
       syncPlayersManagementFilterState();
       function normalizeThemePreference(theme) {
-        if (typeof theme !== "string") {
-          return THEME_STANDARD;
-        }
-        const normalized = theme.trim().toLowerCase();
-        return SUPPORTED_THEMES.has(normalized) ? normalized : THEME_STANDARD;
+        return window.DSThemeController.normalizeThemePreference(theme);
       }
       function getStoredThemePreference() {
-        try {
-          return normalizeThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
-        } catch (error) {
-          return THEME_STANDARD;
-        }
-      }
-      function persistThemePreference(theme) {
-        try {
-          localStorage.setItem(THEME_STORAGE_KEY, normalizeThemePreference(theme));
-        } catch (error) {
-        }
+        return window.DSThemeController.getStoredThemePreference();
       }
       function applyPlatformTheme(theme, options) {
-        const nextTheme = normalizeThemePreference(theme);
-        const root = document.documentElement;
-        if (root) {
-          root.setAttribute("data-theme", nextTheme);
-        }
-        if (document.body) {
-          document.body.setAttribute("data-theme", nextTheme);
-        }
-        if (!options || options.skipPersist !== true) {
-          persistThemePreference(nextTheme);
-        }
-        return nextTheme;
+        return window.DSThemeController.applyPlatformTheme(theme, options);
       }
       function getCurrentAppliedTheme() {
-        const root = document.documentElement;
-        if (!root) {
-          return THEME_STANDARD;
-        }
-        return normalizeThemePreference(root.getAttribute("data-theme"));
+        return window.DSThemeController.getCurrentAppliedTheme();
       }
-      applyPlatformTheme(getStoredThemePreference(), { skipPersist: true });
       function isConfigurationPageVisible() {
         return getCurrentPageViewState() === "configuration";
       }
@@ -20431,12 +21331,7 @@
         }
       }
       function resumePendingOnboardingStep() {
-        if (pendingOnboardingStep === null) {
-          return;
-        }
-        const pending = pendingOnboardingStep;
-        pendingOnboardingStep = null;
-        showOnboardingStep(pending);
+        window.DSOnboardingController.resumePendingOnboardingStep();
       }
       function updateFloatingButtonsVisibility() {
         const bar = document.getElementById("floatingButtons");
@@ -20646,75 +21541,13 @@
         }
       }
       function updateUserHeaderIdentity2(user) {
-        if (typeof user !== "undefined") {
-          currentAuthUser = user;
-        }
-        const profile = getProfileFromService();
-        const resolvedTheme = currentAuthUser ? profile.theme : getStoredThemePreference();
-        applyPlatformTheme(resolvedTheme);
-        const nickname = profile.nickname || "";
-        const displayName = profile.displayName || "";
-        const visibleLabel = nickname || displayName;
-        const labelEl = document.getElementById("userIdentityLabel");
-        if (labelEl) {
-          labelEl.textContent = visibleLabel;
-        }
-        const userTextEl = document.getElementById("headerUserText");
-        if (userTextEl) {
-          userTextEl.classList.toggle("hidden", !visibleLabel);
-        }
-        const avatarImageEl = document.getElementById("headerAvatarImage");
-        const avatarInitialsEl = document.getElementById("headerAvatarInitials");
-        const initialsSource = visibleLabel || getSignInDisplayName(currentAuthUser);
-        applyAvatar(profile.avatarDataUrl, avatarImageEl, avatarInitialsEl, getAvatarInitials(initialsSource, ""));
-        syncGameMetadataMenuAvailability();
+        window.DSAuthUiController.updateUserHeaderIdentity(user);
       }
       function openSettingsModal() {
-        closeNavigationMenu();
-        const modal = document.getElementById("settingsModal");
-        if (!modal) {
-          return;
-        }
-        const profile = getProfileFromService();
-        const displayInput = document.getElementById("settingsDisplayNameInput");
-        const nicknameInput = document.getElementById("settingsNicknameInput");
-        const languageSelect = document.getElementById("languageSelect");
-        const themeSelect = document.getElementById("settingsThemeSelect");
-        const signInName = getSignInDisplayName(currentAuthUser);
-        if (displayInput) {
-          displayInput.value = profile.displayName || signInName || "";
-        }
-        if (nicknameInput) {
-          nicknameInput.value = profile.nickname || "";
-        }
-        if (languageSelect && window.DSI18N && window.DSI18N.getLanguage) {
-          languageSelect.value = window.DSI18N.getLanguage();
-        }
-        settingsDraftTheme = normalizeThemePreference(profile.theme || getCurrentAppliedTheme());
-        if (themeSelect) {
-          themeSelect.value = settingsDraftTheme;
-        }
-        settingsDraftAvatarDataUrl = profile.avatarDataUrl || "";
-        const statusEl = document.getElementById("settingsStatus");
-        if (statusEl) {
-          statusEl.innerHTML = "";
-        }
-        const deleteConfirmInput = document.getElementById("settingsDeleteConfirmInput");
-        if (deleteConfirmInput) {
-          deleteConfirmInput.value = "";
-        }
-        const deleteBtn = document.getElementById("settingsDeleteBtn");
-        if (deleteBtn) {
-          deleteBtn.disabled = false;
-        }
-        updateSettingsAvatarPreview();
-        openModalOverlay(modal, { initialFocusSelector: "#settingsDisplayNameInput" });
+        window.DSAuthUiController.openSettingsModal();
       }
       function closeSettingsModal() {
-        const modal = document.getElementById("settingsModal");
-        if (modal) {
-          closeModalOverlay(modal);
-        }
+        window.DSAuthUiController.closeSettingsModal();
       }
       function handleModalOverlayDismissClick(event) {
         if (!event || !(event.currentTarget instanceof HTMLElement) || event.target !== event.currentTarget) {
@@ -20737,214 +21570,31 @@
         }
       }
       function triggerSettingsAvatarUpload() {
-        const input = document.getElementById("settingsAvatarInput");
-        if (input) {
-          input.click();
-        }
+        window.DSAuthUiController.triggerSettingsAvatarUpload();
       }
       function removeSettingsAvatar() {
-        settingsDraftAvatarDataUrl = "";
-        const input = document.getElementById("settingsAvatarInput");
-        if (input) {
-          input.value = "";
-        }
-        updateSettingsAvatarPreview();
+        window.DSAuthUiController.removeSettingsAvatar();
       }
       function updateSettingsAvatarPreview() {
-        const displayInput = document.getElementById("settingsDisplayNameInput");
-        const nicknameInput = document.getElementById("settingsNicknameInput");
-        const name = displayInput && displayInput.value ? displayInput.value.trim() : getSignInDisplayName(currentAuthUser);
-        const nickname = nicknameInput && nicknameInput.value ? nicknameInput.value.trim().replace(/^@+/, "") : "";
-        const previewImg = document.getElementById("settingsAvatarImage");
-        const previewInitials = document.getElementById("settingsAvatarInitials");
-        applyAvatar(settingsDraftAvatarDataUrl, previewImg, previewInitials, getAvatarInitials(name, nickname));
+        window.DSAuthUiController.updateSettingsAvatarPreview();
       }
       function readFileAsDataUrl(file) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => resolve(event.target.result);
-          reader.onerror = () => reject(new Error(t2("settings_avatar_processing_failed")));
-          reader.readAsDataURL(file);
-        });
+        return window.DSAuthUiController.readFileAsDataUrl(file);
       }
       function loadImageFromDataUrl(dataUrl) {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error(t2("settings_avatar_processing_failed")));
-          img.src = dataUrl;
-        });
-      }
-      function getFileExtension(name) {
-        if (typeof name !== "string") {
-          return "";
-        }
-        const normalized = name.trim().toLowerCase();
-        const dotIndex = normalized.lastIndexOf(".");
-        if (dotIndex <= 0) {
-          return "";
-        }
-        return normalized.slice(dotIndex);
+        return window.DSAuthUiController.loadImageFromDataUrl(dataUrl);
       }
       function isAllowedAvatarFile(file) {
-        if (!file) {
-          return false;
-        }
-        const type = typeof file.type === "string" ? file.type.trim().toLowerCase() : "";
-        const extension = getFileExtension(file.name);
-        if (type && !AVATAR_ALLOWED_TYPES.has(type)) {
-          return false;
-        }
-        if (extension && !AVATAR_ALLOWED_EXTENSIONS.has(extension)) {
-          return false;
-        }
-        return Boolean(type && AVATAR_ALLOWED_TYPES.has(type) || extension && AVATAR_ALLOWED_EXTENSIONS.has(extension));
+        return window.DSAuthUiController.isAllowedAvatarFile(file);
       }
-      async function createAvatarDataUrl(file) {
-        if (!isAllowedAvatarFile(file)) {
-          throw new Error(t2("settings_avatar_invalid_type"));
-        }
-        if (typeof file.size === "number" && file.size > AVATAR_MAX_UPLOAD_BYTES) {
-          throw new Error(t2("settings_avatar_file_too_large", { maxMb: Math.floor(AVATAR_MAX_UPLOAD_BYTES / (1024 * 1024)) }));
-        }
-        const rawDataUrl = await readFileAsDataUrl(file);
-        const img = await loadImageFromDataUrl(rawDataUrl);
-        if ((img.width || 0) < AVATAR_MIN_DIMENSION || (img.height || 0) < AVATAR_MIN_DIMENSION) {
-          throw new Error(t2("settings_avatar_too_small", { min: AVATAR_MIN_DIMENSION }));
-        }
-        const maxSide = 256;
-        const longestSide = Math.max(img.width || 1, img.height || 1);
-        const scale = Math.min(1, maxSide / longestSide);
-        const width = Math.max(1, Math.round((img.width || 1) * scale));
-        const height = Math.max(1, Math.round((img.height || 1) * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          throw new Error(t2("settings_avatar_processing_failed"));
-        }
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        const jpegQualities = [0.9, 0.8, 0.7, 0.6, 0.5];
-        for (const quality of jpegQualities) {
-          const jpegDataUrl = canvas.toDataURL("image/jpeg", quality);
-          if (jpegDataUrl.length <= PROFILE_AVATAR_DATA_URL_LIMIT) {
-            return jpegDataUrl;
-          }
-        }
-        const pngDataUrl = canvas.toDataURL("image/png");
-        if (pngDataUrl.length <= PROFILE_AVATAR_DATA_URL_LIMIT) {
-          return pngDataUrl;
-        }
-        throw new Error(t2("settings_avatar_too_large"));
+      function handleSettingsAvatarChange(event) {
+        return window.DSAuthUiController.handleSettingsAvatarChange(event);
       }
-      async function handleSettingsAvatarChange(event) {
-        const input = event && event.target ? event.target : document.getElementById("settingsAvatarInput");
-        const file = input && input.files ? input.files[0] : null;
-        if (!file) {
-          return;
-        }
-        try {
-          settingsDraftAvatarDataUrl = await createAvatarDataUrl(file);
-          const statusEl = document.getElementById("settingsStatus");
-          if (statusEl) {
-            statusEl.innerHTML = "";
-          }
-          updateSettingsAvatarPreview();
-        } catch (error) {
-          showMessage("settingsStatus", error.message || t2("settings_avatar_processing_failed"), "error");
-        } finally {
-          if (input) {
-            input.value = "";
-          }
-        }
+      function saveSettings() {
+        return window.DSAuthUiController.saveSettings();
       }
-      async function saveSettings() {
-        if (typeof FirebaseService === "undefined") {
-          showMessage("settingsStatus", t2("error_firebase_not_loaded"), "error");
-          return;
-        }
-        const gameplayContext = getGameplayContext("settingsStatus");
-        if (!gameplayContext) {
-          return;
-        }
-        const displayInput = document.getElementById("settingsDisplayNameInput");
-        const nicknameInput = document.getElementById("settingsNicknameInput");
-        const displayName = displayInput && typeof displayInput.value === "string" ? displayInput.value.trim().slice(0, PROFILE_TEXT_LIMIT) : "";
-        const nickname = nicknameInput && typeof nicknameInput.value === "string" ? nicknameInput.value.trim().replace(/^@+/, "").slice(0, PROFILE_TEXT_LIMIT) : "";
-        const themeSelect = document.getElementById("settingsThemeSelect");
-        const selectedTheme = normalizeThemePreference(
-          themeSelect && typeof themeSelect.value === "string" ? themeSelect.value : settingsDraftTheme
-        );
-        if (FirebaseService.setUserProfile) {
-          FirebaseService.setUserProfile({
-            displayName,
-            nickname,
-            avatarDataUrl: settingsDraftAvatarDataUrl || ""
-          }, gameplayContext);
-        }
-        const result = await FirebaseService.saveUserData(void 0, gameplayContext);
-        if (result && result.success) {
-          settingsDraftTheme = selectedTheme;
-          applyPlatformTheme(selectedTheme);
-          updateUserHeaderIdentity2(currentAuthUser);
-          showMessage("settingsStatus", t2("settings_saved"), "success");
-          setTimeout(() => {
-            closeSettingsModal();
-          }, 600);
-        } else {
-          const errorText = result && result.error ? result.error : t2("settings_avatar_processing_failed");
-          showMessage("settingsStatus", t2("settings_save_failed", { error: errorText }), "error");
-        }
-      }
-      async function deleteAccountFromSettings() {
-        if (typeof FirebaseService === "undefined" || typeof FirebaseService.deleteUserAccountAndData !== "function") {
-          showMessage("settingsStatus", t2("error_firebase_not_loaded"), "error");
-          return;
-        }
-        const inputEl = document.getElementById("settingsDeleteConfirmInput");
-        const typedValue = inputEl && typeof inputEl.value === "string" ? inputEl.value.trim().toLowerCase() : "";
-        if (typedValue !== DELETE_ACCOUNT_CONFIRM_WORD) {
-          showMessage("settingsStatus", t2("settings_delete_account_word_error", { word: DELETE_ACCOUNT_CONFIRM_WORD }), "error");
-          return;
-        }
-        if (!confirm(t2("settings_delete_account_confirm_final"))) {
-          return;
-        }
-        const deleteBtn = document.getElementById("settingsDeleteBtn");
-        if (deleteBtn) {
-          deleteBtn.disabled = true;
-        }
-        showMessage("settingsStatus", t2("settings_delete_account_processing"), "processing");
-        try {
-          const result = await FirebaseService.deleteUserAccountAndData();
-          if (result && (result.success || result.accountDeleted)) {
-            showMessage("settingsStatus", t2("settings_delete_account_success"), "success");
-            return;
-          }
-          if (result && result.dataDeleted && result.reauthRequired) {
-            showMessage("settingsStatus", t2("settings_delete_account_reauth"), "warning");
-            return;
-          }
-          const errorText = result && result.error ? result.error : t2("error_generic", { error: "unknown" });
-          showMessage("settingsStatus", t2("settings_delete_account_failed", { error: errorText }), "error");
-        } catch (error) {
-          showMessage("settingsStatus", t2("settings_delete_account_failed", { error: error.message || "unknown" }), "error");
-        } finally {
-          if (typeof FirebaseService !== "undefined" && typeof FirebaseService.signOut === "function") {
-            try {
-              await FirebaseService.signOut();
-            } catch (signOutError) {
-              console.warn("Sign-out after account deletion flow failed:", signOutError && signOutError.message ? signOutError.message : signOutError);
-            }
-          }
-          closeSettingsModal();
-          if (deleteBtn) {
-            deleteBtn.disabled = false;
-          }
-        }
+      function deleteAccountFromSettings() {
+        return window.DSAuthUiController.deleteAccountFromSettings();
       }
       var EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
       var DEFAULT_ASSIGNMENT_ALGORITHM_ID = window.DSEventsRegistryController.DEFAULT_ASSIGNMENT_ALGORITHM_ID;
@@ -21077,6 +21727,177 @@
         }
       });
       currentEvent = window.DSEventsRegistryController.getEventIds()[0] || "desert_storm";
+      window.DSAuthUiController.init({
+        t: function() {
+          return t2.apply(null, arguments);
+        },
+        showMessage: function(id, msg, type) {
+          return showMessage(id, msg, type);
+        },
+        getFirebaseService: function() {
+          return typeof FirebaseService !== "undefined" ? FirebaseService : null;
+        },
+        getCurrentAuthUser: function() {
+          return currentAuthUser;
+        },
+        setCurrentAuthUser: function(user) {
+          currentAuthUser = user;
+        },
+        getProfileFromService: function() {
+          return getProfileFromService();
+        },
+        getSignInDisplayName: function(user) {
+          return getSignInDisplayName(user);
+        },
+        applyAvatar: function(url, img, el, initials) {
+          return applyAvatar(url, img, el, initials);
+        },
+        getAvatarInitials: function(a, b) {
+          return getAvatarInitials(a, b);
+        },
+        applyPlatformTheme: function(theme) {
+          return applyPlatformTheme(theme);
+        },
+        normalizeThemePreference: function(theme) {
+          return normalizeThemePreference(theme);
+        },
+        getCurrentAppliedTheme: function() {
+          return getCurrentAppliedTheme();
+        },
+        getStoredThemePreference: function() {
+          return getStoredThemePreference();
+        },
+        getGameplayContext: function(statusId) {
+          return getGameplayContext(statusId);
+        },
+        openModalOverlay: function(el, opts) {
+          return openModalOverlay(el, opts);
+        },
+        closeModalOverlay: function(el) {
+          return closeModalOverlay(el);
+        },
+        closeNavigationMenu: function() {
+          return closeNavigationMenu();
+        },
+        syncGameMetadataMenuAvailability: function() {
+          return syncGameMetadataMenuAvailability();
+        }
+      });
+      window.DSGameMetadataAdminController.init({
+        t: function() {
+          return t2.apply(null, arguments);
+        },
+        showMessage: function(id, msg, type) {
+          return showMessage(id, msg, type);
+        },
+        getFirebaseService: function() {
+          return typeof FirebaseService !== "undefined" ? FirebaseService : null;
+        },
+        getCurrentAuthUser: function() {
+          return currentAuthUser;
+        },
+        getActiveGame: function() {
+          return getActiveGame();
+        },
+        ensureActiveGameContext: function() {
+          return ensureActiveGameContext();
+        },
+        updateActiveGameBadge: function(id) {
+          return updateActiveGameBadge(id);
+        },
+        refreshGameSelectorMenuAvailability: function() {
+          return refreshGameSelectorMenuAvailability();
+        },
+        applyAvatar: function(url, img, el, initials) {
+          return applyAvatar(url, img, el, initials);
+        },
+        getAvatarInitials: function(a, b) {
+          return getAvatarInitials(a, b);
+        },
+        closeNavigationMenu: function() {
+          return closeNavigationMenu();
+        },
+        generateEventAvatarDataUrl: function(n, i) {
+          return generateEventAvatarDataUrl(n, i);
+        },
+        createGameMetadataLogoDataUrl: function(f) {
+          return createGameMetadataLogoDataUrl(f);
+        },
+        getSelectableGameById: function(id) {
+          return getSelectableGameById(id);
+        }
+      });
+      window.DSGameSelectorController.init({
+        t: function() {
+          return t2.apply(null, arguments);
+        },
+        showMessage: function(id, msg, type) {
+          return showMessage(id, msg, type);
+        },
+        getFirebaseService: function() {
+          return typeof FirebaseService !== "undefined" ? FirebaseService : null;
+        },
+        getActiveGame: function() {
+          return getActiveGame();
+        },
+        setActiveGame: function(id) {
+          return setActiveGame(id);
+        },
+        ensureActiveGameContext: function() {
+          return ensureActiveGameContext();
+        },
+        applyAvatar: function(url, img, el, initials) {
+          return applyAvatar(url, img, el, initials);
+        },
+        getAvatarInitials: function(a, b) {
+          return getAvatarInitials(a, b);
+        },
+        generateGameAvatarDataUrl: function(n, i) {
+          return generateGameAvatarDataUrl(n, i);
+        },
+        closeNavigationMenu: function() {
+          return closeNavigationMenu();
+        },
+        normalizeEventId: function(v) {
+          return normalizeEventId(v);
+        },
+        getCurrentEvent: function() {
+          return currentEvent;
+        },
+        listSelectableGames: function() {
+          return listSelectableGames();
+        },
+        getSelectableGameById: function(id) {
+          return getSelectableGameById(id);
+        },
+        resolveActiveGameName: function(id) {
+          return resolveActiveGameName(id);
+        },
+        refreshGameSelectorMenuAvailability: function() {
+          return refreshGameSelectorMenuAvailability();
+        },
+        refreshGameMetadataCatalogCache: function(o) {
+          return refreshGameMetadataCatalogCache(o);
+        },
+        resetTransientPlanningState: function(o) {
+          return resetTransientPlanningState(o);
+        },
+        loadPlayerData: function() {
+          return loadPlayerData2();
+        },
+        updateAllianceHeaderDisplay: function() {
+          return updateAllianceHeaderDisplay2();
+        },
+        renderAlliancePanel: function() {
+          return renderAlliancePanel();
+        },
+        getCurrentPageView: function() {
+          return currentPageView;
+        },
+        closeDownloadModal: function() {
+          return closeDownloadModal();
+        }
+      });
       function normalizeAssignmentAlgorithmId(v) {
         return window.DSEventsRegistryController.normalizeAssignmentAlgorithmId(v);
       }
@@ -21215,104 +22036,20 @@
             return troop;
         }
       }
-      var googleSignInInProgress = false;
-      async function handleGoogleSignIn() {
-        if (googleSignInInProgress) {
-          return;
-        }
-        if (typeof FirebaseService === "undefined") {
-          alert(t2("error_firebase_not_loaded"));
-          return;
-        }
-        const btn = document.getElementById("googleSignInBtn");
-        googleSignInInProgress = true;
-        if (btn) {
-          btn.disabled = true;
-        }
-        try {
-          const result = await FirebaseService.signInWithGoogle();
-          if (!result.success) {
-            alert(t2("error_sign_in_failed", { error: result.error }));
-          }
-        } finally {
-          googleSignInInProgress = false;
-          if (btn) {
-            btn.disabled = false;
-          }
-        }
+      function handleGoogleSignIn() {
+        return window.DSAuthUiController.handleGoogleSignIn();
       }
-      async function handleEmailSignIn() {
-        if (typeof FirebaseService === "undefined") {
-          alert(t2("error_firebase_not_loaded"));
-          return;
-        }
-        const email = document.getElementById("emailInput").value;
-        const password = document.getElementById("passwordInput").value;
-        if (!email || !password) {
-          alert(t2("error_enter_email_password"));
-          return;
-        }
-        const result = await FirebaseService.signInWithEmail(email, password);
-        if (!result.success) {
-          alert(t2("error_sign_in_failed", { error: result.error }));
-        }
+      function handleEmailSignIn() {
+        return window.DSAuthUiController.handleEmailSignIn();
       }
       function showSignUpForm() {
-        if (typeof FirebaseService === "undefined") {
-          alert(t2("error_firebase_not_loaded"));
-          return;
-        }
-        const email = document.getElementById("emailInput").value;
-        const password = document.getElementById("passwordInput").value;
-        if (!email || !password) {
-          alert(t2("error_enter_email_password"));
-          return;
-        }
-        if (password.length < 6) {
-          alert(t2("error_password_length"));
-          return;
-        }
-        if (confirm(t2("confirm_create_account", { email }))) {
-          handleSignUp(email, password);
-        }
+        window.DSAuthUiController.showSignUpForm();
       }
-      async function handleSignUp(email, password) {
-        if (typeof FirebaseService === "undefined") {
-          alert(t2("error_firebase_not_loaded"));
-          return;
-        }
-        const result = await FirebaseService.signUpWithEmail(email, password);
-        if (result.success) {
-          alert(t2("success_account_created"));
-        } else {
-          alert(t2("error_sign_up_failed", { error: result.error }));
-        }
+      function handlePasswordReset() {
+        return window.DSAuthUiController.handlePasswordReset();
       }
-      async function handlePasswordReset() {
-        if (typeof FirebaseService === "undefined") {
-          alert(t2("error_firebase_not_loaded"));
-          return;
-        }
-        const email = document.getElementById("emailInput").value;
-        if (!email) {
-          alert(t2("error_enter_email"));
-          return;
-        }
-        const result = await FirebaseService.resetPassword(email);
-        if (result.success) {
-          alert(t2("success_password_reset"));
-        } else {
-          alert(t2("error_failed", { error: result.error }));
-        }
-      }
-      async function handleSignOut() {
-        if (typeof FirebaseService === "undefined") {
-          alert(t2("error_firebase_not_loaded"));
-          return;
-        }
-        if (confirm(t2("confirm_sign_out"))) {
-          await FirebaseService.signOut();
-        }
+      function handleSignOut() {
+        return window.DSAuthUiController.handleSignOut();
       }
       function toggleUploadPanel() {
         uploadPanelExpanded = !uploadPanelExpanded;
@@ -21629,8 +22366,8 @@
                 </td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions players-mgmt-actions--edit">
-                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_save_button"))}" aria-label="${escapeHtml(t2("players_list_save_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_save_button"))}</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span></button>
-                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_cancel_button"))}" aria-label="${escapeHtml(t2("players_list_cancel_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_cancel_button"))}</span><span class="action-btn-icon" aria-hidden="true">&#10005;</span></button>
+                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_save_button"))}" aria-label="${escapeHtml(t2("players_list_save_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_save_button"))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span></button>
+                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_cancel_button"))}" aria-label="${escapeHtml(t2("players_list_cancel_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_cancel_button"))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></span></button>
                     </div>
                 </td>
             `;
@@ -21642,9 +22379,9 @@
                 <td data-label="${troopHeader}">${escapeHtml(getTroopLabel(player.troops))}</td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions players-mgmt-actions--default">
-                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_edit_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_edit_button"))}</span><span class="action-btn-icon" aria-hidden="true">&#9998;</span></button>
-                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_delete_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_delete_button"))}</span><span class="action-btn-icon" aria-hidden="true">&#128465;</span></button>
-                        <button type="button" class="players-mgmt-invite-btn" data-pm-action="invite" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_invite_button"))}"><span class="invite-btn-text">${escapeHtml(t2("players_list_invite_button"))}</span><span class="invite-btn-icon" aria-hidden="true">&#8599;</span></button>
+                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_edit_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_edit_button"))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5,1.5l3,3L5,14H2v-3Z"/></svg></span></button>
+                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_delete_button"))}"><span class="action-btn-text">${escapeHtml(t2("players_list_delete_button"))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2,4h12"/><path d="M5,4V2h6v2"/><path d="M4,4l1,10h6l1,-10"/><line x1="7" y1="7" x2="7" y2="12"/><line x1="9" y1="7" x2="9" y2="12"/></svg></span></button>
+                        <button type="button" class="players-mgmt-invite-btn" data-pm-action="invite" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t2("players_list_invite_button"))}"><span class="invite-btn-text">${escapeHtml(t2("players_list_invite_button"))}</span><span class="invite-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="12" y2="4"/><polyline points="7,4 12,4 12,9"/></svg></span></button>
                     </div>
                 </td>
             `;
@@ -23612,6 +24349,8 @@
   require_event_selector_view();
   require_events_manager_actions();
   require_events_manager_controller();
+  require_events_image_processor();
+  require_events_map_controller();
   require_events_registry_controller();
   require_notifications_core();
   require_alliance_controller();
@@ -23646,6 +24385,11 @@
   require_modal_controller();
   require_notifications_sheet_controller();
   require_app_shell_bootstrap();
+  require_onboarding_controller();
+  require_theme_controller();
+  require_auth_ui_controller();
+  require_game_metadata_admin_controller();
+  require_game_selector_controller();
   require_app();
   require_app_init();
 })();
