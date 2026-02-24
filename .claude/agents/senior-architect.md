@@ -16,9 +16,10 @@ Approve or challenge proposed changes based on architectural integrity, migratio
 ## Project context
 
 - Frontend is vanilla HTML/CSS/ES6 JavaScript.
-- JS modules follow IIFE exports on `window`.
+- JS modules follow IIFE exports on `window`: `(function initX(global) { global.ModuleName = { ... }; })(window);`
 - No build step, no framework assumptions.
-- Main files include `app.js`, `firebase-module.js`, `translations.js`, `index.html`, `js/core/*`, `js/ui/*`, `js/services/*`.
+- Main files include `app.js`, `firebase-module.js`, `translations.js`, `index.html`, `js/core/*`, `js/ui/*`, `js/features/**/*`, `js/shell/**/*`, `js/shared/**/*`, `js/services/*`.
+- Directory structure: `js/core/` (domain logic), `js/features/` (feature modules: generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings), `js/shell/` (app shell: bootstrap, navigation, overlays), `js/shared/data/` (Firebase gateways), `js/shared/state/` (app-state-store), `js/ui/` (shared UI helpers), `js/services/` (firebase-service adapter).
 - Tests: Node built-in tests (`npm test`) and Playwright E2E smoke/regression suites.
 
 ## What you validate

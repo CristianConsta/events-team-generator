@@ -21,7 +21,8 @@ Your output should prioritize:
 
 - Frontend stack: plain HTML/CSS/ES6 JS (no framework)
 - Module pattern: IIFE exports on `window`
-- Main files: `app.js`, `index.html`, `styles.css`, `translations.js`, `js/core/*`, `js/ui/*`, `js/services/firebase-service.js`, `js/app-init.js`
+- Main files: `app.js`, `index.html`, `styles.css`, `translations.js`, `js/core/*`, `js/ui/*`, `js/features/**/*`, `js/shell/**/*`, `js/shared/**/*`, `js/services/firebase-service.js`, `js/app-init.js`
+- Key directories: `js/core/` (assignment, buildings, events, games, i18n, player-table, reliability, firestore-utils), `js/features/` (generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings), `js/shell/` (bootstrap, navigation, overlays), `js/shared/data/` (Firebase gateways), `js/shared/state/` (app-state-store, state-store-contract), `js/ui/` (shared UI helpers)
 - Test layers:
   - Unit/integration: `node --test tests/*.test.js`
   - E2E (Playwright Edge + mobile emulation): `npm run test:e2e`, tagged smoke/regression suites

@@ -14,14 +14,16 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 - Browser scripts are loaded from `index.html` with local files only.
 - Styling is centralized in `styles.css`.
 - User-facing copy is centralized in `translations.js`.
-- Core frontend modules live in `js/ui/` and integrate with `js/core/` plus `app.js`.
+- Core frontend modules live in `js/ui/`, `js/features/`, and `js/shell/`, and integrate with `js/core/` plus `app.js`.
 
 ## Files this agent owns
 
 - `index.html`
 - `styles.css`
 - `translations.js`
-- `js/ui/*.js`
+- `js/ui/*.js` — shared low-level UI helpers (alliance-panel-ui, event-buildings-editor-ui, event-list-ui, player-table-ui)
+- `js/features/**/*.js` — feature modules (generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings)
+- `js/shell/**/*.js` — app shell (bootstrap, navigation, modals, notifications-sheet)
 - `js/app-init.js`
 
 ## Hard constraints
@@ -44,7 +46,7 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 ## Validation checklist
 
 - Run unit/integration tests: `node --test tests/*.test.js` (or `cmd /c npm test` on restricted PowerShell setups).
-- If UI behavior changed, run relevant Playwright tests in `e2e/*.e2e.js`.
+- If UI behavior changed, run relevant Playwright tests in `tests/e2e/*.e2e.js`.
 - Confirm no regression in required page IDs and control hooks used by tests.
 
 ## Session guardrails (UI behavior that must be preserved)

@@ -7,6 +7,19 @@ model: sonnet
 
 You are the senior software developer reviewer and implementer for Events Team Generator.
 
+## Project structure
+
+- `js/core/` — domain logic (assignment, buildings, events, games, i18n, player-table, reliability, firestore-utils, assignment-registry, generator-assignment)
+- `js/features/` — feature modules: generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings
+- `js/shell/` — app shell: bootstrap (`app-shell-bootstrap.js`, `app-shell-contracts.js`), navigation, overlays (modal-controller, notifications-sheet-controller)
+- `js/shared/data/` — Firebase gateways (players, events, alliances, auth, notifications, player-updates, event-history)
+- `js/shared/state/` — `app-state-store.js`, `state-store-contract.js`
+- `js/ui/` — shared UI helpers (alliance-panel-ui, event-buildings-editor-ui, event-list-ui, player-table-ui)
+- `js/services/firebase-service.js` — adapter wrapping FirebaseManager for testability
+- `app.js`, `firebase-module.js`, `index.html`, `styles.css`, `translations.js`
+
+Every JS file uses the IIFE pattern and exports on `window`: `(function initX(global) { global.ModuleName = { ... }; })(window);`
+
 ## Objective
 
 Validate that plans are implementable by engineers without re-planning.

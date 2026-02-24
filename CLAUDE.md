@@ -7,10 +7,9 @@ A vanilla JavaScript SPA for generating team assignments for mobile game events 
 ## Commands
 
 ```bash
-# Run tests (all test types)
+# Run unit + integration tests
 npm test
-# → Unit tests (*.core.test.js), integration (*.integration.test.js),
-#   Firestore rules (tests/firestore-rules/*.rules.test.js)
+# → Runs tests/*.test.js (*.core.test.js, *.integration.test.js, *.feature.test.js, etc.)
 
 # Build & watch
 npm run build    # esbuild: js/main-entry.js → dist/bundle.js
@@ -25,9 +24,12 @@ npm run dev      # esbuild watch mode (auto-rebuild on file changes)
 # Push to main → GitHub Actions auto-deploys to GitHub Pages
 # Requires FIREBASE_CONFIG_JS secret set in GitHub repository settings
 
-# Firestore rules tests
-# Requires Firestore emulator running (gcloud emulators firestore start)
-npm test -- tests/firestore-rules/
+# Firestore rules tests (requires Firestore emulator)
+npm run test:rules
+
+# E2E tests (Playwright)
+npm run test:e2e          # all projects
+npm run test:e2e:smoke    # @smoke tagged tests only
 ```
 
 ## Architecture
@@ -54,44 +56,88 @@ js/
   main-entry.js         # esbuild entry point (requires all modules for bundling)
   app-init.js           # Startup callbacks
   core/
-    assignment.js       # Team assignment algorithm
-    buildings.js        # Building normalization
-    events.js           # Event registry and defaults
-    i18n.js             # Translation engine
-    player-table.js     # Player data model
-    firestore-utils.js  # Firestore query and snapshot utilities
-    reliability.js      # Data reliability checks and retries
+    assignment.js           # Team assignment algorithm
+    assignment-registry.js  # Registry of assignment strategies
+    buildings.js            # Building normalization
+    events.js               # Event registry and defaults
+    games.js                # Game definitions (Desert Storm, Canyon Storm, etc.)
+    generator-assignment.js # Generator-specific assignment logic
+    i18n.js                 # Translation engine
+    player-table.js         # Player data model
+    firestore-utils.js      # Firestore query and snapshot utilities
+    reliability.js          # Data reliability checks and retries
   services/
     firebase-service.js # Adapter wrapping FirebaseManager (enables testing)
   features/
+    alliance/           # Alliance management feature
+      alliance-controller.js
+    buildings/          # Buildings config feature
+      buildings-config-manager.js
+      coordinate-picker-controller.js
     event-history/      # Event history feature
       event-history-core.js
       event-history-actions.js
       event-history-view.js
       event-history-controller.js
+    events-manager/     # Event selection and registry management
+      event-selector-view.js
+      events-manager-actions.js
+      events-manager-controller.js
+      events-registry-controller.js
+    generator/          # Team generation feature
+      download-controller.js
+      generator-actions.js
+      generator-controller.js
+      generator-view.js
+      team-selection-core.js
+    notifications/      # In-app notifications feature
+      notifications-controller.js
+      notifications-core.js
     player-updates/     # Player updates feature
       player-updates-core.js
       player-updates-actions.js
       player-updates-view.js
       player-updates-controller.js
+    players-management/ # Player CRUD feature
+      player-data-upload.js
+      players-management-actions.js
+      players-management-controller.js
+      players-management-core.js
+      players-management-view.js
+  player-update/
+    player-update.js    # Player-facing update page logic
   shared/
     data/
       data-gateway-contract.js
+      firebase-alliance-gateway.js
+      firebase-auth-gateway.js
       firebase-event-history-gateway.js
+      firebase-events-gateway.js
+      firebase-gateway-utils.js
+      firebase-notifications-gateway.js
       firebase-player-updates-gateway.js
+      firebase-players-gateway.js
+    state/
+      app-state-store.js
+      state-store-contract.js
+  shell/
+    bootstrap/          # App shell bootstrap (IIFE and ESM variants)
+    navigation/         # Navigation controller
+    overlays/           # Modal and notifications-sheet controllers
   ui/
     alliance-panel-ui.js
     event-buildings-editor-ui.js
     event-list-ui.js
     player-table-ui.js
+e2e/                    # Playwright E2E tests (run with npm run test:e2e)
+  *.e2e.js
 vendor/                 # Vendored Firebase + SheetJS (no npm for browser code)
 tests/                  # Node built-in test runner tests
   firestore-rules/      # Firestore security rules tests (requires emulator)
     *.rules.test.js
-  e2e/                  # Playwright E2E tests
-    *.e2e.js
   *.core.test.js        # Unit tests
   *.integration.test.js # Integration tests
+  *.feature.test.js     # Feature/controller tests
 scripts/
   build.js              # esbuild build script
   ...                   # Firestore migration scripts (Node + firebase-admin)
@@ -124,17 +170,19 @@ dist/                   # Generated bundle (do not edit manually)
 
 Tests live in `tests/` and use Node's built-in `node:test` module. No Jest, no Mocha.
 
-Three test categories:
+Test categories:
 
 1. **Unit tests**: `*.core.test.js` — isolated module tests (assignment logic, data transforms, etc.)
 2. **Integration tests**: `*.integration.test.js` — test data flows across modules, mock Firestore operations
-3. **Firestore rules tests**: `tests/firestore-rules/*.rules.test.js` — security rules validation (requires Firestore emulator)
-4. **E2E tests**: `tests/e2e/*.e2e.js` — Playwright end-to-end tests against live Firebase
+3. **Feature tests**: `*.feature.test.js` — controller/feature behavior tests
+4. **Firestore rules tests**: `tests/firestore-rules/*.rules.test.js` — security rules validation (requires Firestore emulator)
+5. **E2E tests**: `e2e/*.e2e.js` — Playwright end-to-end tests against live Firebase
 
 The `firebase-service.js` adapter exists specifically to make Firebase mockable in tests.
 
-Run all tests: `npm test`
-Run specific category: `npm test -- tests/firestore-rules/` (or use grep patterns)
+Run unit/integration/feature tests: `npm test`
+Run Firestore rules tests: `npm run test:rules`
+Run E2E tests: `npm run test:e2e`
 
 ## Firebase / Secrets
 

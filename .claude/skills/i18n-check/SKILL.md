@@ -13,7 +13,7 @@ Check the `translations.js` file for missing translation keys across all 6 suppo
 node -e "
 const window = {};
 eval(require('fs').readFileSync('translations.js', 'utf8'));
-const t = window.DSI18N.translations;
+const t = window.translations;
 const langs = Object.keys(t);
 const enKeys = new Set(Object.keys(t.en));
 
@@ -62,7 +62,7 @@ PASS / FAIL — [N] languages complete, [N] have gaps
 3. If any keys are missing, suggest adding them to `translations.js` by finding the EN value and noting the key names that need translating.
 
 ## Key facts about this codebase
-- `translations.js` uses the IIFE pattern: `(function initDSI18N(global){...})(window)`
-- The translations object lives at `window.DSI18N.translations`
+- `translations.js` is NOT an IIFE — it defines a plain `translations` const and sets `window.translations = translations`
+- The translations object lives at `window.translations`
 - The 6 language codes are: `en`, `fr`, `de`, `it`, `ko`, `ro`
 - EN is the canonical reference — other languages should have every key EN has
