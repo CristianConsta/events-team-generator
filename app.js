@@ -1381,11 +1381,6 @@ function bindStaticUiActions() {
         refreshPlayerUpdatesPanel();
         closeNavigationMenu();
     });
-    on('playersMgmtRequestUpdatesBtn', 'click', function() {
-        if (!window.DSFeaturePlayerUpdatesActions || !window._playerUpdatesController) return;
-        var selectedNames = window.DSFeaturePlayerUpdatesActions.readSelectedPlayerNames();
-        window._playerUpdatesController.openTokenGenerationModal(selectedNames);
-    });
     on('mobileNavGeneratorBtn', 'click', showGeneratorPage);
     on('mobileNavConfigBtn', 'click', showConfigurationPage);
     on('mobileNavPlayersBtn', 'click', showPlayersManagementPage);

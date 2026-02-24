@@ -6498,7 +6498,6 @@
           token_modal_expiry_72h: "72 hours",
           token_copy_all_btn: "Copy All Links",
           token_copy_success: "Links copied to clipboard!",
-          request_updates_btn: "Request Updates",
           request_updates_select_players: "Select players to request updates from.",
           player_updates_review_nav: "Pending Updates",
           player_updates_review_title: "Pending Player Updates",
@@ -6955,7 +6954,6 @@
           token_modal_expiry_72h: "72 heures",
           token_copy_all_btn: "Copier tous les liens",
           token_copy_success: "Liens copies dans le presse-papiers !",
-          request_updates_btn: "Demander des mises a jour",
           request_updates_select_players: "Selectionnez des joueurs pour demander des mises a jour.",
           player_updates_review_nav: "Mises a jour en attente",
           player_updates_review_title: "Mises a jour en attente",
@@ -7412,7 +7410,6 @@
           token_modal_expiry_72h: "72 Stunden",
           token_copy_all_btn: "Alle Links kopieren",
           token_copy_success: "Links in die Zwischenablage kopiert!",
-          request_updates_btn: "Updates anfordern",
           request_updates_select_players: "Spieler auswaehlen, von denen Updates angefordert werden sollen.",
           player_updates_review_nav: "Ausstehende Updates",
           player_updates_review_title: "Ausstehende Spielerupdates",
@@ -7869,7 +7866,6 @@
           token_modal_expiry_72h: "72 ore",
           token_copy_all_btn: "Copia tutti i link",
           token_copy_success: "Link copiati negli appunti!",
-          request_updates_btn: "Richiedi aggiornamenti",
           request_updates_select_players: "Seleziona i giocatori da cui richiedere aggiornamenti.",
           player_updates_review_nav: "Aggiornamenti in attesa",
           player_updates_review_title: "Aggiornamenti giocatori in attesa",
@@ -8326,7 +8322,6 @@
           token_modal_expiry_72h: "72\uC2DC\uAC04",
           token_copy_all_btn: "\uBAA8\uB4E0 \uB9C1\uD06C \uBCF5\uC0AC",
           token_copy_success: "\uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uB9C1\uD06C\uAC00 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4!",
-          request_updates_btn: "\uC5C5\uB370\uC774\uD2B8 \uC694\uCCAD",
           request_updates_select_players: "\uC5C5\uB370\uC774\uD2B8\uB97C \uC694\uCCAD\uD560 \uD50C\uB808\uC774\uC5B4\uB97C \uC120\uD0DD\uD558\uC138\uC694.",
           player_updates_review_nav: "\uB300\uAE30 \uC911\uC778 \uC5C5\uB370\uC774\uD2B8",
           player_updates_review_title: "\uB300\uAE30 \uC911\uC778 \uD50C\uB808\uC774\uC5B4 \uC5C5\uB370\uC774\uD2B8",
@@ -8783,7 +8778,6 @@
           token_modal_expiry_72h: "72 ore",
           token_copy_all_btn: "Copiaza toate linkurile",
           token_copy_success: "Linkurile au fost copiate in clipboard!",
-          request_updates_btn: "Solicita actualizari",
           request_updates_select_players: "Selecteaza jucatorii de la care soliciti actualizari.",
           player_updates_review_nav: "Actualizari in asteptare",
           player_updates_review_title: "Actualizari jucatori in asteptare",
@@ -19525,11 +19519,6 @@
           }
           refreshPlayerUpdatesPanel();
           closeNavigationMenu();
-        });
-        on("playersMgmtRequestUpdatesBtn", "click", function() {
-          if (!window.DSFeaturePlayerUpdatesActions || !window._playerUpdatesController) return;
-          var selectedNames = window.DSFeaturePlayerUpdatesActions.readSelectedPlayerNames();
-          window._playerUpdatesController.openTokenGenerationModal(selectedNames);
         });
         on("mobileNavGeneratorBtn", "click", showGeneratorPage);
         on("mobileNavConfigBtn", "click", showConfigurationPage);
