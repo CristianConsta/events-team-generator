@@ -16,7 +16,11 @@
  */
 
 const FirebaseManager = (function() {
-    
+
+    // Capture module references at load time (survives test cleanup of global)
+    var DSFirebaseInfra = (typeof window !== 'undefined' && window.DSFirebaseInfra) || (typeof global !== 'undefined' && global.DSFirebaseInfra);
+    var DSFirebaseAuth = (typeof window !== 'undefined' && window.DSFirebaseAuth) || (typeof global !== 'undefined' && global.DSFirebaseAuth);
+
     // Firebase configuration - loaded from firebase-config.js
     // DO NOT hardcode your API key here - use firebase-config.js instead
     let firebaseConfig = null;
@@ -423,84 +427,16 @@ const FirebaseManager = (function() {
     let gameMetadataCache = { expiresAt: 0, entries: null };
     let migrationVersion = 0;
     let migratedToGameSubcollectionsAt = null;
-    const observabilityCounters = {
-        dualWriteMismatchCount: 0,
-        invitationContextMismatchCount: 0,
-        fallbackReadHitCount: 0,
-    };
+    // observabilityCounters moved to DSFirebaseInfra
 
-    function normalizeFeatureFlagValue(value, fallbackValue) {
-        if (typeof value === 'boolean') {
-            return value;
-        }
-        if (typeof value === 'number') {
-            return value !== 0;
-        }
-        if (typeof value === 'string') {
-            const normalized = value.trim().toLowerCase();
-            if (!normalized) {
-                return fallbackValue;
-            }
-            if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') {
-                return true;
-            }
-            if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'off') {
-                return false;
-            }
-        }
-        return fallbackValue;
-    }
+    function normalizeFeatureFlagValue(value, fallbackValue) { return DSFirebaseInfra.normalizeFeatureFlagValue(value, fallbackValue); }
 
-    function readRuntimeFeatureFlagOverrides() {
-        if (typeof window === 'undefined' || !window || typeof window !== 'object') {
-            return {};
-        }
-        const runtimeFlags = window.__MULTIGAME_FLAGS;
-        if (!runtimeFlags || typeof runtimeFlags !== 'object') {
-            return {};
-        }
-        return runtimeFlags;
-    }
-
-    function resolveFeatureFlags(overrides) {
-        const runtimeOverrides = readRuntimeFeatureFlagOverrides();
-        const scopedOverrides = overrides && typeof overrides === 'object' ? overrides : {};
-        const mergedFlags = {
-            ...runtimeOverrides,
-            ...scopedOverrides,
-        };
-        const resolvedFlags = {};
-        MULTIGAME_FLAG_KEYS.forEach((flagName) => {
-            const fallbackValue = MULTIGAME_FLAG_DEFAULTS[flagName];
-            resolvedFlags[flagName] = normalizeFeatureFlagValue(mergedFlags[flagName], fallbackValue);
-        });
-        return resolvedFlags;
-    }
-
-    function isFeatureFlagEnabled(flagName, overrides) {
-        if (!Object.prototype.hasOwnProperty.call(MULTIGAME_FLAG_DEFAULTS, flagName)) {
-            return false;
-        }
-        const resolvedFlags = resolveFeatureFlags(overrides);
-        return resolvedFlags[flagName] === true;
-    }
-
-    function isStrictModeEnabled(overrides) {
-        return isFeatureFlagEnabled('MULTIGAME_STRICT_MODE', overrides);
-    }
-
-    function isLegacyFallbackAllowed(overrides) {
-        return !isStrictModeEnabled(overrides);
-    }
-
-    function createStrictModeError(message, details) {
-        const err = new Error(typeof message === 'string' && message ? message : 'Strict mode blocked legacy fallback');
-        err.code = 'strict-mode-blocked';
-        if (details && typeof details === 'object') {
-            err.details = details;
-        }
-        return err;
-    }
+    function readRuntimeFeatureFlagOverrides() { return DSFirebaseInfra.readRuntimeFeatureFlagOverrides(); }
+    function resolveFeatureFlags(overrides) { return DSFirebaseInfra.resolveFeatureFlags(overrides); }
+    function isFeatureFlagEnabled(flagName, overrides) { return DSFirebaseInfra.isFeatureFlagEnabled(flagName, overrides); }
+    function isStrictModeEnabled(overrides) { return DSFirebaseInfra.isStrictModeEnabled(overrides); }
+    function isLegacyFallbackAllowed(overrides) { return DSFirebaseInfra.isLegacyFallbackAllowed(overrides); }
+    function createStrictModeError(message, details) { return DSFirebaseInfra.createStrictModeError(message, details); }
 
     function emptyGlobalEventPositions(payload) {
         const source = payload && typeof payload === 'object' ? payload : {};
@@ -538,253 +474,36 @@ const FirebaseManager = (function() {
         return normalized;
     }
 
-    function normalizeEventId(value) {
-        if (typeof value !== 'string') {
-            return '';
-        }
-        return value
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '');
-    }
+    function normalizeEventId(value) { return DSFirebaseInfra.normalizeEventId(value); }
+    function normalizeGameId(value) { return DSFirebaseInfra.normalizeGameId(value); }
 
-    function normalizeGameId(value) {
-        if (typeof value !== 'string') {
-            return '';
-        }
-        return value
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '');
-    }
+    function getUserGameDocRef(userId, gameId) { return DSFirebaseInfra.getUserGameDocRef(userId, gameId); }
+    function getGameDocRef(gameId) { return DSFirebaseInfra.getGameDocRef(gameId); }
+    function getGameAllianceCollectionRef(gameId) { return DSFirebaseInfra.getGameAllianceCollectionRef(gameId); }
+    function getGameAllianceDocRef(gameId, allianceDocId) { return DSFirebaseInfra.getGameAllianceDocRef(gameId, allianceDocId); }
+    function getLegacyAllianceCollectionRef() { return DSFirebaseInfra.getLegacyAllianceCollectionRef(); }
+    function getLegacyAllianceDocRef(allianceDocId) { return DSFirebaseInfra.getLegacyAllianceDocRef(allianceDocId); }
+    function getGameInvitationCollectionRef(gameId, allianceIdParam) { return DSFirebaseInfra.getGameInvitationCollectionRef(gameId, allianceIdParam); }
+    function getGameInvitationDocRef(gameId, allianceIdParam, invitationId) { return DSFirebaseInfra.getGameInvitationDocRef(gameId, allianceIdParam, invitationId); }
+    function findInvitationById(gameId, invitationId) { return DSFirebaseInfra.findInvitationById(gameId, invitationId); }
+    function getUserGamePlayersCollectionRef(userId, gameId) { return DSFirebaseInfra.getUserGamePlayersCollectionRef(userId, gameId); }
+    function getUserGameEventsCollectionRef(userId, gameId) { return DSFirebaseInfra.getUserGameEventsCollectionRef(userId, gameId); }
+    function getUserGameEventMediaCollectionRef(userId, gameId) { return DSFirebaseInfra.getUserGameEventMediaCollectionRef(userId, gameId); }
+    function getGameUserStateDocRef(gameId, uid) { return DSFirebaseInfra.getGameUserStateDocRef(gameId, uid); }
+    function getSoloplayerDocRef(gameId, uid) { return DSFirebaseInfra.getSoloplayerDocRef(gameId, uid); }
+    function getSoloplayerPlayersCollectionRef(gameId, uid) { return DSFirebaseInfra.getSoloplayerPlayersCollectionRef(gameId, uid); }
+    function getAlliancePlayersCollectionRef(gameId, allianceId) { return DSFirebaseInfra.getAlliancePlayersCollectionRef(gameId, allianceId); }
+    function getGameScopedEventsCollectionRef(gameId) { return DSFirebaseInfra.getGameScopedEventsCollectionRef(gameId); }
+    function getGameEventHistoryCollectionRef(gameId) { return DSFirebaseInfra.getGameEventHistoryCollectionRef(gameId); }
+    function getGameSoloUpdateTokensCollectionRef(gameId, uid) { return DSFirebaseInfra.getGameSoloUpdateTokensCollectionRef(gameId, uid); }
+    function getGameSoloPendingUpdatesCollectionRef(gameId, uid) { return DSFirebaseInfra.getGameSoloPendingUpdatesCollectionRef(gameId, uid); }
+    function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId) { return DSFirebaseInfra.getGameAllianceUpdateTokensCollectionRef(gameId, allianceId); }
+    function getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId) { return DSFirebaseInfra.getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId); }
 
-    function getUserGameDocRef(userId, gameId) {
-        if (!db || !userId) {
-            return null;
-        }
-        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
-        return db.collection('users').doc(userId).collection(USER_GAMES_SUBCOLLECTION).doc(normalizedGameId);
-    }
-
-    function getGameDocRef(gameId) {
-        if (!db) {
-            return null;
-        }
-        const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
-        return db.collection(GAMES_COLLECTION).doc(normalizedGameId);
-    }
-
-    function getGameAllianceCollectionRef(gameId) {
-        const gameRef = getGameDocRef(gameId);
-        if (!gameRef) {
-            return null;
-        }
-        return gameRef.collection(GAME_ALLIANCES_SUBCOLLECTION);
-    }
-
-    function getGameAllianceDocRef(gameId, allianceDocId) {
-        const collectionRef = getGameAllianceCollectionRef(gameId);
-        const normalizedAllianceDocId = typeof allianceDocId === 'string' ? allianceDocId.trim() : '';
-        if (!collectionRef || !normalizedAllianceDocId) {
-            return null;
-        }
-        return collectionRef.doc(normalizedAllianceDocId);
-    }
-
-    function getLegacyAllianceCollectionRef() {
-        if (!db) {
-            return null;
-        }
-        return db.collection('alliances');
-    }
-
-    function getLegacyAllianceDocRef(allianceDocId) {
-        const collectionRef = getLegacyAllianceCollectionRef();
-        const normalizedAllianceDocId = typeof allianceDocId === 'string' ? allianceDocId.trim() : '';
-        if (!collectionRef || !normalizedAllianceDocId) {
-            return null;
-        }
-        return collectionRef.doc(normalizedAllianceDocId);
-    }
-
-    function getGameInvitationCollectionRef(gameId, allianceIdParam) {
-        const gameRef = getGameDocRef(gameId);
-        if (!gameRef) {
-            return null;
-        }
-        const normalizedAllianceId = typeof allianceIdParam === 'string' ? allianceIdParam.trim() : '';
-        if (!normalizedAllianceId) {
-            return null;
-        }
-        return gameRef.collection('alliances').doc(normalizedAllianceId)
-            .collection(GAME_INVITATIONS_SUBCOLLECTION);
-    }
-
-    function getGameInvitationDocRef(gameId, allianceIdParam, invitationId) {
-        const collectionRef = getGameInvitationCollectionRef(gameId, allianceIdParam);
-        const normalizedInvitationId = typeof invitationId === 'string' ? invitationId.trim() : '';
-        if (!collectionRef || !normalizedInvitationId) {
-            return null;
-        }
-        return collectionRef.doc(normalizedInvitationId);
-    }
-
-    /**
-     * Finds an invitation doc by ID using collectionGroup query across all alliances.
-     * Returns { ref, data } or null if not found.
-     */
-    async function findInvitationById(gameId, invitationId) {
-        if (!db || !invitationId || typeof db.collectionGroup !== 'function') {
-            return null;
-        }
-        try {
-            var snapshot = await db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION)
-                .where('gameId', '==', gameId)
-                .get();
-            for (var i = 0; i < snapshot.docs.length; i++) {
-                if (snapshot.docs[i].id === invitationId) {
-                    return { ref: snapshot.docs[i].ref, data: snapshot.docs[i].data() };
-                }
-            }
-        } catch (err) {
-            console.warn('findInvitationById collectionGroup fallback failed:', err.message);
-        }
-        return null;
-    }
-
-    function getUserGamePlayersCollectionRef(userId, gameId) {
-        const gameRef = getUserGameDocRef(userId, gameId);
-        if (!gameRef) {
-            return null;
-        }
-        return gameRef.collection(GAME_PLAYERS_SUBCOLLECTION);
-    }
-
-    function getUserGameEventsCollectionRef(userId, gameId) {
-        const gameRef = getUserGameDocRef(userId, gameId);
-        if (!gameRef) {
-            return null;
-        }
-        return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
-    }
-
-    function getUserGameEventMediaCollectionRef(userId, gameId) {
-        const gameRef = getUserGameDocRef(userId, gameId);
-        if (!gameRef) {
-            return null;
-        }
-        return gameRef.collection(EVENT_MEDIA_SUBCOLLECTION);
-    }
-
-    // --- Game-centric path builders (migration v2) ---
-
-    // games/{gameId}/user_state/{uid}
-    function getGameUserStateDocRef(gameId, uid) {
-        const gameRef = getGameDocRef(gameId);
-        if (!gameRef || !uid) { return null; }
-        return gameRef.collection(GAME_USER_STATE_SUBCOLLECTION).doc(uid);
-    }
-
-    // games/{gameId}/soloplayers/{uid}
-    function getSoloplayerDocRef(gameId, uid) {
-        const gameRef = getGameDocRef(gameId);
-        if (!gameRef || !uid) { return null; }
-        return gameRef.collection(GAME_SOLOPLAYERS_SUBCOLLECTION).doc(uid);
-    }
-
-    // games/{gameId}/soloplayers/{uid}/players
-    function getSoloplayerPlayersCollectionRef(gameId, uid) {
-        const soloRef = getSoloplayerDocRef(gameId, uid);
-        if (!soloRef) { return null; }
-        return soloRef.collection(GAME_SOLOPLAYER_PLAYERS_SUBCOLLECTION);
-    }
-
-    // games/{gameId}/alliances/{allianceId}/alliance_players
-    function getAlliancePlayersCollectionRef(gameId, allianceId) {
-        const allianceRef = getGameAllianceDocRef(gameId, allianceId);
-        if (!allianceRef) { return null; }
-        return allianceRef.collection(GAME_ALLIANCE_PLAYERS_SUBCOLLECTION);
-    }
-
-    // games/{gameId}/events (game-scoped, shared)
-    function getGameScopedEventsCollectionRef(gameId) {
-        const gameRef = getGameDocRef(gameId);
-        if (!gameRef) { return null; }
-        return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
-    }
-
-    // games/{gameId}/event_history
-    function getGameEventHistoryCollectionRef(gameId) {
-        const gameRef = getGameDocRef(gameId);
-        if (!gameRef) { return null; }
-        return gameRef.collection(GAME_EVENT_HISTORY_SUBCOLLECTION);
-    }
-
-    // games/{gameId}/soloplayers/{uid}/update_tokens
-    function getGameSoloUpdateTokensCollectionRef(gameId, uid) {
-        const soloRef = getSoloplayerDocRef(gameId, uid);
-        if (!soloRef) { return null; }
-        return soloRef.collection('update_tokens');
-    }
-
-    // games/{gameId}/soloplayers/{uid}/pending_updates
-    function getGameSoloPendingUpdatesCollectionRef(gameId, uid) {
-        const soloRef = getSoloplayerDocRef(gameId, uid);
-        if (!soloRef) { return null; }
-        return soloRef.collection('pending_updates');
-    }
-
-    // games/{gameId}/alliances/{allianceId}/update_tokens
-    function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId) {
-        const allianceRef = getGameAllianceDocRef(gameId, allianceId);
-        if (!allianceRef) { return null; }
-        return allianceRef.collection('update_tokens');
-    }
-
-    // games/{gameId}/alliances/{allianceId}/pending_updates
-    function getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId) {
-        const allianceRef = getGameAllianceDocRef(gameId, allianceId);
-        if (!allianceRef) { return null; }
-        return allianceRef.collection('pending_updates');
-    }
-
-    function createStableDocId(rawValue, prefix) {
-        const raw = typeof rawValue === 'string' ? rawValue.trim() : '';
-        const base = raw
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '')
-            .slice(0, 72);
-        let hash = 0;
-        for (let index = 0; index < raw.length; index += 1) {
-            hash = ((hash << 5) - hash) + raw.charCodeAt(index);
-            hash |= 0;
-        }
-        const hashPart = Math.abs(hash).toString(36);
-        return `${base || (prefix || 'doc')}_${hashPart}`;
-    }
-
-    function getPlayerDocId(playerName) {
-        return createStableDocId(playerName, 'player');
-    }
-
-    function getEventDocId(eventId) {
-        const normalizedEventId = normalizeEventId(eventId);
-        if (normalizedEventId) {
-            return normalizedEventId;
-        }
-        return createStableDocId(eventId, 'event');
-    }
-
-    function parseMigrationVersion(value) {
-        const parsed = Number(value);
-        if (!Number.isFinite(parsed) || parsed < 0) {
-            return 0;
-        }
-        return Math.floor(parsed);
-    }
+    function createStableDocId(rawValue, prefix) { return DSFirebaseInfra.createStableDocId(rawValue, prefix); }
+    function getPlayerDocId(playerName) { return DSFirebaseInfra.getPlayerDocId(playerName); }
+    function getEventDocId(eventId) { return DSFirebaseInfra.getEventDocId(eventId); }
+    function parseMigrationVersion(value) { return DSFirebaseInfra.parseMigrationVersion(value); }
 
     function updateMigrationMarkersFromUserData(data) {
         const source = data && typeof data === 'object' ? data : {};
@@ -885,104 +604,15 @@ const FirebaseManager = (function() {
         };
     }
 
-    function incrementObservabilityCounter(counterKey, amount) {
-        if (!Object.prototype.hasOwnProperty.call(observabilityCounters, counterKey)) {
-            return;
-        }
-        const delta = Number(amount);
-        const increment = Number.isFinite(delta) && delta > 0 ? Math.floor(delta) : 1;
-        observabilityCounters[counterKey] += increment;
-    }
-
-    function getObservabilityCounters() {
-        return {
-            dualWriteMismatchCount: Number(observabilityCounters.dualWriteMismatchCount) || 0,
-            invitationContextMismatchCount: Number(observabilityCounters.invitationContextMismatchCount) || 0,
-            fallbackReadHitCount: Number(observabilityCounters.fallbackReadHitCount) || 0,
-        };
-    }
-
-    function resetObservabilityCounters() {
-        observabilityCounters.dualWriteMismatchCount = 0;
-        observabilityCounters.invitationContextMismatchCount = 0;
-        observabilityCounters.fallbackReadHitCount = 0;
-    }
-
-    function normalizeGameContextInput(context) {
-        if (typeof context === 'string') {
-            return normalizeGameId(context);
-        }
-        if (context && typeof context === 'object' && typeof context.gameId === 'string') {
-            return normalizeGameId(context.gameId);
-        }
-        return '';
-    }
-
-    function normalizeUid(value) {
-        if (typeof value !== 'string') {
-            return '';
-        }
-        return value.trim();
-    }
-
-    function resolveScopedActiveGameStorageKey(userOrUid) {
-        const userUid = normalizeUid(
-            typeof userOrUid === 'string'
-                ? userOrUid
-                : (userOrUid && typeof userOrUid === 'object' ? userOrUid.uid : '')
-        );
-        if (!userUid) {
-            return '';
-        }
-        return `${ACTIVE_GAME_STORAGE_KEY}::${userUid}`;
-    }
-
-    function resolveGameplayContext(methodName, context) {
-        const explicitGameId = normalizeGameContextInput(context);
-        if (explicitGameId) {
-            return { gameId: explicitGameId, explicit: true };
-        }
-        return { gameId: DEFAULT_GAME_ID, explicit: false };
-    }
-
-    function getResolvedGameId(methodName, context) {
-        const gameplayContext = resolveGameplayContext(methodName, context);
-        return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
-    }
-
-    function resolveInitialAuthGameId(userOrUid) {
-        if (typeof window !== 'undefined') {
-            const fromGlobal = normalizeGameId(window.__ACTIVE_GAME_ID);
-            if (fromGlobal) {
-                return fromGlobal;
-            }
-            try {
-                if (window.localStorage && typeof window.localStorage.getItem === 'function') {
-                    const scopedStorageKey = resolveScopedActiveGameStorageKey(userOrUid);
-                    if (scopedStorageKey) {
-                        const fromScopedStorage = normalizeGameId(window.localStorage.getItem(scopedStorageKey));
-                        if (fromScopedStorage) {
-                            return fromScopedStorage;
-                        }
-                    }
-                    const fromStorage = normalizeGameId(window.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
-                    if (fromStorage) {
-                        if (scopedStorageKey && typeof window.localStorage.setItem === 'function') {
-                            try {
-                                window.localStorage.setItem(scopedStorageKey, fromStorage);
-                            } catch (scopedWriteError) {
-                                // Best effort migration to user-scoped key only.
-                            }
-                        }
-                        return fromStorage;
-                    }
-                }
-            } catch (error) {
-                // Ignore storage access issues and use default.
-            }
-        }
-        return DEFAULT_GAME_ID;
-    }
+    function incrementObservabilityCounter(counterKey, amount) { DSFirebaseInfra.incrementObservabilityCounter(counterKey, amount); }
+    function getObservabilityCounters() { return DSFirebaseInfra.getObservabilityCounters(); }
+    function resetObservabilityCounters() { DSFirebaseInfra.resetObservabilityCounters(); }
+    function normalizeGameContextInput(context) { return DSFirebaseInfra.normalizeGameContextInput(context); }
+    function normalizeUid(value) { return DSFirebaseInfra.normalizeUid(value); }
+    function resolveScopedActiveGameStorageKey(userOrUid) { return DSFirebaseInfra.resolveScopedActiveGameStorageKey(userOrUid); }
+    function resolveGameplayContext(methodName, context) { return DSFirebaseInfra.resolveGameplayContext(methodName, context); }
+    function getResolvedGameId(methodName, context) { return DSFirebaseInfra.getResolvedGameId(methodName, context); }
+    function resolveInitialAuthGameId(userOrUid) { return DSFirebaseInfra.resolveInitialAuthGameId(userOrUid); }
 
     function isActiveGameplayGameId(gameId) {
         const targetGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
@@ -1352,23 +982,7 @@ const FirebaseManager = (function() {
         return Object.keys(events).some((eid) => Object.keys(events[eid] || {}).length > 0);
     }
 
-    function toMillis(value) {
-        if (!value) {
-            return 0;
-        }
-        if (typeof value.toMillis === 'function') {
-            const ms = Number(value.toMillis());
-            return Number.isFinite(ms) && ms > 0 ? ms : 0;
-        }
-        if (typeof value === 'string') {
-            const parsed = Date.parse(value);
-            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-        }
-        if (typeof value === 'number') {
-            return Number.isFinite(value) && value > 0 ? value : 0;
-        }
-        return 0;
-    }
+    function toMillis(value) { return DSFirebaseInfra.toMillis(value); }
 
     function extractVersionFromUserData(data) {
         if (!data || typeof data !== 'object') {
@@ -2227,12 +1841,7 @@ const FirebaseManager = (function() {
         return changed;
     }
 
-    function isPermissionDeniedError(error) {
-        if (!error) return false;
-        const code = typeof error.code === 'string' ? error.code.toLowerCase() : '';
-        const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
-        return code.includes('permission-denied') || message.includes('missing or insufficient permissions');
-    }
+    function isPermissionDeniedError(error) { return DSFirebaseInfra.isPermissionDeniedError(error); }
 
     function applyPermissionDeniedLoadFallbackState() {
         stopAllianceDocListener();
@@ -2453,61 +2062,9 @@ const FirebaseManager = (function() {
         return { displayName, nickname, avatarDataUrl, theme };
     }
 
-    function cloneJson(value) {
-        if (typeof structuredClone === 'function') {
-            return structuredClone(value);
-        }
-        return JSON.parse(JSON.stringify(value));
-    }
-
-    function isPlainObject(value) {
-        if (!value || typeof value !== 'object') {
-            return false;
-        }
-        const proto = Object.getPrototypeOf(value);
-        return proto === Object.prototype || proto === null;
-    }
-
-    function areJsonEqual(a, b) {
-        if (a === b) {
-            return true;
-        }
-        if (a == null || b == null) {
-            return false;
-        }
-        if (Array.isArray(a) || Array.isArray(b)) {
-            if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
-                return false;
-            }
-            for (let i = 0; i < a.length; i += 1) {
-                if (!areJsonEqual(a[i], b[i])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        if (isPlainObject(a) || isPlainObject(b)) {
-            if (!isPlainObject(a) || !isPlainObject(b)) {
-                return false;
-            }
-            const aKeys = Object.keys(a);
-            const bKeys = Object.keys(b);
-            if (aKeys.length !== bKeys.length) {
-                return false;
-            }
-            for (let i = 0; i < aKeys.length; i += 1) {
-                const key = aKeys[i];
-                if (!Object.prototype.hasOwnProperty.call(b, key)) {
-                    return false;
-                }
-                if (!areJsonEqual(a[key], b[key])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return false;
-    }
+    function cloneJson(value) { return DSFirebaseInfra.cloneJson(value); }
+    function isPlainObject(value) { return DSFirebaseInfra.isPlainObject(value); }
+    function areJsonEqual(a, b) { return DSFirebaseInfra.areJsonEqual(a, b); }
 
     function getUserStateDiff(lastState, currentState) {
         const changedFields = [];
@@ -2688,10 +2245,38 @@ const FirebaseManager = (function() {
             firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
             db = firebase.firestore();
+            DSFirebaseInfra.setDb(db);
+            DSFirebaseAuth.configure({
+                getAuth: function () { return auth; },
+                getCurrentUser: function () { return currentUser; },
+                setCurrentUser: function (u) { currentUser = u; },
+                getOnAuthCallback: function () { return onAuthCallback; },
+                setOnAuthCallback: function (cb) { onAuthCallback = cb; },
+                applySignOutState: function () {
+                    stopAllianceDocListener();
+                    playerDatabase = {};
+                    eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
+                    allianceId = null; allianceName = null; allianceData = null;
+                    activeGameplayGameId = DEFAULT_GAME_ID; activeAllianceGameId = DEFAULT_GAME_ID;
+                    playerSource = 'personal';
+                    pendingInvitations = []; sentInvitations = []; invitationNotifications = [];
+                    userProfile = normalizeUserProfile(null);
+                    setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
+                    setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+                    migrationVersion = 0; migratedToGameSubcollectionsAt = null;
+                    resetSaveState();
+                },
+                triggerPostSignInLoad: function (user) {
+                    resetSaveState();
+                    loadUserData(user, { gameId: resolveInitialAuthGameId(user.uid) });
+                },
+                invalidateGameMetadataCache: function () { invalidateGameMetadataCache(); },
+                stopAllianceDocListener: function () { stopAllianceDocListener(); },
+            });
             bindSaveLifecycleHandlers();
-            
+
             // Set up auth state observer
-            auth.onAuthStateChanged(handleAuthStateChanged);
+            auth.onAuthStateChanged(DSFirebaseAuth.handleAuthStateChanged);
             
             console.log('✅ Firebase initialized successfully');
             return true;
@@ -2701,66 +2286,8 @@ const FirebaseManager = (function() {
         }
     }
     
-    /**
-     * Handle authentication state changes
-     */
-    function handleAuthStateChanged(user) {
-        currentUser = user;
-        invalidateGameMetadataCache();
-        if (!user) {
-            stopAllianceDocListener();
-        }
-        
-        if (user) {
-            if (isPasswordProvider(user) && !user.emailVerified) {
-                console.warn('Email not verified. Signing out.');
-                auth.signOut();
-                if (onAuthCallback) {
-                    onAuthCallback(false, null);
-                }
-                return;
-            }
-
-            console.log('✅ User signed in:', user.email);
-            resetSaveState();
-            loadUserData(user, { gameId: resolveInitialAuthGameId(user.uid) });
-            
-            if (onAuthCallback) {
-                onAuthCallback(true, user);
-            }
-        } else {
-            console.log('ℹ️ User signed out');
-            stopAllianceDocListener();
-            playerDatabase = {};
-            eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
-            allianceId = null;
-            allianceName = null;
-            allianceData = null;
-            activeGameplayGameId = DEFAULT_GAME_ID;
-            activeAllianceGameId = DEFAULT_GAME_ID;
-            playerSource = 'personal';
-            pendingInvitations = [];
-            sentInvitations = [];
-            invitationNotifications = [];
-            userProfile = normalizeUserProfile(null);
-            setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
-            setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
-            migrationVersion = 0;
-            migratedToGameSubcollectionsAt = null;
-            resetSaveState();
-
-            if (onAuthCallback) {
-                onAuthCallback(false, null);
-            }
-        }
-    }
-    
-    /**
-     * Set callback for auth state changes
-     */
-    function setAuthCallback(callback) {
-        onAuthCallback = callback;
-    }
+    function handleAuthStateChanged(user) { return DSFirebaseAuth.handleAuthStateChanged(user); }
+    function setAuthCallback(callback) { DSFirebaseAuth.setAuthCallback(callback); }
     
     /**
      * Set callback for data load
@@ -2881,124 +2408,17 @@ const FirebaseManager = (function() {
     }
     
     
-    function isPasswordProvider(user) {
-        if (!user || !user.providerData) {
-            return false;
-        }
-        return user.providerData.some((provider) => provider.providerId === 'password');
-    }
+    function isPasswordProvider(user) { return DSFirebaseAuth.isPasswordProvider(user); }
 
     // ============================================================
-    // AUTHENTICATION FUNCTIONS
+    // AUTHENTICATION FUNCTIONS (delegated to DSFirebaseAuth)
     // ============================================================
-    
-    /**
-     * Sign in with Google
-     */
-    async function signInWithGoogle() {
-        try {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            const result = await auth.signInWithPopup(provider);
-            console.log('✅ Google sign-in successful');
-            return { success: true, user: result.user };
-        } catch (error) {
-            console.error('❌ Google sign-in failed:', error);
-            const popupErrorCodes = new Set([
-                'auth/popup-blocked',
-                'auth/popup-closed-by-user',
-                'auth/cancelled-popup-request',
-                'auth/operation-not-supported-in-this-environment',
-            ]);
-
-            if (error && popupErrorCodes.has(error.code)) {
-                try {
-                    const provider = new firebase.auth.GoogleAuthProvider();
-                    await auth.signInWithRedirect(provider);
-                    console.log('🔁 Falling back to redirect sign-in');
-                    return { success: true, redirect: true };
-                } catch (redirectError) {
-                    console.error('❌ Redirect sign-in failed:', redirectError);
-                    return { success: false, error: redirectError.message || 'Redirect sign-in failed' };
-                }
-            }
-
-            return { success: false, error: error.message || 'Google sign-in failed' };
-        }
-    }
-    
-    /**
-     * Sign in with email and password
-     */
-    async function signInWithEmail(email, password) {
-        try {
-            const result = await auth.signInWithEmailAndPassword(email, password);
-
-            if (!result.user.emailVerified) {
-                await auth.signOut();
-                return { success: false, error: 'Email not verified. Check your inbox.' };
-            }
-            console.log('✅ Email sign-in successful');
-            return { success: true, user: result.user };
-        } catch (error) {
-            console.error('❌ Email sign-in failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-    
-    /**
-     * Sign up with email and password
-     */
-    async function signUpWithEmail(email, password) {
-        try {
-            const result = await auth.createUserWithEmailAndPassword(email, password);
-            await result.user.sendEmailVerification();
-            console.log('✅ Account created successfully');
-            return { 
-                success: true, 
-                user: result.user,
-                message: 'Account created! Please check your email for verification.' 
-            };
-        } catch (error) {
-            console.error('❌ Sign-up failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-    
-    /**
-     * Send password reset email
-     */
-    async function resetPassword(email) {
-        try {
-            await auth.sendPasswordResetEmail(email);
-            console.log('✅ Password reset email sent');
-            return { 
-                success: true, 
-                message: 'Password reset email sent. Check your inbox.' 
-            };
-        } catch (error) {
-            console.error('❌ Password reset failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-    
-    /**
-     * Sign out current user
-     */
-    async function signOut() {
-        try {
-            await auth.signOut();
-            console.log('✅ User signed out');
-            return { success: true };
-        } catch (error) {
-            console.error('❌ Sign-out failed:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    function isReauthRequiredError(error) {
-        const code = error && error.code ? String(error.code) : '';
-        return code === 'auth/requires-recent-login' || code === 'auth/user-token-expired';
-    }
+    function signInWithGoogle() { return DSFirebaseAuth.signInWithGoogle(); }
+    function signInWithEmail(email, password) { return DSFirebaseAuth.signInWithEmail(email, password); }
+    function signUpWithEmail(email, password) { return DSFirebaseAuth.signUpWithEmail(email, password); }
+    function resetPassword(email) { return DSFirebaseAuth.resetPassword(email); }
+    function signOut() { return DSFirebaseAuth.signOut(); }
+    function isReauthRequiredError(error) { return DSFirebaseAuth.isReauthRequiredError(error); }
 
     async function deleteDocsByRefs(refs) {
         if (!Array.isArray(refs) || refs.length === 0) {
@@ -3176,19 +2596,8 @@ const FirebaseManager = (function() {
         }
     }
     
-    /**
-     * Get current user
-     */
-    function getCurrentUser() {
-        return currentUser;
-    }
-    
-    /**
-     * Check if user is signed in
-     */
-    function isSignedIn() {
-        return currentUser !== null;
-    }
+    function getCurrentUser() { return DSFirebaseAuth.getCurrentUser(); }
+    function isSignedIn() { return DSFirebaseAuth.isSignedIn(); }
     
     // ============================================================
     // DATABASE FUNCTIONS
@@ -4668,25 +4077,7 @@ const FirebaseManager = (function() {
         }
     }
 
-    function timestampToMillis(value) {
-        if (!value) {
-            return 0;
-        }
-        if (typeof value.toMillis === 'function') {
-            return value.toMillis();
-        }
-        if (typeof value.toDate === 'function') {
-            return value.toDate().getTime();
-        }
-        if (value instanceof Date) {
-            return value.getTime();
-        }
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value;
-        }
-        const parsed = new Date(value).getTime();
-        return Number.isFinite(parsed) ? parsed : 0;
-    }
+    function timestampToMillis(value) { return DSFirebaseInfra.timestampToMillis(value); }
 
     function invitationSortKey(invitation) {
         if (!invitation || typeof invitation !== 'object') {

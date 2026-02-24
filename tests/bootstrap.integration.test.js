@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const firebaseInfraPath = path.resolve(__dirname, '../firebase-infra.js');
+const firebaseAuthModulePath = path.resolve(__dirname, '../firebase-auth-module.js');
 const firebaseModulePath = path.resolve(__dirname, '../firebase-module.js');
 const firebaseServicePath = path.resolve(__dirname, '../js/services/firebase-service.js');
 const appInitPath = path.resolve(__dirname, '../js/app-init.js');
@@ -17,6 +19,8 @@ function resetGlobals() {
   delete global.firebase;
   delete global.FIREBASE_CONFIG;
   delete global.FirebaseManager;
+  delete global.DSFirebaseInfra;
+  delete global.DSFirebaseAuth;
   delete global.FirebaseService;
   delete global.initLanguage;
   delete global.updateGenerateEventLabels;
@@ -34,6 +38,8 @@ function resetGlobals() {
 }
 
 test.afterEach(() => {
+  resetModule(firebaseInfraPath);
+  resetModule(firebaseAuthModulePath);
   resetModule(firebaseModulePath);
   resetModule(firebaseServicePath);
   resetModule(appInitPath);
@@ -55,6 +61,8 @@ test('firebase module exposes FirebaseManager on window and adapter sees it', ()
     appId: 'x',
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   require(firebaseServicePath);
 

@@ -3,6 +3,8 @@
 // they appear as <script defer> tags in index.html (excluding vendor files
 // and firebase-config.js which are loaded separately).
 
+require('../firebase-infra.js');
+require('../firebase-auth-module.js');
 require('../firebase-module.js');
 require('../translations.js');
 require('./core/firestore-utils.js');

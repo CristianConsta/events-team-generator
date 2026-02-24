@@ -23,10 +23,756 @@
     return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
 
+  // firebase-infra.js
+  var require_firebase_infra = __commonJS({
+    "firebase-infra.js"() {
+      (function initFirebaseInfra(global2) {
+        "use strict";
+        let db = null;
+        function setDb(dbInstance) {
+          db = dbInstance;
+        }
+        function getDb() {
+          return db;
+        }
+        const DEFAULT_GAME_ID = "last_war";
+        const ACTIVE_GAME_STORAGE_KEY = "ds_active_game_id";
+        const GAMES_COLLECTION = "games";
+        const USER_GAMES_SUBCOLLECTION = "games";
+        const GAME_ALLIANCES_SUBCOLLECTION = "alliances";
+        const GAME_INVITATIONS_SUBCOLLECTION = "invitations";
+        const GAME_PLAYERS_SUBCOLLECTION = "players";
+        const GAME_EVENTS_SUBCOLLECTION = "events";
+        const EVENT_MEDIA_SUBCOLLECTION = "event_media";
+        const GAME_USER_STATE_SUBCOLLECTION = "user_state";
+        const GAME_SOLOPLAYERS_SUBCOLLECTION = "soloplayers";
+        const GAME_SOLOPLAYER_PLAYERS_SUBCOLLECTION = "players";
+        const GAME_ALLIANCE_PLAYERS_SUBCOLLECTION = "alliance_players";
+        const GAME_EVENT_HISTORY_SUBCOLLECTION = "event_history";
+        const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
+          MULTIGAME_ENABLED: false,
+          MULTIGAME_READ_FALLBACK_ENABLED: false,
+          MULTIGAME_DUAL_WRITE_ENABLED: false,
+          MULTIGAME_GAME_SELECTOR_ENABLED: false,
+          MULTIGAME_STRICT_MODE: false
+        });
+        const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
+        function normalizeFeatureFlagValue(value, fallbackValue) {
+          if (typeof value === "boolean") {
+            return value;
+          }
+          if (typeof value === "number") {
+            return value !== 0;
+          }
+          if (typeof value === "string") {
+            const normalized = value.trim().toLowerCase();
+            if (!normalized) {
+              return fallbackValue;
+            }
+            if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+              return true;
+            }
+            if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+              return false;
+            }
+          }
+          return fallbackValue;
+        }
+        function normalizeEventId(value) {
+          if (typeof value !== "string") {
+            return "";
+          }
+          return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        }
+        function normalizeGameId(value) {
+          if (typeof value !== "string") {
+            return "";
+          }
+          return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        }
+        function normalizeGameContextInput(context) {
+          if (typeof context === "string") {
+            return normalizeGameId(context);
+          }
+          if (context && typeof context === "object" && typeof context.gameId === "string") {
+            return normalizeGameId(context.gameId);
+          }
+          return "";
+        }
+        function normalizeUid(value) {
+          if (typeof value !== "string") {
+            return "";
+          }
+          return value.trim();
+        }
+        function readRuntimeFeatureFlagOverrides() {
+          if (typeof window === "undefined" || !window || typeof window !== "object") {
+            return {};
+          }
+          const runtimeFlags = window.__MULTIGAME_FLAGS;
+          if (!runtimeFlags || typeof runtimeFlags !== "object") {
+            return {};
+          }
+          return runtimeFlags;
+        }
+        function resolveFeatureFlags(overrides) {
+          const runtimeOverrides = readRuntimeFeatureFlagOverrides();
+          const scopedOverrides = overrides && typeof overrides === "object" ? overrides : {};
+          const mergedFlags = __spreadValues(__spreadValues({}, runtimeOverrides), scopedOverrides);
+          const resolvedFlags = {};
+          MULTIGAME_FLAG_KEYS.forEach((flagName) => {
+            const fallbackValue = MULTIGAME_FLAG_DEFAULTS[flagName];
+            resolvedFlags[flagName] = normalizeFeatureFlagValue(mergedFlags[flagName], fallbackValue);
+          });
+          return resolvedFlags;
+        }
+        function isFeatureFlagEnabled(flagName, overrides) {
+          if (!Object.prototype.hasOwnProperty.call(MULTIGAME_FLAG_DEFAULTS, flagName)) {
+            return false;
+          }
+          const resolvedFlags = resolveFeatureFlags(overrides);
+          return resolvedFlags[flagName] === true;
+        }
+        function isStrictModeEnabled(overrides) {
+          return isFeatureFlagEnabled("MULTIGAME_STRICT_MODE", overrides);
+        }
+        function isLegacyFallbackAllowed(overrides) {
+          return !isStrictModeEnabled(overrides);
+        }
+        function createStrictModeError(message, details) {
+          const err = new Error(typeof message === "string" && message ? message : "Strict mode blocked legacy fallback");
+          err.code = "strict-mode-blocked";
+          if (details && typeof details === "object") {
+            err.details = details;
+          }
+          return err;
+        }
+        function getUserGameDocRef(userId, gameId) {
+          if (!db || !userId) {
+            return null;
+          }
+          const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+          return db.collection("users").doc(userId).collection(USER_GAMES_SUBCOLLECTION).doc(normalizedGameId);
+        }
+        function getGameDocRef(gameId) {
+          if (!db) {
+            return null;
+          }
+          const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
+          return db.collection(GAMES_COLLECTION).doc(normalizedGameId);
+        }
+        function getGameAllianceCollectionRef(gameId) {
+          const gameRef = getGameDocRef(gameId);
+          if (!gameRef) {
+            return null;
+          }
+          return gameRef.collection(GAME_ALLIANCES_SUBCOLLECTION);
+        }
+        function getGameAllianceDocRef(gameId, allianceDocId) {
+          const collectionRef = getGameAllianceCollectionRef(gameId);
+          const normalizedAllianceDocId = typeof allianceDocId === "string" ? allianceDocId.trim() : "";
+          if (!collectionRef || !normalizedAllianceDocId) {
+            return null;
+          }
+          return collectionRef.doc(normalizedAllianceDocId);
+        }
+        function getLegacyAllianceCollectionRef() {
+          if (!db) {
+            return null;
+          }
+          return db.collection("alliances");
+        }
+        function getLegacyAllianceDocRef(allianceDocId) {
+          const collectionRef = getLegacyAllianceCollectionRef();
+          const normalizedAllianceDocId = typeof allianceDocId === "string" ? allianceDocId.trim() : "";
+          if (!collectionRef || !normalizedAllianceDocId) {
+            return null;
+          }
+          return collectionRef.doc(normalizedAllianceDocId);
+        }
+        function getGameInvitationCollectionRef(gameId, allianceIdParam) {
+          const gameRef = getGameDocRef(gameId);
+          if (!gameRef) {
+            return null;
+          }
+          const normalizedAllianceId = typeof allianceIdParam === "string" ? allianceIdParam.trim() : "";
+          if (!normalizedAllianceId) {
+            return null;
+          }
+          return gameRef.collection("alliances").doc(normalizedAllianceId).collection(GAME_INVITATIONS_SUBCOLLECTION);
+        }
+        function getGameInvitationDocRef(gameId, allianceIdParam, invitationId) {
+          const collectionRef = getGameInvitationCollectionRef(gameId, allianceIdParam);
+          const normalizedInvitationId = typeof invitationId === "string" ? invitationId.trim() : "";
+          if (!collectionRef || !normalizedInvitationId) {
+            return null;
+          }
+          return collectionRef.doc(normalizedInvitationId);
+        }
+        async function findInvitationById(gameId, invitationId) {
+          if (!db || !invitationId || typeof db.collectionGroup !== "function") {
+            return null;
+          }
+          try {
+            var snapshot = await db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION).where("gameId", "==", gameId).get();
+            for (var i = 0; i < snapshot.docs.length; i++) {
+              if (snapshot.docs[i].id === invitationId) {
+                return { ref: snapshot.docs[i].ref, data: snapshot.docs[i].data() };
+              }
+            }
+          } catch (err) {
+            console.warn("findInvitationById collectionGroup fallback failed:", err.message);
+          }
+          return null;
+        }
+        function getUserGamePlayersCollectionRef(userId, gameId) {
+          const gameRef = getUserGameDocRef(userId, gameId);
+          if (!gameRef) {
+            return null;
+          }
+          return gameRef.collection(GAME_PLAYERS_SUBCOLLECTION);
+        }
+        function getUserGameEventsCollectionRef(userId, gameId) {
+          const gameRef = getUserGameDocRef(userId, gameId);
+          if (!gameRef) {
+            return null;
+          }
+          return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
+        }
+        function getUserGameEventMediaCollectionRef(userId, gameId) {
+          const gameRef = getUserGameDocRef(userId, gameId);
+          if (!gameRef) {
+            return null;
+          }
+          return gameRef.collection(EVENT_MEDIA_SUBCOLLECTION);
+        }
+        function getGameUserStateDocRef(gameId, uid) {
+          const gameRef = getGameDocRef(gameId);
+          if (!gameRef || !uid) {
+            return null;
+          }
+          return gameRef.collection(GAME_USER_STATE_SUBCOLLECTION).doc(uid);
+        }
+        function getSoloplayerDocRef(gameId, uid) {
+          const gameRef = getGameDocRef(gameId);
+          if (!gameRef || !uid) {
+            return null;
+          }
+          return gameRef.collection(GAME_SOLOPLAYERS_SUBCOLLECTION).doc(uid);
+        }
+        function getSoloplayerPlayersCollectionRef(gameId, uid) {
+          const soloRef = getSoloplayerDocRef(gameId, uid);
+          if (!soloRef) {
+            return null;
+          }
+          return soloRef.collection(GAME_SOLOPLAYER_PLAYERS_SUBCOLLECTION);
+        }
+        function getAlliancePlayersCollectionRef(gameId, allianceId) {
+          const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+          if (!allianceRef) {
+            return null;
+          }
+          return allianceRef.collection(GAME_ALLIANCE_PLAYERS_SUBCOLLECTION);
+        }
+        function getGameScopedEventsCollectionRef(gameId) {
+          const gameRef = getGameDocRef(gameId);
+          if (!gameRef) {
+            return null;
+          }
+          return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
+        }
+        function getGameEventHistoryCollectionRef(gameId) {
+          const gameRef = getGameDocRef(gameId);
+          if (!gameRef) {
+            return null;
+          }
+          return gameRef.collection(GAME_EVENT_HISTORY_SUBCOLLECTION);
+        }
+        function getGameSoloUpdateTokensCollectionRef(gameId, uid) {
+          const soloRef = getSoloplayerDocRef(gameId, uid);
+          if (!soloRef) {
+            return null;
+          }
+          return soloRef.collection("update_tokens");
+        }
+        function getGameSoloPendingUpdatesCollectionRef(gameId, uid) {
+          const soloRef = getSoloplayerDocRef(gameId, uid);
+          if (!soloRef) {
+            return null;
+          }
+          return soloRef.collection("pending_updates");
+        }
+        function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId) {
+          const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+          if (!allianceRef) {
+            return null;
+          }
+          return allianceRef.collection("update_tokens");
+        }
+        function getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId) {
+          const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+          if (!allianceRef) {
+            return null;
+          }
+          return allianceRef.collection("pending_updates");
+        }
+        function resolveScopedActiveGameStorageKey(userOrUid) {
+          const userUid = normalizeUid(
+            typeof userOrUid === "string" ? userOrUid : userOrUid && typeof userOrUid === "object" ? userOrUid.uid : ""
+          );
+          if (!userUid) {
+            return "";
+          }
+          return `${ACTIVE_GAME_STORAGE_KEY}::${userUid}`;
+        }
+        function resolveGameplayContext(methodName, context) {
+          const explicitGameId = normalizeGameContextInput(context);
+          if (explicitGameId) {
+            return { gameId: explicitGameId, explicit: true };
+          }
+          return { gameId: DEFAULT_GAME_ID, explicit: false };
+        }
+        function getResolvedGameId(methodName, context) {
+          const gameplayContext = resolveGameplayContext(methodName, context);
+          return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+        }
+        function resolveInitialAuthGameId(userOrUid) {
+          if (typeof window !== "undefined") {
+            const fromGlobal = normalizeGameId(window.__ACTIVE_GAME_ID);
+            if (fromGlobal) {
+              return fromGlobal;
+            }
+            try {
+              if (window.localStorage && typeof window.localStorage.getItem === "function") {
+                const scopedStorageKey = resolveScopedActiveGameStorageKey(userOrUid);
+                if (scopedStorageKey) {
+                  const fromScopedStorage = normalizeGameId(window.localStorage.getItem(scopedStorageKey));
+                  if (fromScopedStorage) {
+                    return fromScopedStorage;
+                  }
+                }
+                const fromStorage = normalizeGameId(window.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
+                if (fromStorage) {
+                  if (scopedStorageKey && typeof window.localStorage.setItem === "function") {
+                    try {
+                      window.localStorage.setItem(scopedStorageKey, fromStorage);
+                    } catch (scopedWriteError) {
+                    }
+                  }
+                  return fromStorage;
+                }
+              }
+            } catch (error) {
+            }
+          }
+          return DEFAULT_GAME_ID;
+        }
+        function createStableDocId(rawValue, prefix) {
+          const raw = typeof rawValue === "string" ? rawValue.trim() : "";
+          const base = raw.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 72);
+          let hash = 0;
+          for (let index = 0; index < raw.length; index += 1) {
+            hash = (hash << 5) - hash + raw.charCodeAt(index);
+            hash |= 0;
+          }
+          const hashPart = Math.abs(hash).toString(36);
+          return `${base || (prefix || "doc")}_${hashPart}`;
+        }
+        function getPlayerDocId(playerName) {
+          return createStableDocId(playerName, "player");
+        }
+        function getEventDocId(eventId) {
+          const normalizedEventId = normalizeEventId(eventId);
+          if (normalizedEventId) {
+            return normalizedEventId;
+          }
+          return createStableDocId(eventId, "event");
+        }
+        function parseMigrationVersion(value) {
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+          }
+          return Math.floor(parsed);
+        }
+        function cloneJson(value) {
+          if (typeof structuredClone === "function") {
+            return structuredClone(value);
+          }
+          return JSON.parse(JSON.stringify(value));
+        }
+        function isPlainObject(value) {
+          if (!value || typeof value !== "object") {
+            return false;
+          }
+          const proto = Object.getPrototypeOf(value);
+          return proto === Object.prototype || proto === null;
+        }
+        function areJsonEqual(a, b) {
+          if (a === b) {
+            return true;
+          }
+          if (a == null || b == null) {
+            return false;
+          }
+          if (Array.isArray(a) || Array.isArray(b)) {
+            if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+              return false;
+            }
+            for (let i = 0; i < a.length; i += 1) {
+              if (!areJsonEqual(a[i], b[i])) {
+                return false;
+              }
+            }
+            return true;
+          }
+          if (isPlainObject(a) || isPlainObject(b)) {
+            if (!isPlainObject(a) || !isPlainObject(b)) {
+              return false;
+            }
+            const aKeys = Object.keys(a);
+            const bKeys = Object.keys(b);
+            if (aKeys.length !== bKeys.length) {
+              return false;
+            }
+            for (let i = 0; i < aKeys.length; i += 1) {
+              const key = aKeys[i];
+              if (!Object.prototype.hasOwnProperty.call(b, key)) {
+                return false;
+              }
+              if (!areJsonEqual(a[key], b[key])) {
+                return false;
+              }
+            }
+            return true;
+          }
+          return false;
+        }
+        function toMillis(value) {
+          if (!value) {
+            return 0;
+          }
+          if (typeof value.toMillis === "function") {
+            const ms = Number(value.toMillis());
+            return Number.isFinite(ms) && ms > 0 ? ms : 0;
+          }
+          if (typeof value === "string") {
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+          }
+          if (typeof value === "number") {
+            return Number.isFinite(value) && value > 0 ? value : 0;
+          }
+          return 0;
+        }
+        function timestampToMillis(value) {
+          if (!value) {
+            return 0;
+          }
+          if (typeof value.toMillis === "function") {
+            return value.toMillis();
+          }
+          if (typeof value.toDate === "function") {
+            return value.toDate().getTime();
+          }
+          if (value instanceof Date) {
+            return value.getTime();
+          }
+          if (typeof value === "number" && Number.isFinite(value)) {
+            return value;
+          }
+          const parsed = new Date(value).getTime();
+          return Number.isFinite(parsed) ? parsed : 0;
+        }
+        function isPermissionDeniedError(error) {
+          if (!error) return false;
+          const code = typeof error.code === "string" ? error.code.toLowerCase() : "";
+          const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+          return code.includes("permission-denied") || message.includes("missing or insufficient permissions");
+        }
+        const observabilityCounters = {
+          dualWriteMismatchCount: 0,
+          invitationContextMismatchCount: 0,
+          fallbackReadHitCount: 0
+        };
+        function incrementObservabilityCounter(counterKey, amount) {
+          if (!Object.prototype.hasOwnProperty.call(observabilityCounters, counterKey)) {
+            return;
+          }
+          const delta = Number(amount);
+          const increment = Number.isFinite(delta) && delta > 0 ? Math.floor(delta) : 1;
+          observabilityCounters[counterKey] += increment;
+        }
+        function getObservabilityCounters() {
+          return {
+            dualWriteMismatchCount: Number(observabilityCounters.dualWriteMismatchCount) || 0,
+            invitationContextMismatchCount: Number(observabilityCounters.invitationContextMismatchCount) || 0,
+            fallbackReadHitCount: Number(observabilityCounters.fallbackReadHitCount) || 0
+          };
+        }
+        function resetObservabilityCounters() {
+          observabilityCounters.dualWriteMismatchCount = 0;
+          observabilityCounters.invitationContextMismatchCount = 0;
+          observabilityCounters.fallbackReadHitCount = 0;
+        }
+        global2.DSFirebaseInfra = {
+          // db access
+          setDb,
+          getDb,
+          // constants
+          DEFAULT_GAME_ID,
+          ACTIVE_GAME_STORAGE_KEY,
+          MULTIGAME_FLAG_DEFAULTS,
+          MULTIGAME_FLAG_KEYS,
+          // normalization
+          normalizeFeatureFlagValue,
+          normalizeEventId,
+          normalizeGameId,
+          normalizeGameContextInput,
+          normalizeUid,
+          // feature flags
+          readRuntimeFeatureFlagOverrides,
+          resolveFeatureFlags,
+          isFeatureFlagEnabled,
+          isStrictModeEnabled,
+          isLegacyFallbackAllowed,
+          createStrictModeError,
+          // collection/path ref builders
+          getUserGameDocRef,
+          getGameDocRef,
+          getGameAllianceCollectionRef,
+          getGameAllianceDocRef,
+          getLegacyAllianceCollectionRef,
+          getLegacyAllianceDocRef,
+          getGameInvitationCollectionRef,
+          getGameInvitationDocRef,
+          findInvitationById,
+          getUserGamePlayersCollectionRef,
+          getUserGameEventsCollectionRef,
+          getUserGameEventMediaCollectionRef,
+          getGameUserStateDocRef,
+          getSoloplayerDocRef,
+          getSoloplayerPlayersCollectionRef,
+          getAlliancePlayersCollectionRef,
+          getGameScopedEventsCollectionRef,
+          getGameEventHistoryCollectionRef,
+          getGameSoloUpdateTokensCollectionRef,
+          getGameSoloPendingUpdatesCollectionRef,
+          getGameAllianceUpdateTokensCollectionRef,
+          getGameAlliancePendingUpdatesCollectionRef,
+          // game context resolvers
+          resolveScopedActiveGameStorageKey,
+          resolveGameplayContext,
+          getResolvedGameId,
+          resolveInitialAuthGameId,
+          // pure utilities
+          createStableDocId,
+          getPlayerDocId,
+          getEventDocId,
+          parseMigrationVersion,
+          cloneJson,
+          isPlainObject,
+          areJsonEqual,
+          toMillis,
+          timestampToMillis,
+          isPermissionDeniedError,
+          // observability
+          incrementObservabilityCounter,
+          getObservabilityCounters,
+          resetObservabilityCounters
+        };
+      })(typeof window !== "undefined" ? window : global);
+    }
+  });
+
+  // firebase-auth-module.js
+  var require_firebase_auth_module = __commonJS({
+    "firebase-auth-module.js"() {
+      (function initFirebaseAuth(global2) {
+        "use strict";
+        var deps = {
+          getAuth: null,
+          getCurrentUser: null,
+          setCurrentUser: null,
+          getOnAuthCallback: null,
+          setOnAuthCallback: null,
+          applySignOutState: null,
+          triggerPostSignInLoad: null,
+          invalidateGameMetadataCache: null,
+          stopAllianceDocListener: null
+        };
+        function configure(options) {
+          if (!options || typeof options !== "object") {
+            return;
+          }
+          Object.keys(deps).forEach(function(key) {
+            if (typeof options[key] === "function") {
+              deps[key] = options[key];
+            }
+          });
+        }
+        function isPasswordProvider(user) {
+          if (!user || !user.providerData) {
+            return false;
+          }
+          return user.providerData.some(function(provider) {
+            return provider.providerId === "password";
+          });
+        }
+        function isReauthRequiredError(error) {
+          var code = error && error.code ? String(error.code) : "";
+          return code === "auth/requires-recent-login" || code === "auth/user-token-expired";
+        }
+        function handleAuthStateChanged(user) {
+          deps.setCurrentUser(user);
+          deps.invalidateGameMetadataCache();
+          if (!user) {
+            deps.stopAllianceDocListener();
+          }
+          if (user) {
+            if (isPasswordProvider(user) && !user.emailVerified) {
+              console.warn("Email not verified. Signing out.");
+              deps.getAuth().signOut();
+              var cb = deps.getOnAuthCallback();
+              if (cb) {
+                cb(false, null);
+              }
+              return;
+            }
+            console.log("\u2705 User signed in:", user.email);
+            deps.triggerPostSignInLoad(user);
+            var authCb = deps.getOnAuthCallback();
+            if (authCb) {
+              authCb(true, user);
+            }
+          } else {
+            console.log("\u2139\uFE0F User signed out");
+            deps.applySignOutState();
+            var signOutCb = deps.getOnAuthCallback();
+            if (signOutCb) {
+              signOutCb(false, null);
+            }
+          }
+        }
+        function setAuthCallback(callback) {
+          deps.setOnAuthCallback(callback);
+        }
+        async function signInWithGoogle() {
+          try {
+            var auth = deps.getAuth();
+            var provider = new firebase.auth.GoogleAuthProvider();
+            var result = await auth.signInWithPopup(provider);
+            console.log("\u2705 Google sign-in successful");
+            return { success: true, user: result.user };
+          } catch (error) {
+            console.error("\u274C Google sign-in failed:", error);
+            var popupErrorCodes = /* @__PURE__ */ new Set([
+              "auth/popup-blocked",
+              "auth/popup-closed-by-user",
+              "auth/cancelled-popup-request",
+              "auth/operation-not-supported-in-this-environment"
+            ]);
+            if (error && popupErrorCodes.has(error.code)) {
+              try {
+                var authRetry = deps.getAuth();
+                var redirectProvider = new firebase.auth.GoogleAuthProvider();
+                await authRetry.signInWithRedirect(redirectProvider);
+                console.log("\u{1F501} Falling back to redirect sign-in");
+                return { success: true, redirect: true };
+              } catch (redirectError) {
+                console.error("\u274C Redirect sign-in failed:", redirectError);
+                return { success: false, error: redirectError.message || "Redirect sign-in failed" };
+              }
+            }
+            return { success: false, error: error.message || "Google sign-in failed" };
+          }
+        }
+        async function signInWithEmail(email, password) {
+          try {
+            var auth = deps.getAuth();
+            var result = await auth.signInWithEmailAndPassword(email, password);
+            if (!result.user.emailVerified) {
+              await auth.signOut();
+              return { success: false, error: "Email not verified. Check your inbox." };
+            }
+            console.log("\u2705 Email sign-in successful");
+            return { success: true, user: result.user };
+          } catch (error) {
+            console.error("\u274C Email sign-in failed:", error);
+            return { success: false, error: error.message };
+          }
+        }
+        async function signUpWithEmail(email, password) {
+          try {
+            var auth = deps.getAuth();
+            var result = await auth.createUserWithEmailAndPassword(email, password);
+            await result.user.sendEmailVerification();
+            console.log("\u2705 Account created successfully");
+            return {
+              success: true,
+              user: result.user,
+              message: "Account created! Please check your email for verification."
+            };
+          } catch (error) {
+            console.error("\u274C Sign-up failed:", error);
+            return { success: false, error: error.message };
+          }
+        }
+        async function resetPassword(email) {
+          try {
+            var auth = deps.getAuth();
+            await auth.sendPasswordResetEmail(email);
+            console.log("\u2705 Password reset email sent");
+            return {
+              success: true,
+              message: "Password reset email sent. Check your inbox."
+            };
+          } catch (error) {
+            console.error("\u274C Password reset failed:", error);
+            return { success: false, error: error.message };
+          }
+        }
+        async function signOut() {
+          try {
+            var auth = deps.getAuth();
+            await auth.signOut();
+            console.log("\u2705 User signed out");
+            return { success: true };
+          } catch (error) {
+            console.error("\u274C Sign-out failed:", error);
+            return { success: false, error: error.message };
+          }
+        }
+        function getCurrentUser() {
+          return deps.getCurrentUser();
+        }
+        function isSignedIn() {
+          return deps.getCurrentUser() !== null;
+        }
+        global2.DSFirebaseAuth = {
+          configure,
+          handleAuthStateChanged,
+          setAuthCallback,
+          signInWithGoogle,
+          signInWithEmail,
+          signUpWithEmail,
+          resetPassword,
+          signOut,
+          getCurrentUser,
+          isSignedIn,
+          isPasswordProvider,
+          isReauthRequiredError
+        };
+      })(typeof window !== "undefined" ? window : global);
+    }
+  });
+
   // firebase-module.js
   var require_firebase_module = __commonJS({
     "firebase-module.js"() {
       var FirebaseManager = (function() {
+        var DSFirebaseInfra = typeof window !== "undefined" && window.DSFirebaseInfra || typeof global !== "undefined" && global.DSFirebaseInfra;
+        var DSFirebaseAuth = typeof window !== "undefined" && window.DSFirebaseAuth || typeof global !== "undefined" && global.DSFirebaseAuth;
         let firebaseConfig = null;
         if (typeof FIREBASE_CONFIG !== "undefined" && FIREBASE_CONFIG) {
           firebaseConfig = FIREBASE_CONFIG;
@@ -420,73 +1166,26 @@
         let gameMetadataCache = { expiresAt: 0, entries: null };
         let migrationVersion = 0;
         let migratedToGameSubcollectionsAt = null;
-        const observabilityCounters = {
-          dualWriteMismatchCount: 0,
-          invitationContextMismatchCount: 0,
-          fallbackReadHitCount: 0
-        };
         function normalizeFeatureFlagValue(value, fallbackValue) {
-          if (typeof value === "boolean") {
-            return value;
-          }
-          if (typeof value === "number") {
-            return value !== 0;
-          }
-          if (typeof value === "string") {
-            const normalized = value.trim().toLowerCase();
-            if (!normalized) {
-              return fallbackValue;
-            }
-            if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-              return true;
-            }
-            if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-              return false;
-            }
-          }
-          return fallbackValue;
+          return DSFirebaseInfra.normalizeFeatureFlagValue(value, fallbackValue);
         }
         function readRuntimeFeatureFlagOverrides() {
-          if (typeof window === "undefined" || !window || typeof window !== "object") {
-            return {};
-          }
-          const runtimeFlags = window.__MULTIGAME_FLAGS;
-          if (!runtimeFlags || typeof runtimeFlags !== "object") {
-            return {};
-          }
-          return runtimeFlags;
+          return DSFirebaseInfra.readRuntimeFeatureFlagOverrides();
         }
         function resolveFeatureFlags(overrides) {
-          const runtimeOverrides = readRuntimeFeatureFlagOverrides();
-          const scopedOverrides = overrides && typeof overrides === "object" ? overrides : {};
-          const mergedFlags = __spreadValues(__spreadValues({}, runtimeOverrides), scopedOverrides);
-          const resolvedFlags = {};
-          MULTIGAME_FLAG_KEYS.forEach((flagName) => {
-            const fallbackValue = MULTIGAME_FLAG_DEFAULTS[flagName];
-            resolvedFlags[flagName] = normalizeFeatureFlagValue(mergedFlags[flagName], fallbackValue);
-          });
-          return resolvedFlags;
+          return DSFirebaseInfra.resolveFeatureFlags(overrides);
         }
         function isFeatureFlagEnabled(flagName, overrides) {
-          if (!Object.prototype.hasOwnProperty.call(MULTIGAME_FLAG_DEFAULTS, flagName)) {
-            return false;
-          }
-          const resolvedFlags = resolveFeatureFlags(overrides);
-          return resolvedFlags[flagName] === true;
+          return DSFirebaseInfra.isFeatureFlagEnabled(flagName, overrides);
         }
         function isStrictModeEnabled(overrides) {
-          return isFeatureFlagEnabled("MULTIGAME_STRICT_MODE", overrides);
+          return DSFirebaseInfra.isStrictModeEnabled(overrides);
         }
         function isLegacyFallbackAllowed(overrides) {
-          return !isStrictModeEnabled(overrides);
+          return DSFirebaseInfra.isLegacyFallbackAllowed(overrides);
         }
         function createStrictModeError(message, details) {
-          const err = new Error(typeof message === "string" && message ? message : "Strict mode blocked legacy fallback");
-          err.code = "strict-mode-blocked";
-          if (details && typeof details === "object") {
-            err.details = details;
-          }
-          return err;
+          return DSFirebaseInfra.createStrictModeError(message, details);
         }
         function emptyGlobalEventPositions(payload) {
           const source = payload && typeof payload === "object" ? payload : {};
@@ -523,213 +1222,88 @@
           return normalized;
         }
         function normalizeEventId(value) {
-          if (typeof value !== "string") {
-            return "";
-          }
-          return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+          return DSFirebaseInfra.normalizeEventId(value);
         }
         function normalizeGameId(value) {
-          if (typeof value !== "string") {
-            return "";
-          }
-          return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+          return DSFirebaseInfra.normalizeGameId(value);
         }
         function getUserGameDocRef(userId, gameId) {
-          if (!db || !userId) {
-            return null;
-          }
-          const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
-          return db.collection("users").doc(userId).collection(USER_GAMES_SUBCOLLECTION).doc(normalizedGameId);
+          return DSFirebaseInfra.getUserGameDocRef(userId, gameId);
         }
         function getGameDocRef(gameId) {
-          if (!db) {
-            return null;
-          }
-          const normalizedGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
-          return db.collection(GAMES_COLLECTION).doc(normalizedGameId);
+          return DSFirebaseInfra.getGameDocRef(gameId);
         }
         function getGameAllianceCollectionRef(gameId) {
-          const gameRef = getGameDocRef(gameId);
-          if (!gameRef) {
-            return null;
-          }
-          return gameRef.collection(GAME_ALLIANCES_SUBCOLLECTION);
+          return DSFirebaseInfra.getGameAllianceCollectionRef(gameId);
         }
         function getGameAllianceDocRef(gameId, allianceDocId) {
-          const collectionRef = getGameAllianceCollectionRef(gameId);
-          const normalizedAllianceDocId = typeof allianceDocId === "string" ? allianceDocId.trim() : "";
-          if (!collectionRef || !normalizedAllianceDocId) {
-            return null;
-          }
-          return collectionRef.doc(normalizedAllianceDocId);
+          return DSFirebaseInfra.getGameAllianceDocRef(gameId, allianceDocId);
         }
         function getLegacyAllianceCollectionRef() {
-          if (!db) {
-            return null;
-          }
-          return db.collection("alliances");
+          return DSFirebaseInfra.getLegacyAllianceCollectionRef();
         }
         function getLegacyAllianceDocRef(allianceDocId) {
-          const collectionRef = getLegacyAllianceCollectionRef();
-          const normalizedAllianceDocId = typeof allianceDocId === "string" ? allianceDocId.trim() : "";
-          if (!collectionRef || !normalizedAllianceDocId) {
-            return null;
-          }
-          return collectionRef.doc(normalizedAllianceDocId);
+          return DSFirebaseInfra.getLegacyAllianceDocRef(allianceDocId);
         }
         function getGameInvitationCollectionRef(gameId, allianceIdParam) {
-          const gameRef = getGameDocRef(gameId);
-          if (!gameRef) {
-            return null;
-          }
-          const normalizedAllianceId = typeof allianceIdParam === "string" ? allianceIdParam.trim() : "";
-          if (!normalizedAllianceId) {
-            return null;
-          }
-          return gameRef.collection("alliances").doc(normalizedAllianceId).collection(GAME_INVITATIONS_SUBCOLLECTION);
+          return DSFirebaseInfra.getGameInvitationCollectionRef(gameId, allianceIdParam);
         }
         function getGameInvitationDocRef(gameId, allianceIdParam, invitationId) {
-          const collectionRef = getGameInvitationCollectionRef(gameId, allianceIdParam);
-          const normalizedInvitationId = typeof invitationId === "string" ? invitationId.trim() : "";
-          if (!collectionRef || !normalizedInvitationId) {
-            return null;
-          }
-          return collectionRef.doc(normalizedInvitationId);
+          return DSFirebaseInfra.getGameInvitationDocRef(gameId, allianceIdParam, invitationId);
         }
-        async function findInvitationById(gameId, invitationId) {
-          if (!db || !invitationId || typeof db.collectionGroup !== "function") {
-            return null;
-          }
-          try {
-            var snapshot = await db.collectionGroup(GAME_INVITATIONS_SUBCOLLECTION).where("gameId", "==", gameId).get();
-            for (var i = 0; i < snapshot.docs.length; i++) {
-              if (snapshot.docs[i].id === invitationId) {
-                return { ref: snapshot.docs[i].ref, data: snapshot.docs[i].data() };
-              }
-            }
-          } catch (err) {
-            console.warn("findInvitationById collectionGroup fallback failed:", err.message);
-          }
-          return null;
+        function findInvitationById(gameId, invitationId) {
+          return DSFirebaseInfra.findInvitationById(gameId, invitationId);
         }
         function getUserGamePlayersCollectionRef(userId, gameId) {
-          const gameRef = getUserGameDocRef(userId, gameId);
-          if (!gameRef) {
-            return null;
-          }
-          return gameRef.collection(GAME_PLAYERS_SUBCOLLECTION);
+          return DSFirebaseInfra.getUserGamePlayersCollectionRef(userId, gameId);
         }
         function getUserGameEventsCollectionRef(userId, gameId) {
-          const gameRef = getUserGameDocRef(userId, gameId);
-          if (!gameRef) {
-            return null;
-          }
-          return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
+          return DSFirebaseInfra.getUserGameEventsCollectionRef(userId, gameId);
         }
         function getUserGameEventMediaCollectionRef(userId, gameId) {
-          const gameRef = getUserGameDocRef(userId, gameId);
-          if (!gameRef) {
-            return null;
-          }
-          return gameRef.collection(EVENT_MEDIA_SUBCOLLECTION);
+          return DSFirebaseInfra.getUserGameEventMediaCollectionRef(userId, gameId);
         }
         function getGameUserStateDocRef(gameId, uid) {
-          const gameRef = getGameDocRef(gameId);
-          if (!gameRef || !uid) {
-            return null;
-          }
-          return gameRef.collection(GAME_USER_STATE_SUBCOLLECTION).doc(uid);
+          return DSFirebaseInfra.getGameUserStateDocRef(gameId, uid);
         }
         function getSoloplayerDocRef(gameId, uid) {
-          const gameRef = getGameDocRef(gameId);
-          if (!gameRef || !uid) {
-            return null;
-          }
-          return gameRef.collection(GAME_SOLOPLAYERS_SUBCOLLECTION).doc(uid);
+          return DSFirebaseInfra.getSoloplayerDocRef(gameId, uid);
         }
         function getSoloplayerPlayersCollectionRef(gameId, uid) {
-          const soloRef = getSoloplayerDocRef(gameId, uid);
-          if (!soloRef) {
-            return null;
-          }
-          return soloRef.collection(GAME_SOLOPLAYER_PLAYERS_SUBCOLLECTION);
+          return DSFirebaseInfra.getSoloplayerPlayersCollectionRef(gameId, uid);
         }
         function getAlliancePlayersCollectionRef(gameId, allianceId2) {
-          const allianceRef = getGameAllianceDocRef(gameId, allianceId2);
-          if (!allianceRef) {
-            return null;
-          }
-          return allianceRef.collection(GAME_ALLIANCE_PLAYERS_SUBCOLLECTION);
+          return DSFirebaseInfra.getAlliancePlayersCollectionRef(gameId, allianceId2);
         }
         function getGameScopedEventsCollectionRef(gameId) {
-          const gameRef = getGameDocRef(gameId);
-          if (!gameRef) {
-            return null;
-          }
-          return gameRef.collection(GAME_EVENTS_SUBCOLLECTION);
+          return DSFirebaseInfra.getGameScopedEventsCollectionRef(gameId);
         }
         function getGameEventHistoryCollectionRef(gameId) {
-          const gameRef = getGameDocRef(gameId);
-          if (!gameRef) {
-            return null;
-          }
-          return gameRef.collection(GAME_EVENT_HISTORY_SUBCOLLECTION);
+          return DSFirebaseInfra.getGameEventHistoryCollectionRef(gameId);
         }
         function getGameSoloUpdateTokensCollectionRef(gameId, uid) {
-          const soloRef = getSoloplayerDocRef(gameId, uid);
-          if (!soloRef) {
-            return null;
-          }
-          return soloRef.collection("update_tokens");
+          return DSFirebaseInfra.getGameSoloUpdateTokensCollectionRef(gameId, uid);
         }
         function getGameSoloPendingUpdatesCollectionRef(gameId, uid) {
-          const soloRef = getSoloplayerDocRef(gameId, uid);
-          if (!soloRef) {
-            return null;
-          }
-          return soloRef.collection("pending_updates");
+          return DSFirebaseInfra.getGameSoloPendingUpdatesCollectionRef(gameId, uid);
         }
         function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId2) {
-          const allianceRef = getGameAllianceDocRef(gameId, allianceId2);
-          if (!allianceRef) {
-            return null;
-          }
-          return allianceRef.collection("update_tokens");
+          return DSFirebaseInfra.getGameAllianceUpdateTokensCollectionRef(gameId, allianceId2);
         }
         function getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId2) {
-          const allianceRef = getGameAllianceDocRef(gameId, allianceId2);
-          if (!allianceRef) {
-            return null;
-          }
-          return allianceRef.collection("pending_updates");
+          return DSFirebaseInfra.getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId2);
         }
         function createStableDocId(rawValue, prefix) {
-          const raw = typeof rawValue === "string" ? rawValue.trim() : "";
-          const base = raw.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 72);
-          let hash = 0;
-          for (let index = 0; index < raw.length; index += 1) {
-            hash = (hash << 5) - hash + raw.charCodeAt(index);
-            hash |= 0;
-          }
-          const hashPart = Math.abs(hash).toString(36);
-          return `${base || (prefix || "doc")}_${hashPart}`;
+          return DSFirebaseInfra.createStableDocId(rawValue, prefix);
         }
         function getPlayerDocId(playerName) {
-          return createStableDocId(playerName, "player");
+          return DSFirebaseInfra.getPlayerDocId(playerName);
         }
         function getEventDocId(eventId) {
-          const normalizedEventId = normalizeEventId(eventId);
-          if (normalizedEventId) {
-            return normalizedEventId;
-          }
-          return createStableDocId(eventId, "event");
+          return DSFirebaseInfra.getEventDocId(eventId);
         }
         function parseMigrationVersion(value) {
-          const parsed = Number(value);
-          if (!Number.isFinite(parsed) || parsed < 0) {
-            return 0;
-          }
-          return Math.floor(parsed);
+          return DSFirebaseInfra.parseMigrationVersion(value);
         }
         function updateMigrationMarkersFromUserData(data) {
           const source = data && typeof data === "object" ? data : {};
@@ -812,90 +1386,31 @@
           };
         }
         function incrementObservabilityCounter(counterKey, amount) {
-          if (!Object.prototype.hasOwnProperty.call(observabilityCounters, counterKey)) {
-            return;
-          }
-          const delta = Number(amount);
-          const increment = Number.isFinite(delta) && delta > 0 ? Math.floor(delta) : 1;
-          observabilityCounters[counterKey] += increment;
+          DSFirebaseInfra.incrementObservabilityCounter(counterKey, amount);
         }
         function getObservabilityCounters() {
-          return {
-            dualWriteMismatchCount: Number(observabilityCounters.dualWriteMismatchCount) || 0,
-            invitationContextMismatchCount: Number(observabilityCounters.invitationContextMismatchCount) || 0,
-            fallbackReadHitCount: Number(observabilityCounters.fallbackReadHitCount) || 0
-          };
+          return DSFirebaseInfra.getObservabilityCounters();
         }
         function resetObservabilityCounters() {
-          observabilityCounters.dualWriteMismatchCount = 0;
-          observabilityCounters.invitationContextMismatchCount = 0;
-          observabilityCounters.fallbackReadHitCount = 0;
+          DSFirebaseInfra.resetObservabilityCounters();
         }
         function normalizeGameContextInput(context) {
-          if (typeof context === "string") {
-            return normalizeGameId(context);
-          }
-          if (context && typeof context === "object" && typeof context.gameId === "string") {
-            return normalizeGameId(context.gameId);
-          }
-          return "";
+          return DSFirebaseInfra.normalizeGameContextInput(context);
         }
         function normalizeUid(value) {
-          if (typeof value !== "string") {
-            return "";
-          }
-          return value.trim();
+          return DSFirebaseInfra.normalizeUid(value);
         }
         function resolveScopedActiveGameStorageKey(userOrUid) {
-          const userUid = normalizeUid(
-            typeof userOrUid === "string" ? userOrUid : userOrUid && typeof userOrUid === "object" ? userOrUid.uid : ""
-          );
-          if (!userUid) {
-            return "";
-          }
-          return `${ACTIVE_GAME_STORAGE_KEY}::${userUid}`;
+          return DSFirebaseInfra.resolveScopedActiveGameStorageKey(userOrUid);
         }
         function resolveGameplayContext(methodName, context) {
-          const explicitGameId = normalizeGameContextInput(context);
-          if (explicitGameId) {
-            return { gameId: explicitGameId, explicit: true };
-          }
-          return { gameId: DEFAULT_GAME_ID, explicit: false };
+          return DSFirebaseInfra.resolveGameplayContext(methodName, context);
         }
         function getResolvedGameId(methodName, context) {
-          const gameplayContext = resolveGameplayContext(methodName, context);
-          return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+          return DSFirebaseInfra.getResolvedGameId(methodName, context);
         }
         function resolveInitialAuthGameId(userOrUid) {
-          if (typeof window !== "undefined") {
-            const fromGlobal = normalizeGameId(window.__ACTIVE_GAME_ID);
-            if (fromGlobal) {
-              return fromGlobal;
-            }
-            try {
-              if (window.localStorage && typeof window.localStorage.getItem === "function") {
-                const scopedStorageKey = resolveScopedActiveGameStorageKey(userOrUid);
-                if (scopedStorageKey) {
-                  const fromScopedStorage = normalizeGameId(window.localStorage.getItem(scopedStorageKey));
-                  if (fromScopedStorage) {
-                    return fromScopedStorage;
-                  }
-                }
-                const fromStorage = normalizeGameId(window.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
-                if (fromStorage) {
-                  if (scopedStorageKey && typeof window.localStorage.setItem === "function") {
-                    try {
-                      window.localStorage.setItem(scopedStorageKey, fromStorage);
-                    } catch (scopedWriteError) {
-                    }
-                  }
-                  return fromStorage;
-                }
-              }
-            } catch (error) {
-            }
-          }
-          return DEFAULT_GAME_ID;
+          return DSFirebaseInfra.resolveInitialAuthGameId(userOrUid);
         }
         function isActiveGameplayGameId(gameId) {
           const targetGameId = normalizeGameId(gameId) || DEFAULT_GAME_ID;
@@ -1218,21 +1733,7 @@
           return Object.keys(events).some((eid) => Object.keys(events[eid] || {}).length > 0);
         }
         function toMillis(value) {
-          if (!value) {
-            return 0;
-          }
-          if (typeof value.toMillis === "function") {
-            const ms = Number(value.toMillis());
-            return Number.isFinite(ms) && ms > 0 ? ms : 0;
-          }
-          if (typeof value === "string") {
-            const parsed = Date.parse(value);
-            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-          }
-          if (typeof value === "number") {
-            return Number.isFinite(value) && value > 0 ? value : 0;
-          }
-          return 0;
+          return DSFirebaseInfra.toMillis(value);
         }
         function extractVersionFromUserData(data) {
           if (!data || typeof data !== "object") {
@@ -2010,10 +2511,7 @@
           return changed;
         }
         function isPermissionDeniedError(error) {
-          if (!error) return false;
-          const code = typeof error.code === "string" ? error.code.toLowerCase() : "";
-          const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
-          return code.includes("permission-denied") || message.includes("missing or insufficient permissions");
+          return DSFirebaseInfra.isPermissionDeniedError(error);
         }
         function applyPermissionDeniedLoadFallbackState() {
           stopAllianceDocListener();
@@ -2218,57 +2716,13 @@
           return { displayName, nickname, avatarDataUrl, theme };
         }
         function cloneJson(value) {
-          if (typeof structuredClone === "function") {
-            return structuredClone(value);
-          }
-          return JSON.parse(JSON.stringify(value));
+          return DSFirebaseInfra.cloneJson(value);
         }
         function isPlainObject(value) {
-          if (!value || typeof value !== "object") {
-            return false;
-          }
-          const proto = Object.getPrototypeOf(value);
-          return proto === Object.prototype || proto === null;
+          return DSFirebaseInfra.isPlainObject(value);
         }
         function areJsonEqual(a, b) {
-          if (a === b) {
-            return true;
-          }
-          if (a == null || b == null) {
-            return false;
-          }
-          if (Array.isArray(a) || Array.isArray(b)) {
-            if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
-              return false;
-            }
-            for (let i = 0; i < a.length; i += 1) {
-              if (!areJsonEqual(a[i], b[i])) {
-                return false;
-              }
-            }
-            return true;
-          }
-          if (isPlainObject(a) || isPlainObject(b)) {
-            if (!isPlainObject(a) || !isPlainObject(b)) {
-              return false;
-            }
-            const aKeys = Object.keys(a);
-            const bKeys = Object.keys(b);
-            if (aKeys.length !== bKeys.length) {
-              return false;
-            }
-            for (let i = 0; i < aKeys.length; i += 1) {
-              const key = aKeys[i];
-              if (!Object.prototype.hasOwnProperty.call(b, key)) {
-                return false;
-              }
-              if (!areJsonEqual(a[key], b[key])) {
-                return false;
-              }
-            }
-            return true;
-          }
-          return false;
+          return DSFirebaseInfra.areJsonEqual(a, b);
         }
         function getUserStateDiff(lastState, currentState) {
           const changedFields = [];
@@ -2436,8 +2890,56 @@
             firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
             db = firebase.firestore();
+            DSFirebaseInfra.setDb(db);
+            DSFirebaseAuth.configure({
+              getAuth: function() {
+                return auth;
+              },
+              getCurrentUser: function() {
+                return currentUser;
+              },
+              setCurrentUser: function(u) {
+                currentUser = u;
+              },
+              getOnAuthCallback: function() {
+                return onAuthCallback;
+              },
+              setOnAuthCallback: function(cb) {
+                onAuthCallback = cb;
+              },
+              applySignOutState: function() {
+                stopAllianceDocListener();
+                playerDatabase = {};
+                eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
+                allianceId = null;
+                allianceName = null;
+                allianceData = null;
+                activeGameplayGameId = DEFAULT_GAME_ID;
+                activeAllianceGameId = DEFAULT_GAME_ID;
+                playerSource = "personal";
+                pendingInvitations = [];
+                sentInvitations = [];
+                invitationNotifications = [];
+                userProfile = normalizeUserProfile(null);
+                setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
+                setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
+                migrationVersion = 0;
+                migratedToGameSubcollectionsAt = null;
+                resetSaveState();
+              },
+              triggerPostSignInLoad: function(user) {
+                resetSaveState();
+                loadUserData(user, { gameId: resolveInitialAuthGameId(user.uid) });
+              },
+              invalidateGameMetadataCache: function() {
+                invalidateGameMetadataCache();
+              },
+              stopAllianceDocListener: function() {
+                stopAllianceDocListener();
+              }
+            });
             bindSaveLifecycleHandlers();
-            auth.onAuthStateChanged(handleAuthStateChanged);
+            auth.onAuthStateChanged(DSFirebaseAuth.handleAuthStateChanged);
             console.log("\u2705 Firebase initialized successfully");
             return true;
           } catch (error) {
@@ -2446,53 +2948,10 @@
           }
         }
         function handleAuthStateChanged(user) {
-          currentUser = user;
-          invalidateGameMetadataCache();
-          if (!user) {
-            stopAllianceDocListener();
-          }
-          if (user) {
-            if (isPasswordProvider(user) && !user.emailVerified) {
-              console.warn("Email not verified. Signing out.");
-              auth.signOut();
-              if (onAuthCallback) {
-                onAuthCallback(false, null);
-              }
-              return;
-            }
-            console.log("\u2705 User signed in:", user.email);
-            resetSaveState();
-            loadUserData(user, { gameId: resolveInitialAuthGameId(user.uid) });
-            if (onAuthCallback) {
-              onAuthCallback(true, user);
-            }
-          } else {
-            console.log("\u2139\uFE0F User signed out");
-            stopAllianceDocListener();
-            playerDatabase = {};
-            eventData = ensureLegacyEventEntriesWithDefaults(createEmptyEventData()).events;
-            allianceId = null;
-            allianceName = null;
-            allianceData = null;
-            activeGameplayGameId = DEFAULT_GAME_ID;
-            activeAllianceGameId = DEFAULT_GAME_ID;
-            playerSource = "personal";
-            pendingInvitations = [];
-            sentInvitations = [];
-            invitationNotifications = [];
-            userProfile = normalizeUserProfile(null);
-            setGlobalDefaultPositions(emptyGlobalEventPositions(), 0);
-            setGlobalDefaultBuildingConfig(emptyGlobalBuildingConfig(), 0);
-            migrationVersion = 0;
-            migratedToGameSubcollectionsAt = null;
-            resetSaveState();
-            if (onAuthCallback) {
-              onAuthCallback(false, null);
-            }
-          }
+          return DSFirebaseAuth.handleAuthStateChanged(user);
         }
         function setAuthCallback(callback) {
-          onAuthCallback = callback;
+          DSFirebaseAuth.setAuthCallback(callback);
         }
         function setDataLoadCallback(callback) {
           onDataLoadCallback = callback;
@@ -2587,94 +3046,25 @@
           });
         }
         function isPasswordProvider(user) {
-          if (!user || !user.providerData) {
-            return false;
-          }
-          return user.providerData.some((provider) => provider.providerId === "password");
+          return DSFirebaseAuth.isPasswordProvider(user);
         }
-        async function signInWithGoogle() {
-          try {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            const result = await auth.signInWithPopup(provider);
-            console.log("\u2705 Google sign-in successful");
-            return { success: true, user: result.user };
-          } catch (error) {
-            console.error("\u274C Google sign-in failed:", error);
-            const popupErrorCodes = /* @__PURE__ */ new Set([
-              "auth/popup-blocked",
-              "auth/popup-closed-by-user",
-              "auth/cancelled-popup-request",
-              "auth/operation-not-supported-in-this-environment"
-            ]);
-            if (error && popupErrorCodes.has(error.code)) {
-              try {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                await auth.signInWithRedirect(provider);
-                console.log("\u{1F501} Falling back to redirect sign-in");
-                return { success: true, redirect: true };
-              } catch (redirectError) {
-                console.error("\u274C Redirect sign-in failed:", redirectError);
-                return { success: false, error: redirectError.message || "Redirect sign-in failed" };
-              }
-            }
-            return { success: false, error: error.message || "Google sign-in failed" };
-          }
+        function signInWithGoogle() {
+          return DSFirebaseAuth.signInWithGoogle();
         }
-        async function signInWithEmail(email, password) {
-          try {
-            const result = await auth.signInWithEmailAndPassword(email, password);
-            if (!result.user.emailVerified) {
-              await auth.signOut();
-              return { success: false, error: "Email not verified. Check your inbox." };
-            }
-            console.log("\u2705 Email sign-in successful");
-            return { success: true, user: result.user };
-          } catch (error) {
-            console.error("\u274C Email sign-in failed:", error);
-            return { success: false, error: error.message };
-          }
+        function signInWithEmail(email, password) {
+          return DSFirebaseAuth.signInWithEmail(email, password);
         }
-        async function signUpWithEmail(email, password) {
-          try {
-            const result = await auth.createUserWithEmailAndPassword(email, password);
-            await result.user.sendEmailVerification();
-            console.log("\u2705 Account created successfully");
-            return {
-              success: true,
-              user: result.user,
-              message: "Account created! Please check your email for verification."
-            };
-          } catch (error) {
-            console.error("\u274C Sign-up failed:", error);
-            return { success: false, error: error.message };
-          }
+        function signUpWithEmail(email, password) {
+          return DSFirebaseAuth.signUpWithEmail(email, password);
         }
-        async function resetPassword(email) {
-          try {
-            await auth.sendPasswordResetEmail(email);
-            console.log("\u2705 Password reset email sent");
-            return {
-              success: true,
-              message: "Password reset email sent. Check your inbox."
-            };
-          } catch (error) {
-            console.error("\u274C Password reset failed:", error);
-            return { success: false, error: error.message };
-          }
+        function resetPassword(email) {
+          return DSFirebaseAuth.resetPassword(email);
         }
-        async function signOut() {
-          try {
-            await auth.signOut();
-            console.log("\u2705 User signed out");
-            return { success: true };
-          } catch (error) {
-            console.error("\u274C Sign-out failed:", error);
-            return { success: false, error: error.message };
-          }
+        function signOut() {
+          return DSFirebaseAuth.signOut();
         }
         function isReauthRequiredError(error) {
-          const code = error && error.code ? String(error.code) : "";
-          return code === "auth/requires-recent-login" || code === "auth/user-token-expired";
+          return DSFirebaseAuth.isReauthRequiredError(error);
         }
         async function deleteDocsByRefs(refs) {
           if (!Array.isArray(refs) || refs.length === 0) {
@@ -2834,10 +3224,10 @@
           }
         }
         function getCurrentUser() {
-          return currentUser;
+          return DSFirebaseAuth.getCurrentUser();
         }
         function isSignedIn() {
-          return currentUser !== null;
+          return DSFirebaseAuth.isSignedIn();
         }
         async function loadUserData(user, context) {
           const gameId = getResolvedGameId("loadUserData", context);
@@ -4140,23 +4530,7 @@
           }
         }
         function timestampToMillis(value) {
-          if (!value) {
-            return 0;
-          }
-          if (typeof value.toMillis === "function") {
-            return value.toMillis();
-          }
-          if (typeof value.toDate === "function") {
-            return value.toDate().getTime();
-          }
-          if (value instanceof Date) {
-            return value.getTime();
-          }
-          if (typeof value === "number" && Number.isFinite(value)) {
-            return value;
-          }
-          const parsed = new Date(value).getTime();
-          return Number.isFinite(parsed) ? parsed : 0;
+          return DSFirebaseInfra.timestampToMillis(value);
         }
         function invitationSortKey(invitation) {
           if (!invitation || typeof invitation !== "object") {
@@ -8820,7 +9194,7 @@
   // js/core/firestore-utils.js
   var require_firestore_utils = __commonJS({
     "js/core/firestore-utils.js"() {
-      (function initFirestoreUtils(global) {
+      (function initFirestoreUtils(global2) {
         function sanitizeDocId(name) {
           if (typeof name !== "string" || name.length === 0) return "_empty_";
           var sanitized = name.replace(/[\/\.#\[\]\*]/g, "_");
@@ -8828,7 +9202,7 @@
           if (sanitized.length > 1500) sanitized = sanitized.slice(0, 1500);
           return sanitized;
         }
-        global.DSFirestoreUtils = {
+        global2.DSFirestoreUtils = {
           sanitizeDocId
         };
       })(window);
@@ -8838,7 +9212,7 @@
   // js/core/games.js
   var require_games = __commonJS({
     "js/core/games.js"() {
-      (function initGamesCore(global) {
+      (function initGamesCore(global2) {
         const GAME_METADATA_SUPER_ADMIN_UID = "2z2BdO8aVsUovqQWWL9WCRMdV933";
         const DEFAULT_GAME_ID = "last_war";
         const GAME_CATALOG = {
@@ -8912,7 +9286,7 @@
         function canEditGameMetadata(userOrUid, gameId) {
           return isKnownGame(gameId) && isGameMetadataSuperAdmin(userOrUid);
         }
-        global.DSCoreGames = {
+        global2.DSCoreGames = {
           GAME_CATALOG,
           GAME_METADATA_SUPER_ADMIN_UID,
           getDefaultGameId,
@@ -8930,7 +9304,7 @@
   // js/core/events.js
   var require_events = __commonJS({
     "js/core/events.js"() {
-      (function initEventsCore(global) {
+      (function initEventsCore(global2) {
         const DEFAULT_ASSIGNMENT_ALGORITHM_ID = "balanced_round_robin";
         function cloneDeep(value) {
           return JSON.parse(JSON.stringify(value));
@@ -8942,9 +9316,9 @@
           return value.trim().toLowerCase();
         }
         function resolveDefaultAssignmentAlgorithmId() {
-          if (global.DSCoreGames && typeof global.DSCoreGames.getDefaultGameId === "function" && typeof global.DSCoreGames.getGame === "function") {
-            const defaultGameId = global.DSCoreGames.getDefaultGameId();
-            const defaultGame = global.DSCoreGames.getGame(defaultGameId);
+          if (global2.DSCoreGames && typeof global2.DSCoreGames.getDefaultGameId === "function" && typeof global2.DSCoreGames.getGame === "function") {
+            const defaultGameId = global2.DSCoreGames.getDefaultGameId();
+            const defaultGame = global2.DSCoreGames.getGame(defaultGameId);
             if (defaultGame && Array.isArray(defaultGame.assignmentAlgorithmIds) && defaultGame.assignmentAlgorithmIds.length > 0) {
               const firstId = normalizeAlgorithmId(defaultGame.assignmentAlgorithmIds[0]);
               if (firstId) {
@@ -9170,7 +9544,7 @@
         function cloneLegacyEventRegistry() {
           return cloneDeep(LEGACY_EVENT_REGISTRY);
         }
-        global.DSCoreEvents = {
+        global2.DSCoreEvents = {
           EVENT_REGISTRY,
           LEGACY_EVENT_REGISTRY,
           getEvent,
@@ -9191,7 +9565,7 @@
   // js/core/assignment-registry.js
   var require_assignment_registry = __commonJS({
     "js/core/assignment-registry.js"() {
-      (function initAssignmentRegistry(global) {
+      (function initAssignmentRegistry(global2) {
         const DEFAULT_ASSIGNMENT_ALGORITHM_ID = "balanced_round_robin";
         const ASSIGNMENT_REGISTRY = {
           balanced_round_robin: {
@@ -9221,10 +9595,10 @@
           return cloneDeep(ASSIGNMENT_REGISTRY[normalizedId]);
         }
         function resolveGameAlgorithmIds(gameId) {
-          if (!global.DSCoreGames || typeof global.DSCoreGames.getGame !== "function") {
+          if (!global2.DSCoreGames || typeof global2.DSCoreGames.getGame !== "function") {
             return [DEFAULT_ASSIGNMENT_ALGORITHM_ID];
           }
-          const game = global.DSCoreGames.getGame(gameId);
+          const game = global2.DSCoreGames.getGame(gameId);
           if (!game || !Array.isArray(game.assignmentAlgorithmIds) || game.assignmentAlgorithmIds.length === 0) {
             return [DEFAULT_ASSIGNMENT_ALGORITHM_ID];
           }
@@ -9265,7 +9639,7 @@
             algorithm
           };
         }
-        global.DSAssignmentRegistry = {
+        global2.DSAssignmentRegistry = {
           DEFAULT_ASSIGNMENT_ALGORITHM_ID,
           ASSIGNMENT_REGISTRY,
           getAlgorithm,
@@ -9281,7 +9655,7 @@
   // js/core/assignment.js
   var require_assignment = __commonJS({
     "js/core/assignment.js"() {
-      (function initAssignmentCore(global) {
+      (function initAssignmentCore(global2) {
         const POWER_SIMILARITY_THRESHOLD = 1e6;
         function toNumeric(value) {
           const numeric = Number(value);
@@ -9411,7 +9785,7 @@
           assignPlayersSequentially(mapBuildings, available, assignments);
           return assignments;
         }
-        global.DSCoreAssignment = {
+        global2.DSCoreAssignment = {
           assignTeamToBuildings,
           assignTeamToBuildingsAggressive,
           findMixPartner,
@@ -9424,7 +9798,7 @@
   // js/core/generator-assignment.js
   var require_generator_assignment = __commonJS({
     "js/core/generator-assignment.js"() {
-      (function initGeneratorAssignmentCore(global) {
+      (function initGeneratorAssignmentCore(global2) {
         const ASSIGNMENT_ALGO_BALANCED = "balanced";
         const ASSIGNMENT_ALGO_AGGRESSIVE = "aggressive";
         const ASSIGNMENT_POWER_SIMILARITY_THRESHOLD = 1e6;
@@ -9433,8 +9807,8 @@
           return Number.isFinite(numeric) ? numeric : 0;
         }
         function comparePlayersForAssignment(a, b) {
-          if (global.DSCoreAssignment && typeof global.DSCoreAssignment.comparePlayersForAssignment === "function") {
-            return global.DSCoreAssignment.comparePlayersForAssignment(a, b);
+          if (global2.DSCoreAssignment && typeof global2.DSCoreAssignment.comparePlayersForAssignment === "function") {
+            return global2.DSCoreAssignment.comparePlayersForAssignment(a, b);
           }
           const powerA = toNumeric(a && a.power);
           const powerB = toNumeric(b && b.power);
@@ -9493,7 +9867,7 @@
             substitutes: mapped.substitutes.slice().sort(comparePlayersForAssignment)
           };
         }
-        global.DSCoreGeneratorAssignment = {
+        global2.DSCoreGeneratorAssignment = {
           normalizeAssignmentAlgorithm,
           comparePlayersForAssignment,
           mapSelectionsToPlayers,
@@ -9506,7 +9880,7 @@
   // js/core/buildings.js
   var require_buildings = __commonJS({
     "js/core/buildings.js"() {
-      (function initBuildingsCore(global) {
+      (function initBuildingsCore(global2) {
         function clampPriority(value, fallback) {
           const number = Number(value);
           if (!Number.isFinite(number)) {
@@ -9638,7 +10012,7 @@
           });
           return normalized;
         }
-        global.DSCoreBuildings = {
+        global2.DSCoreBuildings = {
           clampPriority,
           clampSlots,
           getBuildingSlotsTotal,
@@ -9652,7 +10026,7 @@
   // js/core/player-table.js
   var require_player_table = __commonJS({
     "js/core/player-table.js"() {
-      (function initPlayerTableCore(global) {
+      (function initPlayerTableCore(global2) {
         function normalizeString(value) {
           return typeof value === "string" ? value : "";
         }
@@ -9700,7 +10074,7 @@
           }
           return result;
         }
-        global.DSCorePlayerTable = {
+        global2.DSCorePlayerTable = {
           filterAndSortPlayers
         };
       })(window);
@@ -9710,7 +10084,7 @@
   // js/core/reliability.js
   var require_reliability = __commonJS({
     "js/core/reliability.js"() {
-      (function initCoreReliability(global) {
+      (function initCoreReliability(global2) {
         var DECAY_FACTOR = 0.85;
         var TIERS = [
           { min: 90, max: 100, tier: "excellent", label: "Rock solid", color: "#2e7d32", cssClass: "reliability-excellent" },
@@ -9846,7 +10220,7 @@
             recentHistory
           });
         }
-        global.DSCoreReliability = {
+        global2.DSCoreReliability = {
           calculateReliabilityScore,
           getReliabilityTier,
           recalculatePlayerStats
@@ -9858,7 +10232,7 @@
   // js/features/generator/team-selection-core.js
   var require_team_selection_core = __commonJS({
     "js/features/generator/team-selection-core.js"() {
-      (function initGeneratorTeamSelectionFeature(global) {
+      (function initGeneratorTeamSelectionFeature(global2) {
         const TEAM_A = "teamA";
         const TEAM_B = "teamB";
         const ROLE_STARTER = "starter";
@@ -10109,7 +10483,7 @@
             teamB: []
           };
         }
-        global.DSFeatureGeneratorTeamSelection = {
+        global2.DSFeatureGeneratorTeamSelection = {
           getStarterCount,
           getSubstituteCount,
           getCurrentTeamCounts,
@@ -10127,7 +10501,7 @@
   // js/features/generator/generator-actions.js
   var require_generator_actions = __commonJS({
     "js/features/generator/generator-actions.js"() {
-      (function initGeneratorActions(global) {
+      (function initGeneratorActions(global2) {
         function normalizeAssignmentSelection(value, normalizeFn, fallbackValue) {
           const fallback = typeof fallbackValue === "string" && fallbackValue ? fallbackValue : "balanced";
           if (typeof normalizeFn === "function") {
@@ -10143,7 +10517,7 @@
             maxSubstitutes: Number.isFinite(Number(source.maxSubstitutes)) ? Number(source.maxSubstitutes) : 10
           };
         }
-        global.DSFeatureGeneratorActions = {
+        global2.DSFeatureGeneratorActions = {
           normalizeAssignmentSelection,
           buildRoleLimits
         };
@@ -10154,11 +10528,11 @@
   // js/features/generator/generator-view.js
   var require_generator_view = __commonJS({
     "js/features/generator/generator-view.js"() {
-      (function initGeneratorView(global) {
+      (function initGeneratorView(global2) {
         function syncAssignmentAlgorithmControl(options) {
           const settings = options && typeof options === "object" ? options : {};
           const value = typeof settings.value === "string" ? settings.value : "balanced";
-          const doc = settings.document || global.document;
+          const doc = settings.document || global2.document;
           if (!doc) {
             return;
           }
@@ -10176,7 +10550,7 @@
             select.value = value;
           }
         }
-        global.DSFeatureGeneratorView = {
+        global2.DSFeatureGeneratorView = {
           syncAssignmentAlgorithmControl
         };
       })(window);
@@ -10186,11 +10560,11 @@
   // js/features/generator/generator-controller.js
   var require_generator_controller = __commonJS({
     "js/features/generator/generator-controller.js"() {
-      (function initGeneratorController(global) {
+      (function initGeneratorController(global2) {
         function createController(deps) {
           const dependencies = deps && typeof deps === "object" ? deps : {};
           function getRoleLimits() {
-            var actions = dependencies.generatorActions || global.DSFeatureGeneratorActions;
+            var actions = dependencies.generatorActions || global2.DSFeatureGeneratorActions;
             if (actions && typeof actions.buildRoleLimits === "function") {
               return actions.buildRoleLimits(dependencies.roleLimits);
             }
@@ -10206,7 +10580,7 @@
                 return;
               }
               const nextRaw = event && event.target ? event.target.value : dependencies.defaultAlgorithm;
-              var actions = dependencies.generatorActions || global.DSFeatureGeneratorActions;
+              var actions = dependencies.generatorActions || global2.DSFeatureGeneratorActions;
               const normalized = actions && typeof actions.normalizeAssignmentSelection === "function" ? actions.normalizeAssignmentSelection(
                 nextRaw,
                 dependencies.normalizeAssignmentAlgorithm,
@@ -10215,10 +10589,10 @@
               if (typeof dependencies.setAssignmentAlgorithm === "function") {
                 dependencies.setAssignmentAlgorithm(normalized);
               }
-              var view = dependencies.generatorView || global.DSFeatureGeneratorView;
+              var view = dependencies.generatorView || global2.DSFeatureGeneratorView;
               if (view && typeof view.syncAssignmentAlgorithmControl === "function") {
                 view.syncAssignmentAlgorithmControl({
-                  document: dependencies.document || global.document,
+                  document: dependencies.document || global2.document,
                   value: normalized
                 });
               } else if (typeof dependencies.syncAssignmentAlgorithmControl === "function") {
@@ -10254,7 +10628,7 @@
             }
           };
         }
-        global.DSFeatureGeneratorController = {
+        global2.DSFeatureGeneratorController = {
           createController
         };
       })(window);
@@ -10264,7 +10638,7 @@
   // js/features/generator/download-controller.js
   var require_download_controller = __commonJS({
     "js/features/generator/download-controller.js"() {
-      (function initDownloadController(global) {
+      (function initDownloadController(global2) {
         "use strict";
         function openDownloadModal(team, deps) {
           var isA = team === "A";
@@ -10283,7 +10657,7 @@
             downloadTeamExcel(team, deps);
           };
           var eventHistorySaveBtn = document.getElementById("eventHistorySaveBtn");
-          if (eventHistorySaveBtn && global._eventHistoryController && typeof global._eventHistoryController.saveAssignmentAsHistory === "function") {
+          if (eventHistorySaveBtn && global2._eventHistoryController && typeof global2._eventHistoryController.saveAssignmentAsHistory === "function") {
             eventHistorySaveBtn.classList.remove("hidden");
             eventHistorySaveBtn.onclick = function() {
               var assignments = isA ? deps.getAssignmentsA() : deps.getAssignmentsB();
@@ -10296,7 +10670,7 @@
                 teamA: isA ? assignments : [],
                 teamB: !isA ? assignments : []
               };
-              global._eventHistoryController.saveAssignmentAsHistory(currentAssignment).then(function(result) {
+              global2._eventHistoryController.saveAssignmentAsHistory(currentAssignment).then(function(result) {
                 if (result && result.ok) {
                   deps.showMessage("downloadStatus", deps.t("event_history_save_btn"), "success");
                 }
@@ -11120,7 +11494,7 @@
             deps.showMessage(statusId, deps.t("error_generic", { error: error.message }), "error");
           }
         }
-        global.DSDownloadController = {
+        global2.DSDownloadController = {
           openDownloadModal,
           closeDownloadModal,
           downloadTeamExcel,
@@ -11140,7 +11514,7 @@
   // js/features/players-management/players-management-core.js
   var require_players_management_core = __commonJS({
     "js/features/players-management/players-management-core.js"() {
-      (function initPlayersManagementCore(global) {
+      (function initPlayersManagementCore(global2) {
         const DEFAULT_SORT = "power-desc";
         const SUPPORTED_SORTS = /* @__PURE__ */ new Set(["power-desc", "power-asc", "name-asc", "name-desc"]);
         function toNumeric(value) {
@@ -11215,7 +11589,7 @@
           });
           return troopsFiltered;
         }
-        global.DSFeaturePlayersManagementCore = {
+        global2.DSFeaturePlayersManagementCore = {
           DEFAULT_SORT,
           normalizePlayerRecordForUi,
           buildRowsFromDatabase,
@@ -11230,10 +11604,10 @@
   // js/features/players-management/players-management-actions.js
   var require_players_management_actions = __commonJS({
     "js/features/players-management/players-management-actions.js"() {
-      (function initPlayersManagementActions(global) {
+      (function initPlayersManagementActions(global2) {
         function readAddPlayerPayload(options) {
           const settings = options && typeof options === "object" ? options : {};
-          const doc = settings.document || global.document;
+          const doc = settings.document || global2.document;
           const readValue = function readValue2(id, fallback) {
             const el = doc && typeof doc.getElementById === "function" ? doc.getElementById(id) : null;
             return el ? el.value : fallback;
@@ -11252,7 +11626,7 @@
             value: target && typeof target.value !== "undefined" ? target.value : ""
           };
         }
-        global.DSFeaturePlayersManagementActions = {
+        global2.DSFeaturePlayersManagementActions = {
           readAddPlayerPayload,
           toFilterChangePayload
         };
@@ -11263,9 +11637,9 @@
   // js/features/players-management/players-management-view.js
   var require_players_management_view = __commonJS({
     "js/features/players-management/players-management-view.js"() {
-      (function initPlayersManagementView(global) {
+      (function initPlayersManagementView(global2) {
         function focusAddNameField(documentRef) {
-          const doc = documentRef || global.document;
+          const doc = documentRef || global2.document;
           const input = doc && typeof doc.getElementById === "function" ? doc.getElementById("playersMgmtNewName") : null;
           if (input && typeof input.focus === "function") {
             input.focus();
@@ -11280,7 +11654,7 @@
           }
           return expanded;
         }
-        global.DSFeaturePlayersManagementView = {
+        global2.DSFeaturePlayersManagementView = {
           focusAddNameField,
           setAddPanelExpanded
         };
@@ -11291,7 +11665,7 @@
   // js/features/players-management/players-management-controller.js
   var require_players_management_controller = __commonJS({
     "js/features/players-management/players-management-controller.js"() {
-      (function initPlayersManagementController(global) {
+      (function initPlayersManagementController(global2) {
         function createController(deps) {
           const dependencies = deps && typeof deps === "object" ? deps : {};
           return {
@@ -11324,8 +11698,8 @@
               }
             },
             focusAddNameField: function focusAddNameField() {
-              if (global.DSFeaturePlayersManagementView && typeof global.DSFeaturePlayersManagementView.focusAddNameField === "function") {
-                global.DSFeaturePlayersManagementView.focusAddNameField(dependencies.document || global.document);
+              if (global2.DSFeaturePlayersManagementView && typeof global2.DSFeaturePlayersManagementView.focusAddNameField === "function") {
+                global2.DSFeaturePlayersManagementView.focusAddNameField(dependencies.document || global2.document);
                 return;
               }
               if (typeof dependencies.focusAddNameField === "function") {
@@ -11334,7 +11708,7 @@
             }
           };
         }
-        global.DSFeaturePlayersManagementController = {
+        global2.DSFeaturePlayersManagementController = {
           createController
         };
       })(window);
@@ -11344,7 +11718,7 @@
   // js/features/players-management/player-data-upload.js
   var require_player_data_upload = __commonJS({
     "js/features/players-management/player-data-upload.js"() {
-      (function initPlayerDataUpload(global) {
+      (function initPlayerDataUpload(global2) {
         function getUploadErrorMessage(resultOrError, tFn) {
           if (resultOrError && typeof resultOrError === "object") {
             if (resultOrError.errorKey) {
@@ -11547,7 +11921,7 @@
             deps.updateTeamCounters();
           }
         }
-        global.DSPlayerDataUpload = {
+        global2.DSPlayerDataUpload = {
           getUploadErrorMessage,
           hasAllianceUploadAccess,
           resolveAllianceUploadAccess,
@@ -11563,9 +11937,9 @@
   // js/features/buildings/buildings-config-manager.js
   var require_buildings_config_manager = __commonJS({
     "js/features/buildings/buildings-config-manager.js"() {
-      (function initBuildingsConfigManager(global) {
+      (function initBuildingsConfigManager(global2) {
         function getDefaultBuildings(currentEvent) {
-          var defaults = global.DSCoreEvents.cloneEventBuildings(currentEvent);
+          var defaults = global2.DSCoreEvents.cloneEventBuildings(currentEvent);
           return Array.isArray(defaults) ? defaults : [];
         }
         function getBuildingDisplayName(internalName, buildingConfig) {
@@ -11627,14 +12001,14 @@
           return deps.normalizeBuildingConfig(globalDefaults, baseDefaults);
         }
         function getDefaultBuildingPositions(currentEvent) {
-          return global.DSCoreEvents.cloneDefaultPositions(currentEvent);
+          return global2.DSCoreEvents.cloneDefaultPositions(currentEvent);
         }
         function normalizeBuildingPositions(positions, currentEvent) {
-          var activeEvent = global.DSCoreEvents.getEvent(currentEvent);
+          var activeEvent = global2.DSCoreEvents.getEvent(currentEvent);
           var validNames = new Set((activeEvent && Array.isArray(activeEvent.buildings) ? activeEvent.buildings : []).map(function(b) {
             return b.name;
           }));
-          return global.DSCoreBuildings.normalizeBuildingPositions(positions, validNames);
+          return global2.DSCoreBuildings.normalizeBuildingPositions(positions, validNames);
         }
         function getGlobalDefaultBuildingPositions(currentEvent, FirebaseService2) {
           if (!FirebaseService2 || typeof FirebaseService2.getGlobalDefaultBuildingPositions !== "function") {
@@ -11881,7 +12255,7 @@
             deps.showMessage("coordStatus", deps.t("coord_save_failed", { error: saveResult.error }), "error");
           }
         }
-        global.DSBuildingsConfigManager = {
+        global2.DSBuildingsConfigManager = {
           getDefaultBuildings,
           getBuildingDisplayName,
           isBuildingShownOnMap,
@@ -11911,7 +12285,7 @@
   // js/features/buildings/coordinate-picker-controller.js
   var require_coordinate_picker_controller = __commonJS({
     "js/features/buildings/coordinate-picker-controller.js"() {
-      (function initCoordinatePickerController(global) {
+      (function initCoordinatePickerController(global2) {
         function getCoordinatePickerBuildingNames(deps) {
           var event = deps.getActiveEvent();
           if (!event) {
@@ -12233,7 +12607,7 @@
             drawCoordCanvas(state, deps);
           }
         }
-        global.DSCoordinatePickerController = {
+        global2.DSCoordinatePickerController = {
           getCoordinatePickerBuildingNames,
           getCoordinatePickerTeamBuildings,
           fitCoordText,
@@ -12253,7 +12627,7 @@
   // js/features/events-manager/event-selector-view.js
   var require_event_selector_view = __commonJS({
     "js/features/events-manager/event-selector-view.js"() {
-      (function initEventsManagerSelector(global) {
+      (function initEventsManagerSelector(global2) {
         function resolveEventDisplayName(eventId, options) {
           const settings = options && typeof options === "object" ? options : {};
           const getEvent = typeof settings.getEvent === "function" ? settings.getEvent : function noop() {
@@ -12279,7 +12653,7 @@
         }
         function createEventSelectorButton(options) {
           const settings = options && typeof options === "object" ? options : {};
-          const documentRef = settings.document || global.document;
+          const documentRef = settings.document || global2.document;
           if (!documentRef || typeof documentRef.createElement !== "function") {
             return null;
           }
@@ -12300,7 +12674,7 @@
         }
         function renderEventSelector(options) {
           const settings = options && typeof options === "object" ? options : {};
-          const documentRef = settings.document || global.document;
+          const documentRef = settings.document || global2.document;
           const container = settings.container || (documentRef && typeof settings.containerId === "string" ? documentRef.getElementById(settings.containerId) : null);
           if (!container) {
             return;
@@ -12326,7 +12700,7 @@
             }
           });
         }
-        global.DSFeatureEventsManagerSelector = {
+        global2.DSFeatureEventsManagerSelector = {
           resolveEventDisplayName,
           createEventSelectorButton,
           renderEventSelector
@@ -12338,7 +12712,7 @@
   // js/features/events-manager/events-manager-actions.js
   var require_events_manager_actions = __commonJS({
     "js/features/events-manager/events-manager-actions.js"() {
-      (function initEventsManagerActions(global) {
+      (function initEventsManagerActions(global2) {
         function normalizeEditIntent(value) {
           const intent = typeof value === "string" ? value.trim().toLowerCase() : "";
           if (intent === "save" || intent === "cancel" || intent === "delete") {
@@ -12357,7 +12731,7 @@
             mapDataUrl
           };
         }
-        global.DSFeatureEventsManagerActions = {
+        global2.DSFeatureEventsManagerActions = {
           normalizeEditIntent,
           buildMetadataPatch
         };
@@ -12368,7 +12742,7 @@
   // js/features/events-manager/events-manager-controller.js
   var require_events_manager_controller = __commonJS({
     "js/features/events-manager/events-manager-controller.js"() {
-      (function initEventsManagerController(global) {
+      (function initEventsManagerController(global2) {
         function createController(deps) {
           const dependencies = deps && typeof deps === "object" ? deps : {};
           return {
@@ -12439,7 +12813,7 @@
             }
           };
         }
-        global.DSFeatureEventsManagerController = {
+        global2.DSFeatureEventsManagerController = {
           createController
         };
       })(window);
@@ -12449,7 +12823,7 @@
   // js/features/events-manager/events-image-processor.js
   var require_events_image_processor = __commonJS({
     "js/features/events-manager/events-image-processor.js"() {
-      (function initEventsImageProcessor(global) {
+      (function initEventsImageProcessor(global2) {
         "use strict";
         function isImageDataUrl(value, maxLength) {
           var dataUrl = typeof value === "string" ? value.trim() : "";
@@ -12584,7 +12958,7 @@
             maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT
           }, deps);
         }
-        global.DSEventsImageProcessor = {
+        global2.DSEventsImageProcessor = {
           isImageDataUrl,
           hashString,
           generateEventAvatarDataUrl,
@@ -12599,7 +12973,7 @@
   // js/features/events-manager/events-map-controller.js
   var require_events_map_controller = __commonJS({
     "js/features/events-manager/events-map-controller.js"() {
-      (function initEventsMapController(global) {
+      (function initEventsMapController(global2) {
         "use strict";
         var MAP_PREVIEW = "preview";
         var MAP_EXPORT = "export";
@@ -12690,7 +13064,7 @@
           });
         }
         function getEventMapFile(eventId) {
-          var evt = global.DSCoreEvents.getEvent(eventId);
+          var evt = global2.DSCoreEvents.getEvent(eventId);
           if (!evt) return null;
           var mapDataUrl = typeof evt.mapDataUrl === "string" ? evt.mapDataUrl.trim() : "";
           return mapDataUrl || null;
@@ -12767,7 +13141,7 @@
           });
           return mapState.promise;
         }
-        global.DSEventsMapController = {
+        global2.DSEventsMapController = {
           // constants
           MAP_PREVIEW,
           MAP_EXPORT,
@@ -12796,7 +13170,7 @@
   // js/features/events-manager/events-registry-controller.js
   var require_events_registry_controller = __commonJS({
     "js/features/events-manager/events-registry-controller.js"() {
-      (function initEventsRegistryController(global) {
+      (function initEventsRegistryController(global2) {
         "use strict";
         var DEFAULT_ASSIGNMENT_ALGORITHM_ID = "balanced_round_robin";
         var MAP_PREVIEW = "preview";
@@ -12829,7 +13203,7 @@
           }
         }
         function getEventIds() {
-          return global.DSCoreEvents.getEventIds();
+          return global2.DSCoreEvents.getEventIds();
         }
         function normalizeAssignmentAlgorithmId(value) {
           if (typeof value !== "string") {
@@ -12854,8 +13228,8 @@
         }
         function resolveDefaultAssignmentAlgorithmId(gameId) {
           var normalizedGameId = normalizeGameId(gameId);
-          if (global.DSAssignmentRegistry && typeof global.DSAssignmentRegistry.listAlgorithmsForGame === "function") {
-            var algorithms = global.DSAssignmentRegistry.listAlgorithmsForGame(normalizedGameId);
+          if (global2.DSAssignmentRegistry && typeof global2.DSAssignmentRegistry.listAlgorithmsForGame === "function") {
+            var algorithms = global2.DSAssignmentRegistry.listAlgorithmsForGame(normalizedGameId);
             if (Array.isArray(algorithms) && algorithms.length > 0 && algorithms[0] && typeof algorithms[0].id === "string") {
               var normalized = normalizeAssignmentAlgorithmId(algorithms[0].id);
               if (normalized) {
@@ -12868,7 +13242,7 @@
         function getProtectedEventIds() {
           if (!PROTECTED_EVENT_IDS) {
             PROTECTED_EVENT_IDS = new Set(
-              Object.keys(global.DSCoreEvents.cloneLegacyEventRegistry ? global.DSCoreEvents.cloneLegacyEventRegistry() : {
+              Object.keys(global2.DSCoreEvents.cloneLegacyEventRegistry ? global2.DSCoreEvents.cloneLegacyEventRegistry() : {
                 desert_storm: true,
                 canyon_battlefield: true
               })
@@ -12877,19 +13251,19 @@
           return PROTECTED_EVENT_IDS;
         }
         function isImageDataUrl(value, maxLength) {
-          return global.DSEventsImageProcessor.isImageDataUrl(value, maxLength);
+          return global2.DSEventsImageProcessor.isImageDataUrl(value, maxLength);
         }
         function hashString(value) {
-          return global.DSEventsImageProcessor.hashString(value);
+          return global2.DSEventsImageProcessor.hashString(value);
         }
         function ensureMapRuntimeState(eventId, purpose) {
-          return global.DSEventsMapController.ensureMapRuntimeState(eventId, purpose);
+          return global2.DSEventsMapController.ensureMapRuntimeState(eventId, purpose);
         }
         function getMapRuntimeStateFn(eventId, purpose) {
-          return global.DSEventsMapController.getMapRuntimeState(eventId, purpose);
+          return global2.DSEventsMapController.getMapRuntimeState(eventId, purpose);
         }
         function deleteMapRuntimeStateForEvent(eventId) {
-          global.DSEventsMapController.deleteMapRuntimeStateForEvent(eventId);
+          global2.DSEventsMapController.deleteMapRuntimeStateForEvent(eventId);
         }
         function ensureEventRuntimeState(eventId) {
           var event = normalizeEventId(eventId);
@@ -12902,8 +13276,8 @@
           if (!Object.prototype.hasOwnProperty.call(buildingPositionsMap, event)) {
             buildingPositionsMap[event] = {};
           }
-          global.DSEventsMapController.ensureMapRuntimeState(event, MAP_PREVIEW);
-          global.DSEventsMapController.ensureMapRuntimeState(event, MAP_EXPORT);
+          global2.DSEventsMapController.ensureMapRuntimeState(event, MAP_PREVIEW);
+          global2.DSEventsMapController.ensureMapRuntimeState(event, MAP_EXPORT);
           if (!Object.prototype.hasOwnProperty.call(coordMapWarningShown, event)) {
             coordMapWarningShown[event] = false;
           }
@@ -12914,7 +13288,7 @@
             return;
           }
           ensureEventRuntimeState(event);
-          global.DSEventsMapController.resetMapStateForEvent(event);
+          global2.DSEventsMapController.resetMapStateForEvent(event);
           coordMapWarningShown[event] = false;
         }
         function syncRuntimeStateWithRegistry() {
@@ -12933,7 +13307,7 @@
               delete buildingPositionsMap[eventId];
             }
           });
-          global.DSEventsMapController.cleanupOrphanedMapState(eventIdSet);
+          global2.DSEventsMapController.cleanupOrphanedMapState(eventIdSet);
           Object.keys(coordMapWarningShown).forEach(function(eventId) {
             if (!eventIdSet.has(eventId)) {
               delete coordMapWarningShown[eventId];
@@ -12946,27 +13320,27 @@
         }
         function getActiveEvent() {
           var currentEvent = deps.getCurrentEvent();
-          var active = global.DSCoreEvents.getEvent(currentEvent);
+          var active = global2.DSCoreEvents.getEvent(currentEvent);
           if (active) {
             return active;
           }
           var firstId = getEventIds()[0];
           if (firstId) {
             deps.setCurrentEvent(firstId);
-            return global.DSCoreEvents.getEvent(firstId);
+            return global2.DSCoreEvents.getEvent(firstId);
           }
           return null;
         }
         function getEventDisplayName(eventId) {
-          if (global.DSFeatureEventsManagerSelector && typeof global.DSFeatureEventsManagerSelector.resolveEventDisplayName === "function") {
-            return global.DSFeatureEventsManagerSelector.resolveEventDisplayName(eventId, {
+          if (global2.DSFeatureEventsManagerSelector && typeof global2.DSFeatureEventsManagerSelector.resolveEventDisplayName === "function") {
+            return global2.DSFeatureEventsManagerSelector.resolveEventDisplayName(eventId, {
               getEvent: function(id) {
-                return global.DSCoreEvents.getEvent(id);
+                return global2.DSCoreEvents.getEvent(id);
               },
               translate: deps.t
             });
           }
-          var event = global.DSCoreEvents.getEvent(eventId);
+          var event = global2.DSCoreEvents.getEvent(eventId);
           if (!event) {
             return eventId;
           }
@@ -12983,8 +13357,8 @@
         }
         function createEventSelectorButton(eventId) {
           var currentEvent = deps.getCurrentEvent();
-          if (global.DSFeatureEventsManagerSelector && typeof global.DSFeatureEventsManagerSelector.createEventSelectorButton === "function") {
-            return global.DSFeatureEventsManagerSelector.createEventSelectorButton({
+          if (global2.DSFeatureEventsManagerSelector && typeof global2.DSFeatureEventsManagerSelector.createEventSelectorButton === "function") {
+            return global2.DSFeatureEventsManagerSelector.createEventSelectorButton({
               document,
               eventId,
               currentEvent,
@@ -13004,8 +13378,8 @@
         }
         function renderEventSelector(containerId) {
           var currentEvent = deps.getCurrentEvent();
-          if (global.DSFeatureEventsManagerSelector && typeof global.DSFeatureEventsManagerSelector.renderEventSelector === "function") {
-            global.DSFeatureEventsManagerSelector.renderEventSelector({
+          if (global2.DSFeatureEventsManagerSelector && typeof global2.DSFeatureEventsManagerSelector.renderEventSelector === "function") {
+            global2.DSFeatureEventsManagerSelector.renderEventSelector({
               document,
               containerId,
               eventIds: getEventIds(),
@@ -13052,7 +13426,7 @@
           return normalized;
         }
         function buildRegistryFromStorage() {
-          var legacyRegistry = global.DSCoreEvents.cloneLegacyEventRegistry ? global.DSCoreEvents.cloneLegacyEventRegistry() : global.DSCoreEvents.cloneEventRegistry();
+          var legacyRegistry = global2.DSCoreEvents.cloneLegacyEventRegistry ? global2.DSCoreEvents.cloneLegacyEventRegistry() : global2.DSCoreEvents.cloneEventRegistry();
           var nextRegistry = {};
           Object.keys(legacyRegistry).forEach(function(eventId) {
             nextRegistry[eventId] = Object.assign({}, legacyRegistry[eventId]);
@@ -13078,7 +13452,7 @@
             var validNames = new Set(buildings.map(function(item) {
               return item.name;
             }));
-            var defaultPositions = stored.buildingPositions ? global.DSCoreBuildings.normalizeBuildingPositions(stored.buildingPositions, validNames) : base.defaultPositions || {};
+            var defaultPositions = stored.buildingPositions ? global2.DSCoreBuildings.normalizeBuildingPositions(stored.buildingPositions, validNames) : base.defaultPositions || {};
             var mapDataUrl = stored.mapDataUrl || "";
             var nextName = stored.name || base.name || eventId;
             var nextAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(stored.assignmentAlgorithmId) || normalizeAssignmentAlgorithmId(base.assignmentAlgorithmId) || resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : "");
@@ -13100,7 +13474,7 @@
               buildingAnchors: base.buildingAnchors || {}
             });
           });
-          global.DSCoreEvents.setEventRegistry(nextRegistry);
+          global2.DSCoreEvents.setEventRegistry(nextRegistry);
           syncRuntimeStateWithRegistry();
           getEventIds().forEach(function(eventId) {
             resetMapStateForEvent(eventId);
@@ -13108,12 +13482,12 @@
         }
         function getEventMapFile(eventId) {
           ensureEventRuntimeState(eventId);
-          return global.DSEventsMapController.getEventMapFile(eventId);
+          return global2.DSEventsMapController.getEventMapFile(eventId);
         }
         function loadMapImage(eventId, purpose) {
           var eid = eventId || deps.getCurrentEvent();
           ensureEventRuntimeState(eid);
-          return global.DSEventsMapController.loadMapImage(eid, purpose, deps.getCurrentEvent);
+          return global2.DSEventsMapController.loadMapImage(eid, purpose, deps.getCurrentEvent);
         }
         function switchEvent(eventId) {
           ensureDeps();
@@ -13123,7 +13497,7 @@
           }
           var currentEvent = deps.getCurrentEvent();
           var targetEventId = normalizeEventId(eventId);
-          if (!targetEventId || !global.DSCoreEvents.getEvent(targetEventId)) return;
+          if (!targetEventId || !global2.DSCoreEvents.getEvent(targetEventId)) return;
           if (targetEventId === currentEvent) {
             deps.setEventEditorCurrentId(targetEventId);
             deps.setEventEditorIsEditMode(false);
@@ -13170,7 +13544,7 @@
           if (elB) elB.textContent = label;
         }
         function generateEventAvatarDataUrl(nameSeed, idSeed) {
-          return global.DSEventsImageProcessor.generateEventAvatarDataUrl(nameSeed, idSeed, deps);
+          return global2.DSEventsImageProcessor.generateEventAvatarDataUrl(nameSeed, idSeed, deps);
         }
         function updateEventLogoPreview() {
           var image = document.getElementById("eventLogoPreviewImage");
@@ -13186,7 +13560,7 @@
           if (!eventId) {
             return "";
           }
-          var event = global.DSCoreEvents.getEvent(eventId);
+          var event = global2.DSCoreEvents.getEvent(eventId);
           if (!event) {
             return "";
           }
@@ -13222,7 +13596,7 @@
             titleEl.textContent = deps.t("events_manager_create_title");
             return;
           }
-          var event = global.DSCoreEvents.getEvent(eventEditorCurrentId);
+          var event = global2.DSCoreEvents.getEvent(eventEditorCurrentId);
           var eventName = event ? event.name || eventEditorCurrentId : eventEditorCurrentId;
           titleEl.textContent = deps.getEventEditorIsEditMode() ? deps.t("events_manager_edit_title", { name: eventName }) : eventName;
         }
@@ -13359,11 +13733,11 @@
           var eventEditorCurrentId = deps.getEventEditorCurrentId();
           var currentEvent = deps.getCurrentEvent();
           if (!eventEditorCurrentId) {
-            var fallbackEventId = currentEvent && global.DSCoreEvents.getEvent(currentEvent) ? currentEvent : getEventIds()[0] || "";
+            var fallbackEventId = currentEvent && global2.DSCoreEvents.getEvent(currentEvent) ? currentEvent : getEventIds()[0] || "";
             deps.setEventEditorCurrentId(fallbackEventId);
             eventEditorCurrentId = fallbackEventId;
           }
-          if (!eventEditorCurrentId || !global.DSCoreEvents.getEvent(eventEditorCurrentId)) {
+          if (!eventEditorCurrentId || !global2.DSCoreEvents.getEvent(eventEditorCurrentId)) {
             startNewEventDraft();
             return;
           }
@@ -13392,8 +13766,8 @@
           deps.openCoordinatesPicker();
         }
         function createEditorBuildingRow(rowData) {
-          if (global.DSEventBuildingsEditorUI && typeof global.DSEventBuildingsEditorUI.createEditorBuildingRow === "function") {
-            return global.DSEventBuildingsEditorUI.createEditorBuildingRow({
+          if (global2.DSEventBuildingsEditorUI && typeof global2.DSEventBuildingsEditorUI.createEditorBuildingRow === "function") {
+            return global2.DSEventBuildingsEditorUI.createEditorBuildingRow({
               rowData,
               translate: deps.t,
               escapeAttribute: deps.escapeAttribute,
@@ -13407,8 +13781,8 @@
         }
         function renderEventBuildingsEditor(buildings) {
           var tbody = document.getElementById("eventBuildingsEditorBody");
-          if (global.DSEventBuildingsEditorUI && typeof global.DSEventBuildingsEditorUI.renderEventBuildingsEditor === "function") {
-            global.DSEventBuildingsEditorUI.renderEventBuildingsEditor({
+          if (global2.DSEventBuildingsEditorUI && typeof global2.DSEventBuildingsEditorUI.renderEventBuildingsEditor === "function") {
+            global2.DSEventBuildingsEditorUI.renderEventBuildingsEditor({
               tbody,
               buildings,
               defaultRows: [{ name: "", slots: 0, priority: 1, showOnMap: true }],
@@ -13423,8 +13797,8 @@
         }
         function addEventBuildingRow() {
           var tbody = document.getElementById("eventBuildingsEditorBody");
-          if (global.DSEventBuildingsEditorUI && typeof global.DSEventBuildingsEditorUI.addEventBuildingRow === "function") {
-            global.DSEventBuildingsEditorUI.addEventBuildingRow({
+          if (global2.DSEventBuildingsEditorUI && typeof global2.DSEventBuildingsEditorUI.addEventBuildingRow === "function") {
+            global2.DSEventBuildingsEditorUI.addEventBuildingRow({
               tbody,
               canEdit: deps.getEventEditorIsEditMode(),
               createRow: createEditorBuildingRow,
@@ -13439,8 +13813,8 @@
         }
         function readEventBuildingsEditor() {
           var tbody = document.getElementById("eventBuildingsEditorBody");
-          if (global.DSEventBuildingsEditorUI && typeof global.DSEventBuildingsEditorUI.readEventBuildingsEditor === "function") {
-            return global.DSEventBuildingsEditorUI.readEventBuildingsEditor({
+          if (global2.DSEventBuildingsEditorUI && typeof global2.DSEventBuildingsEditorUI.readEventBuildingsEditor === "function") {
+            return global2.DSEventBuildingsEditorUI.readEventBuildingsEditor({
               tbody,
               translate: deps.t,
               clampSlots: deps.clampSlots,
@@ -13454,8 +13828,8 @@
         }
         function bindEventEditorTableActions() {
           var tbody = document.getElementById("eventBuildingsEditorBody");
-          if (global.DSEventBuildingsEditorUI && typeof global.DSEventBuildingsEditorUI.bindEventEditorTableActions === "function") {
-            global.DSEventBuildingsEditorUI.bindEventEditorTableActions({
+          if (global2.DSEventBuildingsEditorUI && typeof global2.DSEventBuildingsEditorUI.bindEventEditorTableActions === "function") {
+            global2.DSEventBuildingsEditorUI.bindEventEditorTableActions({
               tbody,
               canEdit: function() {
                 return deps.getEventEditorIsEditMode();
@@ -13479,8 +13853,8 @@
         function listSelectableAssignmentAlgorithmsForActiveGame() {
           var gameplayContext = deps.getGameplayContext();
           var gameId = gameplayContext ? gameplayContext.gameId : "";
-          if (global.DSAssignmentRegistry && typeof global.DSAssignmentRegistry.listAlgorithmsForGame === "function") {
-            var algorithms = global.DSAssignmentRegistry.listAlgorithmsForGame(gameId);
+          if (global2.DSAssignmentRegistry && typeof global2.DSAssignmentRegistry.listAlgorithmsForGame === "function") {
+            var algorithms = global2.DSAssignmentRegistry.listAlgorithmsForGame(gameId);
             if (Array.isArray(algorithms) && algorithms.length > 0) {
               return algorithms.filter(function(entry) {
                 return entry && typeof entry.id === "string";
@@ -13535,7 +13909,7 @@
             deps.setEventEditorCurrentId(currentEvent);
             eventEditorCurrentId = currentEvent;
           }
-          var event = global.DSCoreEvents.getEvent(eventEditorCurrentId);
+          var event = global2.DSCoreEvents.getEvent(eventEditorCurrentId);
           if (!event) {
             startNewEventDraft();
             return;
@@ -13553,12 +13927,12 @@
         function renderEventsList() {
           var currentEvent = deps.getCurrentEvent();
           var eventEditorCurrentId = deps.getEventEditorCurrentId();
-          if (global.DSEventListUI && typeof global.DSEventListUI.renderEventsList === "function") {
-            global.DSEventListUI.renderEventsList({
+          if (global2.DSEventListUI && typeof global2.DSEventListUI.renderEventsList === "function") {
+            global2.DSEventListUI.renderEventsList({
               listElement: document.getElementById("eventsList"),
               eventIds: getEventIds(),
               getEventById: function(eventId) {
-                return global.DSCoreEvents.getEvent(eventId);
+                return global2.DSCoreEvents.getEvent(eventId);
               },
               currentEventId: currentEvent,
               eventEditorCurrentId,
@@ -13649,13 +14023,13 @@
           updateEventEditorState();
         }
         function createEventImageDataUrl(file, options) {
-          return global.DSEventsImageProcessor.createEventImageDataUrl(file, options, deps);
+          return global2.DSEventsImageProcessor.createEventImageDataUrl(file, options, deps);
         }
         function createContainedSquareImageDataUrl(sourceDataUrl, options) {
-          return global.DSEventsImageProcessor.createContainedSquareImageDataUrl(sourceDataUrl, options, deps);
+          return global2.DSEventsImageProcessor.createContainedSquareImageDataUrl(sourceDataUrl, options, deps);
         }
         function createGameMetadataLogoDataUrl(file) {
-          return global.DSEventsImageProcessor.createGameMetadataLogoDataUrl(file, deps);
+          return global2.DSEventsImageProcessor.createGameMetadataLogoDataUrl(file, deps);
         }
         async function handleEventLogoChange(event) {
           var input = event && event.target ? event.target : document.getElementById("eventLogoInput");
@@ -13708,7 +14082,7 @@
           }
         }
         function buildEventDefinition(eventId, name, buildings, assignmentAlgorithmId) {
-          var existing = global.DSCoreEvents.getEvent(eventId) || {};
+          var existing = global2.DSCoreEvents.getEvent(eventId) || {};
           var mapDataUrl = deps.getEventDraftMapDataUrl() || "";
           var logoDataUrl = deps.getEventDraftLogoDataUrl() || generateEventAvatarDataUrl(name, eventId);
           var gameplayContext = deps.getGameplayContext();
@@ -13717,7 +14091,7 @@
             return item.name;
           }));
           var currentPositions = buildingPositionsMap[eventId] || (existing.defaultPositions || {});
-          var normalizedPositions = global.DSCoreBuildings.normalizeBuildingPositions(currentPositions, validNames);
+          var normalizedPositions = global2.DSCoreBuildings.normalizeBuildingPositions(currentPositions, validNames);
           return {
             id: eventId,
             name,
@@ -13759,18 +14133,18 @@
           var buildings = result.buildings;
           var existingIds = getEventIds();
           var eventEditorCurrentId = deps.getEventEditorCurrentId();
-          var eventId = eventEditorCurrentId || global.DSCoreEvents.slugifyEventId(eventName, existingIds);
+          var eventId = eventEditorCurrentId || global2.DSCoreEvents.slugifyEventId(eventName, existingIds);
           var eventContext = { gameId: gameplayContext.gameId, eventId };
           var assignmentAlgorithmId = getSelectedEventAssignmentAlgorithmId();
           var definition = buildEventDefinition(eventId, eventName, buildings, assignmentAlgorithmId);
           var isNewEvent = !eventEditorCurrentId;
-          global.DSCoreEvents.upsertEvent(eventId, definition);
+          global2.DSCoreEvents.upsertEvent(eventId, definition);
           ensureEventRuntimeState(eventId);
           buildingConfigs[eventId] = deps.normalizeBuildingConfig(buildings, buildings);
           var validNames = new Set(buildings.map(function(item) {
             return item.name;
           }));
-          buildingPositionsMap[eventId] = global.DSCoreBuildings.normalizeBuildingPositions(
+          buildingPositionsMap[eventId] = global2.DSCoreBuildings.normalizeBuildingPositions(
             buildingPositionsMap[eventId] || definition.defaultPositions || {},
             validNames
           );
@@ -13838,7 +14212,7 @@
           }
           var eventId = eventEditorCurrentId;
           var eventContext = { gameId: gameplayContext.gameId, eventId };
-          var removed = global.DSCoreEvents.removeEvent(eventId);
+          var removed = global2.DSCoreEvents.removeEvent(eventId);
           if (!removed) {
             deps.showMessage("eventsStatus", deps.t("events_manager_delete_failed"), "error");
             return;
@@ -13870,7 +14244,7 @@
           deps.renderBuildingsTable();
           deps.showMessage("eventsStatus", deps.t("events_manager_deleted"), "success");
         }
-        global.DSEventsRegistryController = {
+        global2.DSEventsRegistryController = {
           // init
           init: function(dependencies) {
             deps = dependencies;
@@ -13984,7 +14358,7 @@
   // js/features/notifications/notifications-core.js
   var require_notifications_core = __commonJS({
     "js/features/notifications/notifications-core.js"() {
-      (function initNotificationsCore(global) {
+      (function initNotificationsCore(global2) {
         function getInvitationSenderDisplay(invitation) {
           if (!invitation || typeof invitation !== "object") {
             return "";
@@ -14057,7 +14431,7 @@
           }
           return t2("notification_invited_by", { email: getInvitationSenderDisplay(item) || "-" });
         }
-        global.DSFeatureNotificationsCore = {
+        global2.DSFeatureNotificationsCore = {
           getInvitationSenderDisplay,
           formatInvitationCreatedAt,
           normalizeNotificationItems,
@@ -14071,7 +14445,7 @@
   // js/features/alliance/alliance-controller.js
   var require_alliance_controller = __commonJS({
     "js/features/alliance/alliance-controller.js"() {
-      (function initAllianceController(global) {
+      (function initAllianceController(global2) {
         function createController(deps) {
           const dependencies = deps && typeof deps === "object" ? deps : {};
           return {
@@ -14127,7 +14501,7 @@
             }
           };
         }
-        global.DSFeatureAllianceController = {
+        global2.DSFeatureAllianceController = {
           createController
         };
       })(window);
@@ -14137,7 +14511,7 @@
   // js/features/notifications/notifications-controller.js
   var require_notifications_controller = __commonJS({
     "js/features/notifications/notifications-controller.js"() {
-      (function initNotificationsController(global) {
+      (function initNotificationsController(global2) {
         function createController(deps) {
           const dependencies = deps && typeof deps === "object" ? deps : {};
           return {
@@ -14180,7 +14554,7 @@
             }
           };
         }
-        global.DSFeatureNotificationsController = {
+        global2.DSFeatureNotificationsController = {
           createController
         };
       })(window);
@@ -14190,7 +14564,7 @@
   // js/features/event-history/event-history-core.js
   var require_event_history_core = __commonJS({
     "js/features/event-history/event-history-core.js"() {
-      (function initFeatureEventHistoryCore(global) {
+      (function initFeatureEventHistoryCore(global2) {
         var VALID_TRANSITIONS_FROM_CONFIRMED = {
           attended: true,
           no_show: true,
@@ -14220,7 +14594,7 @@
         }
         function buildAttendanceDocs(teamAssignments) {
           var results = [];
-          var utils = global.DSFirestoreUtils;
+          var utils = global2.DSFirestoreUtils;
           function processTeam(players, teamLabel) {
             if (!Array.isArray(players)) {
               return;
@@ -14282,7 +14656,7 @@
             daysSinceCompleted
           };
         }
-        global.DSFeatureEventHistoryCore = {
+        global2.DSFeatureEventHistoryCore = {
           buildHistoryRecord,
           buildAttendanceDocs,
           validateStatusTransition,
@@ -14295,7 +14669,7 @@
   // js/features/event-history/event-history-actions.js
   var require_event_history_actions = __commonJS({
     "js/features/event-history/event-history-actions.js"() {
-      (function initEventHistoryActions(global) {
+      (function initEventHistoryActions(global2) {
         function readAttendanceFormState() {
           var result = {};
           var radios = document.querySelectorAll('.attendance-radio-group input[type="radio"]:checked');
@@ -14317,7 +14691,7 @@
             dateRange: dateRangeEl ? dateRangeEl.value : ""
           };
         }
-        global.DSFeatureEventHistoryActions = {
+        global2.DSFeatureEventHistoryActions = {
           readAttendanceFormState,
           readHistoryFilterState
         };
@@ -14328,7 +14702,7 @@
   // js/features/event-history/event-history-view.js
   var require_event_history_view = __commonJS({
     "js/features/event-history/event-history-view.js"() {
-      (function initEventHistoryView(global) {
+      (function initEventHistoryView(global2) {
         function renderHistoryList(container, records) {
           if (!container) return;
           container.innerHTML = "";
@@ -14446,7 +14820,7 @@
             container.classList.add("hidden");
           }
         }
-        global.DSFeatureEventHistoryView = {
+        global2.DSFeatureEventHistoryView = {
           renderHistoryList,
           renderAttendancePanel,
           renderReliabilityDot,
@@ -14459,7 +14833,7 @@
   // js/features/event-history/event-history-controller.js
   var require_event_history_controller = __commonJS({
     "js/features/event-history/event-history-controller.js"() {
-      (function initFeatureEventHistoryController(global) {
+      (function initFeatureEventHistoryController(global2) {
         var _gateway = null;
         var _unsubscribePendingCount = null;
         var _currentHistoryDoc = null;
@@ -14480,8 +14854,8 @@
               allianceId,
               function onPendingCount(count) {
                 var badgeContainer = document.getElementById("eventHistoryPendingBadge");
-                if (global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderPendingBadge === "function") {
-                  global.DSFeatureEventHistoryView.renderPendingBadge(badgeContainer, count);
+                if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderPendingBadge === "function") {
+                  global2.DSFeatureEventHistoryView.renderPendingBadge(badgeContainer, count);
                 }
               }
             );
@@ -14504,13 +14878,13 @@
             return;
           }
           var filters = {};
-          if (global.DSFeatureEventHistoryActions && typeof global.DSFeatureEventHistoryActions.readHistoryFilterState === "function") {
-            filters = global.DSFeatureEventHistoryActions.readHistoryFilterState();
+          if (global2.DSFeatureEventHistoryActions && typeof global2.DSFeatureEventHistoryActions.readHistoryFilterState === "function") {
+            filters = global2.DSFeatureEventHistoryActions.readHistoryFilterState();
           }
           _gateway.loadHistoryRecords(allianceId, filters).then(function(records) {
             var container = document.getElementById("eventHistoryContainer");
-            if (global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderHistoryList === "function") {
-              global.DSFeatureEventHistoryView.renderHistoryList(container, records);
+            if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderHistoryList === "function") {
+              global2.DSFeatureEventHistoryView.renderHistoryList(container, records);
             }
           }).catch(function(err) {
             console.error("showEventHistoryView error:", err);
@@ -14524,16 +14898,16 @@
             }
             var user = getCurrentUser();
             var createdByUid = user ? user.uid : null;
-            if (!global.DSFeatureEventHistoryCore || typeof global.DSFeatureEventHistoryCore.buildHistoryRecord !== "function") {
+            if (!global2.DSFeatureEventHistoryCore || typeof global2.DSFeatureEventHistoryCore.buildHistoryRecord !== "function") {
               return { ok: false, error: "DSFeatureEventHistoryCore not available" };
             }
-            var record = global.DSFeatureEventHistoryCore.buildHistoryRecord(assignment, createdByUid);
+            var record = global2.DSFeatureEventHistoryCore.buildHistoryRecord(assignment, createdByUid);
             var saveResult = await _gateway.saveHistoryRecord(allianceId, record);
             if (!saveResult || !saveResult.ok) {
               return saveResult || { ok: false, error: "Unknown error saving history record" };
             }
             var historyId = saveResult.historyId;
-            var attendanceDocs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(record.teamAssignments);
+            var attendanceDocs = global2.DSFeatureEventHistoryCore.buildAttendanceDocs(record.teamAssignments);
             if (attendanceDocs.length > 0) {
               var batchResult = await _gateway.saveAttendanceBatch(allianceId, historyId, attendanceDocs.map(function(entry) {
                 return { docId: entry.docId, doc: entry.attendanceDoc };
@@ -14565,12 +14939,12 @@
               _currentHistoryDoc = historyDoc;
             }
             var stalenessCheck = null;
-            if (global.DSFeatureEventHistoryCore && typeof global.DSFeatureEventHistoryCore.checkFinalizationStaleness === "function") {
-              stalenessCheck = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, /* @__PURE__ */ new Date());
+            if (global2.DSFeatureEventHistoryCore && typeof global2.DSFeatureEventHistoryCore.checkFinalizationStaleness === "function") {
+              stalenessCheck = global2.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, /* @__PURE__ */ new Date());
             }
             var container = document.getElementById("attendancePanelBody");
-            if (global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderAttendancePanel === "function") {
-              global.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs, { stalenessCheck });
+            if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderAttendancePanel === "function") {
+              global2.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs, { stalenessCheck });
             }
             var modal = document.getElementById("attendancePanelModal");
             if (modal) {
@@ -14590,7 +14964,7 @@
             if (!attendanceMap || typeof attendanceMap !== "object") {
               return { ok: false, error: "Invalid attendanceMap" };
             }
-            var utils = global.DSFirestoreUtils;
+            var utils = global2.DSFirestoreUtils;
             var playerNames = Object.keys(attendanceMap);
             var user = getCurrentUser();
             var markedBy = user ? user.uid || null : null;
@@ -14619,8 +14993,8 @@
               return { ok: false, error: "Not available" };
             }
             var attendanceDocs = await _gateway.loadAttendance(allianceId, historyId);
-            var utils = global.DSFirestoreUtils;
-            var reliability = global.DSCoreReliability;
+            var utils = global2.DSFirestoreUtils;
+            var reliability = global2.DSCoreReliability;
             var playerDocIds = attendanceDocs.map(function(doc) {
               return doc.docId || (utils ? utils.sanitizeDocId(doc.playerName) : doc.playerName);
             });
@@ -14659,7 +15033,7 @@
             return { ok: false, error: err.message };
           }
         }
-        global.DSFeatureEventHistoryController = {
+        global2.DSFeatureEventHistoryController = {
           init,
           showEventHistoryView,
           saveAssignmentAsHistory,
@@ -14674,7 +15048,7 @@
   // js/features/player-updates/player-updates-core.js
   var require_player_updates_core = __commonJS({
     "js/features/player-updates/player-updates-core.js"() {
-      (function initFeaturePlayerUpdatesCore(global) {
+      (function initFeaturePlayerUpdatesCore(global2) {
         var VALID_TROOPS = ["Tank", "Aero", "Missile"];
         var DEFAULT_EXPIRY_HOURS = 48;
         var TOKEN_HEX_LENGTH = 32;
@@ -14706,7 +15080,7 @@
           };
         }
         function buildUpdateLink(token, allianceId, lang) {
-          var origin = global.location && global.location.origin ? global.location.origin : "";
+          var origin = global2.location && global2.location.origin ? global2.location.origin : "";
           return origin + "/player-update.html?token=" + encodeURIComponent(token) + "&aid=" + encodeURIComponent(allianceId) + "&lang=" + encodeURIComponent(lang);
         }
         function formatLinksForMessaging(players) {
@@ -14785,7 +15159,7 @@
             }
           };
         }
-        global.DSFeaturePlayerUpdatesCore = {
+        global2.DSFeaturePlayerUpdatesCore = {
           generateToken,
           buildTokenDoc,
           buildUpdateLink,
@@ -14800,7 +15174,7 @@
   // js/features/player-updates/player-updates-actions.js
   var require_player_updates_actions = __commonJS({
     "js/features/player-updates/player-updates-actions.js"() {
-      (function initFeaturePlayerUpdatesActions(global) {
+      (function initFeaturePlayerUpdatesActions(global2) {
         function readSelectedPlayerNames() {
           var checked = document.querySelectorAll(".player-select-checkbox:checked");
           var names = [];
@@ -14844,7 +15218,7 @@
             decision
           };
         }
-        global.DSFeaturePlayerUpdatesActions = {
+        global2.DSFeaturePlayerUpdatesActions = {
           readSelectedPlayerNames,
           readTokenGenerationOptions,
           readReviewDecision
@@ -14856,7 +15230,7 @@
   // js/features/player-updates/player-updates-view.js
   var require_player_updates_view = __commonJS({
     "js/features/player-updates/player-updates-view.js"() {
-      (function initFeaturePlayerUpdatesView(global) {
+      (function initFeaturePlayerUpdatesView(global2) {
         var FRESHNESS_THRESHOLD_DAYS = 30;
         function renderTokenModal(container, tokens) {
           if (!container) return;
@@ -14903,10 +15277,10 @@
           var refreshBtn = document.createElement("button");
           refreshBtn.className = "btn btn-secondary btn-sm";
           refreshBtn.setAttribute("data-i18n", "player_updates_refresh");
-          refreshBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_refresh") : "Refresh";
+          refreshBtn.textContent = global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_refresh") : "Refresh";
           refreshBtn.addEventListener("click", function() {
-            if (typeof global.refreshPlayerUpdatesPanel === "function") {
-              global.refreshPlayerUpdatesPanel();
+            if (typeof global2.refreshPlayerUpdatesPanel === "function") {
+              global2.refreshPlayerUpdatesPanel();
             }
           });
           container.appendChild(refreshBtn);
@@ -14927,8 +15301,8 @@
         function renderComparisonRow(update) {
           if (!update) return null;
           var deltas = null;
-          if (global.DSFeaturePlayerUpdatesCore && typeof global.DSFeaturePlayerUpdatesCore.calculateDeltas === "function") {
-            deltas = global.DSFeaturePlayerUpdatesCore.calculateDeltas(
+          if (global2.DSFeaturePlayerUpdatesCore && typeof global2.DSFeaturePlayerUpdatesCore.calculateDeltas === "function") {
+            deltas = global2.DSFeaturePlayerUpdatesCore.calculateDeltas(
               update.currentSnapshot || {},
               update.proposedValues || {}
             );
@@ -14944,14 +15318,14 @@
           header.appendChild(nameEl);
           var sourceBadge = document.createElement("span");
           sourceBadge.className = "review-source-badge review-source-badge--" + (update.contextType || "unknown");
-          sourceBadge.textContent = update.contextType === "personal" ? global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_source_personal") : "Personal" : global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_source_alliance") : "Alliance";
+          sourceBadge.textContent = update.contextType === "personal" ? global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_source_personal") : "Personal" : global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_source_alliance") : "Alliance";
           header.appendChild(sourceBadge);
           row.appendChild(header);
           var table = document.createElement("table");
           table.className = "review-comparison-table";
           var thead = document.createElement("thead");
           var headRow = document.createElement("tr");
-          var DSI18N = global.DSI18N || {};
+          var DSI18N = global2.DSI18N || {};
           [
             DSI18N.t ? DSI18N.t("player_updates_col_field") : "Field",
             DSI18N.t ? DSI18N.t("player_updates_col_current") : "Current",
@@ -15028,19 +15402,19 @@
           approveBtn.className = "primary review-approve-btn";
           approveBtn.setAttribute("data-update-id", update.id || "");
           approveBtn.setAttribute("data-i18n", "player_updates_approve_btn");
-          approveBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_approve_btn") : "Approve";
+          approveBtn.textContent = global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_approve_btn") : "Approve";
           var rejectBtn = document.createElement("button");
           rejectBtn.type = "button";
           rejectBtn.className = "secondary review-reject-btn";
           rejectBtn.setAttribute("data-update-id", update.id || "");
           rejectBtn.setAttribute("data-i18n", "player_updates_reject_btn");
-          rejectBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_reject_btn") : "Reject";
+          rejectBtn.textContent = global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_reject_btn") : "Reject";
           approveBtn.addEventListener("click", function() {
             var updateId = approveBtn.getAttribute("data-update-id");
-            if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.approveUpdate === "function") {
+            if (global2.DSFeaturePlayerUpdatesController && typeof global2.DSFeaturePlayerUpdatesController.approveUpdate === "function") {
               approveBtn.disabled = true;
               rejectBtn.disabled = true;
-              global.DSFeaturePlayerUpdatesController.approveUpdate(updateId).then(function(result) {
+              global2.DSFeaturePlayerUpdatesController.approveUpdate(updateId).then(function(result) {
                 if (result && result.cancelled) {
                   approveBtn.disabled = false;
                   rejectBtn.disabled = false;
@@ -15058,10 +15432,10 @@
           });
           rejectBtn.addEventListener("click", function() {
             var updateId = rejectBtn.getAttribute("data-update-id");
-            if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.rejectUpdate === "function") {
+            if (global2.DSFeaturePlayerUpdatesController && typeof global2.DSFeaturePlayerUpdatesController.rejectUpdate === "function") {
               rejectBtn.disabled = true;
               approveBtn.disabled = true;
-              global.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
+              global2.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
                 if (result && result.ok) {
                   row.classList.add("review-decision-applied");
                   row.setAttribute("aria-disabled", "true");
@@ -15109,7 +15483,7 @@
           }
           return dot;
         }
-        global.DSFeaturePlayerUpdatesView = {
+        global2.DSFeaturePlayerUpdatesView = {
           renderTokenModal,
           renderReviewPanel,
           renderComparisonRow,
@@ -15123,7 +15497,7 @@
   // js/features/player-updates/player-updates-controller.js
   var require_player_updates_controller = __commonJS({
     "js/features/player-updates/player-updates-controller.js"() {
-      (function initFeaturePlayerUpdatesController(global) {
+      (function initFeaturePlayerUpdatesController(global2) {
         var _gateway = null;
         var _unsubscribe = null;
         var _badgeUnsub = null;
@@ -15169,33 +15543,33 @@
           if (!allianceId && !uid) return;
           _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, uid, function(count) {
             var badge = document.getElementById("playerUpdatesPendingBadge");
-            if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === "function") {
-              global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
+            if (global2.DSFeaturePlayerUpdatesView && typeof global2.DSFeaturePlayerUpdatesView.renderPendingBadge === "function") {
+              global2.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
             }
           });
         }
         function openTokenGenerationModal(playerNames) {
           if (!_gateway) return;
           if (!Array.isArray(playerNames) || playerNames.length === 0) {
-            var msg = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("request_updates_select_players") : "Select players to request updates from.";
+            var msg = global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("request_updates_select_players") : "Select players to request updates from.";
             alert(msg);
             return;
           }
-          var options = global.DSFeaturePlayerUpdatesActions && global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions ? global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions() : { expiryHours: 48, linkedEventId: null };
+          var options = global2.DSFeaturePlayerUpdatesActions && global2.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions ? global2.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions() : { expiryHours: 48, linkedEventId: null };
           var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-          var gameId = global.currentGameId || null;
-          var createdByUid = global.currentAuthUser && global.currentAuthUser.uid;
-          var lang = global.DSI18N && global.DSI18N.getCurrentLanguage ? global.DSI18N.getCurrentLanguage() : "en";
+          var gameId = global2.currentGameId || null;
+          var createdByUid = global2.currentAuthUser && global2.currentAuthUser.uid;
+          var lang = global2.DSI18N && global2.DSI18N.getCurrentLanguage ? global2.DSI18N.getCurrentLanguage() : "en";
           var tokenDocs = playerNames.map(function(playerName) {
             var snapshot = {};
-            var allPlayers = global.allPlayers || [];
+            var allPlayers = global2.allPlayers || [];
             var found = allPlayers.find(function(p) {
               return p.name === playerName;
             });
             if (found) {
               snapshot = { power: found.power, thp: found.thp, troops: found.troops };
             }
-            var doc = global.DSFeaturePlayerUpdatesCore ? global.DSFeaturePlayerUpdatesCore.buildTokenDoc(playerName, allianceId, gameId, createdByUid, {
+            var doc = global2.DSFeaturePlayerUpdatesCore ? global2.DSFeaturePlayerUpdatesCore.buildTokenDoc(playerName, allianceId, gameId, createdByUid, {
               expiryHours: options.expiryHours,
               linkedEventId: options.linkedEventId,
               currentSnapshot: snapshot
@@ -15208,13 +15582,13 @@
             if (!result || !result.ok) return;
             var tokens = tokenDocs.map(function(t2, i) {
               var tokenHex = t2.doc ? t2.doc.token : "";
-              var link = global.DSFeaturePlayerUpdatesCore ? global.DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex, allianceId, lang) : "";
+              var link = global2.DSFeaturePlayerUpdatesCore ? global2.DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex, allianceId, lang) : "";
               return { playerName: t2.playerName, link };
             });
             var modal = document.getElementById("tokenGenerationModal");
             var body = document.getElementById("tokenModalBody");
-            if (modal && body && global.DSFeaturePlayerUpdatesView) {
-              global.DSFeaturePlayerUpdatesView.renderTokenModal(body, tokens);
+            if (modal && body && global2.DSFeaturePlayerUpdatesView) {
+              global2.DSFeaturePlayerUpdatesView.renderTokenModal(body, tokens);
               modal.classList.remove("hidden");
               var closeBtn = document.getElementById("tokenModalCloseBtn");
               if (closeBtn) {
@@ -15225,7 +15599,7 @@
               var copyAllBtn = document.getElementById("tokenCopyAllBtn");
               if (copyAllBtn) {
                 copyAllBtn.onclick = function() {
-                  var formatted = global.DSFeaturePlayerUpdatesCore ? global.DSFeaturePlayerUpdatesCore.formatLinksForMessaging(tokens) : tokens.map(function(t2) {
+                  var formatted = global2.DSFeaturePlayerUpdatesCore ? global2.DSFeaturePlayerUpdatesCore.formatLinksForMessaging(tokens) : tokens.map(function(t2) {
                     return t2.playerName + ": " + t2.link;
                   }).join("\n");
                   if (navigator.clipboard) {
@@ -15379,7 +15753,7 @@
         function setAutoApproveThresholds(thresholds) {
           _autoApproveThresholds = Object.assign({}, _autoApproveThresholds, thresholds || {});
         }
-        global.DSFeaturePlayerUpdatesController = {
+        global2.DSFeaturePlayerUpdatesController = {
           init,
           subscribeBadge,
           openTokenGenerationModal,
@@ -15396,7 +15770,7 @@
   // js/ui/player-table-ui.js
   var require_player_table_ui = __commonJS({
     "js/ui/player-table-ui.js"() {
-      (function initPlayerTableUi(global) {
+      (function initPlayerTableUi(global2) {
         function defaultTranslate(key) {
           return key;
         }
@@ -15409,8 +15783,8 @@
           const searchTerm = String(config.searchTerm || "").toLowerCase();
           const troopsFilter = config.troopsFilter || "";
           const sortFilter = config.sortFilter || "power-desc";
-          if (global.DSCorePlayerTable && typeof global.DSCorePlayerTable.filterAndSortPlayers === "function") {
-            return global.DSCorePlayerTable.filterAndSortPlayers(allPlayers, {
+          if (global2.DSCorePlayerTable && typeof global2.DSCorePlayerTable.filterAndSortPlayers === "function") {
+            return global2.DSCorePlayerTable.filterAndSortPlayers(allPlayers, {
               searchTerm,
               troopsFilter,
               sortFilter
@@ -15638,7 +16012,7 @@
           tr.appendChild(td);
           tableBody.appendChild(tr);
         }
-        global.DSPlayerTableUI = {
+        global2.DSPlayerTableUI = {
           getFilteredAndSortedPlayers,
           refreshVisiblePlayerRows,
           renderPlayersTable,
@@ -15652,7 +16026,7 @@
   // js/ui/alliance-panel-ui.js
   var require_alliance_panel_ui = __commonJS({
     "js/ui/alliance-panel-ui.js"() {
-      (function initAlliancePanelUi(global) {
+      (function initAlliancePanelUi(global2) {
         function defaultTranslate(key) {
           return key;
         }
@@ -16070,7 +16444,7 @@
             renderAllianceJoinView(content, config);
           }
         }
-        global.DSAlliancePanelUI = {
+        global2.DSAlliancePanelUI = {
           renderAlliancePanel
         };
       })(window);
@@ -16080,7 +16454,7 @@
   // js/ui/event-list-ui.js
   var require_event_list_ui = __commonJS({
     "js/ui/event-list-ui.js"() {
-      (function initEventListUi(global) {
+      (function initEventListUi(global2) {
         function defaultTranslate(key) {
           return key;
         }
@@ -16158,7 +16532,7 @@
           newEventBtn.appendChild(newTextWrap);
           listEl.appendChild(newEventBtn);
         }
-        global.DSEventListUI = {
+        global2.DSEventListUI = {
           renderEventsList
         };
       })(window);
@@ -16168,7 +16542,7 @@
   // js/ui/event-buildings-editor-ui.js
   var require_event_buildings_editor_ui = __commonJS({
     "js/ui/event-buildings-editor-ui.js"() {
-      (function initEventBuildingsEditorUi(global) {
+      (function initEventBuildingsEditorUi(global2) {
         function createEditorBuildingRow(options) {
           const config = options && typeof options === "object" ? options : {};
           const source = config.rowData && typeof config.rowData === "object" ? config.rowData : {};
@@ -16301,7 +16675,7 @@
             }
           });
         }
-        global.DSEventBuildingsEditorUI = {
+        global2.DSEventBuildingsEditorUI = {
           createEditorBuildingRow,
           renderEventBuildingsEditor,
           addEventBuildingRow,
@@ -16315,7 +16689,7 @@
   // js/core/i18n.js
   var require_i18n = __commonJS({
     "js/core/i18n.js"() {
-      (function initI18nCore(global) {
+      (function initI18nCore(global2) {
         const supportedLanguages = ["en", "fr", "de", "it", "ko", "ro"];
         let currentLanguage = "en";
         let hooks = {
@@ -16330,8 +16704,8 @@
           });
         }
         function getTranslations() {
-          if (typeof global.translations === "object" && global.translations) {
-            return global.translations;
+          if (typeof global2.translations === "object" && global2.translations) {
+            return global2.translations;
           }
           if (typeof translations === "object" && translations) {
             return translations;
@@ -16346,12 +16720,12 @@
           return interpolateText(template, params);
         }
         function applyTranslations2() {
-          global.document.documentElement.lang = currentLanguage;
-          global.document.title = t2("app_title");
-          global.document.querySelectorAll("[data-i18n]").forEach((element) => {
+          global2.document.documentElement.lang = currentLanguage;
+          global2.document.title = t2("app_title");
+          global2.document.querySelectorAll("[data-i18n]").forEach((element) => {
             element.textContent = t2(element.dataset.i18n);
           });
-          global.document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+          global2.document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
             element.setAttribute("placeholder", t2(element.dataset.i18nPlaceholder));
           });
           if (hooks.onApply) {
@@ -16364,12 +16738,12 @@
           }
           currentLanguage = lang;
           try {
-            global.localStorage.setItem("ds_language", lang);
+            global2.localStorage.setItem("ds_language", lang);
           } catch (error) {
             console.warn("Unable to persist language preference", error);
           }
           applyTranslations2();
-          global.document.querySelectorAll("#languageSelect, #loginLanguageSelect").forEach((select) => {
+          global2.document.querySelectorAll("#languageSelect, #loginLanguageSelect").forEach((select) => {
             select.value = lang;
           });
         }
@@ -16379,13 +16753,13 @@
           };
           let stored = null;
           try {
-            stored = global.localStorage.getItem("ds_language");
+            stored = global2.localStorage.getItem("ds_language");
           } catch (error) {
             stored = null;
           }
           currentLanguage = supportedLanguages.includes(stored) ? stored : "en";
           applyTranslations2();
-          global.document.querySelectorAll("#languageSelect, #loginLanguageSelect").forEach((select) => {
+          global2.document.querySelectorAll("#languageSelect, #loginLanguageSelect").forEach((select) => {
             select.value = currentLanguage;
             select.addEventListener("change", (event) => {
               setLanguage(event.target.value);
@@ -16395,7 +16769,7 @@
         function getLanguage() {
           return currentLanguage;
         }
-        global.DSI18N = {
+        global2.DSI18N = {
           init,
           t: t2,
           setLanguage,
@@ -16410,7 +16784,7 @@
   // js/shared/state/state-store-contract.js
   var require_state_store_contract = __commonJS({
     "js/shared/state/state-store-contract.js"() {
-      (function initStateStoreContract(global) {
+      (function initStateStoreContract(global2) {
         function createStateStoreContract(store) {
           const source = store && typeof store === "object" ? store : {};
           return {
@@ -16425,7 +16799,7 @@
             }
           };
         }
-        global.DSStateStoreContract = {
+        global2.DSStateStoreContract = {
           createStateStoreContract
         };
       })(window);
@@ -16435,7 +16809,7 @@
   // js/shared/state/app-state-store.js
   var require_app_state_store = __commonJS({
     "js/shared/state/app-state-store.js"() {
-      (function initAppStateStore(global) {
+      (function initAppStateStore(global2) {
         const DEFAULT_STATE = {
           navigation: {
             currentView: "generator"
@@ -16585,7 +16959,7 @@
         function createDefaultStore(initialState) {
           return createStore(initialState || DEFAULT_STATE);
         }
-        global.DSAppStateStore = {
+        global2.DSAppStateStore = {
           DEFAULT_STATE: cloneDeep(DEFAULT_STATE),
           createStore,
           createDefaultStore,
@@ -16599,7 +16973,7 @@
   // js/shared/data/data-gateway-contract.js
   var require_data_gateway_contract = __commonJS({
     "js/shared/data/data-gateway-contract.js"() {
-      (function initDataGatewayContract(global) {
+      (function initDataGatewayContract(global2) {
         const DATA_GATEWAY_METHODS = {
           auth: ["isAvailable", "isSignedIn", "getCurrentUser", "setAuthCallback"],
           players: ["getPlayerSource", "setPlayerSource", "getActivePlayerDatabase", "upsertPlayerEntry", "removePlayerEntry"],
@@ -16641,7 +17015,7 @@
             missing
           };
         }
-        global.DSDataGatewayContract = {
+        global2.DSDataGatewayContract = {
           DATA_GATEWAY_METHODS,
           validateDataGatewayShape
         };
@@ -16652,9 +17026,9 @@
   // js/shared/data/firebase-gateway-utils.js
   var require_firebase_gateway_utils = __commonJS({
     "js/shared/data/firebase-gateway-utils.js"() {
-      (function initFirebaseGatewayUtils(global) {
+      (function initFirebaseGatewayUtils(global2) {
         function createUtils(runtime) {
-          const host = runtime || global;
+          const host = runtime || global2;
           function manager() {
             return typeof host.FirebaseManager !== "undefined" ? host.FirebaseManager : null;
           }
@@ -16674,7 +17048,7 @@
             notLoadedResult
           };
         }
-        global.DSSharedFirebaseGatewayUtils = {
+        global2.DSSharedFirebaseGatewayUtils = {
           createUtils
         };
       })(window);
@@ -16684,9 +17058,9 @@
   // js/shared/data/firebase-auth-gateway.js
   var require_firebase_auth_gateway = __commonJS({
     "js/shared/data/firebase-auth-gateway.js"() {
-      (function initFirebaseAuthGateway(global) {
+      (function initFirebaseAuthGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             isAvailable: function isAvailable() {
               return gatewayUtils.manager() !== null;
@@ -16741,7 +17115,7 @@
             }
           };
         }
-        global.DSSharedFirebaseAuthGateway = {
+        global2.DSSharedFirebaseAuthGateway = {
           createGateway
         };
       })(window);
@@ -16751,9 +17125,9 @@
   // js/shared/data/firebase-players-gateway.js
   var require_firebase_players_gateway = __commonJS({
     "js/shared/data/firebase-players-gateway.js"() {
-      (function initFirebasePlayersGateway(global) {
+      (function initFirebasePlayersGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             uploadPlayerDatabase: async function uploadPlayerDatabase(file) {
               return gatewayUtils.withManager((svc) => svc.uploadPlayerDatabase(file), () => Promise.reject(gatewayUtils.notLoadedResult()));
@@ -16787,7 +17161,7 @@
             }
           };
         }
-        global.DSSharedFirebasePlayersGateway = {
+        global2.DSSharedFirebasePlayersGateway = {
           createGateway
         };
       })(window);
@@ -16797,9 +17171,9 @@
   // js/shared/data/firebase-events-gateway.js
   var require_firebase_events_gateway = __commonJS({
     "js/shared/data/firebase-events-gateway.js"() {
-      (function initFirebaseEventsGateway(global) {
+      (function initFirebaseEventsGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             getAllEventData: function getAllEventData() {
               return gatewayUtils.withManager((svc) => svc.getAllEventData(), {});
@@ -16857,7 +17231,7 @@
             }
           };
         }
-        global.DSSharedFirebaseEventsGateway = {
+        global2.DSSharedFirebaseEventsGateway = {
           createGateway
         };
       })(window);
@@ -16867,9 +17241,9 @@
   // js/shared/data/firebase-alliance-gateway.js
   var require_firebase_alliance_gateway = __commonJS({
     "js/shared/data/firebase-alliance-gateway.js"() {
-      (function initFirebaseAllianceGateway(global) {
+      (function initFirebaseAllianceGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             createAlliance: async function createAlliance(name) {
               return gatewayUtils.withManager((svc) => svc.createAlliance(name), gatewayUtils.notLoadedResult());
@@ -16900,7 +17274,7 @@
             }
           };
         }
-        global.DSSharedFirebaseAllianceGateway = {
+        global2.DSSharedFirebaseAllianceGateway = {
           createGateway
         };
       })(window);
@@ -16910,9 +17284,9 @@
   // js/shared/data/firebase-notifications-gateway.js
   var require_firebase_notifications_gateway = __commonJS({
     "js/shared/data/firebase-notifications-gateway.js"() {
-      (function initFirebaseNotificationsGateway(global) {
+      (function initFirebaseNotificationsGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             checkInvitations: async function checkInvitations() {
               return gatewayUtils.withManager((svc) => svc.checkInvitations(), []);
@@ -16934,7 +17308,7 @@
             }
           };
         }
-        global.DSSharedFirebaseNotificationsGateway = {
+        global2.DSSharedFirebaseNotificationsGateway = {
           createGateway
         };
       })(window);
@@ -16944,9 +17318,9 @@
   // js/shared/data/firebase-event-history-gateway.js
   var require_firebase_event_history_gateway = __commonJS({
     "js/shared/data/firebase-event-history-gateway.js"() {
-      (function initFirebaseEventHistoryGateway(global) {
+      (function initFirebaseEventHistoryGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             saveHistoryRecord: async function saveHistoryRecord(allianceId, record) {
               return gatewayUtils.withManager(
@@ -17005,7 +17379,7 @@
             }
           };
         }
-        global.DSSharedFirebaseEventHistoryGateway = {
+        global2.DSSharedFirebaseEventHistoryGateway = {
           createGateway
         };
       })(window);
@@ -17015,9 +17389,9 @@
   // js/shared/data/firebase-player-updates-gateway.js
   var require_firebase_player_updates_gateway = __commonJS({
     "js/shared/data/firebase-player-updates-gateway.js"() {
-      (function initFirebasePlayerUpdatesGateway(global) {
+      (function initFirebasePlayerUpdatesGateway(global2) {
         function createGateway(utils) {
-          const gatewayUtils = utils || global.DSSharedFirebaseGatewayUtils.createUtils(global);
+          const gatewayUtils = utils || global2.DSSharedFirebaseGatewayUtils.createUtils(global2);
           return {
             createUpdateToken: async function createUpdateToken(allianceId, playerName, options) {
               return gatewayUtils.withManager(
@@ -17100,7 +17474,7 @@
             }
           };
         }
-        global.DSSharedFirebasePlayerUpdatesGateway = {
+        global2.DSSharedFirebasePlayerUpdatesGateway = {
           createGateway
         };
       })(window);
@@ -17110,9 +17484,9 @@
   // js/services/firebase-service.js
   var require_firebase_service = __commonJS({
     "js/services/firebase-service.js"() {
-      (function initFirebaseService(global) {
+      (function initFirebaseService(global2) {
         function createUtils(runtime) {
-          const host = runtime || global;
+          const host = runtime || global2;
           return {
             manager: function manager2() {
               return typeof host.FirebaseManager !== "undefined" ? host.FirebaseManager : null;
@@ -17140,9 +17514,9 @@
         const GAME_METADATA_SUPER_ADMIN_UID = "2z2BdO8aVsUovqQWWL9WCRMdV933";
         let activeGameContextCache = { uid: "", gameId: "" };
         function manager() {
-          return typeof global.FirebaseManager !== "undefined" ? global.FirebaseManager : null;
+          return typeof global2.FirebaseManager !== "undefined" ? global2.FirebaseManager : null;
         }
-        const utils = global.DSSharedFirebaseGatewayUtils && typeof global.DSSharedFirebaseGatewayUtils.createUtils === "function" ? global.DSSharedFirebaseGatewayUtils.createUtils(global) : createUtils(global);
+        const utils = global2.DSSharedFirebaseGatewayUtils && typeof global2.DSSharedFirebaseGatewayUtils.createUtils === "function" ? global2.DSSharedFirebaseGatewayUtils.createUtils(global2) : createUtils(global2);
         const withManager = utils.withManager;
         const notLoadedResult = utils.notLoadedResult;
         function fallbackAuthGateway(gatewayUtils) {
@@ -17448,7 +17822,7 @@
           };
         }
         function fromFactory(factoryName, fallbackFactory) {
-          const factory = global[factoryName];
+          const factory = global2[factoryName];
           if (factory && typeof factory.createGateway === "function") {
             return factory.createGateway(utils);
           }
@@ -17508,10 +17882,10 @@
           return getFeatureFlags(overrides)[flagName] === true;
         }
         function listAvailableGamesFromCore() {
-          if (!global.DSCoreGames || typeof global.DSCoreGames.listAvailableGames !== "function") {
+          if (!global2.DSCoreGames || typeof global2.DSCoreGames.listAvailableGames !== "function") {
             return [];
           }
-          return global.DSCoreGames.listAvailableGames();
+          return global2.DSCoreGames.listAvailableGames();
         }
         function normalizeGameId(value) {
           if (typeof value !== "string") {
@@ -17566,8 +17940,8 @@
           return normalizeGameIdsFromCatalog(listAvailableGamesFromCore());
         }
         function resolveDefaultGameId() {
-          if (global.DSCoreGames && typeof global.DSCoreGames.getDefaultGameId === "function") {
-            const explicitDefault = normalizeGameId(global.DSCoreGames.getDefaultGameId());
+          if (global2.DSCoreGames && typeof global2.DSCoreGames.getDefaultGameId === "function") {
+            const explicitDefault = normalizeGameId(global2.DSCoreGames.getDefaultGameId());
             if (explicitDefault) {
               return explicitDefault;
             }
@@ -17579,11 +17953,11 @@
           return "last_war";
         }
         function readStoredActiveGameIdFromKey(storageKey) {
-          if (!storageKey || !global.localStorage || typeof global.localStorage.getItem !== "function") {
+          if (!storageKey || !global2.localStorage || typeof global2.localStorage.getItem !== "function") {
             return "";
           }
           try {
-            return normalizeGameId(global.localStorage.getItem(storageKey));
+            return normalizeGameId(global2.localStorage.getItem(storageKey));
           } catch (error) {
             return "";
           }
@@ -17606,11 +17980,11 @@
           return { gameId: legacyStoredId, source: "storage-legacy" };
         }
         function writeStoredActiveGameIdToKey(storageKey, gameId) {
-          if (!storageKey || !global.localStorage || typeof global.localStorage.setItem !== "function") {
+          if (!storageKey || !global2.localStorage || typeof global2.localStorage.setItem !== "function") {
             return;
           }
           try {
-            global.localStorage.setItem(storageKey, gameId);
+            global2.localStorage.setItem(storageKey, gameId);
           } catch (error) {
           }
         }
@@ -17624,11 +17998,11 @@
           writeStoredActiveGameIdToKey(ACTIVE_GAME_STORAGE_KEY, gameId);
         }
         function removeStoredActiveGameIdFromKey(storageKey) {
-          if (!storageKey || !global.localStorage || typeof global.localStorage.removeItem !== "function") {
+          if (!storageKey || !global2.localStorage || typeof global2.localStorage.removeItem !== "function") {
             return;
           }
           try {
-            global.localStorage.removeItem(storageKey);
+            global2.localStorage.removeItem(storageKey);
           } catch (error) {
           }
         }
@@ -18221,7 +18595,7 @@
             return { success: false, error: "Unknown source: " + source };
           }
         };
-        global.FirebaseService = FirebaseService2;
+        global2.FirebaseService = FirebaseService2;
       })(window);
     }
   });
@@ -18229,7 +18603,7 @@
   // js/shell/bootstrap/app-shell-contracts.js
   var require_app_shell_contracts = __commonJS({
     "js/shell/bootstrap/app-shell-contracts.js"() {
-      (function initAppShellContracts(global) {
+      (function initAppShellContracts(global2) {
         function createFeatureController(definition) {
           const source = definition && typeof definition === "object" ? definition : {};
           return {
@@ -18252,7 +18626,7 @@
             }
           };
         }
-        global.DSAppShellContracts = {
+        global2.DSAppShellContracts = {
           createFeatureController,
           createAppShellLifecycle
         };
@@ -18263,7 +18637,7 @@
   // js/shell/navigation/navigation-controller.js
   var require_navigation_controller = __commonJS({
     "js/shell/navigation/navigation-controller.js"() {
-      (function initShellNavigationController(global) {
+      (function initShellNavigationController(global2) {
         const SUPPORTED_VIEWS = /* @__PURE__ */ new Set(["generator", "configuration", "players", "alliance", "support"]);
         function normalizeView(view) {
           const next = typeof view === "string" ? view.trim().toLowerCase() : "";
@@ -18312,7 +18686,7 @@
           });
           return currentView;
         }
-        global.DSShellNavigationController = {
+        global2.DSShellNavigationController = {
           normalizeView,
           syncMenuVisibility,
           syncNavigationButtons,
@@ -18325,7 +18699,7 @@
   // js/shell/overlays/modal-controller.js
   var require_modal_controller = __commonJS({
     "js/shell/overlays/modal-controller.js"() {
-      (function initShellModalController(global) {
+      (function initShellModalController(global2) {
         function open(options) {
           const settings = options && typeof options === "object" ? options : {};
           const overlay = settings.overlay;
@@ -18356,7 +18730,7 @@
           }
           return true;
         }
-        global.DSShellModalController = {
+        global2.DSShellModalController = {
           open,
           close
         };
@@ -18367,7 +18741,7 @@
   // js/shell/overlays/notifications-sheet-controller.js
   var require_notifications_sheet_controller = __commonJS({
     "js/shell/overlays/notifications-sheet-controller.js"() {
-      (function initShellNotificationsSheetController(global) {
+      (function initShellNotificationsSheetController(global2) {
         function setSheetState(options) {
           const settings = options && typeof options === "object" ? options : {};
           const panel = settings.panel;
@@ -18386,7 +18760,7 @@
           }
           return isOpen;
         }
-        global.DSShellNotificationsSheetController = {
+        global2.DSShellNotificationsSheetController = {
           setSheetState
         };
       })(window);
@@ -18396,13 +18770,13 @@
   // js/shell/bootstrap/app-shell-bootstrap.js
   var require_app_shell_bootstrap = __commonJS({
     "js/shell/bootstrap/app-shell-bootstrap.js"() {
-      (function initAppShellBootstrap(global) {
-        const contracts = global.DSAppShellContracts;
+      (function initAppShellBootstrap(global2) {
+        const contracts = global2.DSAppShellContracts;
         function createRootController() {
           const base = {
             init: function init() {
-              if (typeof global.initializeApplicationUiRuntime === "function") {
-                global.initializeApplicationUiRuntime();
+              if (typeof global2.initializeApplicationUiRuntime === "function") {
+                global2.initializeApplicationUiRuntime();
               }
             }
           };
@@ -18417,11 +18791,11 @@
             rootController.init();
           }
         }
-        global.DSAppShellBootstrap = {
+        global2.DSAppShellBootstrap = {
           boot
         };
-        if (global.document && typeof global.document.addEventListener === "function") {
-          global.document.addEventListener("DOMContentLoaded", boot);
+        if (global2.document && typeof global2.document.addEventListener === "function") {
+          global2.document.addEventListener("DOMContentLoaded", boot);
         }
       })(window);
     }
@@ -18430,7 +18804,7 @@
   // js/shell/onboarding-controller.js
   var require_onboarding_controller = __commonJS({
     "js/shell/onboarding-controller.js"() {
-      (function initOnboardingController(global) {
+      (function initOnboardingController(global2) {
         "use strict";
         var ONBOARDING_STEPS = [
           { titleKey: "onboarding_step1_title", descKey: "onboarding_step1_desc", targetSelector: "#navMenuBtn", position: "bottom" },
@@ -18591,7 +18965,7 @@
             if (onboardingActive) positionOnboardingTooltip();
           }, { passive: true });
         });
-        global.DSOnboardingController = {
+        global2.DSOnboardingController = {
           init: function(dependencies) {
             deps = dependencies;
           },
@@ -18611,7 +18985,7 @@
   // js/shell/theme-controller.js
   var require_theme_controller = __commonJS({
     "js/shell/theme-controller.js"() {
-      (function initThemeController(global) {
+      (function initThemeController(global2) {
         "use strict";
         var THEME_STORAGE_KEY = "ds_theme";
         var THEME_STANDARD = "standard";
@@ -18659,7 +19033,7 @@
           return normalizeThemePreference(root.getAttribute("data-theme"));
         }
         applyPlatformTheme(getStoredThemePreference(), { skipPersist: true });
-        global.DSThemeController = {
+        global2.DSThemeController = {
           THEME_STANDARD,
           THEME_LAST_WAR,
           normalizeThemePreference,
@@ -18675,7 +19049,7 @@
   // js/shell/auth-ui-controller.js
   var require_auth_ui_controller = __commonJS({
     "js/shell/auth-ui-controller.js"() {
-      (function initAuthUiController(global) {
+      (function initAuthUiController(global2) {
         "use strict";
         var PROFILE_TEXT_LIMIT = 60;
         var PROFILE_AVATAR_DATA_URL_LIMIT = 4e5;
@@ -18837,8 +19211,8 @@
           if (nicknameInput) {
             nicknameInput.value = profile.nickname || "";
           }
-          if (languageSelect && global.DSI18N && global.DSI18N.getLanguage) {
-            languageSelect.value = global.DSI18N.getLanguage();
+          if (languageSelect && global2.DSI18N && global2.DSI18N.getLanguage) {
+            languageSelect.value = global2.DSI18N.getLanguage();
           }
           settingsDraftTheme = deps.normalizeThemePreference(profile.theme || deps.getCurrentAppliedTheme());
           if (themeSelect) {
@@ -19092,7 +19466,7 @@
             await FirebaseService2.signOut();
           }
         }
-        global.DSAuthUiController = {
+        global2.DSAuthUiController = {
           // constants
           PROFILE_TEXT_LIMIT,
           PROFILE_AVATAR_DATA_URL_LIMIT,
@@ -19134,7 +19508,7 @@
   // js/shell/game-metadata-admin-controller.js
   var require_game_metadata_admin_controller = __commonJS({
     "js/shell/game-metadata-admin-controller.js"() {
-      (function initGameMetadataAdminController(global) {
+      (function initGameMetadataAdminController(global2) {
         "use strict";
         var GAME_METADATA_SUPER_ADMIN_UID = "2z2BdO8aVsUovqQWWL9WCRMdV933";
         var gameMetadataCatalogCache = [];
@@ -19513,7 +19887,7 @@
             setGameMetadataFormDisabled(false);
           }
         }
-        global.DSGameMetadataAdminController = {
+        global2.DSGameMetadataAdminController = {
           init,
           isGameMetadataSuperAdmin,
           syncGameMetadataMenuAvailability,
@@ -19539,7 +19913,7 @@
   // js/shell/game-selector-controller.js
   var require_game_selector_controller = __commonJS({
     "js/shell/game-selector-controller.js"() {
-      (function initGameSelectorController(global) {
+      (function initGameSelectorController(global2) {
         "use strict";
         var gameSelectorRequiresChoice = false;
         var postAuthSelectorShownThisSession = false;
@@ -19683,8 +20057,8 @@
               return false;
             }
           }
-          if (global.__APP_FEATURE_FLAGS && typeof global.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === "boolean") {
-            return global.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
+          if (global2.__APP_FEATURE_FLAGS && typeof global2.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED === "boolean") {
+            return global2.__APP_FEATURE_FLAGS.MULTIGAME_GAME_SELECTOR_ENABLED;
           }
           return false;
         }
@@ -19958,7 +20332,7 @@
         function isPostAuthGameSelectionPendingFn() {
           return postAuthGameSelectionPending === true;
         }
-        global.DSGameSelectorController = {
+        global2.DSGameSelectorController = {
           init,
           createMissingActiveGameError,
           getActiveGameContext,
@@ -24166,34 +24540,34 @@
   // js/app-init.js
   var require_app_init = __commonJS({
     "js/app-init.js"() {
-      (function initApplication(global) {
+      (function initApplication(global2) {
         function resolveStartupFeatureFlags() {
-          if (!global.FirebaseService || typeof global.FirebaseService.getFeatureFlags !== "function") {
+          if (!global2.FirebaseService || typeof global2.FirebaseService.getFeatureFlags !== "function") {
             return {};
           }
-          return global.FirebaseService.getFeatureFlags();
+          return global2.FirebaseService.getFeatureFlags();
         }
         function cacheStartupFeatureFlags() {
-          global.__APP_FEATURE_FLAGS = resolveStartupFeatureFlags();
+          global2.__APP_FEATURE_FLAGS = resolveStartupFeatureFlags();
         }
         function syncSignedInGameContext(options) {
-          if (!global.FirebaseService) {
+          if (!global2.FirebaseService) {
             return "";
           }
           const config = options && typeof options === "object" ? options : {};
           const allowDefault = config.allowDefault === true;
           let context = null;
-          if (allowDefault && typeof global.FirebaseService.ensureActiveGame === "function") {
-            context = global.FirebaseService.ensureActiveGame();
-          } else if (typeof global.FirebaseService.getActiveGame === "function") {
-            context = global.FirebaseService.getActiveGame();
+          if (allowDefault && typeof global2.FirebaseService.ensureActiveGame === "function") {
+            context = global2.FirebaseService.ensureActiveGame();
+          } else if (typeof global2.FirebaseService.getActiveGame === "function") {
+            context = global2.FirebaseService.getActiveGame();
           }
           const activeGameId = context && typeof context.gameId === "string" ? context.gameId : "";
-          global.__ACTIVE_GAME_ID = activeGameId;
-          if (activeGameId && typeof global.updateActiveGameBadge === "function") {
-            global.updateActiveGameBadge(activeGameId);
-          } else if (typeof global.updateActiveGameBadge === "function") {
-            global.updateActiveGameBadge("");
+          global2.__ACTIVE_GAME_ID = activeGameId;
+          if (activeGameId && typeof global2.updateActiveGameBadge === "function") {
+            global2.updateActiveGameBadge(activeGameId);
+          } else if (typeof global2.updateActiveGameBadge === "function") {
+            global2.updateActiveGameBadge("");
           }
           return activeGameId;
         }
@@ -24218,7 +24592,7 @@
           }, 100);
         }
         function initializeFirebaseCallbacks() {
-          if (!global.FirebaseService || !global.FirebaseService.isAvailable()) {
+          if (!global2.FirebaseService || !global2.FirebaseService.isAvailable()) {
             console.error("FirebaseService not available - cannot initialize callbacks");
             renderMissingFirebaseError();
             return;
@@ -24227,8 +24601,8 @@
           FirebaseService.setAuthCallback((isSignedIn, user) => {
             if (isSignedIn) {
               const activeGameId = syncSignedInGameContext({ allowDefault: false });
-              if (typeof global.refreshGameMetadataCatalogCache === "function") {
-                global.refreshGameMetadataCatalogCache({ silent: true }).catch(() => {
+              if (typeof global2.refreshGameMetadataCatalogCache === "function") {
+                global2.refreshGameMetadataCatalogCache({ silent: true }).catch(() => {
                 });
               }
               document.getElementById("loginScreen").style.display = "none";
@@ -24237,12 +24611,12 @@
                 updateUserHeaderIdentity(user);
               }
               applyTranslations();
-              if (!activeGameId && typeof global.showPostAuthGameSelector === "function") {
-                global.showPostAuthGameSelector();
+              if (!activeGameId && typeof global2.showPostAuthGameSelector === "function") {
+                global2.showPostAuthGameSelector();
               }
               initOnboarding();
-              if (global.getNotificationsFeatureController && typeof global.getNotificationsFeatureController === "function") {
-                const notificationsController = global.getNotificationsFeatureController();
+              if (global2.getNotificationsFeatureController && typeof global2.getNotificationsFeatureController === "function") {
+                const notificationsController = global2.getNotificationsFeatureController();
                 if (notificationsController && typeof notificationsController.startPolling === "function") {
                   notificationsController.startPolling();
                 } else {
@@ -24254,21 +24628,21 @@
             } else {
               document.getElementById("loginScreen").style.display = "block";
               document.getElementById("mainApp").style.display = "none";
-              global.__ACTIVE_GAME_ID = "";
-              if (global.FirebaseService && typeof global.FirebaseService.clearActiveGame === "function") {
-                global.FirebaseService.clearActiveGame();
+              global2.__ACTIVE_GAME_ID = "";
+              if (global2.FirebaseService && typeof global2.FirebaseService.clearActiveGame === "function") {
+                global2.FirebaseService.clearActiveGame();
               }
-              if (typeof global.updateActiveGameBadge === "function") {
-                global.updateActiveGameBadge("");
+              if (typeof global2.updateActiveGameBadge === "function") {
+                global2.updateActiveGameBadge("");
               }
-              if (typeof global.resetPostAuthGameSelectorState === "function") {
-                global.resetPostAuthGameSelectorState();
+              if (typeof global2.resetPostAuthGameSelectorState === "function") {
+                global2.resetPostAuthGameSelectorState();
               }
               if (typeof updateUserHeaderIdentity === "function") {
                 updateUserHeaderIdentity(null);
               }
-              if (global.getNotificationsFeatureController && typeof global.getNotificationsFeatureController === "function") {
-                const notificationsController = global.getNotificationsFeatureController();
+              if (global2.getNotificationsFeatureController && typeof global2.getNotificationsFeatureController === "function") {
+                const notificationsController = global2.getNotificationsFeatureController();
                 if (notificationsController && typeof notificationsController.stopPolling === "function") {
                   notificationsController.stopPolling();
                 } else {
@@ -24293,11 +24667,11 @@
             }
             updateAllianceHeaderDisplay();
             checkAndDisplayNotifications();
-            if (global.DSFeatureEventHistoryController && typeof global.DSFeatureEventHistoryController.init === "function") {
-              global._eventHistoryController = global.DSFeatureEventHistoryController.init(global.FirebaseService);
+            if (global2.DSFeatureEventHistoryController && typeof global2.DSFeatureEventHistoryController.init === "function") {
+              global2._eventHistoryController = global2.DSFeatureEventHistoryController.init(global2.FirebaseService);
             }
-            if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.init === "function") {
-              global._playerUpdatesController = global.DSFeaturePlayerUpdatesController.init(global.FirebaseService);
+            if (global2.DSFeaturePlayerUpdatesController && typeof global2.DSFeaturePlayerUpdatesController.init === "function") {
+              global2._playerUpdatesController = global2.DSFeaturePlayerUpdatesController.init(global2.FirebaseService);
             }
           });
           if (typeof FirebaseService.setAllianceDataCallback === "function") {
@@ -24305,11 +24679,11 @@
               if (typeof handleAllianceDataRealtimeUpdate === "function") {
                 handleAllianceDataRealtimeUpdate();
               }
-              if (global._playerUpdatesController && typeof global._playerUpdatesController.subscribeBadge === "function") {
-                const puAllianceId = global.FirebaseService.getAllianceId ? global.FirebaseService.getAllianceId() : null;
+              if (global2._playerUpdatesController && typeof global2._playerUpdatesController.subscribeBadge === "function") {
+                const puAllianceId = global2.FirebaseService.getAllianceId ? global2.FirebaseService.getAllianceId() : null;
                 if (puAllianceId) {
-                  var puUid = global.currentAuthUser ? global.currentAuthUser.uid : null;
-                  global._playerUpdatesController.subscribeBadge(puAllianceId, puUid);
+                  var puUid = global2.currentAuthUser ? global2.currentAuthUser.uid : null;
+                  global2._playerUpdatesController.subscribeBadge(puAllianceId, puUid);
                 }
               }
             });
@@ -24323,6 +24697,8 @@
   });
 
   // js/main-entry.js
+  require_firebase_infra();
+  require_firebase_auth_module();
   require_firebase_module();
   require_translations();
   require_firestore_utils();

@@ -2,9 +2,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const firebaseInfraPath = path.resolve(__dirname, '../firebase-infra.js');
+const firebaseAuthModulePath = path.resolve(__dirname, '../firebase-auth-module.js');
 const firebaseModulePath = path.resolve(__dirname, '../firebase-module.js');
 
 function resetModule() {
+  delete require.cache[require.resolve(firebaseInfraPath)];
+  delete require.cache[require.resolve(firebaseAuthModulePath)];
   delete require.cache[require.resolve(firebaseModulePath)];
 }
 
@@ -16,6 +20,8 @@ function resetGlobals() {
   delete global.firebase;
   delete global.FIREBASE_CONFIG;
   delete global.FirebaseManager;
+  delete global.DSFirebaseInfra;
+  delete global.DSFirebaseAuth;
   delete global.__MULTIGAME_FLAGS;
   delete global.FileReader;
   delete global.XLSX;
@@ -41,6 +47,8 @@ test('firebase manager supports dynamic event metadata lifecycle', () => {
     appId: 'x',
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
 
   const initialIds = global.FirebaseManager.getEventIds();
@@ -94,6 +102,8 @@ test('firebase manager resolves game-scoped read payload with legacy fallback wh
     appId: 'x',
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
 
   const legacyOnlyFallbackDisabled = global.FirebaseManager.resolveGameScopedReadPayload({
@@ -163,6 +173,8 @@ test('firebase manager resolves gameplay context with optional gameId signatures
     appId: 'x',
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
 
   const explicit = global.FirebaseManager.resolveGameplayContext('getPlayerDatabase', { gameId: 'last_war' });
@@ -187,6 +199,8 @@ test('firebase manager exposes observability counters shape', () => {
     appId: 'x',
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
 
   const counters = global.FirebaseManager.getObservabilityCounters();
@@ -271,7 +285,9 @@ test('firebase manager gracefully falls back when user read is permission-denied
   };
 
   try {
-    require(firebaseModulePath);
+    require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
+  require(firebaseModulePath);
     assert.equal(global.FirebaseManager.init(), true);
 
     const loadedPayloads = [];
@@ -392,6 +408,8 @@ test('firebase manager keeps local defaults when game doc read is denied', async
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
 
@@ -542,6 +560,8 @@ test('game metadata save falls back to app_config when games write is permission
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -679,6 +699,8 @@ test('game metadata list reads app_config overrides when games collection read i
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
 
@@ -857,6 +879,8 @@ test('loadUserData prefers game subcollections over legacy/root map payloads', a
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
 
@@ -999,6 +1023,8 @@ test('saveUserData persists players and events into game subcollections for sele
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -1207,6 +1233,8 @@ test('loadUserData alliance reads stay game-scoped and do not hit legacy root al
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -1361,6 +1389,8 @@ test('loadUserData reads legacy alliance doc when game-scoped alliance is denied
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -1503,6 +1533,8 @@ test('loadUserData falls back to personal source when alliance read is permissio
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -1626,6 +1658,8 @@ test('loadUserData strict mode blocks legacy fallback when game-scoped profile i
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -1781,6 +1815,8 @@ test('loadUserData recovers players from legacy root when game player map and su
   };
   global.firebase.auth.GoogleAuthProvider = function GoogleAuthProvider() {};
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -2080,6 +2116,8 @@ async function setupUploadScopeHarness(options) {
     },
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');
@@ -2457,6 +2495,8 @@ async function setupUploadNoAllianceHarness() {
     },
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   assert.equal(global.FirebaseManager.init(), true);
   assert.equal(typeof authStateChanged, 'function');

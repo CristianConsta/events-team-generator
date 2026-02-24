@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const firebaseInfraPath = path.resolve(__dirname, '../firebase-infra.js');
+const firebaseAuthModulePath = path.resolve(__dirname, '../firebase-auth-module.js');
 const firebaseModulePath = path.resolve(__dirname, '../firebase-module.js');
 const firebaseServicePath = path.resolve(__dirname, '../js/services/firebase-service.js');
 const translationsPath = path.resolve(__dirname, '../translations.js');
@@ -16,11 +18,15 @@ function resetGlobals() {
   delete global.alert;
   delete global.FIREBASE_CONFIG;
   delete global.FirebaseManager;
+  delete global.DSFirebaseInfra;
+  delete global.DSFirebaseAuth;
   delete global.FirebaseService;
   delete global.translations;
 }
 
 test.afterEach(() => {
+  resetModule(firebaseInfraPath);
+  resetModule(firebaseAuthModulePath);
   resetModule(firebaseModulePath);
   resetModule(firebaseServicePath);
   resetModule(translationsPath);
@@ -42,6 +48,8 @@ test('phase0 guardrail: firebase API surface for critical flows is preserved', (
     appId: 'x',
   };
 
+  require(firebaseInfraPath);
+  require(firebaseAuthModulePath);
   require(firebaseModulePath);
   require(firebaseServicePath);
 

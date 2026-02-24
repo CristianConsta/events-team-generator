@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const firebaseInfraPath = path.resolve(__dirname, '../firebase-infra.js');
+const firebaseAuthModulePath = path.resolve(__dirname, '../firebase-auth-module.js');
 const firebaseModulePath = path.resolve(__dirname, '../firebase-module.js');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -27,12 +29,16 @@ function setupGlobals() {
 
 function teardown() {
   delete global.FirebaseManager;
+  delete global.DSFirebaseInfra;
+  delete global.DSFirebaseAuth;
   delete global.firebase;
   delete global.DSCoreGames;
   delete global.FIREBASE_CONFIG;
   delete global.addEventListener;
   delete global.alert;
   delete global.document;
+  delete require.cache[require.resolve(firebaseInfraPath)];
+  delete require.cache[require.resolve(firebaseAuthModulePath)];
   delete require.cache[require.resolve(firebaseModulePath)];
 }
 
@@ -78,6 +84,8 @@ function makeFirebaseMock(authUid) {
   return {
     async init(uid) {
       delete require.cache[require.resolve(firebaseModulePath)];
+      require(firebaseInfraPath);
+      require(firebaseAuthModulePath);
       require(firebaseModulePath);
       assert.equal(global.FirebaseManager.init(), true);
       await authStateChanged({
