@@ -1,6 +1,7 @@
 (function initFeaturePlayerUpdatesController(global) {
     var _gateway = null;
     var _unsubscribe = null;
+    var _badgeUnsub = null;
     var _autoApproveThresholds = {
         powerMaxDeltaPct: null,
         thpMaxDeltaPct: null,
@@ -22,7 +23,27 @@
             _unsubscribe();
             _unsubscribe = null;
         }
+        if (_badgeUnsub) {
+            _badgeUnsub();
+            _badgeUnsub = null;
+        }
         _gateway = null;
+    }
+
+    // Subscribe to pending updates count for the nav badge.
+    // allianceId: string
+    function subscribeBadge(allianceId) {
+        if (_badgeUnsub) {
+            _badgeUnsub();
+            _badgeUnsub = null;
+        }
+        if (!_gateway || !allianceId || typeof _gateway.subscribePendingUpdatesCount !== 'function') return;
+        _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, function(count) {
+            var badge = document.getElementById('playerUpdatesPendingBadge');
+            if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === 'function') {
+                global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
+            }
+        });
     }
 
     // Open token generation modal for selected players.
@@ -41,8 +62,8 @@
             ? global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions()
             : { expiryHours: 48, linkedEventId: null };
 
-        var allianceId = global.currentAllianceId || (global.DSAppStateStore && global.DSAppStateStore.getState().allianceId) || null;
-        var gameId = global.currentGameId || (global.DSAppStateStore && global.DSAppStateStore.getState().gameId) || null;
+        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+        var gameId = global.currentGameId || null;
         var createdByUid = global.currentAuthUser && global.currentAuthUser.uid;
         var lang = (global.DSI18N && global.DSI18N.getCurrentLanguage) ? global.DSI18N.getCurrentLanguage() : 'en';
 
@@ -65,7 +86,6 @@
 
         _gateway.saveTokenBatch(allianceId, tokenDocs).then(function (result) {
             if (!result || !result.ok) return;
-            var tokenIds = result.tokenIds || [];
             var tokens = tokenDocs.map(function (t, i) {
                 var tokenHex = t.doc ? t.doc.token : '';
                 var link = global.DSFeaturePlayerUpdatesCore
@@ -107,7 +127,7 @@
     // Returns: Promise<{ ok, error? }>
     function approveUpdate(updateId) {
         if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
-        var allianceId = global.currentAllianceId || (global.DSAppStateStore && global.DSAppStateStore.getState().allianceId) || null;
+        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
         var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
         return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
             status: 'approved',
@@ -123,7 +143,7 @@
     // Returns: Promise<{ ok, error? }>
     function rejectUpdate(updateId) {
         if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
-        var allianceId = global.currentAllianceId || (global.DSAppStateStore && global.DSAppStateStore.getState().allianceId) || null;
+        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
         var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
         return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
             status: 'rejected',
@@ -139,7 +159,7 @@
     // Returns: Promise<{ ok, error? }>
     function revokeToken(tokenId) {
         if (!_gateway || !tokenId) return Promise.resolve({ ok: false, error: 'not initialized' });
-        var allianceId = global.currentAllianceId || (global.DSAppStateStore && global.DSAppStateStore.getState().allianceId) || null;
+        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
         return _gateway.revokeToken(allianceId, tokenId).catch(function (err) {
             return { ok: false, error: err && err.message };
         });
@@ -153,6 +173,7 @@
 
     global.DSFeaturePlayerUpdatesController = {
         init: init,
+        subscribeBadge: subscribeBadge,
         openTokenGenerationModal: openTokenGenerationModal,
         approveUpdate: approveUpdate,
         rejectUpdate: rejectUpdate,

@@ -1317,6 +1317,29 @@ function bindStaticUiActions() {
     on('showSignUpBtn', 'click', showSignUpForm);
     on('passwordResetBtn', 'click', handlePasswordReset);
 
+    function refreshPlayerUpdatesPanel() {
+        const allianceId = window.FirebaseService && window.FirebaseService.getAllianceId
+            ? window.FirebaseService.getAllianceId()
+            : null;
+        const container = document.getElementById('playerUpdatesReviewContainer');
+        if (allianceId && window.FirebaseService && window.FirebaseService.loadPendingUpdates) {
+            window.FirebaseService.loadPendingUpdates(allianceId, 'pending').then(function(updates) {
+                if (container && window.DSFeaturePlayerUpdatesView) {
+                    window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, updates);
+                }
+            }).catch(function() {
+                if (container && window.DSFeaturePlayerUpdatesView) {
+                    window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
+                }
+            });
+        } else {
+            if (container && window.DSFeaturePlayerUpdatesView) {
+                window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
+            }
+        }
+    }
+    window.refreshPlayerUpdatesPanel = refreshPlayerUpdatesPanel;
+
     on('navMenuBtn', 'click', toggleNavigationMenu);
     on('navGeneratorBtn', 'click', showGeneratorPage);
     on('navConfigBtn', 'click', showConfigurationPage);
@@ -1342,18 +1365,7 @@ function bindStaticUiActions() {
             allViewSections.forEach(function(s) { s.classList.add('hidden'); });
             playerUpdatesReviewView.classList.remove('hidden');
         }
-        // Load pending updates into review panel
-        if (window._playerUpdatesController && window.FirebaseService) {
-            const allianceId = window.FirebaseService.getAllianceId ? window.FirebaseService.getAllianceId() : null;
-            if (allianceId && window.FirebaseService.loadPendingUpdates) {
-                window.FirebaseService.loadPendingUpdates(allianceId, 'pending').then(function(updates) {
-                    const container = document.getElementById('playerUpdatesReviewContainer');
-                    if (container && window.DSFeaturePlayerUpdatesView) {
-                        window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, updates);
-                    }
-                }).catch(function() {});
-            }
-        }
+        refreshPlayerUpdatesPanel();
         closeNavigationMenu();
     });
     on('playersMgmtRequestUpdatesBtn', 'click', function() {

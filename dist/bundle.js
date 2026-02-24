@@ -5719,13 +5719,20 @@
           request_updates_select_players: "Select players to request updates from.",
           player_updates_review_nav: "Pending Updates",
           player_updates_review_title: "Pending Player Updates",
-          player_updates_review_empty: "No pending updates.",
           player_updates_approve_btn: "Approve",
           player_updates_reject_btn: "Reject",
           player_updates_pending_badge: "{count} pending updates",
           player_updates_delta_warning: "Large change detected",
           player_updates_old_value: "Current",
           player_updates_new_value: "Proposed",
+          player_updates_no_pending: "No pending updates",
+          player_updates_no_tokens: "No active tokens",
+          player_updates_copy_link: "Copy link",
+          player_updates_col_field: "Field",
+          player_updates_col_current: "Current",
+          player_updates_col_proposed: "Proposed",
+          player_updates_col_change: "Change",
+          player_updates_refresh: "Refresh",
           freshness_dot_fresh: "Updated recently",
           freshness_dot_stale: "Not updated in over 30 days",
           freshness_dot_very_stale: "Not updated in over 90 days",
@@ -6159,13 +6166,20 @@
           request_updates_select_players: "Selectionnez des joueurs pour demander des mises a jour.",
           player_updates_review_nav: "Mises a jour en attente",
           player_updates_review_title: "Mises a jour en attente",
-          player_updates_review_empty: "Aucune mise a jour en attente.",
           player_updates_approve_btn: "Approuver",
           player_updates_reject_btn: "Rejeter",
           player_updates_pending_badge: "{count} mises a jour en attente",
           player_updates_delta_warning: "Changement important detecte",
           player_updates_old_value: "Actuel",
           player_updates_new_value: "Propose",
+          player_updates_no_pending: "Aucune mise a jour en attente",
+          player_updates_no_tokens: "Aucun jeton actif",
+          player_updates_copy_link: "Copier le lien",
+          player_updates_col_field: "Champ",
+          player_updates_col_current: "Actuel",
+          player_updates_col_proposed: "Propose",
+          player_updates_col_change: "Modification",
+          player_updates_refresh: "Actualiser",
           freshness_dot_fresh: "Mis a jour recemment",
           freshness_dot_stale: "Pas mis a jour depuis plus de 30 jours",
           freshness_dot_very_stale: "Pas mis a jour depuis plus de 90 jours",
@@ -6599,13 +6613,20 @@
           request_updates_select_players: "Spieler auswaehlen, von denen Updates angefordert werden sollen.",
           player_updates_review_nav: "Ausstehende Updates",
           player_updates_review_title: "Ausstehende Spielerupdates",
-          player_updates_review_empty: "Keine ausstehenden Updates.",
           player_updates_approve_btn: "Genehmigen",
           player_updates_reject_btn: "Ablehnen",
           player_updates_pending_badge: "{count} ausstehende Updates",
           player_updates_delta_warning: "Grosse Aenderung erkannt",
           player_updates_old_value: "Aktuell",
           player_updates_new_value: "Vorgeschlagen",
+          player_updates_no_pending: "Keine ausstehenden Updates",
+          player_updates_no_tokens: "Keine aktiven Token",
+          player_updates_copy_link: "Link kopieren",
+          player_updates_col_field: "Feld",
+          player_updates_col_current: "Aktuell",
+          player_updates_col_proposed: "Vorgeschlagen",
+          player_updates_col_change: "Aenderung",
+          player_updates_refresh: "Aktualisieren",
           freshness_dot_fresh: "Kuerzlich aktualisiert",
           freshness_dot_stale: "Seit mehr als 30 Tagen nicht aktualisiert",
           freshness_dot_very_stale: "Seit mehr als 90 Tagen nicht aktualisiert",
@@ -7039,13 +7060,20 @@
           request_updates_select_players: "Seleziona i giocatori da cui richiedere aggiornamenti.",
           player_updates_review_nav: "Aggiornamenti in attesa",
           player_updates_review_title: "Aggiornamenti giocatori in attesa",
-          player_updates_review_empty: "Nessun aggiornamento in attesa.",
           player_updates_approve_btn: "Approva",
           player_updates_reject_btn: "Rifiuta",
           player_updates_pending_badge: "{count} aggiornamenti in attesa",
           player_updates_delta_warning: "Modifica importante rilevata",
           player_updates_old_value: "Attuale",
           player_updates_new_value: "Proposto",
+          player_updates_no_pending: "Nessun aggiornamento in attesa",
+          player_updates_no_tokens: "Nessun token attivo",
+          player_updates_copy_link: "Copia link",
+          player_updates_col_field: "Campo",
+          player_updates_col_current: "Attuale",
+          player_updates_col_proposed: "Proposto",
+          player_updates_col_change: "Modifica",
+          player_updates_refresh: "Aggiorna",
           freshness_dot_fresh: "Aggiornato di recente",
           freshness_dot_stale: "Non aggiornato da piu di 30 giorni",
           freshness_dot_very_stale: "Non aggiornato da piu di 90 giorni",
@@ -7479,13 +7507,20 @@
           request_updates_select_players: "\uC5C5\uB370\uC774\uD2B8\uB97C \uC694\uCCAD\uD560 \uD50C\uB808\uC774\uC5B4\uB97C \uC120\uD0DD\uD558\uC138\uC694.",
           player_updates_review_nav: "\uB300\uAE30 \uC911\uC778 \uC5C5\uB370\uC774\uD2B8",
           player_updates_review_title: "\uB300\uAE30 \uC911\uC778 \uD50C\uB808\uC774\uC5B4 \uC5C5\uB370\uC774\uD2B8",
-          player_updates_review_empty: "\uB300\uAE30 \uC911\uC778 \uC5C5\uB370\uC774\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.",
           player_updates_approve_btn: "\uC2B9\uC778",
           player_updates_reject_btn: "\uAC70\uBD80",
           player_updates_pending_badge: "{count}\uAC1C \uC5C5\uB370\uC774\uD2B8 \uB300\uAE30 \uC911",
           player_updates_delta_warning: "\uD070 \uBCC0\uACBD \uAC10\uC9C0\uB428",
           player_updates_old_value: "\uD604\uC7AC",
           player_updates_new_value: "\uC81C\uC548\uB428",
+          player_updates_no_pending: "\uB300\uAE30 \uC911\uC778 \uC5C5\uB370\uC774\uD2B8 \uC5C6\uC74C",
+          player_updates_no_tokens: "\uD65C\uC131 \uD1A0\uD070 \uC5C6\uC74C",
+          player_updates_copy_link: "\uB9C1\uD06C \uBCF5\uC0AC",
+          player_updates_col_field: "\uD56D\uBAA9",
+          player_updates_col_current: "\uD604\uC7AC",
+          player_updates_col_proposed: "\uC81C\uC548",
+          player_updates_col_change: "\uBCC0\uACBD",
+          player_updates_refresh: "\uC0C8\uB85C \uACE0\uCE68",
           freshness_dot_fresh: "\uCD5C\uADFC\uC5D0 \uC5C5\uB370\uC774\uD2B8\uB428",
           freshness_dot_stale: "30\uC77C \uC774\uC0C1 \uC5C5\uB370\uC774\uD2B8\uB418\uC9C0 \uC54A\uC74C",
           freshness_dot_very_stale: "90\uC77C \uC774\uC0C1 \uC5C5\uB370\uC774\uD2B8\uB418\uC9C0 \uC54A\uC74C",
@@ -7919,13 +7954,20 @@
           request_updates_select_players: "Selecteaza jucatorii de la care soliciti actualizari.",
           player_updates_review_nav: "Actualizari in asteptare",
           player_updates_review_title: "Actualizari jucatori in asteptare",
-          player_updates_review_empty: "Nu exista actualizari in asteptare.",
           player_updates_approve_btn: "Aproba",
           player_updates_reject_btn: "Respinge",
           player_updates_pending_badge: "{count} actualizari in asteptare",
           player_updates_delta_warning: "Modificare mare detectata",
           player_updates_old_value: "Curent",
           player_updates_new_value: "Propus",
+          player_updates_no_pending: "Nicio actualizare in asteptare",
+          player_updates_no_tokens: "Niciun token activ",
+          player_updates_copy_link: "Copiaza linkul",
+          player_updates_col_field: "Camp",
+          player_updates_col_current: "Curent",
+          player_updates_col_proposed: "Propus",
+          player_updates_col_change: "Modificare",
+          player_updates_refresh: "Reincarca",
           freshness_dot_fresh: "Actualizat recent",
           freshness_dot_stale: "Neactualizat de peste 30 de zile",
           freshness_dot_very_stale: "Neactualizat de peste 90 de zile",
@@ -13873,12 +13915,12 @@
           list.className = "token-link-list";
           tokens.forEach(function(token) {
             var item = document.createElement("li");
-            item.className = "token-link-item";
+            item.className = "token-link-row";
             var nameEl = document.createElement("span");
             nameEl.className = "token-player-name";
             nameEl.textContent = token.playerName || "";
             var linkEl = document.createElement("a");
-            linkEl.className = "token-link";
+            linkEl.className = "token-link-url";
             linkEl.href = token.link || "#";
             linkEl.textContent = token.link || "";
             linkEl.setAttribute("target", "_blank");
@@ -13901,6 +13943,16 @@
         function renderReviewPanel(container, updates) {
           if (!container) return;
           container.innerHTML = "";
+          var refreshBtn = document.createElement("button");
+          refreshBtn.className = "btn btn-secondary btn-sm";
+          refreshBtn.setAttribute("data-i18n", "player_updates_refresh");
+          refreshBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t("player_updates_refresh") : "Refresh";
+          refreshBtn.addEventListener("click", function() {
+            if (typeof global.refreshPlayerUpdatesPanel === "function") {
+              global.refreshPlayerUpdatesPanel();
+            }
+          });
+          container.appendChild(refreshBtn);
           if (!updates || updates.length === 0) {
             var empty = document.createElement("p");
             empty.setAttribute("data-i18n", "player_updates_no_pending");
@@ -13938,7 +13990,13 @@
           table.className = "review-comparison-table";
           var thead = document.createElement("thead");
           var headRow = document.createElement("tr");
-          ["Field", "Current", "Proposed", "Change"].forEach(function(label) {
+          var DSI18N = global.DSI18N || {};
+          [
+            DSI18N.t ? DSI18N.t("player_updates_col_field") : "Field",
+            DSI18N.t ? DSI18N.t("player_updates_col_current") : "Current",
+            DSI18N.t ? DSI18N.t("player_updates_col_proposed") : "Proposed",
+            DSI18N.t ? DSI18N.t("player_updates_col_change") : "Change"
+          ].forEach(function(label) {
             var th = document.createElement("th");
             th.textContent = label;
             headRow.appendChild(th);
@@ -14061,6 +14119,7 @@
       (function initFeaturePlayerUpdatesController(global) {
         var _gateway = null;
         var _unsubscribe = null;
+        var _badgeUnsub = null;
         var _autoApproveThresholds = {
           powerMaxDeltaPct: null,
           thpMaxDeltaPct: null,
@@ -14077,7 +14136,24 @@
             _unsubscribe();
             _unsubscribe = null;
           }
+          if (_badgeUnsub) {
+            _badgeUnsub();
+            _badgeUnsub = null;
+          }
           _gateway = null;
+        }
+        function subscribeBadge(allianceId) {
+          if (_badgeUnsub) {
+            _badgeUnsub();
+            _badgeUnsub = null;
+          }
+          if (!_gateway || !allianceId || typeof _gateway.subscribePendingUpdatesCount !== "function") return;
+          _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, function(count) {
+            var badge = document.getElementById("playerUpdatesPendingBadge");
+            if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === "function") {
+              global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
+            }
+          });
         }
         function openTokenGenerationModal(playerNames) {
           if (!_gateway) return;
@@ -14087,8 +14163,8 @@
             return;
           }
           var options = global.DSFeaturePlayerUpdatesActions && global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions ? global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions() : { expiryHours: 48, linkedEventId: null };
-          var allianceId = global.currentAllianceId || global.DSAppStateStore && global.DSAppStateStore.getState().allianceId || null;
-          var gameId = global.currentGameId || global.DSAppStateStore && global.DSAppStateStore.getState().gameId || null;
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+          var gameId = global.currentGameId || null;
           var createdByUid = global.currentAuthUser && global.currentAuthUser.uid;
           var lang = global.DSI18N && global.DSI18N.getCurrentLanguage ? global.DSI18N.getCurrentLanguage() : "en";
           var tokenDocs = playerNames.map(function(playerName) {
@@ -14111,7 +14187,6 @@
           });
           _gateway.saveTokenBatch(allianceId, tokenDocs).then(function(result) {
             if (!result || !result.ok) return;
-            var tokenIds = result.tokenIds || [];
             var tokens = tokenDocs.map(function(t2, i) {
               var tokenHex = t2.doc ? t2.doc.token : "";
               var link = global.DSFeaturePlayerUpdatesCore ? global.DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex, allianceId, lang) : "";
@@ -14147,7 +14222,7 @@
         }
         function approveUpdate(updateId) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
-          var allianceId = global.currentAllianceId || global.DSAppStateStore && global.DSAppStateStore.getState().allianceId || null;
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
           var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
           return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
             status: "approved",
@@ -14159,7 +14234,7 @@
         }
         function rejectUpdate(updateId) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
-          var allianceId = global.currentAllianceId || global.DSAppStateStore && global.DSAppStateStore.getState().allianceId || null;
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
           var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
           return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
             status: "rejected",
@@ -14171,7 +14246,7 @@
         }
         function revokeToken(tokenId) {
           if (!_gateway || !tokenId) return Promise.resolve({ ok: false, error: "not initialized" });
-          var allianceId = global.currentAllianceId || global.DSAppStateStore && global.DSAppStateStore.getState().allianceId || null;
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
           return _gateway.revokeToken(allianceId, tokenId).catch(function(err) {
             return { ok: false, error: err && err.message };
           });
@@ -14181,6 +14256,7 @@
         }
         global.DSFeaturePlayerUpdatesController = {
           init,
+          subscribeBadge,
           openTokenGenerationModal,
           approveUpdate,
           rejectUpdate,
@@ -18343,6 +18419,26 @@
         }
         on("showSignUpBtn", "click", showSignUpForm);
         on("passwordResetBtn", "click", handlePasswordReset);
+        function refreshPlayerUpdatesPanel() {
+          const allianceId = window.FirebaseService && window.FirebaseService.getAllianceId ? window.FirebaseService.getAllianceId() : null;
+          const container = document.getElementById("playerUpdatesReviewContainer");
+          if (allianceId && window.FirebaseService && window.FirebaseService.loadPendingUpdates) {
+            window.FirebaseService.loadPendingUpdates(allianceId, "pending").then(function(updates) {
+              if (container && window.DSFeaturePlayerUpdatesView) {
+                window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, updates);
+              }
+            }).catch(function() {
+              if (container && window.DSFeaturePlayerUpdatesView) {
+                window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
+              }
+            });
+          } else {
+            if (container && window.DSFeaturePlayerUpdatesView) {
+              window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);
+            }
+          }
+        }
+        window.refreshPlayerUpdatesPanel = refreshPlayerUpdatesPanel;
         on("navMenuBtn", "click", toggleNavigationMenu);
         on("navGeneratorBtn", "click", showGeneratorPage);
         on("navConfigBtn", "click", showConfigurationPage);
@@ -18372,18 +18468,7 @@
             });
             playerUpdatesReviewView.classList.remove("hidden");
           }
-          if (window._playerUpdatesController && window.FirebaseService) {
-            const allianceId = window.FirebaseService.getAllianceId ? window.FirebaseService.getAllianceId() : null;
-            if (allianceId && window.FirebaseService.loadPendingUpdates) {
-              window.FirebaseService.loadPendingUpdates(allianceId, "pending").then(function(updates) {
-                const container = document.getElementById("playerUpdatesReviewContainer");
-                if (container && window.DSFeaturePlayerUpdatesView) {
-                  window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, updates);
-                }
-              }).catch(function() {
-              });
-            }
-          }
+          refreshPlayerUpdatesPanel();
           closeNavigationMenu();
         });
         on("playersMgmtRequestUpdatesBtn", "click", function() {
@@ -22420,21 +22505,18 @@
             }
             if (global.DSFeaturePlayerUpdatesController && typeof global.DSFeaturePlayerUpdatesController.init === "function") {
               global._playerUpdatesController = global.DSFeaturePlayerUpdatesController.init(global.FirebaseService);
-              const puAllianceId = global.FirebaseService.getAllianceId ? global.FirebaseService.getAllianceId() : null;
-              if (puAllianceId && typeof global.FirebaseService.subscribePendingUpdatesCount === "function") {
-                global.FirebaseService.subscribePendingUpdatesCount(puAllianceId, function(count) {
-                  var badge = document.getElementById("playerUpdatesPendingBadge");
-                  if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === "function") {
-                    global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
-                  }
-                });
-              }
             }
           });
           if (typeof FirebaseService.setAllianceDataCallback === "function") {
             FirebaseService.setAllianceDataCallback(() => {
               if (typeof handleAllianceDataRealtimeUpdate === "function") {
                 handleAllianceDataRealtimeUpdate();
+              }
+              if (global._playerUpdatesController && typeof global._playerUpdatesController.subscribeBadge === "function") {
+                const puAllianceId = global.FirebaseService.getAllianceId ? global.FirebaseService.getAllianceId() : null;
+                if (puAllianceId) {
+                  global._playerUpdatesController.subscribeBadge(puAllianceId);
+                }
               }
             });
           }

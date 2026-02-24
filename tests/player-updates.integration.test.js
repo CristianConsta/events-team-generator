@@ -33,7 +33,7 @@ function loadModules() {
     global.location = { origin: 'https://example.com' };
 
     // App state globals the controller reads
-    global.currentAllianceId = 'alliance_pu_integ_1';
+    // Note: controller now reads allianceId via _gateway.getAllianceId(), not global.currentAllianceId
     global.currentGameId = 'last_war';
     global.currentAuthUser = { uid: 'uid_leader_pu' };
     global.allPlayers = [
@@ -53,6 +53,7 @@ function loadModules() {
 
 function makeMockGateway(overrides) {
     return Object.assign({
+        getAllianceId: function () { return 'alliance_pu_integ_1'; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: ['tok_1', 'tok_2'] }; },
         updatePendingUpdateStatus: async function () { return { ok: true }; },
         revokeToken: async function () { return { ok: true }; },

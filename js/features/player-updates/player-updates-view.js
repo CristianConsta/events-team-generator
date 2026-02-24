@@ -20,14 +20,14 @@
 
         tokens.forEach(function(token) {
             var item = document.createElement('li');
-            item.className = 'token-link-item';
+            item.className = 'token-link-row';
 
             var nameEl = document.createElement('span');
             nameEl.className = 'token-player-name';
             nameEl.textContent = token.playerName || '';
 
             var linkEl = document.createElement('a');
-            linkEl.className = 'token-link';
+            linkEl.className = 'token-link-url';
             linkEl.href = token.link || '#';
             linkEl.textContent = token.link || '';
             linkEl.setAttribute('target', '_blank');
@@ -56,6 +56,17 @@
     function renderReviewPanel(container, updates) {
         if (!container) return;
         container.innerHTML = '';
+
+        var refreshBtn = document.createElement('button');
+        refreshBtn.className = 'btn btn-secondary btn-sm';
+        refreshBtn.setAttribute('data-i18n', 'player_updates_refresh');
+        refreshBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t('player_updates_refresh') : 'Refresh';
+        refreshBtn.addEventListener('click', function() {
+            if (typeof global.refreshPlayerUpdatesPanel === 'function') {
+                global.refreshPlayerUpdatesPanel();
+            }
+        });
+        container.appendChild(refreshBtn);
 
         if (!updates || updates.length === 0) {
             var empty = document.createElement('p');
@@ -108,7 +119,13 @@
 
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
-        ['Field', 'Current', 'Proposed', 'Change'].forEach(function(label) {
+        var DSI18N = global.DSI18N || {};
+        [
+            DSI18N.t ? DSI18N.t('player_updates_col_field') : 'Field',
+            DSI18N.t ? DSI18N.t('player_updates_col_current') : 'Current',
+            DSI18N.t ? DSI18N.t('player_updates_col_proposed') : 'Proposed',
+            DSI18N.t ? DSI18N.t('player_updates_col_change') : 'Change',
+        ].forEach(function(label) {
             var th = document.createElement('th');
             th.textContent = label;
             headRow.appendChild(th);

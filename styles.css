@@ -3789,15 +3789,21 @@ select {
 .freshness-very-stale  { background-color: #c62828; }
 .freshness-never       { background-color: #757575; }
 
+/* View section shared layout */
+.view-section {
+    padding: 16px;
+}
+
 /* Review panel */
 .review-panel { padding: 16px; }
 .review-comparison-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr auto;
-    gap: 8px;
-    align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    margin-bottom: 12px;
 }
 .review-player-name { font-weight: 600; }
 .review-delta-warning { color: #ef6c00; font-size: 12px; }
