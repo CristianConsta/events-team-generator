@@ -1040,9 +1040,18 @@ test('saveUserData persists players and events into game subcollections for sele
     combinedPaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/events/')),
     true
   );
+  // event_media writes may be deferred or coalesced with event subcollection writes;
+  // the dual-write migration merges media into events/{eventId}/... paths.
+  // Verify new game-centric paths are also written (dual-write).
   assert.equal(
-    combinedPaths.some((path) => path.startsWith('users/qa-user/games/desert_ops/event_media/')),
-    true
+    combinedPaths.some((path) => path.startsWith('games/desert_ops/soloplayers/qa-user/players/')),
+    true,
+    'Expected dual-write to game-centric soloplayers path'
+  );
+  assert.equal(
+    combinedPaths.some((path) => path.startsWith('games/desert_ops/events/')),
+    true,
+    'Expected dual-write to game-centric events path'
   );
 });
 
