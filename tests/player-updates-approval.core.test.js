@@ -253,6 +253,31 @@ test('subscribeBadge works without allianceId (non-alliance user)', function () 
     assert.deepEqual(receivedArgs, { allianceId: null, uid: 'user-1' });
 });
 
+test('approveUpdate threads gameId from pending update doc to gateway', async function () {
+    setupGlobals();
+    var capturedGameId = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        applyPlayerUpdateToPersonal: function (name, values, gameId) {
+            capturedGameId = gameId;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-game-1',
+        contextType: 'personal',
+        ownerUid: 'owner-uid',
+        playerName: 'TestPlayer',
+        gameId: 'canyon_storm',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    await ctrl.approveUpdate('update-game-1');
+    assert.equal(capturedGameId, 'canyon_storm');
+});
+
 test('approveUpdate returns cancelled when apply_failed', async function () {
     setupGlobals();
     var ctrl = loadController();

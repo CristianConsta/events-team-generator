@@ -284,11 +284,11 @@
             subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
                 return gatewayUtils.withManager(function (svc) { return svc.subscribePendingUpdatesCount(allianceId, uid, callback); }, function noop() {});
             },
-            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
-                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToPersonal(playerName, proposedValues); }, gatewayUtils.notLoadedResult());
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
+                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId); }, gatewayUtils.notLoadedResult());
             },
-            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
-                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToAlliance(playerName, proposedValues); }, gatewayUtils.notLoadedResult());
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId); }, gatewayUtils.notLoadedResult());
             },
             createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
                 return gatewayUtils.withManager(function (svc) { return svc.createPersonalUpdateToken(uid, playerName, options); }, gatewayUtils.notLoadedResult());
@@ -1095,11 +1095,11 @@
         subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
             return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);
         },
-        applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues) {
-            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues);
+        applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
+            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId);
         },
-        applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues) {
-            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues);
+        applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId);
         },
         createPersonalUpdateToken: function createPersonalUpdateToken(uid, playerName, options) {
             return playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, options);

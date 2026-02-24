@@ -15,7 +15,9 @@ const RULES_PATH = path.resolve(__dirname, '../../firestore.rules');
 const ALLIANCE_ID = 'alliance_pu_test_1';
 const MEMBER_UID = 'uid_member_pu_leader';
 const OUTSIDER_UID = 'uid_outsider_pu';
+const PERSONAL_UID = 'uid_personal_pu_owner';
 const TOKEN_ID = 'token_abc_1';
+const PERSONAL_TOKEN_ID = 'personal_token_abc_1';
 const UPDATE_ID = 'update_pu_1';
 
 let testEnv;
@@ -135,6 +137,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_valid`, {
         token: 'valid_token_1234',
         playerName: 'Alice',
+        gameId: 'last_war',
         used: false,
         expiresAt: futureTimestamp(),
     });
@@ -143,6 +146,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_expired`, {
         token: 'expired_token_1234',
         playerName: 'Bob',
+        gameId: 'last_war',
         used: false,
         expiresAt: pastTimestamp(),
     });
@@ -151,6 +155,36 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_used`, {
         token: 'used_token_1234',
         playerName: 'Charlie',
+        gameId: 'last_war',
+        used: true,
+        expiresAt: futureTimestamp(),
+    });
+
+    // Seed a token for scope-violation tests (used=false, but wrong playerName/gameId attempts)
+    await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_scope_test`, {
+        token: 'scope_test_token',
+        playerName: 'Dave',
+        gameId: 'last_war',
+        used: false,
+        expiresAt: futureTimestamp(),
+    });
+
+    // Seed a personal update token for PERSONAL_UID
+    await seedDoc(`users/${PERSONAL_UID}/update_tokens/${PERSONAL_TOKEN_ID}`, {
+        contextType: 'personal',
+        ownerUid: PERSONAL_UID,
+        playerName: 'Eve',
+        gameId: 'last_war',
+        used: false,
+        expiresAt: futureTimestamp(),
+    });
+
+    // Seed a used personal token for negative test
+    await seedDoc(`users/${PERSONAL_UID}/update_tokens/personal_token_used`, {
+        contextType: 'personal',
+        ownerUid: PERSONAL_UID,
+        playerName: 'Eve',
+        gameId: 'last_war',
         used: true,
         expiresAt: futureTimestamp(),
     });
@@ -250,16 +284,126 @@ test('update_tokens: anonymous user CANNOT update already-used token', async () 
 });
 
 // ---------------------------------------------------------------------------
-// pending_updates — create (anonymous only, with validation)
+// pending_updates — create (anonymous only, with token cross-reference)
+// Alliance path
 // ---------------------------------------------------------------------------
 
-test('pending_updates: anonymous user can create pending_updates with valid values', async () => {
+test('pending_updates: anonymous user can create pending_updates with valid token cross-reference', async () => {
+    // TOKEN_ID was created above with playerName: 'Alice', gameId: 'last_war', used: false
     const db = anonDb('anon_uid_creates_update');
     await assertSucceeds(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/${UPDATE_ID}`).set({
             tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create with wrong playerName (scope violation)', async () => {
+    const db = anonDb('anon_uid_scope_test_1');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_wrong_name`).set({
+            tokenId: 'token_scope_test',
+            playerName: 'NotDave',  // token has playerName: 'Dave'
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create with wrong gameId (scope violation)', async () => {
+    const db = anonDb('anon_uid_scope_test_2');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_wrong_game`).set({
+            tokenId: 'token_scope_test',
+            playerName: 'Dave',
+            gameId: 'canyon_storm',  // token has gameId: 'last_war'
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create with used token', async () => {
+    const db = anonDb('anon_uid_scope_test_3');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_used_token`).set({
+            tokenId: 'token_used',
+            playerName: 'Charlie',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create without tokenId', async () => {
+    const db = anonDb('anon_uid_scope_test_4');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_no_token`).set({
+            playerName: 'Alice',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create without playerName', async () => {
+    const db = anonDb('anon_uid_scope_test_5');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_no_player`).set({
+            tokenId: TOKEN_ID,
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create with status != pending', async () => {
+    const db = anonDb('anon_uid_scope_test_6');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_status`).set({
+            tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'approved',  // must be 'pending'
             proposedValues: {
                 power: 5000,
                 thp: 50000,
@@ -273,6 +417,10 @@ test('pending_updates: anonymous user CANNOT create pending_updates with power >
     const db = anonDb();
     await assertFails(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_power`).set({
+            tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            status: 'pending',
             proposedValues: {
                 power: 10000,
                 thp: 50000,
@@ -286,6 +434,10 @@ test('pending_updates: anonymous user CANNOT create pending_updates with power <
     const db = anonDb();
     await assertFails(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_neg_power`).set({
+            tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            status: 'pending',
             proposedValues: {
                 power: -1,
                 thp: 50000,
@@ -299,6 +451,10 @@ test('pending_updates: anonymous user CANNOT create pending_updates with thp > 9
     const db = anonDb();
     await assertFails(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_thp`).set({
+            tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            status: 'pending',
             proposedValues: {
                 power: 5000,
                 thp: 100000,
@@ -312,6 +468,10 @@ test('pending_updates: anonymous user CANNOT create pending_updates with invalid
     const db = anonDb();
     await assertFails(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_troops`).set({
+            tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            status: 'pending',
             proposedValues: {
                 power: 5000,
                 thp: 50000,
@@ -325,10 +485,114 @@ test('pending_updates: alliance member CANNOT create pending_updates (not anonym
     const db = authedDb(MEMBER_UID);
     await assertFails(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_by_member`).set({
+            tokenId: TOKEN_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            status: 'pending',
             proposedValues: {
                 power: 5000,
                 thp: 50000,
                 troops: 'Tank',
+            },
+        })
+    );
+});
+
+// ---------------------------------------------------------------------------
+// pending_updates — create (personal path)
+// ---------------------------------------------------------------------------
+
+test('pending_updates (personal): anonymous user can create with valid token cross-reference', async () => {
+    // PERSONAL_TOKEN_ID seeded above with playerName: 'Eve', gameId: 'last_war', used: false
+    const db = anonDb('anon_uid_personal_create');
+    await assertSucceeds(
+        db.doc(`users/${PERSONAL_UID}/pending_updates/personal_update_1`).set({
+            ownerUid: PERSONAL_UID,
+            tokenId: PERSONAL_TOKEN_ID,
+            playerName: 'Eve',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 3000,
+                thp: 30000,
+                troops: 'Aero',
+            },
+        })
+    );
+});
+
+test('pending_updates (personal): anonymous user CANNOT create with wrong playerName', async () => {
+    const db = anonDb('anon_uid_personal_wrong_name');
+    await assertFails(
+        db.doc(`users/${PERSONAL_UID}/pending_updates/personal_update_wrong_name`).set({
+            ownerUid: PERSONAL_UID,
+            tokenId: PERSONAL_TOKEN_ID,
+            playerName: 'NotEve',  // token has playerName: 'Eve'
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 3000,
+                thp: 30000,
+                troops: 'Aero',
+            },
+        })
+    );
+});
+
+test('pending_updates (personal): anonymous user CANNOT create with wrong gameId', async () => {
+    const db = anonDb('anon_uid_personal_wrong_game');
+    await assertFails(
+        db.doc(`users/${PERSONAL_UID}/pending_updates/personal_update_wrong_game`).set({
+            ownerUid: PERSONAL_UID,
+            tokenId: PERSONAL_TOKEN_ID,
+            playerName: 'Eve',
+            gameId: 'canyon_storm',  // token has gameId: 'last_war'
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 3000,
+                thp: 30000,
+                troops: 'Aero',
+            },
+        })
+    );
+});
+
+test('pending_updates (personal): anonymous user CANNOT create with used token', async () => {
+    const db = anonDb('anon_uid_personal_used_token');
+    await assertFails(
+        db.doc(`users/${PERSONAL_UID}/pending_updates/personal_update_used_token`).set({
+            ownerUid: PERSONAL_UID,
+            tokenId: 'personal_token_used',
+            playerName: 'Eve',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 3000,
+                thp: 30000,
+                troops: 'Aero',
+            },
+        })
+    );
+});
+
+test('pending_updates (personal): anonymous user CANNOT create with wrong ownerUid', async () => {
+    const db = anonDb('anon_uid_personal_wrong_owner');
+    await assertFails(
+        db.doc(`users/${PERSONAL_UID}/pending_updates/personal_update_wrong_owner`).set({
+            ownerUid: 'some_other_uid',  // must match path uid
+            tokenId: PERSONAL_TOKEN_ID,
+            playerName: 'Eve',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 3000,
+                thp: 30000,
+                troops: 'Aero',
             },
         })
     );
@@ -341,6 +605,8 @@ test('pending_updates: alliance member CANNOT create pending_updates (not anonym
 test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/pending_updates/update_seeded`, {
         tokenId: TOKEN_ID,
+        playerName: 'Alice',
+        gameId: 'last_war',
         status: 'pending',
         proposedValues: { power: 3000, thp: 30000, troops: 'Tank' },
     });

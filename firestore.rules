@@ -88,6 +88,16 @@ service cloud.firestore {
       match /pending_updates/{updateId} {
         allow create: if isAnonymous()
                       && request.resource.data.ownerUid == uid
+                      && request.resource.data.tokenId is string
+                      && request.resource.data.tokenId.size() > 0
+                      && request.resource.data.playerName is string
+                      && request.resource.data.playerName.size() > 0
+                      && request.resource.data.playerName.size() <= 50
+                      && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                      && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                      && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                      && request.resource.data.status == 'pending'
+                      && (request.resource.data.gameId is string || request.resource.data.gameId == null)
                       && request.resource.data.proposedValues.power is number
                       && request.resource.data.proposedValues.power >= 0
                       && request.resource.data.proposedValues.power <= 9999
@@ -231,6 +241,16 @@ service cloud.firestore {
       match /pending_updates/{updateId} {
         allow create: if isAnonymous()
                       && (!('ownerUid' in request.resource.data) || request.resource.data.ownerUid == null)
+                      && request.resource.data.tokenId is string
+                      && request.resource.data.tokenId.size() > 0
+                      && request.resource.data.playerName is string
+                      && request.resource.data.playerName.size() > 0
+                      && request.resource.data.playerName.size() <= 50
+                      && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                      && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                      && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                      && request.resource.data.status == 'pending'
+                      && (request.resource.data.gameId is string || request.resource.data.gameId == null)
                       && request.resource.data.proposedValues.power is number
                       && request.resource.data.proposedValues.power >= 0
                       && request.resource.data.proposedValues.power <= 9999

@@ -5784,26 +5784,12 @@ const FirebaseManager = (function() {
         };
     }
 
-    async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+    async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
         if (!currentUser) {
             return { ok: false, error: 'Not signed in' };
         }
-        var nextPlayer = {
-            name: playerName,
-            power: proposedValues.power,
-            thp: proposedValues.thp,
-            troops: proposedValues.troops,
-        };
-        // RC-1: resolve game context (same pattern as public API wrappers)
-        // RC-2: pass '' as originalName to use the add-or-update path
-        var gameContext = resolveGameplayContext('applyPlayerUpdateToPersonal', null);
-        var result = await upsertPlayerEntry('personal', '', nextPlayer, gameContext);
-        return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
-    }
-
-    async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
-        if (!currentUser || !allianceId) {
-            return { ok: false, error: 'Not in alliance' };
+        if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
+            return { ok: false, error: 'snapshot_integrity_error' };
         }
         var nextPlayer = {
             name: playerName,
@@ -5811,8 +5797,26 @@ const FirebaseManager = (function() {
             thp: proposedValues.thp,
             troops: proposedValues.troops,
         };
-        var gameContext = resolveGameplayContext('applyPlayerUpdateToAlliance', null);
-        var result = await upsertPlayerEntry('alliance', '', nextPlayer, gameContext);
+        var gameContext = resolveGameplayContext('applyPlayerUpdateToPersonal', gameId || null);
+        var result = await upsertPlayerEntry('personal', playerName, nextPlayer, gameContext);
+        return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
+    }
+
+    async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+        if (!currentUser || !allianceId) {
+            return { ok: false, error: 'Not in alliance' };
+        }
+        if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
+            return { ok: false, error: 'snapshot_integrity_error' };
+        }
+        var nextPlayer = {
+            name: playerName,
+            power: proposedValues.power,
+            thp: proposedValues.thp,
+            troops: proposedValues.troops,
+        };
+        var gameContext = resolveGameplayContext('applyPlayerUpdateToAlliance', gameId || null);
+        var result = await upsertPlayerEntry('alliance', playerName, nextPlayer, gameContext);
         return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
     }
 

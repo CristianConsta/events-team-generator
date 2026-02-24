@@ -205,6 +205,7 @@
                                 ownerUid: isPersonal ? uidParam : null,
                                 allianceId: isPersonal ? null : aid,
                                 playerName: tokenDoc.playerName,
+                                gameId: tokenDoc.gameId || null,
                                 proposedValues: proposed,
                                 currentSnapshot: tokenDoc.currentSnapshot || {},
                                 submittedAt: firebase.firestore.Timestamp.now(),
