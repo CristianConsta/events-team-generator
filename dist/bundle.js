@@ -5026,23 +5026,12 @@
             });
           };
         }
-        async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+        async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
           if (!currentUser) {
             return { ok: false, error: "Not signed in" };
           }
-          var nextPlayer = {
-            name: playerName,
-            power: proposedValues.power,
-            thp: proposedValues.thp,
-            troops: proposedValues.troops
-          };
-          var gameContext = resolveGameplayContext("applyPlayerUpdateToPersonal", null);
-          var result = await upsertPlayerEntry("personal", "", nextPlayer, gameContext);
-          return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
-        }
-        async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
-          if (!currentUser || !allianceId) {
-            return { ok: false, error: "Not in alliance" };
+          if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
+            return { ok: false, error: "snapshot_integrity_error" };
           }
           var nextPlayer = {
             name: playerName,
@@ -5050,8 +5039,25 @@
             thp: proposedValues.thp,
             troops: proposedValues.troops
           };
-          var gameContext = resolveGameplayContext("applyPlayerUpdateToAlliance", null);
-          var result = await upsertPlayerEntry("alliance", "", nextPlayer, gameContext);
+          var gameContext = resolveGameplayContext("applyPlayerUpdateToPersonal", gameId || null);
+          var result = await upsertPlayerEntry("personal", playerName, nextPlayer, gameContext);
+          return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
+        }
+        async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+          if (!currentUser || !allianceId) {
+            return { ok: false, error: "Not in alliance" };
+          }
+          if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
+            return { ok: false, error: "snapshot_integrity_error" };
+          }
+          var nextPlayer = {
+            name: playerName,
+            power: proposedValues.power,
+            thp: proposedValues.thp,
+            troops: proposedValues.troops
+          };
+          var gameContext = resolveGameplayContext("applyPlayerUpdateToAlliance", gameId || null);
+          var result = await upsertPlayerEntry("alliance", playerName, nextPlayer, gameContext);
           return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
         }
         return {
@@ -14462,12 +14468,12 @@
           var applyPromises = [];
           if (target === "personal" || target === "both") {
             applyPromises.push(
-              _gateway.applyPlayerUpdateToPersonal(playerName, proposed)
+              _gateway.applyPlayerUpdateToPersonal(playerName, proposed, update.gameId || null)
             );
           }
           if ((target === "alliance" || target === "both") && allianceId) {
             applyPromises.push(
-              _gateway.applyPlayerUpdateToAlliance(playerName, proposed)
+              _gateway.applyPlayerUpdateToAlliance(playerName, proposed, update.gameId || null)
             );
           }
           return Promise.all(applyPromises).then(function(applyResults) {
@@ -16215,15 +16221,15 @@
                 }
               );
             },
-            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
               return gatewayUtils.withManager(
-                (svc) => svc.applyPlayerUpdateToPersonal(playerName, proposedValues),
+                (svc) => svc.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId),
                 gatewayUtils.notLoadedResult()
               );
             },
-            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
               return gatewayUtils.withManager(
-                (svc) => svc.applyPlayerUpdateToAlliance(playerName, proposedValues),
+                (svc) => svc.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId),
                 gatewayUtils.notLoadedResult()
               );
             },
@@ -16568,14 +16574,14 @@
               }, function noop() {
               });
             },
-            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
               return gatewayUtils.withManager(function(svc) {
-                return svc.applyPlayerUpdateToPersonal(playerName, proposedValues);
+                return svc.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId);
               }, gatewayUtils.notLoadedResult());
             },
-            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
               return gatewayUtils.withManager(function(svc) {
-                return svc.applyPlayerUpdateToAlliance(playerName, proposedValues);
+                return svc.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId);
               }, gatewayUtils.notLoadedResult());
             },
             createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
@@ -17332,11 +17338,11 @@
           subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
             return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);
           },
-          applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues) {
-            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues);
+          applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
+            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId);
           },
-          applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues) {
-            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues);
+          applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId);
           },
           createPersonalUpdateToken: function createPersonalUpdateToken(uid, playerName, options) {
             return playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, options);
