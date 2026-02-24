@@ -14454,7 +14454,8 @@
           });
         }
         function _doApprove(updateId, update, allianceId, target) {
-          var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
+          var currentUser = _gateway.getCurrentUser ? _gateway.getCurrentUser() : null;
+          var reviewedBy = currentUser ? currentUser.uid : null;
           var proposed = update.proposedValues || {};
           var playerName = update.playerName;
           var contextType = update.contextType;
@@ -14515,7 +14516,8 @@
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
           var update = _pendingUpdateDocs[updateId];
           var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-          var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
+          var currentUser = _gateway.getCurrentUser ? _gateway.getCurrentUser() : null;
+          var reviewedBy = currentUser ? currentUser.uid : null;
           var decision = {
             status: "rejected",
             reviewedBy,

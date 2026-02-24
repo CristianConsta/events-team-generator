@@ -54,6 +54,7 @@ function loadModules() {
 function makeMockGateway(overrides) {
     return Object.assign({
         getAllianceId: function () { return 'alliance_pu_integ_1'; },
+        getCurrentUser: function () { return { uid: 'uid_leader_pu' }; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: ['tok_1', 'tok_2'] }; },
         updatePendingUpdateStatus: async function () { return { ok: true }; },
         updatePersonalPendingUpdateStatus: async function () { return { ok: true }; },

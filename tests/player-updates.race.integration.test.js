@@ -58,6 +58,7 @@ test('race condition: first approveUpdate succeeds, second fails with PERMISSION
     var callCount = 0;
     var gateway = {
         getAllianceId: function () { return null; },
+        getCurrentUser: function () { return { uid: 'race-user-1' }; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: [] }; },
         updatePendingUpdateStatus: async function (allianceId, updateId, update) {
             callCount++;
@@ -147,6 +148,7 @@ test('race condition: approveUpdate and rejectUpdate concurrently — both resol
     var writes = [];
     var gateway = {
         getAllianceId: function () { return null; },
+        getCurrentUser: function () { return { uid: 'race-user-2' }; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: [] }; },
         updatePendingUpdateStatus: async function (allianceId, updateId, update) {
             writes.push(update.status);

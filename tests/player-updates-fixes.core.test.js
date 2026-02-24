@@ -135,6 +135,7 @@ function makeDOMStub() {
 function makeMockGateway(overrides) {
     return Object.assign({
         getAllianceId: function () { return 'alliance_test_1'; },
+        getCurrentUser: function () { return { uid: 'uid_leader_pu' }; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: [] }; },
         updatePendingUpdateStatus: async function () { return { ok: true }; },
         updatePersonalPendingUpdateStatus: async function () { return { ok: true }; },

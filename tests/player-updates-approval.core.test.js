@@ -64,6 +64,7 @@ function setupGlobals() {
 function createMockGateway(overrides) {
     return Object.assign({
         getAllianceId: function () { return null; },
+        getCurrentUser: function () { return { uid: 'test-user-123' }; },
         subscribePendingUpdatesCount: function () { return function noop() {}; },
         updatePendingUpdateStatus: function () { return Promise.resolve({ ok: true }); },
         updatePersonalPendingUpdateStatus: function () { return Promise.resolve({ ok: true }); },
