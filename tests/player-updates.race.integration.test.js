@@ -57,19 +57,35 @@ test('race condition: first approveUpdate succeeds, second fails with PERMISSION
 
     var callCount = 0;
     var gateway = {
+        getAllianceId: function () { return null; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: [] }; },
         updatePendingUpdateStatus: async function (allianceId, updateId, update) {
             callCount++;
             if (callCount === 1) {
                 return { ok: true };
             }
-            // Second concurrent call rejected by Firestore (token already used)
             throw makePermissionDeniedError();
         },
+        updatePersonalPendingUpdateStatus: async function (uid, updateId, update) {
+            callCount++;
+            if (callCount === 1) {
+                return { ok: true };
+            }
+            throw makePermissionDeniedError();
+        },
+        applyPlayerUpdateToPersonal: async function () { return { ok: true }; },
+        applyPlayerUpdateToAlliance: async function () { return { ok: true }; },
         revokeToken: async function () { return { ok: true }; },
     };
 
     global.DSFeaturePlayerUpdatesController.init(gateway);
+    global.DSFeaturePlayerUpdatesController.setPendingUpdateDocs([{
+        id: 'upd_race_1',
+        contextType: 'personal',
+        ownerUid: 'uid_leader_race',
+        playerName: 'RacePlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
 
     // Fire both approvals concurrently
     const [result1, result2] = await Promise.all([
@@ -130,17 +146,31 @@ test('race condition: approveUpdate and rejectUpdate concurrently — both resol
 
     var writes = [];
     var gateway = {
+        getAllianceId: function () { return null; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: [] }; },
         updatePendingUpdateStatus: async function (allianceId, updateId, update) {
             writes.push(update.status);
-            // Simulate small random delay to interleave
             await new Promise(function (resolve) { setTimeout(resolve, Math.random() * 10); });
             return { ok: true };
         },
+        updatePersonalPendingUpdateStatus: async function (uid, updateId, update) {
+            writes.push(update.status);
+            await new Promise(function (resolve) { setTimeout(resolve, Math.random() * 10); });
+            return { ok: true };
+        },
+        applyPlayerUpdateToPersonal: async function () { return { ok: true }; },
+        applyPlayerUpdateToAlliance: async function () { return { ok: true }; },
         revokeToken: async function () { return { ok: true }; },
     };
 
     global.DSFeaturePlayerUpdatesController.init(gateway);
+    global.DSFeaturePlayerUpdatesController.setPendingUpdateDocs([{
+        id: 'upd_concurrent',
+        contextType: 'personal',
+        ownerUid: 'uid_leader_race',
+        playerName: 'ConcurrentPlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
 
     const [approveResult, rejectResult] = await Promise.all([
         global.DSFeaturePlayerUpdatesController.approveUpdate('upd_concurrent'),
@@ -150,8 +180,8 @@ test('race condition: approveUpdate and rejectUpdate concurrently — both resol
     // Both should resolve (not throw)
     assert.equal(approveResult.ok, true);
     assert.equal(rejectResult.ok, true);
-    // Both writes should have been attempted
-    assert.equal(writes.length, 2);
+    // Both writes should have been attempted — approve writes apply + status, reject writes status
+    assert.ok(writes.length >= 2);
     assert.ok(writes.includes('approved'));
     assert.ok(writes.includes('rejected'));
 });

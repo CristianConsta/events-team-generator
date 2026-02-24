@@ -56,8 +56,11 @@ function makeMockGateway(overrides) {
         getAllianceId: function () { return 'alliance_pu_integ_1'; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: ['tok_1', 'tok_2'] }; },
         updatePendingUpdateStatus: async function () { return { ok: true }; },
+        updatePersonalPendingUpdateStatus: async function () { return { ok: true }; },
+        applyPlayerUpdateToPersonal: async function () { return { ok: true }; },
+        applyPlayerUpdateToAlliance: async function () { return { ok: true }; },
         revokeToken: async function () { return { ok: true }; },
-        subscribePendingUpdatesCount: function (allianceId, cb) { cb(0); return function () {}; },
+        subscribePendingUpdatesCount: function (allianceId, uid, cb) { if (typeof uid === 'function') { uid(0); } else if (typeof cb === 'function') { cb(0); } return function () {}; },
         loadPendingUpdates: async function () { return []; },
     }, overrides || {});
 }
@@ -183,6 +186,15 @@ test('approveUpdate: calls updatePendingUpdateStatus with status approved', asyn
     });
 
     global.DSFeaturePlayerUpdatesController.init(gateway);
+    // New approval flow requires docs to be registered
+    global.DSFeaturePlayerUpdatesController.setPendingUpdateDocs([{
+        id: 'upd_001',
+        contextType: 'alliance',
+        allianceId: 'alliance_pu_integ_1',
+        playerName: 'Alice',
+        proposedValues: { power: 1100, thp: 5500, troops: 'Tank' },
+    }]);
+    // No applyTargetModal in DOM → defaults to 'both'
     const result = await global.DSFeaturePlayerUpdatesController.approveUpdate('upd_001');
 
     assert.equal(result.ok, true);
@@ -191,6 +203,7 @@ test('approveUpdate: calls updatePendingUpdateStatus with status approved', asyn
     assert.equal(capturedArgs.updateId, 'upd_001');
     assert.equal(capturedArgs.update.status, 'approved');
     assert.equal(capturedArgs.update.reviewedBy, 'uid_leader_pu');
+    assert.equal(capturedArgs.update.appliedTo, 'both');
 });
 
 test('approveUpdate: returns ok=false if updateId is missing', async () => {

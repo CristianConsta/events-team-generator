@@ -38,10 +38,22 @@
                     []
                 );
             },
-            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
                 return gatewayUtils.withManager(
-                    (svc) => svc.subscribePendingUpdatesCount(allianceId, callback),
+                    (svc) => svc.subscribePendingUpdatesCount(allianceId, uid, callback),
                     function noop() {}
+                );
+            },
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.applyPlayerUpdateToPersonal(playerName, proposedValues),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.applyPlayerUpdateToAlliance(playerName, proposedValues),
+                    gatewayUtils.notLoadedResult()
                 );
             },
             createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {

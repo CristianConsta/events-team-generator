@@ -161,7 +161,8 @@
                         ? global.FirebaseService.getAllianceId()
                         : null;
                     if (puAllianceId) {
-                        global._playerUpdatesController.subscribeBadge(puAllianceId);
+                        var puUid = global.currentAuthUser ? global.currentAuthUser.uid : null;
+                    global._playerUpdatesController.subscribeBadge(puAllianceId, puUid);
                     }
                 }
             });

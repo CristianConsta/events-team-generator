@@ -202,6 +202,8 @@
                             // write pending_update doc
                             var pendingUpdateDoc = {
                                 contextType: isPersonal ? 'personal' : 'alliance',
+                                ownerUid: isPersonal ? uidParam : null,
+                                allianceId: isPersonal ? null : aid,
                                 playerName: tokenDoc.playerName,
                                 proposedValues: proposed,
                                 currentSnapshot: tokenDoc.currentSnapshot || {},
@@ -218,10 +220,6 @@
                                 : firebase.firestore()
                                     .collection('alliances').doc(aid)
                                     .collection('pending_updates');
-
-                            if (!isPersonal) {
-                                pendingUpdateDoc.allianceId = aid;
-                            }
 
                             pendingRef
                                 .add(pendingUpdateDoc)

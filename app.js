@@ -1339,6 +1339,11 @@ function bindStaticUiActions() {
 
         Promise.all([alliancePromise, personalPromise]).then(function(results) {
             var combined = (results[0] || []).concat(results[1] || []);
+            // Register docs with controller so approveUpdate/rejectUpdate can look up metadata
+            if (window._playerUpdatesController
+                && typeof window._playerUpdatesController.setPendingUpdateDocs === 'function') {
+                window._playerUpdatesController.setPendingUpdateDocs(combined);
+            }
             window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, combined);
         }).catch(function() {
             window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, []);

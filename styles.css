@@ -2440,6 +2440,53 @@ select {
     display: block;
     margin: 15px auto 0;
 }
+/* ── Apply Target Modal ── */
+.modal-shell--apply-target {
+    width: min(420px, 92vw);
+    padding: 28px;
+}
+.apply-target-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+.apply-target-btn {
+    padding: 14px 10px;
+    font-size: 14px;
+    text-align: center;
+}
+/* ── Player Updates Review Panel ── */
+.review-decision-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+.review-approve-btn,
+.review-reject-btn {
+    min-width: 100px;
+}
+.review-decision-applied {
+    opacity: 0.5;
+    pointer-events: none;
+}
+.review-source-badge {
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 2px 7px;
+    margin-left: 8px;
+    opacity: 0.85;
+    vertical-align: middle;
+}
+.review-source-badge--personal {
+    background: rgba(var(--gold-rgb), 0.15);
+    color: var(--gold);
+}
+.review-source-badge--alliance {
+    background: rgba(100, 160, 255, 0.15);
+    color: #7ab4ff;
+}
 .modal-shell--coord-picker {
     width: min(1000px, 95vw);
     max-height: 90vh;

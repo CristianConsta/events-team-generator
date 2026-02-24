@@ -5740,19 +5740,80 @@ const FirebaseManager = (function() {
         }
     }
 
-    function subscribePendingUpdatesCount(allianceIdParam, callback) {
-        if (!db || !allianceIdParam || typeof callback !== 'function') {
+    function subscribePendingUpdatesCount(allianceIdParam, uidParam, callback) {
+        // Support old 2-arg call: subscribePendingUpdatesCount(allianceId, callback)
+        if (typeof uidParam === 'function') {
+            callback = uidParam;
+            uidParam = null;
+        }
+        if (!db || typeof callback !== 'function') {
             return function noop() {};
         }
-        return db.collection('alliances').doc(allianceIdParam)
-            .collection('pending_updates')
-            .where('status', '==', 'pending')
-            .onSnapshot(function(snapshot) {
-                callback(snapshot.size);
-            }, function(err) {
-                console.error('subscribePendingUpdatesCount error:', err);
-                callback(0);
-            });
+
+        var counts = { alliance: 0, personal: 0 };
+        var unsubFns = [];
+
+        function emit() {
+            callback(counts.alliance + counts.personal);
+        }
+
+        if (allianceIdParam) {
+            var unsubAlliance = db.collection('alliances').doc(allianceIdParam)
+                .collection('pending_updates')
+                .where('status', '==', 'pending')
+                .onSnapshot(function(snap) {
+                    counts.alliance = snap.size;
+                    emit();
+                }, function() { counts.alliance = 0; emit(); });
+            unsubFns.push(unsubAlliance);
+        }
+
+        if (uidParam) {
+            var unsubPersonal = db.collection('users').doc(uidParam)
+                .collection('pending_updates')
+                .where('status', '==', 'pending')
+                .onSnapshot(function(snap) {
+                    counts.personal = snap.size;
+                    emit();
+                }, function() { counts.personal = 0; emit(); });
+            unsubFns.push(unsubPersonal);
+        }
+
+        return function unsubscribe() {
+            unsubFns.forEach(function(fn) { fn(); });
+        };
+    }
+
+    async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+        if (!currentUser) {
+            return { ok: false, error: 'Not signed in' };
+        }
+        var nextPlayer = {
+            name: playerName,
+            power: proposedValues.power,
+            thp: proposedValues.thp,
+            troops: proposedValues.troops,
+        };
+        // RC-1: resolve game context (same pattern as public API wrappers)
+        // RC-2: pass '' as originalName to use the add-or-update path
+        var gameContext = resolveGameplayContext('applyPlayerUpdateToPersonal', null);
+        var result = await upsertPlayerEntry('personal', '', nextPlayer, gameContext);
+        return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
+    }
+
+    async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+        if (!currentUser || !allianceId) {
+            return { ok: false, error: 'Not in alliance' };
+        }
+        var nextPlayer = {
+            name: playerName,
+            power: proposedValues.power,
+            thp: proposedValues.thp,
+            troops: proposedValues.troops,
+        };
+        var gameContext = resolveGameplayContext('applyPlayerUpdateToAlliance', null);
+        var result = await upsertPlayerEntry('alliance', '', nextPlayer, gameContext);
+        return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
     }
 
     // ============================================================
@@ -6006,6 +6067,8 @@ const FirebaseManager = (function() {
         revokeToken: revokeToken,
         loadActiveTokens: loadActiveTokens,
         subscribePendingUpdatesCount: subscribePendingUpdatesCount,
+        applyPlayerUpdateToPersonal: applyPlayerUpdateToPersonal,
+        applyPlayerUpdateToAlliance: applyPlayerUpdateToAlliance,
         // Personal Player Updates
         createPersonalUpdateToken: createPersonalUpdateToken,
         createPersonalPendingUpdate: createPersonalPendingUpdate,

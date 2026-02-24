@@ -281,8 +281,14 @@
             loadActiveTokens: async function loadActiveTokens(allianceId) {
                 return gatewayUtils.withManager(function (svc) { return svc.loadActiveTokens(allianceId); }, []);
             },
-            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
-                return gatewayUtils.withManager(function (svc) { return svc.subscribePendingUpdatesCount(allianceId, callback); }, function noop() {});
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
+                return gatewayUtils.withManager(function (svc) { return svc.subscribePendingUpdatesCount(allianceId, uid, callback); }, function noop() {});
+            },
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToPersonal(playerName, proposedValues); }, gatewayUtils.notLoadedResult());
+            },
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToAlliance(playerName, proposedValues); }, gatewayUtils.notLoadedResult());
             },
             createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
                 return gatewayUtils.withManager(function (svc) { return svc.createPersonalUpdateToken(uid, playerName, options); }, gatewayUtils.notLoadedResult());
@@ -1086,8 +1092,14 @@
         loadActiveTokens: function loadActiveTokens(allianceId) {
             return playerUpdatesGateway.loadActiveTokens(allianceId);
         },
-        subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, callback) {
-            return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, callback);
+        subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
+            return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);
+        },
+        applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues) {
+            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues);
+        },
+        applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues) {
+            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues);
         },
         createPersonalUpdateToken: function createPersonalUpdateToken(uid, playerName, options) {
             return playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, options);

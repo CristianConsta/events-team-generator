@@ -137,8 +137,11 @@ function makeMockGateway(overrides) {
         getAllianceId: function () { return 'alliance_test_1'; },
         saveTokenBatch: async function () { return { ok: true, tokenIds: [] }; },
         updatePendingUpdateStatus: async function () { return { ok: true }; },
+        updatePersonalPendingUpdateStatus: async function () { return { ok: true }; },
+        applyPlayerUpdateToPersonal: async function () { return { ok: true }; },
+        applyPlayerUpdateToAlliance: async function () { return { ok: true }; },
         revokeToken: async function () { return { ok: true }; },
-        subscribePendingUpdatesCount: function (allianceId, cb) { cb(0); return function () {}; },
+        subscribePendingUpdatesCount: function (allianceId, uid, cb) { if (typeof uid === 'function') { uid(0); } else if (typeof cb === 'function') { cb(0); } return function () {}; },
         loadPendingUpdates: async function () { return []; },
     }, overrides || {});
 }
@@ -255,7 +258,7 @@ test('subscribeBadge: badge clears when count drops to 0', () => {
 
     var savedCb = null;
     var gateway = makeMockGateway({
-        subscribePendingUpdatesCount: function (allianceId, cb) {
+        subscribePendingUpdatesCount: function (allianceId, uid, cb) {
             savedCb = cb;
             return function () {};
         },
@@ -275,7 +278,7 @@ test('subscribeBadge: badge clears when count drops to 0', () => {
     };
 
     global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.subscribeBadge('alliance_badge_test');
+    global.DSFeaturePlayerUpdatesController.subscribeBadge('alliance_badge_test', 'uid_badge_test');
 
     // Fire with non-zero count
     savedCb(5);
@@ -511,6 +514,15 @@ test('controller allianceId resolution: approveUpdate uses _gateway.getAllianceI
     });
 
     global.DSFeaturePlayerUpdatesController.init(gateway);
+    // New approval flow requires docs to be registered first
+    global.DSFeaturePlayerUpdatesController.setPendingUpdateDocs([{
+        id: 'upd_x',
+        contextType: 'alliance',
+        allianceId: 'correct_gateway_alliance',
+        playerName: 'TestPlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+    // For alliance users, approveUpdate shows modal — no modal in test env, so it defaults to 'both'
     await global.DSFeaturePlayerUpdatesController.approveUpdate('upd_x');
 
     assert.equal(capturedAllianceId, 'correct_gateway_alliance',

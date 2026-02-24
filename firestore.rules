@@ -87,6 +87,7 @@ service cloud.firestore {
       // Personal pending player updates submitted via token links.
       match /pending_updates/{updateId} {
         allow create: if isAnonymous()
+                      && request.resource.data.ownerUid == uid
                       && request.resource.data.proposedValues.power is number
                       && request.resource.data.proposedValues.power >= 0
                       && request.resource.data.proposedValues.power <= 9999
@@ -94,7 +95,11 @@ service cloud.firestore {
                       && request.resource.data.proposedValues.thp >= 0
                       && request.resource.data.proposedValues.thp <= 99999
                       && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
-        allow read, update: if isSelf(uid);
+        allow read: if isSelf(uid);
+        allow update: if isSelf(uid)
+                      && request.resource.data.diff(resource.data)
+                             .affectedKeys()
+                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
       }
 
       match /games/{gameId} {
@@ -225,6 +230,7 @@ service cloud.firestore {
 
       match /pending_updates/{updateId} {
         allow create: if isAnonymous()
+                      && (!('ownerUid' in request.resource.data) || request.resource.data.ownerUid == null)
                       && request.resource.data.proposedValues.power is number
                       && request.resource.data.proposedValues.power >= 0
                       && request.resource.data.proposedValues.power <= 9999
@@ -232,7 +238,11 @@ service cloud.firestore {
                       && request.resource.data.proposedValues.thp >= 0
                       && request.resource.data.proposedValues.thp <= 99999
                       && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
-        allow read, update: if isAllianceMember(allianceId);
+        allow read: if isAllianceMember(allianceId);
+        allow update: if isAllianceMember(allianceId)
+                      && request.resource.data.diff(resource.data)
+                             .affectedKeys()
+                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
       }
     }
 

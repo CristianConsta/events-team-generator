@@ -2,6 +2,7 @@
     var _gateway = null;
     var _unsubscribe = null;
     var _badgeUnsub = null;
+    var _pendingUpdateDocs = {}; // { [updateId]: update_doc }
     var _autoApproveThresholds = {
         powerMaxDeltaPct: null,
         thpMaxDeltaPct: null,
@@ -30,15 +31,29 @@
         _gateway = null;
     }
 
+    // Register pending update docs so approve/reject can look up metadata.
+    // Called by refreshPlayerUpdatesPanel in app.js after loading docs.
+    function setPendingUpdateDocs(updates) {
+        _pendingUpdateDocs = {};
+        if (Array.isArray(updates)) {
+            updates.forEach(function(u) {
+                if (u && u.id) {
+                    _pendingUpdateDocs[u.id] = u;
+                }
+            });
+        }
+    }
+
     // Subscribe to pending updates count for the nav badge.
-    // allianceId: string
-    function subscribeBadge(allianceId) {
+    // C2 fix: works for both alliance and non-alliance users
+    function subscribeBadge(allianceId, uid) {
         if (_badgeUnsub) {
             _badgeUnsub();
             _badgeUnsub = null;
         }
-        if (!_gateway || !allianceId || typeof _gateway.subscribePendingUpdatesCount !== 'function') return;
-        _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, function(count) {
+        if (!_gateway || typeof _gateway.subscribePendingUpdatesCount !== 'function') return;
+        if (!allianceId && !uid) return;
+        _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, uid, function(count) {
             var badge = document.getElementById('playerUpdatesPendingBadge');
             if (global.DSFeaturePlayerUpdatesView && typeof global.DSFeaturePlayerUpdatesView.renderPendingBadge === 'function') {
                 global.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
@@ -122,36 +137,146 @@
         });
     }
 
-    // Approve a pending update (applies to player record + marks approved).
-    // updateId: string
-    // Returns: Promise<{ ok, error? }>
-    function approveUpdate(updateId) {
-        if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
-        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-        var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
-        return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
-            status: 'approved',
-            reviewedBy: reviewedBy,
-            reviewedAt: new Date(),
-        }).catch(function (err) {
-            return { ok: false, error: err && err.message };
+    // Show alliance target selection modal. Returns Promise<'personal'|'alliance'|'both'|null>.
+    // R2 fix: includes Escape key handler
+    function _showApplyTargetPrompt() {
+        return new Promise(function(resolve) {
+            var modal = document.getElementById('applyTargetModal');
+            if (!modal) {
+                resolve('both');
+                return;
+            }
+
+            modal.classList.remove('hidden');
+            modal.focus();
+
+            function close(target) {
+                modal.classList.add('hidden');
+                cleanup();
+                resolve(target);
+            }
+
+            function onPersonal() { close('personal'); }
+            function onAlliance() { close('alliance'); }
+            function onBoth() { close('both'); }
+            function onCancel() { close(null); }
+            function onKeydown(e) {
+                if (e.key === 'Escape') { close(null); }
+            }
+
+            var personalBtn = document.getElementById('applyTargetPersonalBtn');
+            var allianceBtn = document.getElementById('applyTargetAllianceBtn');
+            var bothBtn = document.getElementById('applyTargetBothBtn');
+            var cancelBtn = document.getElementById('applyTargetCancelBtn');
+
+            if (personalBtn) personalBtn.addEventListener('click', onPersonal);
+            if (allianceBtn) allianceBtn.addEventListener('click', onAlliance);
+            if (bothBtn) bothBtn.addEventListener('click', onBoth);
+            if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
+            document.addEventListener('keydown', onKeydown);
+
+            function cleanup() {
+                if (personalBtn) personalBtn.removeEventListener('click', onPersonal);
+                if (allianceBtn) allianceBtn.removeEventListener('click', onAlliance);
+                if (bothBtn) bothBtn.removeEventListener('click', onBoth);
+                if (cancelBtn) cancelBtn.removeEventListener('click', onCancel);
+                document.removeEventListener('keydown', onKeydown);
+            }
         });
     }
 
-    // Reject a pending update.
-    // updateId: string
-    // Returns: Promise<{ ok, error? }>
+    // Internal: apply proposed values to target database(s) and mark status.
+    // "personal" target = approver's own player database (users/{approverUid}/...)
+    // "alliance" target = shared alliance database (alliances/{allianceId}/...)
+    function _doApprove(updateId, update, allianceId, target) {
+        var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
+        var proposed = update.proposedValues || {};
+        var playerName = update.playerName;
+        var contextType = update.contextType;
+
+        var applyPromises = [];
+
+        if (target === 'personal' || target === 'both') {
+            applyPromises.push(
+                _gateway.applyPlayerUpdateToPersonal(playerName, proposed)
+            );
+        }
+        if ((target === 'alliance' || target === 'both') && allianceId) {
+            applyPromises.push(
+                _gateway.applyPlayerUpdateToAlliance(playerName, proposed)
+            );
+        }
+
+        return Promise.all(applyPromises).then(function(applyResults) {
+            var anyFailed = applyResults.some(function(r) { return !r || !r.ok; });
+            if (anyFailed) {
+                return { ok: false, error: 'apply_failed' };
+            }
+
+            var decision = {
+                status: 'approved',
+                reviewedBy: reviewedBy,
+                reviewedAt: new Date(),
+                appliedTo: target,
+            };
+
+            if (contextType === 'personal') {
+                var ownerUid = update.ownerUid;
+                return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision)
+                    .catch(function(err) { return { ok: false, error: err && err.message }; });
+            } else {
+                return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision)
+                    .catch(function(err) { return { ok: false, error: err && err.message }; });
+            }
+        });
+    }
+
+    // Approve a pending update — applies proposed values to player database(s).
+    // For alliance users: prompts which database to update (personal / alliance / both).
+    // For non-alliance users: always applies to personal database.
+    function approveUpdate(updateId) {
+        if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
+
+        var update = _pendingUpdateDocs[updateId];
+        if (!update) return Promise.resolve({ ok: false, error: 'update not found' });
+
+        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+        var isAllianceUser = !!allianceId;
+
+        if (isAllianceUser) {
+            return _showApplyTargetPrompt().then(function(target) {
+                if (!target) {
+                    return { ok: false, cancelled: true };
+                }
+                return _doApprove(updateId, update, allianceId, target);
+            });
+        } else {
+            return _doApprove(updateId, update, null, 'personal');
+        }
+    }
+
+    // Reject a pending update — only updates status, no data changes.
     function rejectUpdate(updateId) {
         if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
+
+        var update = _pendingUpdateDocs[updateId];
         var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
         var reviewedBy = global.currentAuthUser && global.currentAuthUser.uid;
-        return _gateway.updatePendingUpdateStatus(allianceId, updateId, {
+
+        var decision = {
             status: 'rejected',
             reviewedBy: reviewedBy,
             reviewedAt: new Date(),
-        }).catch(function (err) {
-            return { ok: false, error: err && err.message };
-        });
+        };
+
+        if (update && update.contextType === 'personal') {
+            var ownerUid = update.ownerUid;
+            return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision)
+                .catch(function(err) { return { ok: false, error: err && err.message }; });
+        } else {
+            return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision)
+                .catch(function(err) { return { ok: false, error: err && err.message }; });
+        }
     }
 
     // Revoke a token (marks it used/invalid so it cannot be submitted).
@@ -179,5 +304,6 @@
         rejectUpdate: rejectUpdate,
         revokeToken: revokeToken,
         setAutoApproveThresholds: setAutoApproveThresholds,
+        setPendingUpdateDocs: setPendingUpdateDocs,
     };
 })(window);

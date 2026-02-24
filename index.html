@@ -986,6 +986,30 @@
                 </div>
             </div>
         </div>
+        <!-- Apply Target Modal (for alliance users approving a player update) -->
+        <div id="applyTargetModal" class="coord-overlay hidden" role="dialog" aria-modal="true"
+             aria-labelledby="applyTargetModalTitle" tabindex="-1">
+            <div class="modal-shell modal-shell--apply-target">
+                <div class="modal-header">
+                    <h2 id="applyTargetModalTitle" class="modal-title" data-i18n="player_updates_apply_target_title">Apply Update To</h2>
+                </div>
+                <p class="modal-description" data-i18n="player_updates_apply_target_desc">
+                    Choose which database to update. "Both" is selected by default.
+                </p>
+                <div class="apply-target-grid">
+                    <button id="applyTargetPersonalBtn" class="apply-target-btn secondary" type="button"
+                            data-i18n="player_updates_apply_my_db">My Database</button>
+                    <button id="applyTargetAllianceBtn" class="apply-target-btn secondary" type="button"
+                            data-i18n="player_updates_apply_alliance_db">Alliance Database</button>
+                    <button id="applyTargetBothBtn" class="apply-target-btn primary" type="button"
+                            data-i18n="player_updates_apply_both">Both (Default)</button>
+                </div>
+                <div class="settings-modal-actions">
+                    <button id="applyTargetCancelBtn" class="secondary" type="button"
+                            data-i18n="players_list_cancel_button">Cancel</button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Rollback switch: append ?legacy=1 to URL to load individual scripts instead of bundle -->

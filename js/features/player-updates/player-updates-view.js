@@ -112,6 +112,14 @@
         nameEl.className = 'review-player-name';
         nameEl.textContent = update.playerName || '';
         header.appendChild(nameEl);
+
+        var sourceBadge = document.createElement('span');
+        sourceBadge.className = 'review-source-badge review-source-badge--' + (update.contextType || 'unknown');
+        sourceBadge.textContent = update.contextType === 'personal'
+            ? ((global.DSI18N && global.DSI18N.t) ? global.DSI18N.t('player_updates_source_personal') : 'Personal')
+            : ((global.DSI18N && global.DSI18N.t) ? global.DSI18N.t('player_updates_source_alliance') : 'Alliance');
+        header.appendChild(sourceBadge);
+
         row.appendChild(header);
 
         var table = document.createElement('table');
@@ -191,23 +199,69 @@
         table.appendChild(tbody);
         row.appendChild(table);
 
-        // Decision radios
+        // Decision buttons (Approve / Reject)
         var decisionGroup = document.createElement('div');
         decisionGroup.className = 'review-decision-group';
 
-        ['approved', 'rejected'].forEach(function(decision) {
-            var label = document.createElement('label');
-            var radio = document.createElement('input');
-            radio.type = 'radio';
-            radio.name = 'review_decision_' + (update.id || '');
-            radio.value = decision;
-            radio.className = 'review-decision-radio';
-            radio.setAttribute('data-update-id', update.id || '');
-            label.appendChild(radio);
-            label.appendChild(document.createTextNode(' ' + (decision === 'approved' ? 'Approve' : 'Reject')));
-            decisionGroup.appendChild(label);
+        var approveBtn = document.createElement('button');
+        approveBtn.type = 'button';
+        approveBtn.className = 'primary review-approve-btn';
+        approveBtn.setAttribute('data-update-id', update.id || '');
+        approveBtn.setAttribute('data-i18n', 'player_updates_approve_btn');
+        approveBtn.textContent = (global.DSI18N && global.DSI18N.t)
+            ? global.DSI18N.t('player_updates_approve_btn') : 'Approve';
+
+        var rejectBtn = document.createElement('button');
+        rejectBtn.type = 'button';
+        rejectBtn.className = 'secondary review-reject-btn';
+        rejectBtn.setAttribute('data-update-id', update.id || '');
+        rejectBtn.setAttribute('data-i18n', 'player_updates_reject_btn');
+        rejectBtn.textContent = (global.DSI18N && global.DSI18N.t)
+            ? global.DSI18N.t('player_updates_reject_btn') : 'Reject';
+
+        approveBtn.addEventListener('click', function() {
+            var updateId = approveBtn.getAttribute('data-update-id');
+            if (global.DSFeaturePlayerUpdatesController
+                && typeof global.DSFeaturePlayerUpdatesController.approveUpdate === 'function') {
+                approveBtn.disabled = true;
+                rejectBtn.disabled = true;
+                global.DSFeaturePlayerUpdatesController.approveUpdate(updateId).then(function(result) {
+                    if (result && result.cancelled) {
+                        approveBtn.disabled = false;
+                        rejectBtn.disabled = false;
+                        return;
+                    }
+                    if (result && result.ok) {
+                        row.classList.add('review-decision-applied');
+                        row.setAttribute('aria-disabled', 'true');
+                    } else {
+                        approveBtn.disabled = false;
+                        rejectBtn.disabled = false;
+                    }
+                });
+            }
         });
 
+        rejectBtn.addEventListener('click', function() {
+            var updateId = rejectBtn.getAttribute('data-update-id');
+            if (global.DSFeaturePlayerUpdatesController
+                && typeof global.DSFeaturePlayerUpdatesController.rejectUpdate === 'function') {
+                rejectBtn.disabled = true;
+                approveBtn.disabled = true;
+                global.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
+                    if (result && result.ok) {
+                        row.classList.add('review-decision-applied');
+                        row.setAttribute('aria-disabled', 'true');
+                    } else {
+                        rejectBtn.disabled = false;
+                        approveBtn.disabled = false;
+                    }
+                });
+            }
+        });
+
+        decisionGroup.appendChild(approveBtn);
+        decisionGroup.appendChild(rejectBtn);
         row.appendChild(decisionGroup);
         return row;
     }
