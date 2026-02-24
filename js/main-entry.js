@@ -29,6 +29,8 @@ require('./features/buildings/coordinate-picker-controller.js');
 require('./features/events-manager/event-selector-view.js');
 require('./features/events-manager/events-manager-actions.js');
 require('./features/events-manager/events-manager-controller.js');
+require('./features/events-manager/events-image-processor.js');
+require('./features/events-manager/events-map-controller.js');
 require('./features/events-manager/events-registry-controller.js');
 require('./features/notifications/notifications-core.js');
 require('./features/alliance/alliance-controller.js');

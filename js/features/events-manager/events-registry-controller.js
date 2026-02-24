@@ -13,7 +13,6 @@
     var BUILDING_CONFIG_VERSION = 2;
     var MAX_BUILDING_SLOTS_TOTAL = 20;
     var MIN_BUILDING_SLOTS = 0;
-    var maxRetries = 3;
 
     var textColors = { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' };
     var bgColors = { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)',
@@ -22,7 +21,6 @@
     // ---- per-event runtime state (module-private) ----
     var buildingConfigs = {};
     var buildingPositionsMap = {};
-    var mapRuntimeState = new Map();
     var coordMapWarningShown = {};
 
     var PROTECTED_EVENT_IDS = null; // lazily initialised
@@ -94,64 +92,25 @@
     }
 
     function isImageDataUrl(value, maxLength) {
-        var dataUrl = typeof value === 'string' ? value.trim() : '';
-        if (!dataUrl || !dataUrl.startsWith('data:image/')) {
-            return false;
-        }
-        return dataUrl.length <= maxLength;
+        return global.DSEventsImageProcessor.isImageDataUrl(value, maxLength);
     }
 
     function hashString(value) {
-        var input = String(value || '');
-        var hash = 2166136261;
-        for (var index = 0; index < input.length; index += 1) {
-            hash ^= input.charCodeAt(index);
-            hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-        }
-        return Math.abs(hash >>> 0);
+        return global.DSEventsImageProcessor.hashString(value);
     }
 
-    // ---- map runtime state ----
-
-    function getMapRuntimeStateKey(eventId, purpose) {
-        return normalizeMapPurpose(purpose) + '::' + normalizeEventId(eventId);
-    }
-
-    function createMapRuntimeState() {
-        return {
-            image: new Image(),
-            loaded: false,
-            retries: 0,
-            unavailable: false,
-            promise: null,
-            sourceSignature: '',
-        };
-    }
+    // ---- map runtime state (delegated to DSEventsMapController) ----
 
     function ensureMapRuntimeState(eventId, purpose) {
-        var key = getMapRuntimeStateKey(eventId, purpose);
-        if (!mapRuntimeState.has(key)) {
-            mapRuntimeState.set(key, createMapRuntimeState());
-        }
-        return mapRuntimeState.get(key);
+        return global.DSEventsMapController.ensureMapRuntimeState(eventId, purpose);
     }
 
     function getMapRuntimeStateFn(eventId, purpose) {
-        var eid = normalizeEventId(eventId);
-        if (!eid) {
-            return null;
-        }
-        return ensureMapRuntimeState(eid, purpose);
+        return global.DSEventsMapController.getMapRuntimeState(eventId, purpose);
     }
 
     function deleteMapRuntimeStateForEvent(eventId) {
-        var eid = normalizeEventId(eventId);
-        if (!eid) {
-            return;
-        }
-        [MAP_PREVIEW, MAP_EXPORT].forEach(function (purpose) {
-            mapRuntimeState.delete(getMapRuntimeStateKey(eid, purpose));
-        });
+        global.DSEventsMapController.deleteMapRuntimeStateForEvent(eventId);
     }
 
     // ---- event runtime state ----
@@ -167,9 +126,8 @@
         if (!Object.prototype.hasOwnProperty.call(buildingPositionsMap, event)) {
             buildingPositionsMap[event] = {};
         }
-        [MAP_PREVIEW, MAP_EXPORT].forEach(function (purpose) {
-            ensureMapRuntimeState(event, purpose);
-        });
+        global.DSEventsMapController.ensureMapRuntimeState(event, MAP_PREVIEW);
+        global.DSEventsMapController.ensureMapRuntimeState(event, MAP_EXPORT);
         if (!Object.prototype.hasOwnProperty.call(coordMapWarningShown, event)) {
             coordMapWarningShown[event] = false;
         }
@@ -181,17 +139,7 @@
             return;
         }
         ensureEventRuntimeState(event);
-        [MAP_PREVIEW, MAP_EXPORT].forEach(function (purpose) {
-            var state = ensureMapRuntimeState(event, purpose);
-            state.loaded = false;
-            state.retries = 0;
-            state.unavailable = false;
-            state.promise = null;
-            state.sourceSignature = '';
-            if (state.image) {
-                state.image.src = '';
-            }
-        });
+        global.DSEventsMapController.resetMapStateForEvent(event);
         coordMapWarningShown[event] = false;
     }
 
@@ -211,13 +159,7 @@
                 delete buildingPositionsMap[eventId];
             }
         });
-        Array.from(mapRuntimeState.keys()).forEach(function (key) {
-            var parts = key.split('::');
-            var eventId = parts.length > 1 ? parts[1] : '';
-            if (!eventIdSet.has(eventId)) {
-                mapRuntimeState.delete(key);
-            }
-        });
+        global.DSEventsMapController.cleanupOrphanedMapState(eventIdSet);
         Object.keys(coordMapWarningShown).forEach(function (eventId) {
             if (!eventIdSet.has(eventId)) {
                 delete coordMapWarningShown[eventId];
@@ -428,93 +370,13 @@
 
     function getEventMapFile(eventId) {
         ensureEventRuntimeState(eventId);
-        var evt = global.DSCoreEvents.getEvent(eventId);
-        if (!evt) return null;
-        var mapDataUrl = typeof evt.mapDataUrl === 'string' ? evt.mapDataUrl.trim() : '';
-        return mapDataUrl || null;
+        return global.DSEventsMapController.getEventMapFile(eventId);
     }
 
     function loadMapImage(eventId, purpose) {
-        var currentEvent = deps.getCurrentEvent();
-        var eid = eventId || currentEvent;
-        var mapPurpose = normalizeMapPurpose(purpose);
+        var eid = eventId || deps.getCurrentEvent();
         ensureEventRuntimeState(eid);
-        var mapState = ensureMapRuntimeState(eid, mapPurpose);
-        if (mapState.loaded) {
-            return Promise.resolve(true);
-        }
-        if (mapState.promise) {
-            return mapState.promise;
-        }
-
-        var primaryFile = getEventMapFile(eid, mapPurpose);
-        var candidateFiles = primaryFile ? [primaryFile] : [];
-        var mapSourceSignature = candidateFiles.join('|');
-
-        if (mapState.sourceSignature !== mapSourceSignature) {
-            mapState.loaded = false;
-            mapState.unavailable = false;
-            mapState.retries = 0;
-            mapState.promise = null;
-            mapState.sourceSignature = mapSourceSignature;
-        }
-
-        mapState.promise = new Promise(function (resolve, reject) {
-            var imageEl = mapState.image;
-            var candidateIndex = 0;
-
-            var tryLoadCandidate = function () {
-                var src = candidateFiles[candidateIndex];
-                if (!src) {
-                    mapState.unavailable = true;
-                    mapState.promise = null;
-                    reject(new Error('No map source available for ' + eid + '/' + mapPurpose));
-                    return;
-                }
-                if (typeof src === 'string' && /^(data:|blob:)/i.test(src.trim())) {
-                    imageEl.src = src;
-                    return;
-                }
-                var bust = src.includes('?') ? '&' : '?';
-                imageEl.src = src + bust + 'v=' + Date.now();
-            };
-
-            imageEl.onload = function () {
-                mapState.loaded = true;
-                mapState.unavailable = false;
-                mapState.retries = 0;
-                mapState.promise = null;
-                console.log('Map loaded for ' + eid + '/' + mapPurpose);
-                resolve(true);
-            };
-
-            imageEl.onerror = function () {
-                if (candidateIndex < candidateFiles.length - 1) {
-                    candidateIndex += 1;
-                    tryLoadCandidate();
-                    return;
-                }
-
-                var retry = mapState.retries + 1;
-                console.error('Map failed to load for ' + eid + '/' + mapPurpose + ', attempt: ' + retry);
-                if (mapState.retries < maxRetries) {
-                    mapState.retries += 1;
-                    setTimeout(function () {
-                        candidateIndex = 0;
-                        tryLoadCandidate();
-                    }, 700 * mapState.retries);
-                } else {
-                    console.error('Map loading failed for ' + eid + '/' + mapPurpose + ' after ' + maxRetries + ' attempts');
-                    mapState.unavailable = true;
-                    mapState.promise = null;
-                    reject(new Error('Map failed to load: ' + eid + '/' + mapPurpose));
-                }
-            };
-
-            tryLoadCandidate();
-        });
-
-        return mapState.promise;
+        return global.DSEventsMapController.loadMapImage(eid, purpose, deps.getCurrentEvent);
     }
 
     // ---- switch event ----
@@ -585,26 +447,7 @@
     // ---- avatar ----
 
     function generateEventAvatarDataUrl(nameSeed, idSeed) {
-        var seed = (nameSeed || '') + '|' + (idSeed || '') + '|event-avatar';
-        var hue = hashString(seed) % 360;
-        var canvas = document.createElement('canvas');
-        canvas.width = 96;
-        canvas.height = 96;
-        var ctx = canvas.getContext('2d');
-        if (!ctx) {
-            return '';
-        }
-        var grad = ctx.createLinearGradient(0, 0, 96, 96);
-        grad.addColorStop(0, 'hsl(' + hue + ', 78%, 50%)');
-        grad.addColorStop(1, 'hsl(' + ((hue + 60) % 360) + ', 72%, 40%)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, 96, 96);
-        ctx.fillStyle = 'rgba(255,255,255,0.92)';
-        ctx.font = 'bold 34px Trebuchet MS';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(deps.getAvatarInitials(nameSeed || 'Event', ''), 48, 50);
-        return canvas.toDataURL('image/png');
+        return global.DSEventsImageProcessor.generateEventAvatarDataUrl(nameSeed, idSeed, deps);
     }
 
     // ---- editor UI ----
@@ -1133,110 +976,18 @@
         updateEventEditorState();
     }
 
-    // ---- image processing ----
+    // ---- image processing (delegated to DSEventsImageProcessor) ----
 
-    async function createEventImageDataUrl(file, options) {
-        var opts = options && typeof options === 'object' ? options : {};
-        var maxBytes = Number(opts.maxBytes) || deps.AVATAR_MAX_UPLOAD_BYTES;
-        var minDimension = Number(opts.minDimension) || deps.AVATAR_MIN_DIMENSION;
-        var maxSide = Number(opts.maxSide) || 512;
-        var maxDataUrlLength = Number(opts.maxDataUrlLength) || deps.EVENT_MAP_DATA_URL_LIMIT;
-        var tooLargeMessage = opts.tooLargeMessage || deps.t('events_manager_image_too_large');
-        var tooSmallMessage = opts.tooSmallMessage || deps.t('events_manager_image_too_small', { min: minDimension });
-
-        if (!deps.isAllowedAvatarFile(file)) {
-            throw new Error(deps.t('events_manager_invalid_image'));
-        }
-        if (typeof file.size === 'number' && file.size > maxBytes) {
-            throw new Error(tooLargeMessage);
-        }
-        var rawDataUrl = await deps.readFileAsDataUrl(file);
-        var img = await deps.loadImageFromDataUrl(rawDataUrl);
-        if ((img.width || 0) < minDimension || (img.height || 0) < minDimension) {
-            throw new Error(tooSmallMessage);
-        }
-
-        var longestSide = Math.max(img.width || 1, img.height || 1);
-        var scale = Math.min(1, maxSide / longestSide);
-        var width = Math.max(1, Math.round((img.width || 1) * scale));
-        var height = Math.max(1, Math.round((img.height || 1) * scale));
-        var canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        var ctx = canvas.getContext('2d');
-        if (!ctx) {
-            throw new Error(deps.t('events_manager_image_process_failed'));
-        }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-
-        var qualities = [0.9, 0.8, 0.7, 0.6];
-        for (var i = 0; i < qualities.length; i++) {
-            var jpegDataUrl = canvas.toDataURL('image/jpeg', qualities[i]);
-            if (jpegDataUrl.length <= maxDataUrlLength) {
-                return jpegDataUrl;
-            }
-        }
-        var pngDataUrl = canvas.toDataURL('image/png');
-        if (pngDataUrl.length <= maxDataUrlLength) {
-            return pngDataUrl;
-        }
-        throw new Error(deps.t('events_manager_image_data_too_large'));
+    function createEventImageDataUrl(file, options) {
+        return global.DSEventsImageProcessor.createEventImageDataUrl(file, options, deps);
     }
 
-    async function createContainedSquareImageDataUrl(sourceDataUrl, options) {
-        var opts = options && typeof options === 'object' ? options : {};
-        var sideRaw = Number(opts.side);
-        var side = Number.isFinite(sideRaw) && sideRaw > 0 ? Math.round(sideRaw) : 320;
-        var maxDataUrlLength = Number(opts.maxDataUrlLength) || deps.EVENT_LOGO_DATA_URL_LIMIT;
-        var img = await deps.loadImageFromDataUrl(sourceDataUrl);
-        var canvas = document.createElement('canvas');
-        canvas.width = side;
-        canvas.height = side;
-        var ctx = canvas.getContext('2d');
-        if (!ctx) {
-            throw new Error(deps.t('events_manager_image_process_failed'));
-        }
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, side, side);
-
-        var sourceWidth = Math.max(1, Number(img.width) || 1);
-        var sourceHeight = Math.max(1, Number(img.height) || 1);
-        var drawScale = Math.min(side / sourceWidth, side / sourceHeight);
-        var drawWidth = Math.max(1, Math.round(sourceWidth * drawScale));
-        var drawHeight = Math.max(1, Math.round(sourceHeight * drawScale));
-        var offsetX = Math.round((side - drawWidth) / 2);
-        var offsetY = Math.round((side - drawHeight) / 2);
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-
-        var qualities = [0.9, 0.8, 0.7, 0.6];
-        for (var i = 0; i < qualities.length; i++) {
-            var jpegDataUrl = canvas.toDataURL('image/jpeg', qualities[i]);
-            if (jpegDataUrl.length <= maxDataUrlLength) {
-                return jpegDataUrl;
-            }
-        }
-        var pngDataUrl = canvas.toDataURL('image/png');
-        if (pngDataUrl.length <= maxDataUrlLength) {
-            return pngDataUrl;
-        }
-        throw new Error(deps.t('events_manager_image_data_too_large'));
+    function createContainedSquareImageDataUrl(sourceDataUrl, options) {
+        return global.DSEventsImageProcessor.createContainedSquareImageDataUrl(sourceDataUrl, options, deps);
     }
 
-    async function createGameMetadataLogoDataUrl(file) {
-        var resized = await createEventImageDataUrl(file, {
-            maxBytes: deps.AVATAR_MAX_UPLOAD_BYTES,
-            minDimension: deps.AVATAR_MIN_DIMENSION,
-            maxSide: 320,
-            maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT,
-            tooLargeMessage: deps.t('events_manager_logo_too_large'),
-        });
-        return createContainedSquareImageDataUrl(resized, {
-            side: 320,
-            maxDataUrlLength: deps.EVENT_LOGO_DATA_URL_LIMIT,
-        });
+    function createGameMetadataLogoDataUrl(file) {
+        return global.DSEventsImageProcessor.createGameMetadataLogoDataUrl(file, deps);
     }
 
     // ---- file change handlers ----

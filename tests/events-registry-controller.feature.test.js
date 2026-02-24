@@ -24,6 +24,44 @@ function createGlobal() {
         DSAssignmentRegistry: {
             listAlgorithmsForGame: () => [{ id: 'balanced_round_robin', name: 'Balanced Round Robin' }],
         },
+        DSEventsImageProcessor: {
+            isImageDataUrl: function (value, maxLength) {
+                var dataUrl = typeof value === 'string' ? value.trim() : '';
+                if (!dataUrl || !dataUrl.startsWith('data:image/')) return false;
+                return dataUrl.length <= maxLength;
+            },
+            hashString: function (value) {
+                var input = String(value || '');
+                var hash = 2166136261;
+                for (var i = 0; i < input.length; i++) {
+                    hash ^= input.charCodeAt(i);
+                    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+                }
+                return Math.abs(hash >>> 0);
+            },
+            generateEventAvatarDataUrl: () => '',
+            createEventImageDataUrl: async () => 'data:image/jpeg;base64,test',
+            createContainedSquareImageDataUrl: async () => 'data:image/jpeg;base64,test',
+            createGameMetadataLogoDataUrl: async () => 'data:image/jpeg;base64,test',
+        },
+        DSEventsMapController: {
+            MAP_PREVIEW: 'preview',
+            MAP_EXPORT: 'export',
+            MAP_CANVAS_WIDTH: 1080,
+            MAP_CANVAS_FALLBACK_HEIGHT: 720,
+            MAP_GRID_STEP: 90,
+            MAP_UPLOAD_MAX_SIDE: 1080,
+            textColors: { 1: '#8B0000', 2: '#B85C00', 3: '#006464', 4: '#006699', 5: '#226644', 6: '#556B2F' },
+            bgColors: { 1: 'rgba(255,230,230,0.9)', 2: 'rgba(255,240,220,0.9)', 3: 'rgba(230,255,250,0.9)', 4: 'rgba(230,245,255,0.9)', 5: 'rgba(240,255,240,0.9)', 6: 'rgba(245,255,235,0.9)' },
+            ensureMapRuntimeState: () => ({ image: { src: '' }, loaded: false, retries: 0, unavailable: false, promise: null, sourceSignature: '' }),
+            getMapRuntimeState: () => ({ image: { src: '' }, loaded: false, retries: 0, unavailable: false, promise: null, sourceSignature: '' }),
+            deleteMapRuntimeStateForEvent: () => {},
+            resetMapStateForEvent: () => {},
+            cleanupOrphanedMapState: () => {},
+            getEventMapFile: () => null,
+            loadMapImage: () => Promise.resolve(true),
+            normalizeMapPurpose: (p) => p === 'export' ? 'export' : 'preview',
+        },
         Image: class { constructor() { this.src = ''; this.onload = null; this.onerror = null; } },
         document: {
             createElement: (tag) => ({ tagName: tag, width: 0, height: 0, className: '', type: '', dataset: {}, textContent: '', value: '', disabled: false, innerHTML: '', classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } }, style: {}, addEventListener() {}, appendChild() {}, getContext() { return null; }, click() {}, replaceChildren() {}, querySelectorAll() { return []; }, setAttribute() {} }),
