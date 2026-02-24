@@ -40,7 +40,7 @@
             openBtn.setAttribute('data-action', 'open-attendance');
             openBtn.setAttribute('title', 'Mark attendance for ' + (record.eventName || 'event'));
             openBtn.setAttribute('aria-label', 'Mark attendance for ' + (record.eventName || 'event'));
-            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span>';
+            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span>';
 
             item.appendChild(name);
             item.appendChild(date);
@@ -53,14 +53,11 @@
         container.appendChild(list);
     }
 
-    function renderAttendancePanel(container, historyDoc, attendanceDocs) {
+    function renderAttendancePanel(container, historyDoc, attendanceDocs, options) {
         if (!container) return;
         container.innerHTML = '';
 
-        var stalenessCheck = null;
-        if (global.DSFeatureEventHistoryCore && typeof global.DSFeatureEventHistoryCore.checkFinalizationStaleness === 'function') {
-            stalenessCheck = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, new Date());
-        }
+        var stalenessCheck = options && options.stalenessCheck || null;
 
         if (stalenessCheck && stalenessCheck.stale) {
             var warning = document.createElement('div');
@@ -116,11 +113,8 @@
         });
     }
 
-    function renderReliabilityDot(score) {
-        var tier = { cssClass: 'reliability-new', label: 'No history' };
-        if (global.DSCoreReliability && typeof global.DSCoreReliability.getReliabilityTier === 'function') {
-            tier = global.DSCoreReliability.getReliabilityTier(score);
-        }
+    function renderReliabilityDot(score, tier) {
+        tier = tier || { cssClass: 'reliability-new', label: 'No history' };
         var dot = document.createElement('span');
         dot.className = 'reliability-dot ' + tier.cssClass;
         var ariaLabel = score !== null && score !== undefined

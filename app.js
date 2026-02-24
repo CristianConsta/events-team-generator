@@ -2088,6 +2088,8 @@ function getGeneratorFeatureController() {
     ) {
         generatorFeatureController = window.DSFeatureGeneratorController.createController({
             document: document,
+            generatorActions: window.DSFeatureGeneratorActions,
+            generatorView: window.DSFeatureGeneratorView,
             defaultAlgorithm: ASSIGNMENT_ALGO_DEFAULT,
             normalizeAssignmentAlgorithm: normalizeAssignmentAlgorithm,
             setAssignmentAlgorithm: setCurrentAssignmentAlgorithmState,
@@ -3659,8 +3661,8 @@ function renderPlayersManagementTable() {
                 </td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions players-mgmt-actions--edit">
-                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_save_button'))}" aria-label="${escapeHtml(t('players_list_save_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_save_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#10003;</span></button>
-                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_cancel_button'))}" aria-label="${escapeHtml(t('players_list_cancel_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_cancel_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#10005;</span></button>
+                        <button type="button" class="players-mgmt-save-btn" data-pm-action="save" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_save_button'))}" aria-label="${escapeHtml(t('players_list_save_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_save_button'))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span></button>
+                        <button type="button" class="secondary players-mgmt-cancel-btn" data-pm-action="cancel" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_cancel_button'))}" aria-label="${escapeHtml(t('players_list_cancel_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_cancel_button'))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></span></button>
                     </div>
                 </td>
             `;
@@ -3672,9 +3674,9 @@ function renderPlayersManagementTable() {
                 <td data-label="${troopHeader}">${escapeHtml(getTroopLabel(player.troops))}</td>
                 <td data-label="${actionsHeader}">
                     <div class="players-mgmt-actions players-mgmt-actions--default">
-                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_edit_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_edit_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#9998;</span></button>
-                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_delete_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_delete_button'))}</span><span class="action-btn-icon" aria-hidden="true">&#128465;</span></button>
-                        <button type="button" class="players-mgmt-invite-btn" data-pm-action="invite" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_invite_button'))}"><span class="invite-btn-text">${escapeHtml(t('players_list_invite_button'))}</span><span class="invite-btn-icon" aria-hidden="true">&#8599;</span></button>
+                        <button type="button" class="secondary players-mgmt-edit-btn" data-pm-action="edit" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_edit_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_edit_button'))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5,1.5l3,3L5,14H2v-3Z"/></svg></span></button>
+                        <button type="button" class="clear-btn players-mgmt-danger-btn" data-pm-action="delete" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_delete_button'))}"><span class="action-btn-text">${escapeHtml(t('players_list_delete_button'))}</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2,4h12"/><path d="M5,4V2h6v2"/><path d="M4,4l1,10h6l1,-10"/><line x1="7" y1="7" x2="7" y2="12"/><line x1="9" y1="7" x2="9" y2="12"/></svg></span></button>
+                        <button type="button" class="players-mgmt-invite-btn" data-pm-action="invite" data-player="${escapeAttribute(player.name)}" title="${escapeHtml(t('players_list_invite_button'))}"><span class="invite-btn-text">${escapeHtml(t('players_list_invite_button'))}</span><span class="invite-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="12" y2="4"/><polyline points="7,4 12,4 12,9"/></svg></span></button>
                     </div>
                 </td>
             `;

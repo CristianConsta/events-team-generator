@@ -129,9 +129,14 @@
                 _currentHistoryDoc = historyDoc;
             }
 
+            var stalenessCheck = null;
+            if (global.DSFeatureEventHistoryCore && typeof global.DSFeatureEventHistoryCore.checkFinalizationStaleness === 'function') {
+                stalenessCheck = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, new Date());
+            }
+
             var container = document.getElementById('attendancePanelBody');
             if (global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderAttendancePanel === 'function') {
-                global.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs);
+                global.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs, { stalenessCheck: stalenessCheck });
             }
 
             var modal = document.getElementById('attendancePanelModal');
