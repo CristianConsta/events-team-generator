@@ -218,6 +218,34 @@ pending_updates/{docId}     # Queue of pending player updates
   {auto-generated fields}   # Batched for reliability
 ```
 
+## Bundle Boot Sequence (critical knowledge)
+
+The app loads via a dynamic `<script defer>` in the inline script block of `index.html`. Because `defer` is **ignored on dynamically created scripts**, the bundle may execute after `DOMContentLoaded` has already fired. This means:
+
+- **Never rely solely on `DOMContentLoaded` listeners** in bundled code. Always check `document.readyState` first and fall back to immediate/deferred execution.
+- **`app-shell-bootstrap.js`** uses `setTimeout(boot, 0)` when `readyState !== 'loading'` so that all modules in the bundle finish initialising before `boot()` runs.
+- **`firebase-module.js`** uses the same `readyState` guard for `FirebaseManager.init()`.
+- **`firebase-auth-module.js`** buffers the auth callback if `configure()` hasn't been called yet (timing: `app-init.js` IIFE runs before `DOMContentLoaded` → `init()` → `configure()`).
+- **Module require order matters**: `main-entry.js` defines the require chain. `app-shell-bootstrap.js` runs before `app.js`, so boot must defer to ensure `window.initializeApplicationUiRuntime` exists.
+- When adding new `DOMContentLoaded` listeners in bundled modules, always use the readyState pattern:
+  ```js
+  if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', handler);
+  } else {
+      setTimeout(handler, 0); // defer to let sibling modules finish
+  }
+  ```
+
+## E2E Testing
+
+- Tests use `file://` URLs (no dev server) with Playwright
+- **Edge is not installed locally** — edge-desktop and edge-mobile projects will fail locally; only chrome-desktop and chrome-mobile work
+- The `navigateTo()` helper in `e2e/helpers.js` only knows about pages in its `expectedPageByNavId` map. Event History (`#eventHistoryView`) is NOT in this map — navigate to it via `page.evaluate(() => document.getElementById('navEventHistoryBtn').click())`
+- The E2E mock (`injectMockFirebase`) replaces `window.FirebaseManager` via `Object.defineProperty` with a no-op setter to prevent the real module from overwriting it
+- `player-update.html` E2E tests (`11-invite-flow.e2e.js:396+`) have pre-existing failures related to Firebase anonymous auth in the standalone page
+- Always run `npm run build` before E2E tests — tests load `dist/bundle.js`, not individual source files
+- When modifying shell bootstrap or module initialization, always run both `npm test` (unit) AND chrome-desktop E2E to catch timing regressions
+
 ## What NOT to Do
 
 - Do not introduce a new build tool (esbuild is the only approved bundler)
@@ -226,3 +254,417 @@ pending_updates/{docId}     # Queue of pending player updates
 - Do not break the IIFE module pattern
 - Do not add inline `<script>` logic to `index.html` — keep JS in separate files
 - Do not commit `firebase-config.js` or service account files
+- Do not use bare `document.addEventListener('DOMContentLoaded', ...)` in bundled modules — use the readyState guard pattern (see Bundle Boot Sequence above)
+
+---
+
+## Codebase Feature Map
+
+### 1. App Bootstrap & Bundle Loading
+
+**Init trigger:** `index.html` inline `<script>` dynamically creates `<script defer src="dist/bundle.js">` (defer is ignored on dynamic scripts). Bundle requires all modules in order defined in `js/main-entry.js`.
+
+**Boot sequence:**
+```
+bundle.js evaluated
+  → all IIFE modules execute, populating window.DS* globals
+  → app.js top-level code runs
+  → js/app-init.js IIFE runs:
+      initLanguage() → DSI18N.init() → applyTranslations()
+      updateGenerateEventLabels()
+      initializeFirebaseCallbacks()
+        → FirebaseService.setAuthCallback(...)
+        → FirebaseService.setDataLoadCallback(...)
+        → FirebaseService.setAllianceDataCallback(...)
+  → app-shell-bootstrap.js:
+      if readyState !== 'loading' → setTimeout(boot, 0)
+      else → DOMContentLoaded → boot()
+  → boot()
+      → createRootController() → DSAppShellContracts.createFeatureController(base)
+      → rootController.init() → initializeApplicationUiRuntime() [app.js]
+          → bindStaticUiActions()  (ALL click/change handlers wired here)
+          → DSOnboardingController.init() + bindOnboardingListeners()
+          → buildRegistryFromStorage(), renderAllEventSelectors(), renderEventsList()
+          → startNewEventDraft(), switchEvent(currentEvent)
+          → updateUserHeaderIdentity(), updateActiveGameBadge()
+```
+
+### 2. Firebase Init & Auth
+
+**Files:** `firebase-infra.js` → `DSFirebaseInfra` | `firebase-auth-module.js` → `DSFirebaseAuth` | `firebase-module.js` → `FirebaseManager` | `js/services/firebase-service.js` → `FirebaseService`
+
+**Call chain:**
+```
+FirebaseManager.init() [DOMContentLoaded or readyState guard]:
+  → DSFirebaseInfra.setDb(db)
+  → DSFirebaseAuth.configure(deps)  ← injects getAuth, get/setOnAuthCallback, etc.
+  → firebase.auth().onAuthStateChanged(DSFirebaseAuth.handleAuthStateChanged)
+
+handleAuthStateChanged(user):
+  → signed in: deps.triggerPostSignInLoad(user) → loads Firestore data
+               deps.getOnAuthCallback()(true, user) → app-init.js callback
+  → signed out: deps.applySignOutState()
+                deps.getOnAuthCallback()(false, null)
+
+app-init.js authCallback(isSignedIn, user):
+  → true: syncSignedInGameContext(), show #mainApp, hide #loginScreen,
+          updateUserHeaderIdentity(user), applyTranslations(),
+          showPostAuthGameSelector() if no game, initOnboarding(),
+          notificationsController.startPolling()
+  → false: show #loginScreen, hide #mainApp, clearActiveGame(),
+           notificationsController.stopPolling()
+```
+
+**Auth operations:** `handleGoogleSignIn()` → `FirebaseService.signInWithGoogle()` | `handleEmailSignIn()` → `FirebaseService.signInWithEmail()` | `handleSignOut()` → `FirebaseService.signOut()` | Create account / password reset via `DSAuthUiController`
+
+### 3. Navigation
+
+**Menu toggle:** `#navMenuBtn` click → `toggleNavigationMenu()` [app.js] → `DSShellNavigationController.syncMenuVisibility()` → toggles `hidden`/`ui-open` on `#navMenuPanel`
+
+**Page switching:** All call `hideAllMainPages()` then show target:
+
+| Button | Function | Shows |
+|---|---|---|
+| `#navGeneratorBtn` / `#mobileNavGeneratorBtn` | `showGeneratorPage()` | `#selectionSection` + `#configPage` |
+| `#navPlayersBtn` / `#mobileNavPlayersBtn` | `showPlayersManagementPage()` | `#playersManagementPage` |
+| `#navConfigBtn` / `#mobileNavConfigBtn` | `showConfigurationPage()` | `#configPage` |
+| `#navAllianceBtn` / `#mobileNavAllianceBtn` | `showAlliancePage()` | `#alliancePage` |
+| `#navSupportBtn` | `showSupportPage()` | `#supportPage` |
+| `#navEventHistoryBtn` | inline handler | `#eventHistoryView` via `_eventHistoryController` |
+| `#navPlayerUpdatesBtn` | inline handler | `#playerUpdatesReviewView` via `refreshPlayerUpdatesPanel()` |
+
+Navigation state tracked via `currentPageView` in `app.js`. Mobile bottom nav (`#mobileBottomNav`) mirrors desktop. `DSShellNavigationController` provides `syncNavigationButtons()` and `applyPageVisibility()`.
+
+### 4. Generator / Team Assignment
+
+```
+Player selection: #playersTableBody click (delegated)
+  → .team-a-btn/.team-b-btn → toggleTeam(name, team) [app.js]
+      → DSFeatureGeneratorTeamSelection.toggleTeamSelection()
+      → teamSelections.teamA/teamB updated → updateTeamCounters()
+
+Team generation: #generateBtnA/#generateBtnB click → generateTeamAssignments(team) [app.js]
+  → enforceGameplayContext()
+  → refreshBuildingConfigForAssignments()
+  → preparePlayersForAssignment() via DSCoreGeneratorAssignment
+  → resolveCurrentEventAssignmentSelection() via DSAssignmentRegistry
+  → DSCoreAssignment.assignTeamToBuildings(players, buildingConfig)
+  → assignmentsA/assignmentsB stored → openDownloadModal(team)
+
+Download: DSDownloadController.downloadTeamExcel()
+  → lazy loads vendor/xlsx.full.min.js → builds XLSX → XLSX.writeFile()
+  DSDownloadController.downloadTeamMap()
+  → draws canvas with map + markers → <a download> click
+```
+
+**Key globals:** `teamSelections`, `assignmentsA/B`, `substitutesA/B`, `allPlayers`, `activeDownloadTeam`, `DSCoreAssignment`, `DSAssignmentRegistry`, `DSFeatureGeneratorTeamSelection`, `DSFeatureGeneratorController`, `DSDownloadController`, `DSCoreGeneratorAssignment`
+
+### 5. Players Management
+
+```
+Add: #playersMgmtAddForm submit → PlayersManagementController.submitAddPlayer()
+  → handlePlayersManagementAddPlayer() [app.js]
+  → FirebaseService.upsertPlayerEntry(source, null, playerData)
+  → Firestore write → loadPlayerData() → re-renders
+
+Edit: #playersMgmtTableBody click (delegated)
+  → btn[data-pm-action="edit"] → inline edit mode (DSFeaturePlayersManagementView)
+  → btn[data-pm-action="save"] → FirebaseService.upsertPlayerEntry()
+  → btn[data-pm-action="cancel"] → exits edit mode, restores original
+  → btn[data-pm-action="delete"] → confirm() → FirebaseService.removePlayerEntry()
+
+Upload: #uploadPlayerBtn → #playerFileInput → DSPlayerDataUpload.uploadPlayerData()
+  → XLSX.read() → normalizes → FirebaseService.uploadPlayerDatabase()
+
+Search/Filter: #playersMgmtSearchFilter input → handlePlayersManagementFilterChange()
+  → renderPlayersManagementPanel() with filtered/sorted list
+```
+
+**Key globals:** `DSFeaturePlayersManagementController`, `DSFeaturePlayersManagementView`, `DSFeaturePlayersManagementActions`, `DSFeaturePlayersManagementCore`, `DSPlayerDataUpload`, `DSPlayerTableUI`
+
+### 6. Events Manager
+
+```
+Registry: buildRegistryFromStorage() → DSCoreEvents.buildRegistryFromStorage()
+  → reads localStorage('ds_events_v2') → populates event registry
+
+Selection: #eventSelect change → switchEvent(eventId) [app.js]
+  → currentEvent = eventId → updateGenerateEventLabels() → renderBuildingsTable()
+
+Create/Edit: #eventEditModeBtn → enterEventEditMode()
+  → #saveEventBtn → DSCoreEvents.upsertEvent() → FirebaseService.saveEventData()
+  → Firestore write: users/{uid}/games/{gameId}/events/{eventId}
+  → Logo: DSEventsImageProcessor.processLogoFile()
+  → Map: DSEventsMapController.processMapFile()
+```
+
+**Key globals:** `currentEvent`, `DSCoreEvents`, `DSEventSelectorView`, `DSFeatureEventsManagerController`, `DSEventsRegistryController`, `DSEventsImageProcessor`, `DSEventsMapController`, `DSEventListUI`
+
+### 7. Alliance
+
+```
+Create: onCreateAlliance() → FirebaseService.createAlliance(name, context)
+  → Firestore write: games/{gameId}/alliances/{allianceId}
+
+Invite: onSendInvitation() → FirebaseService.sendInvitation(email, context)
+  → Firestore write: alliances/{id}/invitations/{inviteId}
+
+Accept: onAcceptInvitation(id) → FirebaseService.acceptInvitation(id, context)
+  → Firestore update: invitation status, user joins members
+
+Leave: onLeaveAlliance() → FirebaseService.leaveAlliance(context)
+  → Firestore: removes membership, clears alliance reference
+
+Real-time: FirebaseService.setAllianceDataCallback() → handleAllianceDataRealtimeUpdate()
+  → renderAlliancePanel(), updateAllianceHeaderDisplay()
+```
+
+**Key globals:** `DSFeatureAllianceController`, `DSAlliancePanelUI`, `getAllianceFeatureController`
+
+### 8. Notifications
+
+```
+Polling: notificationsController.startPolling() (after sign-in)
+  → setInterval(60s) → checkAndDisplayNotifications() [app.js]
+      → FirebaseService.checkInvitations() → updates #notificationBadge
+
+Sheet: #notificationBtn click → toggleNotificationsPanel()
+  → DSShellNotificationsSheetController.setSheetState(open/closed)
+  → renderNotifications()
+```
+
+**Key globals:** `DSFeatureNotificationsController`, `DSFeatureNotificationsCore`, `DSShellNotificationsSheetController`
+
+### 9. Event History
+
+```
+Init: setDataLoadCallback → DSFeatureEventHistoryController.init(FirebaseService)
+  → subscribePendingFinalizationCount() → real-time listener on event_history
+
+Show: #navEventHistoryBtn → _eventHistoryController.showEventHistoryView()
+  → loadHistoryRecords() → DSFeatureEventHistoryView.renderHistoryList()
+
+Save: DSFeatureEventHistoryController.saveAssignmentAsHistory(assignment)
+  → DSFeatureEventHistoryCore.buildHistoryRecord() → gateway.saveHistoryRecord()
+  → Firestore write: alliances/{id}/event_history/{historyId}
+
+Finalize: finalizeAttendance(historyId)
+  → DSCoreReliability.recalculatePlayerStats()
+  → gateway.finalizeHistory() → Firestore: finalized=true + player_stats writes
+```
+
+**Key globals:** `DSFeatureEventHistoryController/Core/View/Actions`, `_eventHistoryController`
+
+### 10. Player Updates
+
+```
+Init: setDataLoadCallback → DSFeaturePlayerUpdatesController.init(FirebaseService)
+      setAllianceDataCallback → _playerUpdatesController.subscribeBadge()
+
+Generate tokens: DSFeaturePlayerUpdatesController.openTokenGenerationModal(playerNames)
+  → DSFeaturePlayerUpdatesCore.buildTokenDoc() → gateway.saveTokenBatch()
+  → Firestore write: update_tokens/{tokenId}
+  → DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex) → URL to player-update.html
+
+Player-facing: player-update.html?token=... → js/player-update/player-update.js
+  → validates token → player fills form → creates pending_updates doc
+
+Review: #navPlayerUpdatesBtn → refreshPlayerUpdatesPanel()
+  → loadPendingUpdates() → DSFeaturePlayerUpdatesView.renderReviewPanel()
+  → Approve: applyPlayerUpdateToPersonal/Alliance → Firestore writes
+  → Reject: updatePendingUpdateStatus → status='rejected'
+```
+
+**Key globals:** `DSFeaturePlayerUpdatesController/Core/View/Actions`, `_playerUpdatesController`
+
+### 11. Buildings Config
+
+```
+Load: setDataLoadCallback → loadBuildingConfig() [app.js]
+  → DSBuildingsConfigManager.loadBuildingConfig(deps) → FirebaseService.getBuildingConfig()
+
+Edit: Buildings table inline editing via DSBuildingsConfigManager.toggleBuildingFieldEdit()
+Save: #saveBuildingConfigBtn → DSBuildingsConfigManager.saveBuildingConfig()
+  → FirebaseService.saveBuildingConfig(eventId, config, context)
+
+Coordinate picker: #mapCoordinatesBtn → DSCoordinatePickerController.openCoordinatesPicker()
+  → canvas click → stores x,y per building
+  → #coordSaveBtn → DSBuildingsConfigManager.saveBuildingPositions()
+```
+
+**Key globals:** `DSBuildingsConfigManager`, `DSCoordinatePickerController`, `DSCoreBuildings`
+
+### 12. Settings / User Profile
+
+```
+Open: #headerProfileBtn or #navSettingsBtn → DSAuthUiController.openSettingsModal()
+  → DSShellModalController.open({ overlay: #settingsModal })
+
+Save: #settingsSaveBtn → DSAuthUiController.saveSettings()
+  → FirebaseService.saveUserProfile() → updateUserHeaderIdentity()
+
+Avatar: #settingsAvatarUploadBtn → #settingsAvatarInput change
+  → DSAuthUiController.handleSettingsAvatarChange() → canvas resize → data URL
+
+Delete account: #settingsDeleteBtn → DSAuthUiController.deleteAccountFromSettings()
+  → FirebaseService.deleteAccount() → firebase.auth().currentUser.delete()
+```
+
+**Key globals:** `DSAuthUiController`, `currentAuthUser`
+
+### 13. i18n
+
+```
+Init: app-init.js → initLanguage() → DSI18N.init({ onApply: onI18nApplied })
+  → reads localStorage('ds_language') → applyTranslations()
+  → querySelectorAll('[data-i18n]') → el.textContent = t(key)
+  → querySelectorAll('[data-i18n-placeholder]') → el.placeholder = t(key)
+  → onI18nApplied() re-renders dynamic content
+
+Switch: #languageSelect change → DSI18N.setLanguage(lang)
+  → localStorage.setItem('ds_language', lang) → applyTranslations()
+```
+
+**Key globals:** `DSI18N`, `window.translations` (from `translations.js`), `window.t` (shorthand from `app.js`)
+
+### 14. Game Selector
+
+```
+Post-auth (no active game): showPostAuthGameSelector()
+  → DSGameSelectorController.showPostAuthGameSelector()
+  → FirebaseService.listAvailableGames() → render options
+  → user picks → confirmGameSelectorChoice() → applyGameSwitch(gameId)
+      → FirebaseService.setActiveGame(gameId) → localStorage + window.__ACTIVE_GAME_ID
+      → loadPlayerData(), updateAllianceHeaderDisplay()
+
+Switch: #navSwitchGameBtn → openGameSelector({ requireChoice: false })
+```
+
+**Key globals:** `DSGameSelectorController`, `__ACTIVE_GAME_ID`, `getActiveGame()`, `setActiveGame()`, `getGameplayContext()`
+
+### 15. Onboarding Tour
+
+```
+After sign-in → initOnboarding() → DSOnboardingController.initOnboarding()
+  → if localStorage('ds_onboarding_done'): skip
+  → 11 steps targeting nav buttons, panels, and action buttons
+  → #onboardingNextBtn → showOnboardingStep(next)
+  → #onboardingSkip or last step → completeOnboarding()
+      → localStorage.setItem('ds_onboarding_done', '1')
+```
+
+**Key globals:** `DSOnboardingController`
+
+### 16. Data Gateway Architecture
+
+```
+Feature controllers → FirebaseService (adapter) → FirebaseManager (facade) → DSFirebaseInfra (paths) → Firestore
+```
+
+**Gateway files** in `js/shared/data/`: Each exports `createGateway(utils)` returning async methods. All use `gatewayUtils.withManager(fn, fallback)`.
+
+| Gateway | Key methods |
+|---|---|
+| `firebase-auth-gateway.js` | signIn, signOut, getUser |
+| `firebase-players-gateway.js` | uploadPlayerDatabase, upsertPlayerEntry, removePlayerEntry |
+| `firebase-events-gateway.js` | saveEventData, loadEventData, deleteEvent |
+| `firebase-alliance-gateway.js` | createAlliance, sendInvitation, acceptInvitation, leaveAlliance |
+| `firebase-notifications-gateway.js` | checkInvitations, dismissNotification |
+| `firebase-event-history-gateway.js` | saveHistoryRecord, loadHistoryRecords, finalizeHistory |
+| `firebase-player-updates-gateway.js` | saveTokenBatch, loadPendingUpdates, applyPlayerUpdate* |
+| `firebase-gateway-utils.js` | createUtils(runtime) → { manager(), withManager() } |
+
+**State store:** `DSAppStateStore.createStore(initialState)` — holds navigation, generator, playersManagement, eventHistory, playerUpdates state. Interface: `getState()`, `setState(updater)`, `subscribe(listener)`.
+
+---
+
+## Firestore Data Model
+
+```
+users/{uid}/                              ← legacy (read for migration)
+  app_config/settings                     ← user preferences (legacy)
+  players/{playerId}                      ← player records (legacy)
+  events/{eventId}                        ← event configs (legacy)
+  games/{gameId}/                         ← per-game user data
+    players/{playerId}                    ← { name, power, thp, troops, notes }
+    events/{eventId}                      ← { name, logoDataUrl, mapDataUrl, assignmentAlgorithmId,
+                                               buildingConfig, buildingConfigVersion,
+                                               buildingPositions, buildingPositionsVersion }
+    event_media/{eventId}                 ← large binary event assets
+    user_state/{uid}                      ← { displayName, nickname, theme, avatarDataUrl,
+                                               allianceId, playerSource, migrationVersion }
+
+games/{gameId}/                           ← shared game-level data
+  alliances/{allianceId}/                 ← { name, ownerId, memberUids[], createdAt, gameId }
+    members/{uid}                         ← membership records
+    invitations/{inviteId}                ← { toEmail, toUid, fromUid, inviterName, status,
+                                               gameId, createdAt, resendCount }
+    alliance_players/{playerId}           ← { name, power, thp, troops, notes }
+    update_tokens/{tokenId}               ← { token, playerName, allianceId, createdByUid,
+                                               expiresAt, used, gameId, currentSnapshot }
+    pending_updates/{updateId}            ← { playerName, proposedValues, status,
+                                               submittedAt, reviewedBy, contextType }
+    event_history/{historyId}             ← { eventName, eventId, gameId, createdByUid,
+                                               teamAssignments[], finalized, finalizedAt }
+      attendance/{playerDocId}            ← { playerName, status, markedBy, markedAt }
+  user_state/{uid}                        ← { allianceId, playerSource, migrationVersion }
+  soloplayers/{uid}/                      ← non-alliance user data
+    players/{playerId}                    ← personal player DB
+    update_tokens/{tokenId}               ← personal update tokens
+    pending_updates/{updateId}            ← personal pending updates
+  event_history/{historyId}               ← game-scoped non-alliance history
+
+player_stats/{docId}                      ← { winRate, attendanceRate, recentHistory[], lastUpdated }
+```
+
+### Collection → Code mapping
+
+| Collection | Read by | Written by |
+|---|---|---|
+| `users/{uid}/games/{gid}/players` | `FirebaseManager.loadUserData()` | `upsertPlayerEntry()`, `uploadPlayerDatabase()` |
+| `users/{uid}/games/{gid}/events` | `FirebaseManager.loadUserData()` | `saveEventData()`, `saveBuildingConfig/Positions()` |
+| `users/{uid}/games/{gid}/user_state` | `FirebaseManager.loadUserData()` | `saveUserProfile()`, `setPlayerSource()` |
+| `alliances/{id}` | `loadAllianceData()` | `createAlliance()`, `leaveAlliance()`, `acceptInvitation()` |
+| `alliances/{id}/invitations` | `checkInvitations()` | `sendInvitation()`, `acceptInvitation()`, `revokeInvitation()` |
+| `alliances/{id}/alliance_players` | `getAlliancePlayerDatabase()` | `uploadAlliancePlayerDatabase()`, `applyPlayerUpdateToAlliance()` |
+| `alliances/{id}/update_tokens` | `loadActiveTokens()` | `saveTokenBatch()`, `revokeToken()` |
+| `alliances/{id}/pending_updates` | `loadPendingUpdates()`, `subscribePendingUpdatesCount()` | player-update.html, `updatePendingUpdateStatus()` |
+| `alliances/{id}/event_history` | `loadHistoryRecords()`, `subscribePendingFinalizationCount()` | `saveHistoryRecord()`, `finalizeHistory()` |
+| `event_history/{id}/attendance` | `loadEventAttendance()` | `saveAttendanceBatch()`, `updateAttendanceStatus()` |
+| `player_stats/{docId}` | `loadPlayerStats()` | `finalizeEventHistory()` |
+
+### Key Window Globals Reference
+
+| Global | Source | Role |
+|---|---|---|
+| `FirebaseManager` | `firebase-module.js` | Primary Firestore/Auth facade |
+| `FirebaseService` | `js/services/firebase-service.js` | Testable adapter over FirebaseManager |
+| `DSFirebaseInfra` | `firebase-infra.js` | Path builders, feature flags |
+| `DSFirebaseAuth` | `firebase-auth-module.js` | Auth lifecycle |
+| `DSI18N` | `js/core/i18n.js` | i18n engine |
+| `t` | `app.js` | Shorthand translation function |
+| `DSCoreAssignment` | `js/core/assignment.js` | Team→building assignment |
+| `DSAssignmentRegistry` | `js/core/assignment-registry.js` | Algorithm registry per game |
+| `DSCoreEvents` | `js/core/events.js` | Event registry and defaults |
+| `DSCoreBuildings` | `js/core/buildings.js` | Building config normalization |
+| `DSCoreGeneratorAssignment` | `js/core/generator-assignment.js` | Prepare players for assignment |
+| `DSCoreReliability` | `js/core/reliability.js` | Stats recalculation |
+| `DSPlayerTableUI` | `js/ui/player-table-ui.js` | Player table row rendering |
+| `DSAlliancePanelUI` | `js/ui/alliance-panel-ui.js` | Alliance panel HTML builder |
+| `DSEventListUI` | `js/ui/event-list-ui.js` | Events list rendering |
+| `DSAppShellBootstrap` | `js/shell/bootstrap/app-shell-bootstrap.js` | Boot trigger |
+| `DSAppShellContracts` | `js/shell/bootstrap/app-shell-contracts.js` | Controller contract factory |
+| `DSShellNavigationController` | `js/shell/navigation/navigation-controller.js` | Nav helpers |
+| `DSShellModalController` | `js/shell/overlays/modal-controller.js` | Modal open/close |
+| `DSShellNotificationsSheetController` | `js/shell/overlays/notifications-sheet-controller.js` | Notifications drawer |
+| `DSOnboardingController` | `js/shell/onboarding-controller.js` | Tour steps |
+| `DSGameSelectorController` | `js/shell/game-selector-controller.js` | Post-auth / switch game |
+| `DSAuthUiController` | `js/shell/auth-ui-controller.js` | Settings, avatar, delete account |
+| `DSAppStateStore` | `js/shared/state/app-state-store.js` | Observable state store |
+| `__ACTIVE_GAME_ID` | runtime | Active game string |
+| `allPlayers` | `app.js` | Normalized player array |
+| `currentAuthUser` | `app.js` | Firebase User object |
+| `currentEvent` | `app.js` | Active event ID string |
+| `teamSelections` | `app.js` | `{ teamA: [], teamB: [] }` |
+| `_eventHistoryController` | `app-init.js` | Runtime event history instance |
+| `_playerUpdatesController` | `app-init.js` | Runtime player updates instance |
