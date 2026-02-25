@@ -1,3 +1,4 @@
+/* global DSThemeColors */
 (function initCoreReliability(global) {
     var DECAY_FACTOR = 0.85;
 
