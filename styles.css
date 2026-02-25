@@ -1085,7 +1085,7 @@ select {
     margin-top: 20px;
     border-radius: 12px;
     overflow: hidden;
-    background: rgba(9, 14, 25, 0.58);
+    background: var(--ds-surface-raised);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.22);
 }
 .players-table th {
@@ -1114,7 +1114,7 @@ select {
 }
 .players-table td {
     padding: 12px 14px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--ds-border-default);
     color: var(--ds-text-primary);
 }
 @media (min-width: 769px) {
@@ -1142,7 +1142,7 @@ select {
     }
 }
 .players-table tr:hover {
-    background: rgba(255,255,255,0.06);
+    background: var(--ds-surface-hover);
 }
 .players-table tr.selected-a {
     background: rgba(var(--ds-team-a-rgb), 0.2);
@@ -1413,9 +1413,9 @@ select {
     min-height: 36px;
     padding: 6px 8px;
     border-radius: 7px;
-    border: 1px solid rgba(255,255,255,0.24);
-    background: rgba(0,0,0,0.22);
-    color: #fff;
+    border: 1px solid var(--ds-border-default);
+    background: var(--ds-surface-raised);
+    color: var(--ds-text-primary);
     box-sizing: border-box;
 }
 #buildingsTable input[type="number"] {
@@ -3424,7 +3424,7 @@ select {
         border-radius: 10px;
         padding: 12px;
         margin-bottom: 10px;
-        border: 1px solid rgba(255,255,255,0.12);
+        border: 1px solid var(--ds-border-default);
     }
     #buildingsTable tr {
         display: grid;
@@ -3508,7 +3508,7 @@ select {
     #playersTable tr {
         padding: 8px 10px;
         margin-bottom: 6px;
-        border: 1px solid rgba(255,255,255,0.06);
+        border: 1px solid var(--ds-border-default);
         background: var(--ds-surface-1);
     }
 
@@ -3574,7 +3574,7 @@ select {
         align-items: center;
         padding: 8px 10px;
         margin-bottom: 6px;
-        border: 1px solid rgba(255,255,255,0.06);
+        border: 1px solid var(--ds-border-default);
         background: var(--ds-surface-1);
     }
     #playersMgmtTable td {
