@@ -634,7 +634,7 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
 /* ── Alliance create button (next to email) ── */
 #allianceCreateBtn {
     display: none;
-    background: rgba(8, 13, 23, 0.7);
+    background: var(--ds-surface-elevated);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.55);
     border-radius: 50%;
     width: 28px;
@@ -651,14 +651,14 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
 .card {
     position: relative;
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.015) 100%),
+        linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
         var(--ds-surface-overlay);
     border-radius: var(--radius-lg);
     padding: 28px;
     margin: 18px 0;
     backdrop-filter: blur(12px);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.12);
-    box-shadow: var(--ds-shadow-elev), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    box-shadow: var(--ds-shadow-elev);
 }
 .card::before {
     content: '';
@@ -1164,7 +1164,7 @@ select {
 .players-mgmt-surface {
     border-radius: 12px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.2);
-    background: rgba(8, 13, 24, 0.52);
+    background: var(--ds-surface-raised);
     padding: 12px;
 }
 .players-mgmt-inline-header {
@@ -1230,7 +1230,7 @@ select {
     padding: 9px 10px;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.32);
-    background: rgba(8, 13, 24, 0.72);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-primary);
     font-size: 14px;
     box-sizing: border-box;
@@ -2190,7 +2190,7 @@ select {
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.2);
     border-radius: 14px;
     padding: 14px;
-    background: rgba(6, 11, 21, 0.5);
+    background: var(--ds-surface-raised);
 }
 .events-list {
     display: flex;
@@ -3086,7 +3086,7 @@ select {
 .support-box {
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.24);
     border-radius: 14px;
-    background: rgba(8, 13, 24, 0.46);
+    background: var(--ds-surface-raised);
     padding: 14px;
 }
 
@@ -3171,7 +3171,7 @@ select {
 .support-guide-card {
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.2);
     border-radius: 12px;
-    background: rgba(8, 13, 24, 0.4);
+    background: var(--ds-surface-elevated);
     padding: 12px;
 }
 
