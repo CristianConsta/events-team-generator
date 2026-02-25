@@ -1067,7 +1067,7 @@ select {
     border-radius: 14px;
     font-size: 16px;
     font-weight: 700;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid var(--ds-border-default);
     box-shadow: var(--ds-shadow-soft);
 }
 .counter.team-a { background: linear-gradient(145deg, rgba(65, 105, 225, 0.88), rgba(27, 78, 198, 0.88)); }
@@ -1214,7 +1214,7 @@ select {
 }
 .players-mgmt-filter-summary {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--ds-text-muted);
 }
 .players-mgmt-add-form {
     display: grid;
@@ -1513,7 +1513,7 @@ select {
     min-height: var(--btn-height-lg);
     border-radius: 10px;
     border: 2px solid;
-    background: rgba(8, 13, 24, 0.65);
+    background: var(--ds-surface-raised);
     cursor: pointer;
     font-size: var(--btn-font-md);
     font-weight: 700;
@@ -1560,7 +1560,7 @@ select {
     padding: var(--btn-padding-md);
     background: rgba(9, 14, 25, 0.72);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.3);
-    color: rgba(255,255,255,0.72);
+    color: var(--ds-text-muted);
     border-radius: 10px;
     font-size: var(--btn-font-sm);
     cursor: pointer;
@@ -1579,7 +1579,7 @@ select {
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid;
-    background: rgba(8, 13, 24, 0.64);
+    background: var(--ds-surface-raised);
 }
 .role-toggle.team-a-selected { border-color: var(--ds-team-a); }
 .role-toggle.team-b-selected { border-color: var(--ds-team-b); }
@@ -1602,8 +1602,8 @@ select {
 }
 .role-toggle.team-a-selected .role-btn.active { background: var(--ds-team-a); color: white; }
 .role-toggle.team-b-selected .role-btn.active { background: var(--ds-team-b); color: white; }
-.role-btn:not(.active) { color: rgba(255,255,255,0.6); }
-.role-btn:not(.active):hover { background: rgba(255,255,255,0.1); }
+.role-btn:not(.active) { color: var(--ds-text-muted); }
+.role-btn:not(.active):hover { background: var(--ds-surface-hover); }
 .role-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Display type toggle (Building / Team) in event editor */
@@ -1630,7 +1630,7 @@ select {
     justify-content: center;
     gap: 6px;
     text-align: center;
-    color: rgba(255,255,255,0.6);
+    color: var(--ds-text-muted);
 }
 .display-toggle-prefix {
     display: inline-flex;
@@ -1644,7 +1644,7 @@ select {
     letter-spacing: 0.05em;
     line-height: 1.2;
 }
-.display-toggle-btn:hover { background: rgba(255,255,255,0.1); }
+.display-toggle-btn:hover { background: var(--ds-surface-hover); }
 .display-toggle-btn.active {
     background: rgba(var(--ds-accent-primary-rgb), 0.88);
     color: var(--ds-surface-base);
@@ -2421,7 +2421,7 @@ select {
     padding: 10px 12px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.28);
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--ds-surface-1);
 }
 .selection-source-title {
     font-size: 13px;
@@ -2447,7 +2447,7 @@ select {
     padding: 12px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.28);
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--ds-surface-1);
 }
 .assignment-algorithm-label {
     font-size: 13px;
@@ -2471,7 +2471,7 @@ select {
     padding: 8px 12px;
     border-radius: 10px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.28);
-    background: rgba(8, 13, 24, 0.6);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-primary);
     cursor: pointer;
 }
