@@ -1720,7 +1720,7 @@ select {
     bottom: 0;
     z-index: 1040;
     background:
-        linear-gradient(180deg, rgba(9, 14, 26, 0.82) 0%, rgba(9, 14, 26, 0.96) 100%);
+        linear-gradient(180deg, var(--ds-surface-overlay) 0%, var(--ds-surface-overlay-strong) 100%);
     border-top: 1px solid rgba(var(--ds-accent-primary-rgb), 0.28);
     padding: 8px 10px calc(8px + var(--safe-area-inset-bottom));
     gap: 8px;
@@ -1739,7 +1739,7 @@ select {
     font-size: var(--text-xs);
     font-weight: 700;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--ds-surface-1);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.22);
     color: var(--ds-text-primary);
     box-shadow: none;
@@ -1767,12 +1767,12 @@ select {
 .mobile-bottom-nav-btn:hover {
     transform: none;
     box-shadow: none;
-    background: rgba(255, 255, 255, 0.09);
+    background: var(--ds-surface-hover);
 }
 .mobile-bottom-nav-btn.active {
     background: linear-gradient(135deg, var(--ds-event-active-start), var(--ds-event-active-end));
     color: var(--ds-text-on-accent);
-    border-color: rgba(255, 255, 255, 0.4);
+    border-color: var(--ds-border-strong);
 }
 .mobile-bottom-nav-btn.active .mobile-bottom-nav-icon {
     opacity: 1;
@@ -3825,8 +3825,8 @@ select {
         font-size: var(--text-xs);
         font-weight: 800;
         border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        color: #fff;
+        border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.4);
+        color: var(--ds-text-primary);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         cursor: pointer;
         transition: opacity 0.15s ease;
