@@ -444,8 +444,8 @@ body::before {
     padding: 34px;
     background: var(--ds-surface-inverse);
     border-radius: 14px;
-    box-shadow: 0 12px 28px rgba(9, 14, 28, 0.22);
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: var(--ds-shadow-soft);
+    border: 1px solid var(--ds-border-default);
 }
 .login-title {
     text-align: center;
@@ -516,13 +516,13 @@ body::before {
 #loginScreen .login-btn-primary {
     background: linear-gradient(135deg, var(--ds-button-login-green-start), var(--ds-button-login-green-end));
     border: none;
-    color: #FFFFFF;
+    color: var(--ds-button-primary-text);
     margin-top: 12px;
 }
 #loginScreen .login-btn-secondary {
     background: linear-gradient(135deg, var(--ds-button-login-blue-start), var(--ds-button-login-blue-end));
     border: none;
-    color: #FFFFFF;
+    color: var(--ds-button-primary-text);
 }
 #loginScreen .login-btn-link {
     background: transparent;
@@ -1705,8 +1705,8 @@ select {
     color: var(--ds-surface-base);
 }
 .display-toggle-btn.active .display-toggle-prefix {
-    background: rgba(7, 12, 25, 0.12);
-    border-color: rgba(7, 12, 25, 0.24);
+    background: var(--ds-surface-inset);
+    border-color: var(--ds-surface-inset);
 }
 .event-editor-cell--display .display-toggle {
     width: 100%;
