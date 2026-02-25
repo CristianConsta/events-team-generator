@@ -859,12 +859,12 @@ select {
     z-index: 3000;
     max-width: 320px;
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.01) 100%),
+        linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
         var(--ds-surface-overlay-strong);
     border: 1px solid var(--ds-border-strong);
     border-radius: 16px;
     padding: 20px 22px 14px;
-    box-shadow: var(--ds-shadow-elev), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    box-shadow: var(--ds-shadow-elev);
     backdrop-filter: blur(10px);
     pointer-events: auto;
 }
@@ -911,9 +911,9 @@ select {
     align-items: center;
     justify-content: center;
     margin-left: auto;
-    color: rgba(255, 255, 255, 0.78);
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--ds-text-muted);
+    background: var(--ds-surface-2);
+    border: 1px solid var(--ds-border-default);
     border-radius: 10px;
     font-size: 12px;
     padding: 6px 10px;
@@ -921,8 +921,8 @@ select {
     user-select: none;
 }
 .onboarding-tooltip .onboarding-skip:hover {
-    color: #FFFFFF;
-    background: rgba(255, 255, 255, 0.13);
+    color: var(--ds-text-primary);
+    background: var(--ds-surface-hover);
 }
 /* Arrow pointing down (tooltip is above target) */
 .onboarding-tooltip[data-arrow="bottom"]::after {
@@ -932,7 +932,7 @@ select {
     left: var(--arrow-offset, 50%);
     width: 14px;
     height: 7px;
-    background: rgba(10, 15, 28, 0.97);
+    background: var(--ds-surface-overlay-strong);
     clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 /* Arrow pointing up (tooltip is below target) */
@@ -943,7 +943,7 @@ select {
     left: var(--arrow-offset, 50%);
     width: 14px;
     height: 7px;
-    background: rgba(17, 24, 42, 0.97);
+    background: var(--ds-surface-overlay-strong);
     clip-path: polygon(50% 0, 0 100%, 100% 100%);
 }
 
@@ -2131,8 +2131,8 @@ select {
     margin-bottom: 10px;
     padding: 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--ds-border-default);
+    background: var(--ds-surface-elevated);
     cursor: pointer;
 }
 .notification-card-heading {
@@ -2574,14 +2574,14 @@ select {
     display: block;
     margin-bottom: 6px;
     font-size: 12px;
-    color: rgba(255,255,255,0.86);
+    color: var(--ds-text-primary);
 }
 .settings-danger-zone input {
     width: 100%;
     margin-bottom: 10px;
     border: 1px solid rgba(255, 107, 53, 0.56);
     border-radius: 8px;
-    background: rgba(13, 18, 32, 0.72);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-primary);
     padding: 10px 12px;
 }
@@ -2800,7 +2800,7 @@ select {
     overflow-y: auto;
     box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.01) 100%),
+        linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
         var(--ds-surface-overlay-strong);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.34);
     border-radius: 14px;
