@@ -2875,7 +2875,7 @@ select {
 }
 /* ── Alliance Panel inputs ── */
 #alliancePanelContent input::placeholder {
-    color: rgba(255,255,255,0.5);
+    color: var(--ds-text-muted);
 }
 
 
@@ -2932,9 +2932,9 @@ select {
     min-width: 180px;
     padding: 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.3);
-    background: rgba(255,255,255,0.1);
-    color: white;
+    border: 1px solid var(--ds-border-default);
+    background: var(--ds-surface-raised);
+    color: var(--ds-text-primary);
     font-size: 14px;
 }
 
@@ -2945,7 +2945,7 @@ select {
 
 .alliance-member-row {
     padding: 8px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid var(--ds-border-default);
 }
 
 .alliance-panel-hint {
@@ -2957,7 +2957,7 @@ select {
 .alliance-panel-lock-hint {
     margin: 8px 0 10px;
     font-size: 12px;
-    color: rgba(255,193,107,0.95);
+    color: var(--ds-state-warning);
 }
 
 .alliance-invite-cards {
@@ -2966,9 +2966,9 @@ select {
 
 .alliance-invite-card {
     padding: 12px;
-    background: rgba(255,255,255,0.05);
+    background: var(--ds-surface-raised);
     border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.12);
+    border: 1px solid var(--ds-border-default);
     margin-bottom: 10px;
     transition: box-shadow var(--motion-medium) ease;
 }
@@ -3001,7 +3001,7 @@ select {
     flex-wrap: wrap;
 }
 .alliance-invite-actions--explicit {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--ds-border-default);
     padding-top: 10px;
 }
 .alliance-invite-meta {
@@ -3016,9 +3016,9 @@ select {
     max-width: 100%;
     padding: 4px 8px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid var(--ds-border-default);
     background: var(--ds-surface-2);
-    color: rgba(255, 255, 255, 0.86);
+    color: var(--ds-text-muted);
     font-size: var(--text-xs);
     line-height: 1.2;
     white-space: nowrap;
@@ -3031,8 +3031,8 @@ select {
     color: rgba(255, 241, 206, 0.96);
 }
 .alliance-status-chip--time {
-    border-color: rgba(255, 255, 255, 0.18);
-    color: rgba(255, 255, 255, 0.78);
+    border-color: var(--ds-border-default);
+    color: var(--ds-text-muted);
 }
 .alliance-status-chip--locked {
     border-color: rgba(255, 107, 53, 0.48);
