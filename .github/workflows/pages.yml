@@ -53,20 +53,11 @@ jobs:
           key: eslint-${{ hashFiles('eslint.config.*', '**/*.js') }}
           restore-keys: eslint-
 
-      - name: Run lint
-        run: npm run lint:ci
+      - name: Lint + size budgets
+        run: npm run lint:ci && npm run check:budgets
 
-      - name: Check size budgets
-        run: npm run check:budgets
-
-      - name: Run unit tests
-        run: npm run test:unit
-
-      - name: Run coverage gate
-        run: npm run test:coverage
-
-      - name: Build bundle
-        run: npm run build
+      - name: Unit tests + coverage gate + build
+        run: npm run test:coverage && npm run build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
