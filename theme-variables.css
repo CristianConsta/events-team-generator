@@ -20,6 +20,10 @@
     --ds-scrim:               rgba(4, 8, 18, 0.72);
     --ds-state-error-rgb:     255, 107, 53;
     --ds-state-success-rgb:   144, 238, 144;
+    --ds-team-a-text:           #9DB8FF;
+    --ds-team-b-text:           #FFB2C1;
+    --ds-state-disabled-bg:     rgba(255, 255, 255, 0.06);
+    --ds-state-disabled-text:   rgba(255, 255, 255, 0.30);
     --ds-text-primary: #F5F7FF;
     --ds-text-muted: rgba(245, 247, 255, 0.74);
     --ds-text-inverse: #222638;
@@ -137,6 +141,10 @@
     --ds-scrim:               rgba(4, 10, 8, 0.72);
     --ds-state-error-rgb:     255, 107, 53;
     --ds-state-success-rgb:   144, 238, 144;
+    --ds-team-a-text:           #A8D8F0;
+    --ds-team-b-text:           #F0B09A;
+    --ds-state-disabled-bg:     rgba(255, 255, 255, 0.05);
+    --ds-state-disabled-text:   rgba(255, 255, 255, 0.28);
     --ds-backdrop-glow-a: rgba(242, 188, 85, 0.06);
     --ds-backdrop-glow-b: rgba(88, 185, 229, 0.06);
     --ds-event-active-start: rgba(242, 188, 85, 0.95);
@@ -164,6 +172,10 @@
     --ds-scrim:               rgba(0, 0, 0, 0.45);
     --ds-state-error-rgb:     211, 47, 47;
     --ds-state-success-rgb:   46, 125, 50;
+    --ds-team-a-text:           #1A3A8A;
+    --ds-team-b-text:           #7A0820;
+    --ds-state-disabled-bg:     rgba(0, 0, 0, 0.06);
+    --ds-state-disabled-text:   rgba(0, 0, 0, 0.36);
     --ds-text-primary: #1F2533;
     --ds-text-muted: #596174;
     --ds-text-inverse: #F5F7FF;
