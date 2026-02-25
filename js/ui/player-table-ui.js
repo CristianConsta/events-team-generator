@@ -118,8 +118,9 @@
     }
 
     function buildRoleBadge(role, translate) {
+        if (role !== 'substitute') { return ''; }
         var t = getTranslator(translate);
-        var label = role === 'substitute' ? t('role_substitute_short') : t('role_starter_short');
+        var label = t('role_substitute_short');
         return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + label + '</span>';
     }
 

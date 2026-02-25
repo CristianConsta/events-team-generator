@@ -10624,11 +10624,12 @@
           return countRole(cloned[key], ROLE_SUBSTITUTE);
         }
         function getCurrentTeamCounts(selections) {
+          const cloned = cloneSelections(selections);
           return {
-            teamAStarterCount: getStarterCount(selections, TEAM_A),
-            teamASubCount: getSubstituteCount(selections, TEAM_A),
-            teamBStarterCount: getStarterCount(selections, TEAM_B),
-            teamBSubCount: getSubstituteCount(selections, TEAM_B)
+            teamAStarterCount: countRole(cloned.teamA, ROLE_STARTER),
+            teamASubCount: countRole(cloned.teamA, ROLE_SUBSTITUTE),
+            teamBStarterCount: countRole(cloned.teamB, ROLE_STARTER),
+            teamBSubCount: countRole(cloned.teamB, ROLE_SUBSTITUTE)
           };
         }
         function buildTeamSelectionMaps(selections) {
@@ -15773,53 +15774,42 @@
             }, fmtDelta2 = function(v) {
               if (v === null || !Number.isFinite(v)) return "\u2014";
               return (v > 0 ? "+" : "") + String(v);
+            }, buildDeltaRow2 = function(label, delta, isFlagged) {
+              var tr = document.createElement("tr");
+              if (isFlagged) {
+                tr.className = "flagged";
+              }
+              [label, fmtVal2(delta.old), fmtVal2(delta.new), fmtDelta2(delta.delta)].forEach(function(text) {
+                var td = document.createElement("td");
+                td.textContent = text;
+                tr.appendChild(td);
+              });
+              return tr;
             };
-            var fmtVal = fmtVal2, fmtDelta = fmtDelta2;
-            var powerTr = document.createElement("tr");
-            if (deltas.power && deltas.power.flagged) {
-              powerTr.className = "flagged";
+            var fmtVal = fmtVal2, fmtDelta = fmtDelta2, buildDeltaRow = buildDeltaRow2;
+            if (deltas.power) {
+              tbody.appendChild(buildDeltaRow2("Power", deltas.power, deltas.power.flagged));
             }
-            [
-              "Power",
-              deltas.power ? fmtVal2(deltas.power.old) : "",
-              deltas.power ? fmtVal2(deltas.power.new) : "",
-              deltas.power ? fmtDelta2(deltas.power.delta) : ""
-            ].forEach(function(text) {
-              var td = document.createElement("td");
-              td.textContent = text;
-              powerTr.appendChild(td);
-            });
-            tbody.appendChild(powerTr);
-            var thpTr = document.createElement("tr");
-            if (deltas.thp && deltas.thp.flagged) {
-              thpTr.className = "flagged";
+            if (deltas.thp) {
+              tbody.appendChild(buildDeltaRow2("THP", deltas.thp, deltas.thp.flagged));
             }
-            [
-              "THP",
-              deltas.thp ? fmtVal2(deltas.thp.old) : "",
-              deltas.thp ? fmtVal2(deltas.thp.new) : "",
-              deltas.thp ? fmtDelta2(deltas.thp.delta) : ""
-            ].forEach(function(text) {
-              var td = document.createElement("td");
-              td.textContent = text;
-              thpTr.appendChild(td);
-            });
-            tbody.appendChild(thpTr);
-            var troopsTr = document.createElement("tr");
-            if (deltas.troops && deltas.troops.changed) {
-              troopsTr.className = "flagged";
+            if (deltas.troops) {
+              var troopsTr = document.createElement("tr");
+              if (deltas.troops.changed) {
+                troopsTr.className = "flagged";
+              }
+              [
+                "Troops",
+                String(deltas.troops.old || ""),
+                String(deltas.troops.new || ""),
+                deltas.troops.changed ? "Changed" : "Unchanged"
+              ].forEach(function(text) {
+                var td = document.createElement("td");
+                td.textContent = text;
+                troopsTr.appendChild(td);
+              });
+              tbody.appendChild(troopsTr);
             }
-            [
-              "Troops",
-              deltas.troops ? String(deltas.troops.old || "") : "",
-              deltas.troops ? String(deltas.troops.new || "") : "",
-              deltas.troops && deltas.troops.changed ? "Changed" : "Unchanged"
-            ].forEach(function(text) {
-              var td = document.createElement("td");
-              td.textContent = text;
-              troopsTr.appendChild(td);
-            });
-            tbody.appendChild(troopsTr);
           }
           table.appendChild(tbody);
           row.appendChild(table);
@@ -16297,8 +16287,11 @@
           }
         }
         function buildRoleBadge(role, translate) {
+          if (role !== "substitute") {
+            return "";
+          }
           var t2 = getTranslator(translate);
-          var label = role === "substitute" ? t2("role_substitute_short") : t2("role_starter_short");
+          var label = t2("role_substitute_short");
           return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + label + "</span>";
         }
         function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps, translate) {
