@@ -24819,6 +24819,14 @@
         if (mobileGenCountB) {
           mobileGenCountB.textContent = teamBStarterCount + "/20";
         }
+        var mobileGenSubCountA = document.getElementById("mobileGenSubCountA");
+        var mobileGenSubCountB = document.getElementById("mobileGenSubCountB");
+        if (mobileGenSubCountA) {
+          mobileGenSubCountA.textContent = teamASubCount + "/10";
+        }
+        if (mobileGenSubCountB) {
+          mobileGenSubCountB.textContent = teamBSubCount + "/10";
+        }
         updateClearAllButtonVisibility();
       }
       function resolveCurrentEventAssignmentSelection(activeGameId) {

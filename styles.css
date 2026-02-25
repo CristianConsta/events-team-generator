@@ -3843,6 +3843,7 @@ select {
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         cursor: pointer;
         transition: opacity 0.15s ease;
+        position: relative;
     }
     .mobile-gen-btn:disabled {
         opacity: 0.35;
@@ -3863,6 +3864,19 @@ select {
         font-size: 10px;
         opacity: 0.85;
         line-height: 1;
+    }
+    .mobile-gen-sub-count {
+        position: absolute;
+        bottom: -1px;
+        right: -1px;
+        font-size: 8px;
+        font-weight: 700;
+        line-height: 1;
+        padding: 2px 3px;
+        border-radius: 4px 0 10px 0;
+        background: rgba(0, 0, 0, 0.45);
+        color: rgba(255, 255, 255, 0.85);
+        letter-spacing: 0.3px;
     }
 
     /* ── Collapsible panels ── */

@@ -4353,8 +4353,12 @@ function updateTeamCounters() {
     var mobileGenCountB = document.getElementById('mobileGenCountB');
     if (mobileGenBtnA) { mobileGenBtnA.disabled = teamAStarterCount === 0; }
     if (mobileGenBtnB) { mobileGenBtnB.disabled = teamBStarterCount === 0; }
-    if (mobileGenCountA) { mobileGenCountA.textContent = teamAStarterCount + '/' + 20; }
-    if (mobileGenCountB) { mobileGenCountB.textContent = teamBStarterCount + '/' + 20; }
+    if (mobileGenCountA) { mobileGenCountA.textContent = teamAStarterCount + '/20'; }
+    if (mobileGenCountB) { mobileGenCountB.textContent = teamBStarterCount + '/20'; }
+    var mobileGenSubCountA = document.getElementById('mobileGenSubCountA');
+    var mobileGenSubCountB = document.getElementById('mobileGenSubCountB');
+    if (mobileGenSubCountA) { mobileGenSubCountA.textContent = teamASubCount + '/10'; }
+    if (mobileGenSubCountB) { mobileGenSubCountB.textContent = teamBSubCount + '/10'; }
 
     updateClearAllButtonVisibility();
 }
