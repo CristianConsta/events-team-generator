@@ -732,8 +732,8 @@ button.secondary:hover {
     flex-direction: column;
     gap: 10px;
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
-        rgba(18, 26, 44, 0.98);
+        linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
+        var(--ds-surface-overlay-strong);
     border-radius: 18px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.34);
     box-shadow: var(--ds-shadow-elev);
@@ -766,8 +766,8 @@ button.secondary:hover {
     border-radius: 14px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.3);
     background:
-        linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
-        rgba(9, 15, 26, 0.86);
+        linear-gradient(150deg, var(--ds-surface-1), transparent),
+        var(--ds-surface-raised);
     box-shadow: var(--ds-shadow-soft);
     text-align: left;
     transition: transform var(--motion-medium) ease, border-color var(--motion-medium) ease, background var(--motion-medium) ease;
@@ -776,14 +776,14 @@ button.secondary:hover {
     transform: translateY(-1px);
     border-color: rgba(var(--ds-accent-primary-rgb), 0.58);
     background:
-        linear-gradient(150deg, rgba(var(--ds-accent-primary-rgb), 0.18), rgba(255, 255, 255, 0.03)),
-        rgba(10, 18, 31, 0.94);
+        linear-gradient(150deg, rgba(var(--ds-accent-primary-rgb), 0.18), transparent),
+        var(--ds-surface-elevated);
 }
 .game-selector-option.is-selected {
     border-color: rgba(var(--ds-accent-primary-rgb), 0.74);
     background:
-        linear-gradient(140deg, rgba(var(--ds-accent-primary-rgb), 0.28), rgba(255, 255, 255, 0.04)),
-        rgba(11, 19, 32, 0.98);
+        linear-gradient(140deg, rgba(var(--ds-accent-primary-rgb), 0.28), transparent),
+        var(--ds-surface-elevated);
 }
 .game-selector-option-avatar {
     width: 52px;
@@ -2600,7 +2600,7 @@ select {
 /* ── Settings Modal ── */
 .modal-shell {
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.01) 100%),
+        linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
         var(--ds-surface-overlay-strong);
     border: 1px solid var(--ds-border-strong);
     box-shadow: var(--ds-shadow-elev);
@@ -2713,15 +2713,15 @@ select {
     display: flex;
     flex-direction: column;
     padding: 20px;
-    background: rgba(26, 26, 46, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--ds-surface-overlay-strong);
+    border: 1px solid var(--ds-border-default);
     border-radius: 16px;
 }
 .modal-shell--game-metadata {
     width: min(520px, 94vw);
     padding: 22px;
-    background: rgba(26, 26, 46, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--ds-surface-overlay-strong);
+    border: 1px solid var(--ds-border-default);
     border-radius: 16px;
 }
 .modal-header {
