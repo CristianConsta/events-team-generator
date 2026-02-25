@@ -21720,8 +21720,6 @@
       var EVENT_NAME_LIMIT = 30;
       var EVENT_LOGO_DATA_URL_LIMIT = 22e4;
       var EVENT_MAP_DATA_URL_LIMIT = 95e4;
-      var THEME_STANDARD = window.DSThemeController.THEME_STANDARD;
-      var THEME_LAST_WAR = window.DSThemeController.THEME_LAST_WAR;
       var SUPPORT_DISCORD_HANDLE = "flashguru2000";
       var SUPPORT_DISCORD_URL = "https://discord.com/users/1239126582388592667";
       var SUPPORT_REPO_ISSUES_NEW_URL = "https://github.com/CristianConsta/events-team-generator/issues/new";
@@ -22418,18 +22416,14 @@
       }
       var EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
       var DEFAULT_ASSIGNMENT_ALGORITHM_ID = window.DSEventsRegistryController.DEFAULT_ASSIGNMENT_ALGORITHM_ID;
-      var MAP_PREVIEW = window.DSEventsRegistryController.MAP_PREVIEW;
       var MAP_EXPORT = window.DSEventsRegistryController.MAP_EXPORT;
       var MAP_CANVAS_WIDTH = window.DSEventsRegistryController.MAP_CANVAS_WIDTH;
       var MAP_CANVAS_FALLBACK_HEIGHT = window.DSEventsRegistryController.MAP_CANVAS_FALLBACK_HEIGHT;
       var MAP_GRID_STEP = window.DSEventsRegistryController.MAP_GRID_STEP;
-      var MAP_UPLOAD_MAX_SIDE = window.DSEventsRegistryController.MAP_UPLOAD_MAX_SIDE;
       var BUILDING_POSITIONS_VERSION = window.DSEventsRegistryController.BUILDING_POSITIONS_VERSION;
       var BUILDING_CONFIG_VERSION = window.DSEventsRegistryController.BUILDING_CONFIG_VERSION;
       var MAX_BUILDING_SLOTS_TOTAL = window.DSEventsRegistryController.MAX_BUILDING_SLOTS_TOTAL;
       var MIN_BUILDING_SLOTS = window.DSEventsRegistryController.MIN_BUILDING_SLOTS;
-      var textColors = window.DSEventsRegistryController.textColors;
-      var bgColors = window.DSEventsRegistryController.bgColors;
       window.DSEventsRegistryController.init({
         // translation
         t: function() {
@@ -22835,7 +22829,6 @@
       var buildingConfigs = window.DSEventsRegistryController.getBuildingConfigs();
       var buildingPositionsMap = window.DSEventsRegistryController.getBuildingPositionsMap();
       var coordMapWarningShown = window.DSEventsRegistryController.getCoordMapWarningShown();
-      var PROTECTED_EVENT_IDS = window.DSEventsRegistryController.getProtectedEventIds();
       function escapeHtml(str) {
         const div = document.createElement("div");
         div.appendChild(document.createTextNode(String(str)));
@@ -23762,7 +23755,7 @@
           if (!Number.isNaN(value.getTime())) {
             return value.toLocaleString();
           }
-        } catch (error) {
+        } catch (_) {
           return "";
         }
         return "";

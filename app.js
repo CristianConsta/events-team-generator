@@ -74,10 +74,6 @@ function applyTranslations() {
     window.DSI18N.applyTranslations();
 }
 
-function setLanguage(lang) {
-    window.DSI18N.setLanguage(lang);
-}
-
 function initLanguage() {
     window.DSI18N.init({
         onApply: () => {
@@ -160,8 +156,6 @@ function closeModalOverlay(overlay) {
     overlay.classList.add('hidden');
     return true;
 }
-
-function createMissingActiveGameError() { return DSGameSelectorController.createMissingActiveGameError(); }
 
 function listSelectableGames() {
     if (typeof FirebaseService === 'undefined' || typeof FirebaseService.listAvailableGames !== 'function') {
@@ -305,12 +299,9 @@ function ensureActiveGameContext() {
     return gameId;
 }
 
-function requireActiveGameContext() { return DSGameSelectorController.requireActiveGameContext(); }
 function enforceGameplayContext(s) { return DSGameSelectorController.enforceGameplayContext(s); }
 function getGameplayContext(s) { return DSGameSelectorController.getGameplayContext(s); }
 function getEventGameplayContext(e, s) { return DSGameSelectorController.getEventGameplayContext(e, s); }
-function isPostAuthGameSelectorEnabled() { return DSGameSelectorController.isPostAuthGameSelectorEnabled(); }
-function renderGameSelectorOptions(p) { return DSGameSelectorController.renderGameSelectorOptions(p); }
 function setGameSelectorSelection(g) { return DSGameSelectorController.setGameSelectorSelection(g); }
 function closeGameSelector(f) { return DSGameSelectorController.closeGameSelector(f); }
 function openGameSelector(o) { return DSGameSelectorController.openGameSelector(o); }
@@ -355,13 +346,11 @@ function resetTransientPlanningState(options) {
     updateTeamCounters();
 }
 
-function applyGameSwitch(g, o) { return DSGameSelectorController.applyGameSwitch(g, o); }
 function confirmGameSelectorChoice() { return DSGameSelectorController.confirmGameSelectorChoice(); }
 function showPostAuthGameSelector() { return DSGameSelectorController.showPostAuthGameSelector(); }
 function resetPostAuthGameSelectorState() { return DSGameSelectorController.resetPostAuthGameSelectorState(); }
 function isPostAuthGameSelectionPending() { return DSGameSelectorController.isPostAuthGameSelectionPending(); }
 
-function isGameMetadataSuperAdmin(u) { return DSGameMetadataAdminController.isGameMetadataSuperAdmin(u); }
 function syncGameMetadataMenuAvailability() { return DSGameMetadataAdminController.syncGameMetadataMenuAvailability(); }
 function normalizeGameMetadataEntry(e) { return DSGameMetadataAdminController.normalizeGameMetadataEntry(e); }
 function generateGameAvatarDataUrl(n, i) { return DSGameMetadataAdminController.generateGameAvatarDataUrl(n, i); }
@@ -972,8 +961,6 @@ const AVATAR_MAX_UPLOAD_BYTES = window.DSAuthUiController.AVATAR_MAX_UPLOAD_BYTE
 const EVENT_NAME_LIMIT = 30;
 const EVENT_LOGO_DATA_URL_LIMIT = 220000;
 const EVENT_MAP_DATA_URL_LIMIT = 950000;
-const THEME_STANDARD = window.DSThemeController.THEME_STANDARD;
-const THEME_LAST_WAR = window.DSThemeController.THEME_LAST_WAR;
 const SUPPORT_DISCORD_HANDLE = 'flashguru2000';
 const SUPPORT_DISCORD_URL = 'https://discord.com/users/1239126582388592667';
 const SUPPORT_REPO_ISSUES_NEW_URL = 'https://github.com/CristianConsta/events-team-generator/issues/new';
@@ -1587,10 +1574,6 @@ function showPlayersManagementPage() {
     setPageView('players');
 }
 
-function openAlliancePanelFromMenu() {
-    showAlliancePage();
-}
-
 function showAlliancePage() {
     setPageView('alliance');
     Promise.resolve()
@@ -1771,19 +1754,14 @@ function deleteAccountFromSettings() { return window.DSAuthUiController.deleteAc
 
 const EVENT_REGISTRY = window.DSCoreEvents.EVENT_REGISTRY;
 const DEFAULT_ASSIGNMENT_ALGORITHM_ID = window.DSEventsRegistryController.DEFAULT_ASSIGNMENT_ALGORITHM_ID;
-const MAP_PREVIEW = window.DSEventsRegistryController.MAP_PREVIEW;
 const MAP_EXPORT = window.DSEventsRegistryController.MAP_EXPORT;
 const MAP_CANVAS_WIDTH = window.DSEventsRegistryController.MAP_CANVAS_WIDTH;
 const MAP_CANVAS_FALLBACK_HEIGHT = window.DSEventsRegistryController.MAP_CANVAS_FALLBACK_HEIGHT;
 const MAP_GRID_STEP = window.DSEventsRegistryController.MAP_GRID_STEP;
-const MAP_UPLOAD_MAX_SIDE = window.DSEventsRegistryController.MAP_UPLOAD_MAX_SIDE;
 const BUILDING_POSITIONS_VERSION = window.DSEventsRegistryController.BUILDING_POSITIONS_VERSION;
 const BUILDING_CONFIG_VERSION = window.DSEventsRegistryController.BUILDING_CONFIG_VERSION;
 const MAX_BUILDING_SLOTS_TOTAL = window.DSEventsRegistryController.MAX_BUILDING_SLOTS_TOTAL;
 const MIN_BUILDING_SLOTS = window.DSEventsRegistryController.MIN_BUILDING_SLOTS;
-const textColors = window.DSEventsRegistryController.textColors;
-const bgColors = window.DSEventsRegistryController.bgColors;
-
 // Initialise the controller with app.js dependencies
 window.DSEventsRegistryController.init({
     // translation
@@ -1901,51 +1879,31 @@ window.DSGameSelectorController.init({
 });
 
 // Thin wrappers — delegate to controller
-function getEventIds() { return window.DSEventsRegistryController.getEventIds(); }
 function normalizeAssignmentAlgorithmId(v) { return window.DSEventsRegistryController.normalizeAssignmentAlgorithmId(v); }
 function normalizeGameId(v) { return window.DSEventsRegistryController.normalizeGameId(v); }
 function normalizeEventId(v) { return window.DSEventsRegistryController.normalizeEventId(v); }
-function normalizeMapPurpose(p) { return window.DSEventsRegistryController.normalizeMapPurpose(p); }
 function resolveDefaultAssignmentAlgorithmId(g) { return window.DSEventsRegistryController.resolveDefaultAssignmentAlgorithmId(g); }
 function getActiveEvent() { return window.DSEventsRegistryController.getActiveEvent(); }
 function getEventDisplayName(id) { return window.DSEventsRegistryController.getEventDisplayName(id); }
-function createEventSelectorButton(id) { return window.DSEventsRegistryController.createEventSelectorButton(id); }
-function renderEventSelector(id) { return window.DSEventsRegistryController.renderEventSelector(id); }
 function renderAllEventSelectors() { return window.DSEventsRegistryController.renderAllEventSelectors(); }
-function normalizeStoredEventsData(d) { return window.DSEventsRegistryController.normalizeStoredEventsData(d); }
 function buildRegistryFromStorage() { return window.DSEventsRegistryController.buildRegistryFromStorage(); }
 function ensureEventRuntimeState(id) { return window.DSEventsRegistryController.ensureEventRuntimeState(id); }
-function resetMapStateForEvent(id) { return window.DSEventsRegistryController.resetMapStateForEvent(id); }
 function syncRuntimeStateWithRegistry() { return window.DSEventsRegistryController.syncRuntimeStateWithRegistry(); }
 function getMapRuntimeState(id, p) { return window.DSEventsRegistryController.getMapRuntimeState(id, p); }
-function deleteMapRuntimeStateForEvent(id) { return window.DSEventsRegistryController.deleteMapRuntimeStateForEvent(id); }
 function getEventMapFile(id, p) { return window.DSEventsRegistryController.getEventMapFile(id, p); }
 function loadMapImage(id, p) { return window.DSEventsRegistryController.loadMapImage(id, p); }
 function isImageDataUrl(v, m) { return window.DSEventsRegistryController.isImageDataUrl(v, m); }
-function hashString(v) { return window.DSEventsRegistryController.hashString(v); }
 function switchEvent(id) { return window.DSEventsRegistryController.switchEvent(id); }
 function updateGenerateEventLabels() { return window.DSEventsRegistryController.updateGenerateEventLabels(); }
 function generateEventAvatarDataUrl(n, i) { return window.DSEventsRegistryController.generateEventAvatarDataUrl(n, i); }
 function updateEventLogoPreview() { return window.DSEventsRegistryController.updateEventLogoPreview(); }
-function getEventMapPreviewSource(id) { return window.DSEventsRegistryController.getEventMapPreviewSource(id); }
-function updateEventMapPreview() { return window.DSEventsRegistryController.updateEventMapPreview(); }
 function updateEventEditorTitle() { return window.DSEventsRegistryController.updateEventEditorTitle(); }
-function isEventMapAvailable(id) { return window.DSEventsRegistryController.isEventMapAvailable(id); }
-function updateEventCoordinatesButton() { return window.DSEventsRegistryController.updateEventCoordinatesButton(); }
-function updateEventMapActionButtons(ro) { return window.DSEventsRegistryController.updateEventMapActionButtons(ro); }
 function updateEventEditorState() { return window.DSEventsRegistryController.updateEventEditorState(); }
 function enterEventEditMode() { return window.DSEventsRegistryController.enterEventEditMode(); }
 function cancelEventEditing() { return window.DSEventsRegistryController.cancelEventEditing(); }
 function openCoordinatesPickerFromEditor() { return window.DSEventsRegistryController.openCoordinatesPickerFromEditor(); }
-function createEditorBuildingRow(d) { return window.DSEventsRegistryController.createEditorBuildingRow(d); }
-function renderEventBuildingsEditor(b) { return window.DSEventsRegistryController.renderEventBuildingsEditor(b); }
 function addEventBuildingRow() { return window.DSEventsRegistryController.addEventBuildingRow(); }
-function readEventBuildingsEditor() { return window.DSEventsRegistryController.readEventBuildingsEditor(); }
 function bindEventEditorTableActions() { return window.DSEventsRegistryController.bindEventEditorTableActions(); }
-function setEditorName(v) { return window.DSEventsRegistryController.setEditorName(v); }
-function listSelectableAssignmentAlgorithmsForActiveGame() { return window.DSEventsRegistryController.listSelectableAssignmentAlgorithmsForActiveGame(); }
-function renderEventAssignmentAlgorithmOptions(id) { return window.DSEventsRegistryController.renderEventAssignmentAlgorithmOptions(id); }
-function getSelectedEventAssignmentAlgorithmId() { return window.DSEventsRegistryController.getSelectedEventAssignmentAlgorithmId(); }
 function applySelectedEventToEditor() { return window.DSEventsRegistryController.applySelectedEventToEditor(); }
 function renderEventsList() { return window.DSEventsRegistryController.renderEventsList(); }
 function startNewEventDraft() { return window.DSEventsRegistryController.startNewEventDraft(); }
@@ -1954,12 +1912,9 @@ function triggerEventLogoUpload() { return window.DSEventsRegistryController.tri
 function triggerEventMapUpload() { return window.DSEventsRegistryController.triggerEventMapUpload(); }
 function removeEventLogo() { return window.DSEventsRegistryController.removeEventLogo(); }
 function removeEventMap() { return window.DSEventsRegistryController.removeEventMap(); }
-function createEventImageDataUrl(f, o) { return window.DSEventsRegistryController.createEventImageDataUrl(f, o); }
-function createContainedSquareImageDataUrl(s, o) { return window.DSEventsRegistryController.createContainedSquareImageDataUrl(s, o); }
 function createGameMetadataLogoDataUrl(f) { return window.DSEventsRegistryController.createGameMetadataLogoDataUrl(f); }
 function handleEventLogoChange(e) { return window.DSEventsRegistryController.handleEventLogoChange(e); }
 function handleEventMapChange(e) { return window.DSEventsRegistryController.handleEventMapChange(e); }
-function buildEventDefinition(id, n, b, a) { return window.DSEventsRegistryController.buildEventDefinition(id, n, b, a); }
 function saveEventDefinition() { return window.DSEventsRegistryController.saveEventDefinition(); }
 function deleteSelectedEvent() { return window.DSEventsRegistryController.deleteSelectedEvent(); }
 
@@ -1967,8 +1922,6 @@ function deleteSelectedEvent() { return window.DSEventsRegistryController.delete
 var buildingConfigs = window.DSEventsRegistryController.getBuildingConfigs();
 var buildingPositionsMap = window.DSEventsRegistryController.getBuildingPositionsMap();
 var coordMapWarningShown = window.DSEventsRegistryController.getCoordMapWarningShown();
-var PROTECTED_EVENT_IDS = window.DSEventsRegistryController.getProtectedEventIds();
-
 // ============================================================
 // FIREBASE INTEGRATION
 // ============================================================
@@ -2862,10 +2815,6 @@ async function downloadPlayerTemplate() {
 // ALLIANCE MANAGEMENT
 // ============================================================
 
-function toggleAlliancePanel() {
-    showAlliancePage();
-}
-
 function openAlliancePanel() {
     showAlliancePage();
 }
@@ -3033,7 +2982,7 @@ function formatInvitationCreatedAt(createdAt) {
         if (!Number.isNaN(value.getTime())) {
             return value.toLocaleString();
         }
-    } catch (error) {
+    } catch (_) { // eslint-disable-line no-unused-vars
         return '';
     }
     return '';
@@ -3546,10 +3495,6 @@ function refreshCoordinatesPickerForCurrentEvent() {
     return window.DSCoordinatePickerController.refreshCoordinatesPickerForCurrentEvent(_coordState, _getCoordDeps());
 }
 
-function hasAllianceUploadAccess(gameplayContext) {
-    return window.DSPlayerDataUpload.hasAllianceUploadAccess(gameplayContext, typeof FirebaseService !== 'undefined' ? FirebaseService : undefined);
-}
-
 async function resolveAllianceUploadAccess(gameplayContext) {
     return window.DSPlayerDataUpload.resolveAllianceUploadAccess(gameplayContext, _getUploadDeps());
 }
@@ -3607,10 +3552,6 @@ async function uploadToBoth() {
     const file = pendingUploadFile;
     closeUploadTargetModal();
     if (file) await performUpload(file, 'both');
-}
-
-function getUploadErrorMessage(resultOrError) {
-    return window.DSPlayerDataUpload.getUploadErrorMessage(resultOrError, t);
 }
 
 async function performUpload(file, target) {
@@ -3691,10 +3632,6 @@ function renderSelectionSourceControls() {
     window.DSPlayerDataUpload.renderSelectionSourceControls(_getUploadDeps());
 }
 
-function toggleBuildingsPanel() {
-    showConfigurationPage();
-}
-
 function getDefaultBuildings() {
     return window.DSBuildingsConfigManager.getDefaultBuildings(currentEvent);
 }
@@ -3730,10 +3667,6 @@ function getBuildingDisplayName(internalName) {
 
 function isBuildingShownOnMap(internalName) {
     return window.DSBuildingsConfigManager.isBuildingShownOnMap(internalName, getBuildingConfig());
-}
-
-function getBuildingEditIcon(editing) {
-    return window.DSBuildingsConfigManager.getBuildingEditIcon(editing);
 }
 
 function toggleBuildingFieldEdit(buttonEl) {
@@ -3777,20 +3710,12 @@ function normalizeBuildingConfig(config, defaultsOverride) {
     );
 }
 
-function normalizeBuildingPositions(positions) {
-    return window.DSBuildingsConfigManager.normalizeBuildingPositions(positions, currentEvent);
-}
-
 function getEffectiveBuildingPositions() {
     return window.DSBuildingsConfigManager.getEffectiveBuildingPositions(_getBuildingDeps());
 }
 
 function getEffectiveBuildingConfig() {
     return window.DSBuildingsConfigManager.getEffectiveBuildingConfig(_getBuildingDeps());
-}
-
-function getResolvedDefaultBuildingConfig() {
-    return window.DSBuildingsConfigManager.getResolvedDefaultBuildingConfig(currentEvent, _getBuildingDeps());
 }
 
 function loadBuildingConfig() {
@@ -3805,9 +3730,6 @@ function renderBuildingsTable() {
     window.DSBuildingsConfigManager.renderBuildingsTable(_getBuildingDeps());
 }
 
-function readBuildingConfigFromTable() {
-    return window.DSBuildingsConfigManager.readBuildingConfigFromTable(_getBuildingDeps());
-}
 
 const buildingsTableBodyEl = document.getElementById('buildingsTableBody');
 if (buildingsTableBodyEl) {
@@ -3816,14 +3738,6 @@ if (buildingsTableBodyEl) {
         if (!btn) return;
         toggleBuildingFieldEdit(btn);
     });
-}
-
-function resetBuildingsToDefault() {
-    window.DSBuildingsConfigManager.resetBuildingsToDefault(_getBuildingDeps());
-}
-
-async function saveBuildingConfig() {
-    return window.DSBuildingsConfigManager.saveBuildingConfig(_getBuildingDeps());
 }
 
 function refreshBuildingConfigForAssignments() {
@@ -3843,16 +3757,8 @@ function openCoordinatesPicker() {
     window.DSCoordinatePickerController.openCoordinatesPicker(_coordState, _getCoordDeps());
 }
 
-function openCoordinatesPickerForEvent(eventId) {
-    window.DSCoordinatePickerController.openCoordinatesPickerForEvent(eventId, _coordState, _getCoordDeps());
-}
-
 function closeCoordinatesPicker() {
     window.DSCoordinatePickerController.closeCoordinatesPicker(_getCoordDeps());
-}
-
-function drawCoordCanvas() {
-    window.DSCoordinatePickerController.drawCoordCanvas(_coordState, _getCoordDeps());
 }
 
 function coordCanvasClick(event) {
@@ -3977,20 +3883,6 @@ function buildTeamSelectionMaps() {
         teamA: new Map(teamSelections.teamA.map((item) => [item.name, item])),
         teamB: new Map(teamSelections.teamB.map((item) => [item.name, item])),
     };
-}
-
-function getFilteredAndSortedPlayers() {
-    const searchTerm = (document.getElementById('searchFilter').value || '').toLowerCase();
-    if (window.DSPlayerTableUI && typeof window.DSPlayerTableUI.getFilteredAndSortedPlayers === 'function') {
-        return window.DSPlayerTableUI.getFilteredAndSortedPlayers({
-            allPlayers: allPlayers,
-            searchTerm: searchTerm,
-            troopsFilter: currentTroopsFilter,
-            sortFilter: currentSortFilter,
-        });
-    }
-
-    return allPlayers;
 }
 
 function refreshVisiblePlayerRows() {
@@ -4558,20 +4450,6 @@ function openDownloadModal(team) {
 function closeDownloadModal() {
     if (!window.DSDownloadController) return;
     window.DSDownloadController.closeDownloadModal(_getDownloadDeps());
-}
-
-// ============================================================
-// DOWNLOAD FUNCTIONS (delegated to DSDownloadController)
-// ============================================================
-
-function downloadTeamExcel(team) {
-    if (!window.DSDownloadController) return;
-    return window.DSDownloadController.downloadTeamExcel(team, _getDownloadDeps());
-}
-
-function downloadTeamMap(team) {
-    if (!window.DSDownloadController) return;
-    return window.DSDownloadController.downloadTeamMap(team, _getDownloadDeps());
 }
 
 // ============================================================
