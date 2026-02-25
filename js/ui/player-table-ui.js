@@ -117,64 +117,43 @@
         }
     }
 
+    function buildRoleBadge(role, translate) {
+        var t = getTranslator(translate);
+        var label = role === 'substitute' ? t('role_substitute_short') : t('role_starter_short');
+        return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + label + '</span>';
+    }
+
     function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps, translate) {
         const t = getTranslator(translate);
         const selectionA = selectionMaps.teamA.get(playerName);
         const selectionB = selectionMaps.teamB.get(playerName);
 
-        if (selectionA) {
-            const role = selectionA.role;
-            const starterDisabled = role === 'substitute' && counts.teamAStarterCount >= 20;
-            const subDisabled = role === 'starter' && counts.teamASubCount >= 10;
-            return `
-            <div class="team-actions-stack">
-                <div class="role-toggle team-a-selected">
-                    <button type="button" class="role-btn starter ${role === 'starter' ? 'active' : ''}"
-                        ${starterDisabled ? 'disabled' : ''}
-                        data-role="starter">${t('role_starter')}</button>
-                    <button type="button" class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
-                        ${subDisabled ? 'disabled' : ''}
-                        data-role="substitute">${t('role_substitute')}</button>
-                </div>
-                <button type="button" class="clear-btn team-clear-btn">${t('clear_button')}</button>
-            </div>
-        `;
-        }
+        const teamAFullyDisabled = !selectionA && counts.teamAStarterCount >= 20 && counts.teamASubCount >= 10;
+        const teamBFullyDisabled = !selectionB && counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
 
-        if (selectionB) {
-            const role = selectionB.role;
-            const starterDisabled = role === 'substitute' && counts.teamBStarterCount >= 20;
-            const subDisabled = role === 'starter' && counts.teamBSubCount >= 10;
-            return `
-            <div class="team-actions-stack">
-                <div class="role-toggle team-b-selected">
-                    <button type="button" class="role-btn starter ${role === 'starter' ? 'active' : ''}"
-                        ${starterDisabled ? 'disabled' : ''}
-                        data-role="starter">${t('role_starter')}</button>
-                    <button type="button" class="role-btn substitute ${role === 'substitute' ? 'active' : ''}"
-                        ${subDisabled ? 'disabled' : ''}
-                        data-role="substitute">${t('role_substitute')}</button>
-                </div>
-                <button type="button" class="clear-btn team-clear-btn">${t('clear_button')}</button>
-            </div>
-        `;
-        }
+        const teamAActive = selectionA ? ' active' : '';
+        const teamBActive = selectionB ? ' active' : '';
+        const teamASub = selectionA && selectionA.role === 'substitute' ? ' is-substitute' : '';
+        const teamBSub = selectionB && selectionB.role === 'substitute' ? ' is-substitute' : '';
+        const teamABadge = selectionA ? buildRoleBadge(selectionA.role, translate) : '';
+        const teamBBadge = selectionB ? buildRoleBadge(selectionB.role, translate) : '';
 
-        const teamAFullyDisabled = counts.teamAStarterCount >= 20 && counts.teamASubCount >= 10;
-        const teamBFullyDisabled = counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
-
-        return `
+        let html = `
         <div class="team-select-group">
-            <button type="button" class="team-btn team-a-btn" ${teamAFullyDisabled ? 'disabled' : ''}>
+            <button type="button" class="team-btn team-a-btn${teamAActive}${teamASub}" ${teamAFullyDisabled ? 'disabled' : ''}>
                 <span class="team-label-full">${t('team_a_button')}</span>
                 <span class="team-label-short">${t('team_a_short')}</span>
+                ${teamABadge}
             </button>
-            <button type="button" class="team-btn team-b-btn" ${teamBFullyDisabled ? 'disabled' : ''}>
+            <button type="button" class="team-btn team-b-btn${teamBActive}${teamBSub}" ${teamBFullyDisabled ? 'disabled' : ''}>
                 <span class="team-label-full">${t('team_b_button')}</span>
                 <span class="team-label-short">${t('team_b_short')}</span>
+                ${teamBBadge}
             </button>
         </div>
     `;
+
+        return html;
     }
 
     function applyPlayerRowSelectionState(row, player, counts, selectionMaps, translate) {

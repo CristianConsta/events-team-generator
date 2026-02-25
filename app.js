@@ -2552,6 +2552,10 @@ async function handlePlayersManagementTableAction(event) {
     if (action === 'edit') {
         playersManagementEditingName = originalName;
         renderPlayersManagementTable();
+        const editRow = document.querySelector('#playersMgmtTable tr.players-mgmt-edit-row');
+        if (editRow && typeof editRow.scrollIntoView === 'function') {
+            editRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         return;
     }
 
@@ -4095,6 +4099,31 @@ function toggleTeam(playerName, team) {
     refreshVisiblePlayerRows();
 }
 
+function cycleTeam(playerName, team) {
+    if (
+        window.DSFeatureGeneratorTeamSelection
+        && typeof window.DSFeatureGeneratorTeamSelection.cycleTeamSelection === 'function'
+    ) {
+        const result = window.DSFeatureGeneratorTeamSelection.cycleTeamSelection(teamSelections, playerName, team, {
+            maxTotal: 30,
+            maxStarters: 20,
+            maxSubstitutes: 10,
+        });
+        if (!result || !result.changed) {
+            return;
+        }
+        teamSelections.teamA = Array.isArray(result.teamA) ? result.teamA : [];
+        teamSelections.teamB = Array.isArray(result.teamB) ? result.teamB : [];
+    } else {
+        // Fallback to legacy toggle when cycleTeamSelection is not available
+        toggleTeam(playerName, team);
+        return;
+    }
+
+    updateTeamCounters();
+    refreshVisiblePlayerRows();
+}
+
 function togglePlayerRole(playerName, newRole) {
     if (
         window.DSFeatureGeneratorTeamSelection
@@ -4237,18 +4266,10 @@ document.getElementById('playersTableBody').addEventListener('click', (e) => {
     if (!name) return;
     const controller = getGeneratorFeatureController();
     if (btn.classList.contains('team-a-btn')) {
-        if (controller && typeof controller.toggleTeamSelection === 'function') {
-            controller.toggleTeamSelection(name, 'A');
-        } else {
-            toggleTeam(name, 'A');
-        }
+        cycleTeam(name, 'A');
     }
     else if (btn.classList.contains('team-b-btn')) {
-        if (controller && typeof controller.toggleTeamSelection === 'function') {
-            controller.toggleTeamSelection(name, 'B');
-        } else {
-            toggleTeam(name, 'B');
-        }
+        cycleTeam(name, 'B');
     }
     else if (btn.classList.contains('clear-btn')) {
         if (controller && typeof controller.clearPlayerSelection === 'function') {

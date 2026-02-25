@@ -6642,7 +6642,9 @@
           error_generic: "{error}",
           map_footer_text: "Roam free, help others",
           role_starter: "Starter",
+          role_starter_short: "S",
           role_substitute: "Sub",
+          role_substitute_short: "Sub",
           subs_short: "Sub",
           alert_starters_full: "Maximum 20 starters reached.",
           alert_subs_full: "Maximum 10 substitutes reached.",
@@ -6883,6 +6885,10 @@
           player_update_error_invalid: "This link is not valid.",
           player_update_error_network: "Network error. Please check your connection and try again.",
           player_update_error_auth: "Authentication is not available. Please contact the administrator.",
+          player_update_error_power_required: "Please enter your 1st Team Power.",
+          player_update_error_power_range: "Power must be between 0 and 9999.",
+          player_update_error_thp_range: "THP must be between 0 and 99999.",
+          player_update_error_troops_required: "Please select a troop type.",
           token_modal_title: "Generate Update Links",
           token_modal_expiry_label: "Link Expiry",
           token_modal_expiry_24h: "24 hours",
@@ -7136,7 +7142,9 @@
           error_generic: "\u274C {error}",
           map_footer_text: "Soyez libres, aidez les autres",
           role_starter: "Titulaire",
+          role_starter_short: "T",
           role_substitute: "Rempl.",
+          role_substitute_short: "R",
           subs_short: "Rempl.",
           alert_starters_full: "Maximum 20 titulaires atteint.",
           alert_subs_full: "Maximum 10 rempla\xE7ants atteint.",
@@ -7377,6 +7385,10 @@
           player_update_error_invalid: "Ce lien n'est pas valide.",
           player_update_error_network: "Erreur reseau. Verifiez votre connexion et reessayez.",
           player_update_error_auth: "Authentification non disponible. Veuillez contacter l administrateur.",
+          player_update_error_power_required: "Veuillez entrer la puissance de votre 1ere equipe.",
+          player_update_error_power_range: "La puissance doit etre entre 0 et 9999.",
+          player_update_error_thp_range: "Le THP doit etre entre 0 et 99999.",
+          player_update_error_troops_required: "Veuillez selectionner un type de troupe.",
           token_modal_title: "Generer des liens de mise a jour",
           token_modal_expiry_label: "Expiration du lien",
           token_modal_expiry_24h: "24 heures",
@@ -7630,7 +7642,9 @@
           error_generic: "\u274C {error}",
           map_footer_text: "Frei umherziehen, anderen helfen",
           role_starter: "Stamm",
+          role_starter_short: "S",
           role_substitute: "Ersatz",
+          role_substitute_short: "E",
           subs_short: "Ersatz",
           alert_starters_full: "Maximum 20 Stammspieler erreicht.",
           alert_subs_full: "Maximum 10 Ersatzspieler erreicht.",
@@ -7871,6 +7885,10 @@
           player_update_error_invalid: "Dieser Link ist nicht gueltig.",
           player_update_error_network: "Netzwerkfehler. Bitte pruefen Sie Ihre Verbindung und versuchen Sie es erneut.",
           player_update_error_auth: "Authentifizierung nicht verfuegbar. Bitte kontaktieren Sie den Administrator.",
+          player_update_error_power_required: "Bitte geben Sie die Staerke Ihres 1. Teams ein.",
+          player_update_error_power_range: "Die Staerke muss zwischen 0 und 9999 liegen.",
+          player_update_error_thp_range: "THP muss zwischen 0 und 99999 liegen.",
+          player_update_error_troops_required: "Bitte waehlen Sie einen Truppentyp.",
           token_modal_title: "Update-Links generieren",
           token_modal_expiry_label: "Link-Ablauf",
           token_modal_expiry_24h: "24 Stunden",
@@ -8124,7 +8142,9 @@
           error_generic: "\u274C {error}",
           map_footer_text: "Muoviti liberamente, aiuta gli altri",
           role_starter: "Titolare",
+          role_starter_short: "T",
           role_substitute: "Ris.",
+          role_substitute_short: "R",
           subs_short: "Ris.",
           alert_starters_full: "Massimo 20 titolari raggiunto.",
           alert_subs_full: "Massimo 10 riserve raggiunto.",
@@ -8365,6 +8385,10 @@
           player_update_error_invalid: "Questo link non e valido.",
           player_update_error_network: "Errore di rete. Controlla la connessione e riprova.",
           player_update_error_auth: "Autenticazione non disponibile. Contatta l amministratore.",
+          player_update_error_power_required: "Inserisci la potenza della tua 1a squadra.",
+          player_update_error_power_range: "La potenza deve essere tra 0 e 9999.",
+          player_update_error_thp_range: "Il THP deve essere tra 0 e 99999.",
+          player_update_error_troops_required: "Seleziona un tipo di truppa.",
           token_modal_title: "Genera link di aggiornamento",
           token_modal_expiry_label: "Scadenza link",
           token_modal_expiry_24h: "24 ore",
@@ -8618,7 +8642,9 @@
           error_generic: "\u274C {error}",
           map_footer_text: "\uC790\uC720\uB86D\uAC8C \uC774\uB3D9\uD558\uBA70 \uB2E4\uB978 \uC0AC\uB78C\uC744 \uB3C4\uC640\uC8FC\uC138\uC694",
           role_starter: "\uC8FC\uC804",
+          role_starter_short: "\uC8FC",
           role_substitute: "\uAD50\uCCB4",
+          role_substitute_short: "\uAD50",
           subs_short: "\uAD50\uCCB4",
           alert_starters_full: "\uCD5C\uB300 20\uBA85\uC758 \uC8FC\uC804\uC5D0 \uB3C4\uB2EC\uD588\uC2B5\uB2C8\uB2E4.",
           alert_subs_full: "\uCD5C\uB300 10\uBA85\uC758 \uAD50\uCCB4 \uC120\uC218\uC5D0 \uB3C4\uB2EC\uD588\uC2B5\uB2C8\uB2E4.",
@@ -8859,6 +8885,10 @@
           player_update_error_invalid: "\uC774 \uB9C1\uD06C\uB294 \uC720\uD6A8\uD558\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
           player_update_error_network: "\uB124\uD2B8\uC6CC\uD06C \uC624\uB958. \uC5F0\uACB0\uC744 \uD655\uC778\uD558\uACE0 \uB2E4\uC2DC \uC2DC\uB3C4\uD558\uC138\uC694.",
           player_update_error_auth: "\uC778\uC99D\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uAD00\uB9AC\uC790\uC5D0\uAC8C \uBB38\uC758\uD558\uC138\uC694.",
+          player_update_error_power_required: "1\uD300 \uC804\uD22C\uB825\uC744 \uC785\uB825\uD558\uC138\uC694.",
+          player_update_error_power_range: "\uC804\uD22C\uB825\uC740 0\uC5D0\uC11C 9999 \uC0AC\uC774\uC5EC\uC57C \uD569\uB2C8\uB2E4.",
+          player_update_error_thp_range: "THP\uB294 0\uC5D0\uC11C 99999 \uC0AC\uC774\uC5EC\uC57C \uD569\uB2C8\uB2E4.",
+          player_update_error_troops_required: "\uBCD1\uC885\uC744 \uC120\uD0DD\uD558\uC138\uC694.",
           token_modal_title: "\uC5C5\uB370\uC774\uD2B8 \uB9C1\uD06C \uC0DD\uC131",
           token_modal_expiry_label: "\uB9C1\uD06C \uB9CC\uB8CC",
           token_modal_expiry_24h: "24\uC2DC\uAC04",
@@ -9112,7 +9142,9 @@
           error_generic: "\u274C {error}",
           map_footer_text: "Explora\u021Bi liber, ajuta\u021Bi-i pe al\u021Bii",
           role_starter: "Titular",
+          role_starter_short: "T",
           role_substitute: "Rez.",
+          role_substitute_short: "R",
           subs_short: "Rez.",
           alert_starters_full: "Maxim 20 de titulari atins.",
           alert_subs_full: "Maxim 10 rezerve atins.",
@@ -9353,6 +9385,10 @@
           player_update_error_invalid: "Acest link nu este valid.",
           player_update_error_network: "Eroare de retea. Verifica conexiunea si incearca din nou.",
           player_update_error_auth: "Autentificarea nu este disponibila. Contacteaza administratorul.",
+          player_update_error_power_required: "Introdu puterea echipei 1.",
+          player_update_error_power_range: "Puterea trebuie sa fie intre 0 si 9999.",
+          player_update_error_thp_range: "THP trebuie sa fie intre 0 si 99999.",
+          player_update_error_troops_required: "Selecteaza un tip de trupa.",
           token_modal_title: "Genereaza linkuri de actualizare",
           token_modal_expiry_label: "Expirare link",
           token_modal_expiry_24h: "24 ore",
@@ -10691,6 +10727,94 @@
             teamB: []
           };
         }
+        function cycleTeamSelection(selections, playerName, team, limits) {
+          var name = toName(playerName);
+          if (!name) {
+            return {
+              changed: false,
+              reason: "invalid_player",
+              teamA: [],
+              teamB: []
+            };
+          }
+          var cloned = cloneSelections(selections);
+          var options = limits && typeof limits === "object" ? limits : {};
+          var maxTotal = Number.isFinite(Number(options.maxTotal)) ? Number(options.maxTotal) : 30;
+          var maxStarters = Number.isFinite(Number(options.maxStarters)) ? Number(options.maxStarters) : 20;
+          var maxSubstitutes = Number.isFinite(Number(options.maxSubstitutes)) ? Number(options.maxSubstitutes) : 10;
+          var teamKey = normalizeTeamKey(team);
+          var otherTeamKey = teamKey === TEAM_A ? TEAM_B : TEAM_A;
+          var currentTeam = cloned[teamKey];
+          var otherTeam = cloned[otherTeamKey];
+          var existingIndex = currentTeam.findIndex(function findPlayer(player) {
+            return player.name === name;
+          });
+          if (existingIndex > -1) {
+            var currentRole = normalizeRole(currentTeam[existingIndex].role);
+            if (currentRole === ROLE_STARTER) {
+              if (countRole(currentTeam, ROLE_SUBSTITUTE) < maxSubstitutes) {
+                currentTeam[existingIndex].role = ROLE_SUBSTITUTE;
+                return {
+                  changed: true,
+                  reason: "cycled_to_substitute",
+                  teamA: cloned.teamA,
+                  teamB: cloned.teamB
+                };
+              }
+              currentTeam.splice(existingIndex, 1);
+              return {
+                changed: true,
+                reason: "removed",
+                teamA: cloned.teamA,
+                teamB: cloned.teamB
+              };
+            }
+            currentTeam.splice(existingIndex, 1);
+            return {
+              changed: true,
+              reason: "removed",
+              teamA: cloned.teamA,
+              teamB: cloned.teamB
+            };
+          }
+          var otherIndex = otherTeam.findIndex(function findOther(player) {
+            return player.name === name;
+          });
+          if (otherIndex > -1) {
+            otherTeam.splice(otherIndex, 1);
+          }
+          if (currentTeam.length >= maxTotal) {
+            return {
+              changed: otherIndex > -1,
+              reason: "team_full",
+              teamA: cloned.teamA,
+              teamB: cloned.teamB
+            };
+          }
+          var starterCount = countRole(currentTeam, ROLE_STARTER);
+          var substituteCount = countRole(currentTeam, ROLE_SUBSTITUTE);
+          var role = null;
+          if (starterCount < maxStarters) {
+            role = ROLE_STARTER;
+          } else if (substituteCount < maxSubstitutes) {
+            role = ROLE_SUBSTITUTE;
+          }
+          if (!role) {
+            return {
+              changed: otherIndex > -1,
+              reason: "roles_full",
+              teamA: cloned.teamA,
+              teamB: cloned.teamB
+            };
+          }
+          currentTeam.push({ name, role });
+          return {
+            changed: true,
+            reason: "added",
+            teamA: cloned.teamA,
+            teamB: cloned.teamB
+          };
+        }
         global2.DSFeatureGeneratorTeamSelection = {
           getStarterCount,
           getSubstituteCount,
@@ -10698,6 +10822,7 @@
           buildTeamSelectionMaps,
           hasAnySelectedPlayers,
           toggleTeamSelection,
+          cycleTeamSelection,
           setPlayerRole,
           clearPlayerSelection,
           clearAllSelections
@@ -16076,60 +16201,38 @@
             }
           }
         }
+        function buildRoleBadge(role, translate) {
+          var t2 = getTranslator(translate);
+          var label = role === "substitute" ? t2("role_substitute_short") : t2("role_starter_short");
+          return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + label + "</span>";
+        }
         function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps, translate) {
           const t2 = getTranslator(translate);
           const selectionA = selectionMaps.teamA.get(playerName);
           const selectionB = selectionMaps.teamB.get(playerName);
-          if (selectionA) {
-            const role = selectionA.role;
-            const starterDisabled = role === "substitute" && counts.teamAStarterCount >= 20;
-            const subDisabled = role === "starter" && counts.teamASubCount >= 10;
-            return `
-            <div class="team-actions-stack">
-                <div class="role-toggle team-a-selected">
-                    <button type="button" class="role-btn starter ${role === "starter" ? "active" : ""}"
-                        ${starterDisabled ? "disabled" : ""}
-                        data-role="starter">${t2("role_starter")}</button>
-                    <button type="button" class="role-btn substitute ${role === "substitute" ? "active" : ""}"
-                        ${subDisabled ? "disabled" : ""}
-                        data-role="substitute">${t2("role_substitute")}</button>
-                </div>
-                <button type="button" class="clear-btn team-clear-btn">${t2("clear_button")}</button>
-            </div>
-        `;
-          }
-          if (selectionB) {
-            const role = selectionB.role;
-            const starterDisabled = role === "substitute" && counts.teamBStarterCount >= 20;
-            const subDisabled = role === "starter" && counts.teamBSubCount >= 10;
-            return `
-            <div class="team-actions-stack">
-                <div class="role-toggle team-b-selected">
-                    <button type="button" class="role-btn starter ${role === "starter" ? "active" : ""}"
-                        ${starterDisabled ? "disabled" : ""}
-                        data-role="starter">${t2("role_starter")}</button>
-                    <button type="button" class="role-btn substitute ${role === "substitute" ? "active" : ""}"
-                        ${subDisabled ? "disabled" : ""}
-                        data-role="substitute">${t2("role_substitute")}</button>
-                </div>
-                <button type="button" class="clear-btn team-clear-btn">${t2("clear_button")}</button>
-            </div>
-        `;
-          }
-          const teamAFullyDisabled = counts.teamAStarterCount >= 20 && counts.teamASubCount >= 10;
-          const teamBFullyDisabled = counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
-          return `
+          const teamAFullyDisabled = !selectionA && counts.teamAStarterCount >= 20 && counts.teamASubCount >= 10;
+          const teamBFullyDisabled = !selectionB && counts.teamBStarterCount >= 20 && counts.teamBSubCount >= 10;
+          const teamAActive = selectionA ? " active" : "";
+          const teamBActive = selectionB ? " active" : "";
+          const teamASub = selectionA && selectionA.role === "substitute" ? " is-substitute" : "";
+          const teamBSub = selectionB && selectionB.role === "substitute" ? " is-substitute" : "";
+          const teamABadge = selectionA ? buildRoleBadge(selectionA.role, translate) : "";
+          const teamBBadge = selectionB ? buildRoleBadge(selectionB.role, translate) : "";
+          let html = `
         <div class="team-select-group">
-            <button type="button" class="team-btn team-a-btn" ${teamAFullyDisabled ? "disabled" : ""}>
+            <button type="button" class="team-btn team-a-btn${teamAActive}${teamASub}" ${teamAFullyDisabled ? "disabled" : ""}>
                 <span class="team-label-full">${t2("team_a_button")}</span>
                 <span class="team-label-short">${t2("team_a_short")}</span>
+                ${teamABadge}
             </button>
-            <button type="button" class="team-btn team-b-btn" ${teamBFullyDisabled ? "disabled" : ""}>
+            <button type="button" class="team-btn team-b-btn${teamBActive}${teamBSub}" ${teamBFullyDisabled ? "disabled" : ""}>
                 <span class="team-label-full">${t2("team_b_button")}</span>
                 <span class="team-label-short">${t2("team_b_short")}</span>
+                ${teamBBadge}
             </button>
         </div>
     `;
+          return html;
         }
         function applyPlayerRowSelectionState(row, player, counts, selectionMaps, translate) {
           const selectionA = selectionMaps.teamA.get(player.name);
@@ -23119,6 +23222,10 @@
         if (action === "edit") {
           playersManagementEditingName = originalName;
           renderPlayersManagementTable();
+          const editRow = document.querySelector("#playersMgmtTable tr.players-mgmt-edit-row");
+          if (editRow && typeof editRow.scrollIntoView === "function") {
+            editRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
           return;
         }
         if (action === "cancel") {
@@ -24392,6 +24499,25 @@
         updateTeamCounters();
         refreshVisiblePlayerRows();
       }
+      function cycleTeam(playerName, team) {
+        if (window.DSFeatureGeneratorTeamSelection && typeof window.DSFeatureGeneratorTeamSelection.cycleTeamSelection === "function") {
+          const result = window.DSFeatureGeneratorTeamSelection.cycleTeamSelection(teamSelections, playerName, team, {
+            maxTotal: 30,
+            maxStarters: 20,
+            maxSubstitutes: 10
+          });
+          if (!result || !result.changed) {
+            return;
+          }
+          teamSelections.teamA = Array.isArray(result.teamA) ? result.teamA : [];
+          teamSelections.teamB = Array.isArray(result.teamB) ? result.teamB : [];
+        } else {
+          toggleTeam(playerName, team);
+          return;
+        }
+        updateTeamCounters();
+        refreshVisiblePlayerRows();
+      }
       function togglePlayerRole(playerName, newRole) {
         if (window.DSFeatureGeneratorTeamSelection && typeof window.DSFeatureGeneratorTeamSelection.setPlayerRole === "function") {
           const result = window.DSFeatureGeneratorTeamSelection.setPlayerRole(teamSelections, playerName, newRole, {
@@ -24509,17 +24635,9 @@
         if (!name) return;
         const controller = getGeneratorFeatureController();
         if (btn.classList.contains("team-a-btn")) {
-          if (controller && typeof controller.toggleTeamSelection === "function") {
-            controller.toggleTeamSelection(name, "A");
-          } else {
-            toggleTeam(name, "A");
-          }
+          cycleTeam(name, "A");
         } else if (btn.classList.contains("team-b-btn")) {
-          if (controller && typeof controller.toggleTeamSelection === "function") {
-            controller.toggleTeamSelection(name, "B");
-          } else {
-            toggleTeam(name, "B");
-          }
+          cycleTeam(name, "B");
         } else if (btn.classList.contains("clear-btn")) {
           if (controller && typeof controller.clearPlayerSelection === "function") {
             controller.clearPlayerSelection(name);

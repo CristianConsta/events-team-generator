@@ -55,6 +55,69 @@
         }
     }
 
+    function tLocal(key) {
+        return global.DSI18N && typeof global.DSI18N.t === 'function'
+            ? (global.DSI18N.t(key) || key) : key;
+    }
+
+    function setFieldError(inputEl, errorSpanId, message) {
+        var span = getEl(errorSpanId);
+        if (span) {
+            span.textContent = message || '';
+        }
+        if (inputEl) {
+            if (message) {
+                inputEl.classList.add('field-input-error');
+            } else {
+                inputEl.classList.remove('field-input-error');
+            }
+        }
+    }
+
+    function clearFieldError(inputEl, errorSpanId) {
+        setFieldError(inputEl, errorSpanId, '');
+    }
+
+    function validateFormFields(powerEl, thpEl, troopsEl) {
+        var valid = true;
+
+        // Power validation
+        var powerVal = powerEl ? Number(powerEl.value) : NaN;
+        if (!powerEl || powerEl.value === '' || isNaN(powerVal) || powerVal <= 0) {
+            setFieldError(powerEl, 'errorPower', tLocal('player_update_error_power_required'));
+            valid = false;
+        } else if (powerVal > 9999) {
+            setFieldError(powerEl, 'errorPower', tLocal('player_update_error_power_range'));
+            valid = false;
+        } else {
+            clearFieldError(powerEl, 'errorPower');
+        }
+
+        // THP validation
+        var thpVal = thpEl ? Number(thpEl.value) : NaN;
+        if (thpEl && thpEl.value !== '' && !isNaN(thpVal)) {
+            if (thpVal < 0 || thpVal > 99999) {
+                setFieldError(thpEl, 'errorThp', tLocal('player_update_error_thp_range'));
+                valid = false;
+            } else {
+                clearFieldError(thpEl, 'errorThp');
+            }
+        } else {
+            clearFieldError(thpEl, 'errorThp');
+        }
+
+        // Troops validation
+        var troopsVal = troopsEl ? troopsEl.value : '';
+        if (!troopsVal) {
+            setFieldError(troopsEl, 'errorTroops', tLocal('player_update_error_troops_required'));
+            valid = false;
+        } else {
+            clearFieldError(troopsEl, 'errorTroops');
+        }
+
+        return valid;
+    }
+
     function prefillForm(snapshot, playerName) {
         var nameEl = getEl('updatePlayerName');
         if (nameEl) {
@@ -247,6 +310,26 @@
                             return;
                         }
 
+                        // Wire clear-on-input for inline validation errors
+                        var powerInput = getEl('updatePower');
+                        var thpInput = getEl('updateThp');
+                        var troopsInput = getEl('updateTroops');
+                        if (powerInput) {
+                            powerInput.addEventListener('input', function () {
+                                clearFieldError(powerInput, 'errorPower');
+                            });
+                        }
+                        if (thpInput) {
+                            thpInput.addEventListener('input', function () {
+                                clearFieldError(thpInput, 'errorThp');
+                            });
+                        }
+                        if (troopsInput) {
+                            troopsInput.addEventListener('change', function () {
+                                clearFieldError(troopsInput, 'errorTroops');
+                            });
+                        }
+
                         form.addEventListener('submit', function (e) {
                             e.preventDefault();
 
@@ -254,22 +337,16 @@
                             var thpEl = getEl('updateThp');
                             var troopsEl = getEl('updateTroops');
 
+                            // Inline field validation — keeps form visible on failure
+                            if (!validateFormFields(powerEl, thpEl, troopsEl)) {
+                                return;
+                            }
+
                             var proposed = {
                                 power: powerEl ? Number(powerEl.value) : null,
                                 thp: thpEl ? Number(thpEl.value) : null,
                                 troops: troopsEl ? troopsEl.value : null,
                             };
-
-                            // client-side validation
-                            var validation = global.DSFeaturePlayerUpdatesCore
-                                ? global.DSFeaturePlayerUpdatesCore.validateProposedValues(proposed)
-                                : { valid: true, errors: [] };
-
-                            if (!validation.valid) {
-                                // show first error inline — keep error state minimal
-                                showError(ERROR_CODES.TOKEN_INVALID);
-                                return;
-                            }
 
                             // disable submit button while writing
                             var submitBtn = form.querySelector('button[type="submit"]');
