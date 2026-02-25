@@ -3083,13 +3083,13 @@ select {
     border-color: rgba(var(--ds-accent-primary-rgb), 0.52);
 }
 .alliance-action-btn--danger {
-    border-color: rgba(255, 107, 53, 0.72);
-    color: rgba(255, 142, 112, 0.95);
+    border-color: rgba(var(--ds-state-error-rgb), 0.72);
+    color: rgba(var(--ds-state-error-rgb), 0.95);
 }
 .alliance-action-btn--danger:hover {
-    background: rgba(255, 107, 53, 0.16);
-    border-color: rgba(255, 107, 53, 0.84);
-    color: #ffb398;
+    background: rgba(var(--ds-state-error-rgb), 0.16);
+    border-color: rgba(var(--ds-state-error-rgb), 0.84);
+    color: var(--ds-state-error);
 }
 
 .alliance-invite-actions button {
