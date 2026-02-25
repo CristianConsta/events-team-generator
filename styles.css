@@ -167,7 +167,7 @@
     --ds-surface-hover: rgba(255, 255, 255, 0.1);
     --ds-text-primary: #F4F2E8;
     --ds-text-muted: rgba(244, 242, 232, 0.72);
-    --ds-text-on-accent: #FCF1DD;
+    --ds-text-on-accent: #1A1505;
     --ds-accent-primary: #F2BC55;
     --ds-accent-primary-rgb: 242, 188, 85;
     --ds-team-a: #58B9E5;
@@ -195,7 +195,7 @@
     --ds-backdrop-glow-b: rgba(88, 185, 229, 0.06);
     --ds-event-active-start: rgba(242, 188, 85, 0.95);
     --ds-event-active-end: rgba(200, 150, 40, 0.95);
-    --ds-event-active-text: #FCF1DD;
+    --ds-event-active-text: #1A1505;
 }
 /* === Light Theme === */
 :root[data-theme='light'] {
