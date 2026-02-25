@@ -1423,9 +1423,9 @@ select {
     min-height: 40px;
     padding: 6px 8px;
     border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.2);
-    background: rgba(0,0,0,0.2);
-    color: #fff;
+    border: 1px solid var(--ds-border-default);
+    background: var(--ds-surface-raised);
+    color: var(--ds-text-primary);
     box-sizing: border-box;
 }
 #buildingsTable input[type="text"] {
@@ -1433,15 +1433,15 @@ select {
     min-width: 170px;
     padding: 6px 8px;
     border-radius: 6px;
-    border: 1px solid rgba(255,255,255,0.2);
-    background: rgba(0,0,0,0.2);
-    color: #fff;
+    border: 1px solid var(--ds-border-default);
+    background: var(--ds-surface-raised);
+    color: var(--ds-text-primary);
     box-sizing: border-box;
 }
 #buildingsTable input:disabled {
-    background: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.8);
+    background: var(--ds-surface-soft);
+    border-color: var(--ds-border-default);
+    color: var(--ds-text-muted);
     cursor: default;
 }
 .building-field-cell {
@@ -1454,9 +1454,9 @@ select {
     height: 40px;
     min-width: 40px;
     border-radius: 7px;
-    border: 1px solid rgba(255,255,255,0.25);
-    background: rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.85);
+    border: 1px solid var(--ds-border-default);
+    background: var(--ds-surface-soft);
+    color: var(--ds-text-primary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1466,7 +1466,7 @@ select {
 .building-edit-btn:hover {
     transform: none;
     box-shadow: none;
-    background: rgba(255,255,255,0.16);
+    background: var(--ds-surface-hover);
 }
 .building-edit-btn.is-editing {
     border-color: var(--ds-accent-primary);
