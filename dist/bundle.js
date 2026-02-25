@@ -21367,6 +21367,22 @@
           }
           generateTeamAssignments("B");
         });
+        on("mobileGenBtnA", "click", () => {
+          const controller = getGeneratorFeatureController();
+          if (controller && typeof controller.generateAssignments === "function") {
+            controller.generateAssignments("A");
+            return;
+          }
+          generateTeamAssignments("A");
+        });
+        on("mobileGenBtnB", "click", () => {
+          const controller = getGeneratorFeatureController();
+          if (controller && typeof controller.generateAssignments === "function") {
+            controller.generateAssignments("B");
+            return;
+          }
+          generateTeamAssignments("B");
+        });
         on("supportCopyDiscordBtn", "click", copySupportDiscordHandle);
         on("supportOpenDiscordBtn", "click", openSupportDiscordProfile);
         on("supportReportBugBtn", "click", () => openSupportIssueComposer("bug"));
@@ -21932,6 +21948,10 @@
         const hasPlayers = Array.isArray(allPlayers) && allPlayers.length > 0;
         const shouldShow = getCurrentPageViewState() === "generator" && !selectionSection.classList.contains("hidden") && hasPlayers;
         bar.style.display = shouldShow ? "flex" : "none";
+        var mobileNav = document.getElementById("mobileBottomNav");
+        if (mobileNav) {
+          mobileNav.classList.toggle("mobile-gen-active", shouldShow);
+        }
         reserveSpaceForFooter();
       }
       function hideAllMainPages() {
@@ -24558,6 +24578,22 @@
           teamBCounter.classList.remove("full");
         }
         generateBtnB.disabled = teamBStarterCount === 0;
+        var mobileGenBtnA = document.getElementById("mobileGenBtnA");
+        var mobileGenBtnB = document.getElementById("mobileGenBtnB");
+        var mobileGenCountA = document.getElementById("mobileGenCountA");
+        var mobileGenCountB = document.getElementById("mobileGenCountB");
+        if (mobileGenBtnA) {
+          mobileGenBtnA.disabled = teamAStarterCount === 0;
+        }
+        if (mobileGenBtnB) {
+          mobileGenBtnB.disabled = teamBStarterCount === 0;
+        }
+        if (mobileGenCountA) {
+          mobileGenCountA.textContent = teamAStarterCount + "/20";
+        }
+        if (mobileGenCountB) {
+          mobileGenCountB.textContent = teamBStarterCount + "/20";
+        }
         updateClearAllButtonVisibility();
       }
       function resolveCurrentEventAssignmentSelection(activeGameId) {

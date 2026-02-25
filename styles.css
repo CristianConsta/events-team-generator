@@ -3581,20 +3581,59 @@ select {
         min-width: 40px;
     }
 
-    /* ── Floating generate buttons — vertical stack ── */
-    .floating-buttons {
+    /* ── Floating generate buttons — hidden on small phones, replaced by mobile nav integration ── */
+    #floatingButtons {
+        display: none !important;
+    }
+
+    /* ── Mobile generate buttons inside bottom nav ── */
+    .mobile-gen-buttons {
+        display: none;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+    .mobile-bottom-nav.mobile-gen-active .mobile-gen-buttons {
+        display: flex;
+    }
+    .mobile-gen-btn {
+        flex: 0 0 auto;
+        min-width: 52px;
+        min-height: 44px;
+        padding: 6px 10px;
+        display: inline-flex;
         flex-direction: column;
-        padding: 10px 12px calc(10px + var(--safe-area-inset-bottom));
-        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        font-size: var(--text-xs);
+        font-weight: 800;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+        transition: opacity 0.15s ease;
     }
-    .floating-buttons button {
-        min-width: unset;
-        width: 100%;
-        margin: 0;
-        padding: 14px 16px;
-        font-size: 16px;
+    .mobile-gen-btn:disabled {
+        opacity: 0.35;
+        cursor: default;
     }
-    .floating-buttons button span { font-size: 12px; }
+    .mobile-gen-btn-a {
+        background: linear-gradient(135deg, var(--team-a), #1E90FF);
+    }
+    .mobile-gen-btn-b {
+        background: linear-gradient(135deg, var(--team-b), #FF6347);
+    }
+    .mobile-gen-label {
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .mobile-gen-count {
+        font-size: 10px;
+        opacity: 0.85;
+        line-height: 1;
+    }
 
     /* ── Collapsible panels ── */
     .collapsible-header        { padding: 10px 0; }
