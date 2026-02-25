@@ -65,6 +65,16 @@ jobs:
       - name: Run coverage gate
         run: npm run test:coverage
 
+      - name: Build bundle
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-bundle
+          path: dist/bundle.js
+          retention-days: 1
+
   e2e-smoke:
     if: inputs.run_e2e == true
     runs-on: ubuntu-latest
@@ -103,18 +113,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          sparse-checkout: |
+            index.html
+            player-update.html
+            app.js
+            firebase-module.js
+            firebase-infra.js
+            firebase-auth-module.js
+            translations.js
+            styles.css
+            player-update.css
+            theme-variables.css
+            js
+            vendor
+          sparse-checkout-cone-mode: false
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build bundle
-        run: npm run build
+      - name: Download built bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: built-bundle
+          path: dist
 
       - name: Create firebase-config.js from secret
         env:
@@ -129,7 +148,7 @@ jobs:
       - name: Stage deploy files
         run: |
           mkdir -p _site
-          cp index.html player-update.html app.js firebase-module.js firebase-config.js translations.js styles.css player-update.css _site/
+          cp index.html player-update.html app.js firebase-module.js firebase-infra.js firebase-auth-module.js translations.js styles.css player-update.css theme-variables.css firebase-config.js _site/
           cp -r js _site/js
           cp -r vendor _site/vendor
           cp -r dist _site/dist
