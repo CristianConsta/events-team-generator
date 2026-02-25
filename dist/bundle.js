@@ -816,7 +816,7 @@
         const LEGACY_PLAYER_POWER_HEADERS = ["E1 Total Power(M)", "E1 Power (M)"];
         const MAX_PROFILE_TEXT_LEN = 60;
         const MAX_AVATAR_DATA_URL_LEN = 4e5;
-        const USER_PROFILE_THEMES = /* @__PURE__ */ new Set(["standard", "last-war"]);
+        const USER_PROFILE_THEMES = /* @__PURE__ */ new Set(["standard", "last-war", "light", "system"]);
         const INVITE_MAX_RESENDS = 3;
         const INVITE_REMINDER_DAY1_MS = 24 * 60 * 60 * 1e3;
         const INVITE_REMINDER_DAY3_MS = 3 * INVITE_REMINDER_DAY1_MS;
