@@ -3720,6 +3720,7 @@ select {
     .team-btn { padding: 10px 14px; font-size: 14px; flex: 1; min-width: 0; min-height: 44px; }
     .team-label-full { display: none; }
     .team-label-short { display: inline; }
+    .team-btn-role-starter { display: none; }
     .clear-btn {
         padding: 10px 12px;
         font-size: 13px;

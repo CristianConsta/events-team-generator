@@ -7146,7 +7146,7 @@
           role_starter: "Titulaire",
           role_starter_short: "T",
           role_substitute: "Rempl.",
-          role_substitute_short: "R",
+          role_substitute_short: "Rempl.",
           subs_short: "Rempl.",
           alert_starters_full: "Maximum 20 titulaires atteint.",
           alert_subs_full: "Maximum 10 rempla\xE7ants atteint.",
@@ -7648,7 +7648,7 @@
           role_starter: "Stamm",
           role_starter_short: "S",
           role_substitute: "Ersatz",
-          role_substitute_short: "E",
+          role_substitute_short: "Ersatz",
           subs_short: "Ersatz",
           alert_starters_full: "Maximum 20 Stammspieler erreicht.",
           alert_subs_full: "Maximum 10 Ersatzspieler erreicht.",
@@ -8150,7 +8150,7 @@
           role_starter: "Titolare",
           role_starter_short: "T",
           role_substitute: "Ris.",
-          role_substitute_short: "R",
+          role_substitute_short: "Ris.",
           subs_short: "Ris.",
           alert_starters_full: "Massimo 20 titolari raggiunto.",
           alert_subs_full: "Massimo 10 riserve raggiunto.",
@@ -8652,7 +8652,7 @@
           role_starter: "\uC8FC\uC804",
           role_starter_short: "\uC8FC",
           role_substitute: "\uAD50\uCCB4",
-          role_substitute_short: "\uAD50",
+          role_substitute_short: "\uAD50\uCCB4",
           subs_short: "\uAD50\uCCB4",
           alert_starters_full: "\uCD5C\uB300 20\uBA85\uC758 \uC8FC\uC804\uC5D0 \uB3C4\uB2EC\uD588\uC2B5\uB2C8\uB2E4.",
           alert_subs_full: "\uCD5C\uB300 10\uBA85\uC758 \uAD50\uCCB4 \uC120\uC218\uC5D0 \uB3C4\uB2EC\uD588\uC2B5\uB2C8\uB2E4.",
@@ -9154,7 +9154,7 @@
           role_starter: "Titular",
           role_starter_short: "T",
           role_substitute: "Rez.",
-          role_substitute_short: "R",
+          role_substitute_short: "Rez.",
           subs_short: "Rez.",
           alert_starters_full: "Maxim 20 de titulari atins.",
           alert_subs_full: "Maxim 10 rezerve atins.",
@@ -16287,12 +16287,9 @@
           }
         }
         function buildRoleBadge(role, translate) {
-          if (role !== "substitute") {
-            return "";
-          }
           var t2 = getTranslator(translate);
-          var label = t2("role_substitute_short");
-          return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + label + "</span>";
+          var key = role === "substitute" ? "role_substitute_short" : "role_starter";
+          return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + t2(key) + "</span>";
         }
         function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps, translate) {
           const t2 = getTranslator(translate);

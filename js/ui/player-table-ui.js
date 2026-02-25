@@ -118,10 +118,9 @@
     }
 
     function buildRoleBadge(role, translate) {
-        if (role !== 'substitute') { return ''; }
         var t = getTranslator(translate);
-        var label = t('role_substitute_short');
-        return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + label + '</span>';
+        var key = role === 'substitute' ? 'role_substitute_short' : 'role_starter';
+        return '<span class="team-btn-role-badge team-btn-role-' + role + '">' + t(key) + '</span>';
     }
 
     function buildPlayerActionButtonsHtml(playerName, counts, selectionMaps, translate) {
