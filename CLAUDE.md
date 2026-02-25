@@ -157,11 +157,28 @@ dist/                   # Generated bundle (do not edit manually)
 - All user-visible strings must be added to `translations.js`
 - **MANDATORY**: When adding or modifying any i18n key, you MUST add the translation for ALL 6 languages (EN, FR, DE, IT, KO, RO). Never add a key to only one language. The `tests/i18n-keys.core.test.js` test enforces parity and will fail if any language is missing a key.
 
+### Theming & CSS Variables
+- **All color values must use `--ds-*` design tokens** — never hardcode hex/rgba in `styles.css` or JS canvas code. The only place raw color values belong is in token declarations inside `:root` blocks.
+- **Token naming**: `--ds-{category}-{variant}` (e.g., `--ds-surface-base`, `--ds-text-primary`, `--ds-accent-primary`).
+- **4 themes supported**: `standard` (default dark), `last-war` (dark green), `light`, `system` (auto from OS). Theme is set via `data-theme` attribute on `<html>`.
+- **Token declarations live in two files**: `styles.css` (used by `index.html`) and `theme-variables.css` (used by `player-update.html`). Keep them in sync.
+- **MANDATORY: When adding a new `--ds-*` token**, you MUST declare it in ALL theme blocks:
+  1. `:root` (standard/default dark theme) in `styles.css`
+  2. `:root[data-theme='last-war']` in `styles.css`
+  3. `:root[data-theme='light']` in `styles.css`
+  4. All 3 matching blocks in `theme-variables.css`
+
+  Failing to declare a token in all blocks causes silent CSS fallback (usually transparent/white), breaking the theme.
+- **MANDATORY: When using `var(--ds-*)` in CSS**, verify the token is declared in the default `:root` block. Grep for `--ds-your-token-name:` (with colon) to confirm it exists as a declaration, not just a reference.
+- **JS canvas colors**: Use `DSThemeColors.get('token-name')` with a hardcoded fallback: `DSThemeColors.get('accent-primary') || '#F0C040'`. The fallback ensures canvas rendering works even if the DOM isn't ready.
+- **`DSThemeColors`** (`js/core/theme-colors.js`): Runtime bridge for reading CSS tokens in JS. API: `get(name)`, `getRgb(name)`, `getAlpha(name, alpha)`, `teamConfig(team)`, `reliabilityColor(tier)`. Cache auto-invalidates on theme switch.
+- **Old unprefixed variables** (`--gold`, `--bg-0`, `--panel-bg`, etc.) are deprecated. Do not add new references to them. They exist only in the light theme block for backward compatibility and will be removed.
+
 ## Key Conventions
 
 - **File naming**: kebab-case (`player-table-ui.js`)
 - **Functions**: camelCase
-- **CSS variables**: `--kebab-case`
+- **CSS variables**: `--ds-{category}-{variant}` (see Theming section below)
 - **No TypeScript** — pure ES6+ JavaScript
 - **esbuild only** — `npm run build` bundles `js/main-entry.js` → `dist/bundle.js`; do not introduce other bundlers
 - **No npm packages for browser code** — use vendored libs in `vendor/`
