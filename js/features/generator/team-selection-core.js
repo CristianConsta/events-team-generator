@@ -65,11 +65,12 @@
     }
 
     function getCurrentTeamCounts(selections) {
+        const cloned = cloneSelections(selections);
         return {
-            teamAStarterCount: getStarterCount(selections, TEAM_A),
-            teamASubCount: getSubstituteCount(selections, TEAM_A),
-            teamBStarterCount: getStarterCount(selections, TEAM_B),
-            teamBSubCount: getSubstituteCount(selections, TEAM_B),
+            teamAStarterCount: countRole(cloned.teamA, ROLE_STARTER),
+            teamASubCount: countRole(cloned.teamA, ROLE_SUBSTITUTE),
+            teamBStarterCount: countRole(cloned.teamB, ROLE_STARTER),
+            teamBSubCount: countRole(cloned.teamB, ROLE_SUBSTITUTE),
         };
     }
 

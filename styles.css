@@ -74,7 +74,6 @@
     --ds-surface-soft: rgba(255, 255, 255, 0.06);
     --ds-surface-hover: rgba(255, 255, 255, 0.12);
     --ds-surface-inverse: #FFFFFF;
-    --ds-surface-0: var(--ds-surface-base);
     --ds-surface-1: rgba(255, 255, 255, 0.05);
     --ds-surface-2: rgba(255, 255, 255, 0.10);
     --ds-surface-3: rgba(255, 255, 255, 0.16);
@@ -245,7 +244,6 @@
     --ds-surface-soft: rgba(0, 0, 0, 0.04);
     --ds-surface-hover: rgba(0, 0, 0, 0.08);
     --ds-surface-inverse: #2C2418;
-    --ds-surface-0: #F8F5F0;
     --ds-surface-1: rgba(0, 0, 0, 0.03);
     --ds-surface-2: rgba(0, 0, 0, 0.06);
     --ds-surface-3: rgba(0, 0, 0, 0.09);
@@ -326,43 +324,6 @@
     --ds-event-active-end: rgba(122, 90, 0, 0.95);
     --ds-event-active-text: #FFFDF8;
     color-scheme: light;
-    /* Override old vars for backward compatibility */
-    --gold: #9A7209;
-    --gold-rgb: 154, 114, 9;
-    --team-a: #2B5BAF;
-    --team-a-rgb: 43, 91, 175;
-    --team-b: #A8122E;
-    --team-b-rgb: 168, 18, 46;
-    --bg-0: #F8F5F0;
-    --bg-1: #FFFDF8;
-    --bg-2: #F0EBE3;
-    --panel-bg: rgba(255, 253, 248, 0.96);
-    --panel-bg-strong: rgba(248, 245, 240, 0.98);
-    --panel-border: rgba(154, 114, 9, 0.2);
-    --panel-border-strong: rgba(154, 114, 9, 0.35);
-    --surface-soft: rgba(0, 0, 0, 0.04);
-    --surface-hover: rgba(0, 0, 0, 0.08);
-    --text-primary: #2C2418;
-    --text-muted: #7A6E5D;
-    --shadow-elev: 0 16px 34px rgba(44, 36, 24, 0.10);
-    --shadow-soft: 0 8px 20px rgba(44, 36, 24, 0.08);
-    --backdrop-glow-a: rgba(154, 114, 9, 0.06);
-    --backdrop-glow-b: rgba(43, 91, 175, 0.06);
-    --grid-line-color: rgba(44, 36, 24, 0.06);
-    --button-primary-start: #9A7209;
-    --button-primary-end: #7A5A00;
-    --button-primary-text: #FFFFFF;
-    --button-secondary-start: rgba(255, 253, 248, 0.95);
-    --button-secondary-end: rgba(240, 235, 225, 0.95);
-    --button-hover-shadow: 0 10px 24px rgba(44, 36, 24, 0.12);
-    --event-active-start: rgba(154, 114, 9, 0.95);
-    --event-active-end: rgba(122, 90, 0, 0.95);
-    --event-active-text: #FFFDF8;
-    --surface-0: #F8F5F0;
-    --surface-1: rgba(0, 0, 0, 0.03);
-    --surface-2: rgba(0, 0, 0, 0.06);
-    --surface-3: rgba(0, 0, 0, 0.09);
-    --surface-4: rgba(0, 0, 0, 0.12);
 }
 @media (prefers-color-scheme: light) {
     :root:not([data-theme='standard']):not([data-theme='last-war']):not([data-theme='light']) {
@@ -372,12 +333,6 @@
         --ds-text-muted: #7A6E5D;
         --ds-accent-primary: #9A7209;
         --ds-accent-primary-rgb: 154, 114, 9;
-        --bg-0: #F8F5F0;
-        --bg-1: #FFFDF8;
-        --text-primary: #2C2418;
-        --text-muted: #7A6E5D;
-        --gold: #9A7209;
-        --gold-rgb: 154, 114, 9;
     }
 }
 :focus-visible {

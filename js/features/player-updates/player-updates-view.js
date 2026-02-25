@@ -144,63 +144,46 @@
         var tbody = document.createElement('tbody');
 
         if (deltas) {
-            // Helper: format a numeric value or show dash for null/NaN
             function fmtVal(v) { return v !== null && Number.isFinite(v) ? String(v) : '\u2014'; }
             function fmtDelta(v) {
                 if (v === null || !Number.isFinite(v)) return '\u2014';
                 return (v > 0 ? '+' : '') + String(v);
             }
 
-            // Power row
-            var powerTr = document.createElement('tr');
-            if (deltas.power && deltas.power.flagged) {
-                powerTr.className = 'flagged';
+            function buildDeltaRow(label, delta, isFlagged) {
+                var tr = document.createElement('tr');
+                if (isFlagged) { tr.className = 'flagged'; }
+                [label, fmtVal(delta.old), fmtVal(delta.new), fmtDelta(delta.delta)].forEach(function(text) {
+                    var td = document.createElement('td');
+                    td.textContent = text;
+                    tr.appendChild(td);
+                });
+                return tr;
             }
-            [
-                'Power',
-                deltas.power ? fmtVal(deltas.power.old) : '',
-                deltas.power ? fmtVal(deltas.power.new) : '',
-                deltas.power ? fmtDelta(deltas.power.delta) : '',
-            ].forEach(function(text) {
-                var td = document.createElement('td');
-                td.textContent = text;
-                powerTr.appendChild(td);
-            });
-            tbody.appendChild(powerTr);
 
-            // THP row
-            var thpTr = document.createElement('tr');
-            if (deltas.thp && deltas.thp.flagged) {
-                thpTr.className = 'flagged';
+            if (deltas.power) {
+                tbody.appendChild(buildDeltaRow('Power', deltas.power, deltas.power.flagged));
             }
-            [
-                'THP',
-                deltas.thp ? fmtVal(deltas.thp.old) : '',
-                deltas.thp ? fmtVal(deltas.thp.new) : '',
-                deltas.thp ? fmtDelta(deltas.thp.delta) : '',
-            ].forEach(function(text) {
-                var td = document.createElement('td');
-                td.textContent = text;
-                thpTr.appendChild(td);
-            });
-            tbody.appendChild(thpTr);
+            if (deltas.thp) {
+                tbody.appendChild(buildDeltaRow('THP', deltas.thp, deltas.thp.flagged));
+            }
 
-            // Troops row
-            var troopsTr = document.createElement('tr');
-            if (deltas.troops && deltas.troops.changed) {
-                troopsTr.className = 'flagged';
+            // Troops uses a different format (string values, changed flag)
+            if (deltas.troops) {
+                var troopsTr = document.createElement('tr');
+                if (deltas.troops.changed) { troopsTr.className = 'flagged'; }
+                [
+                    'Troops',
+                    String(deltas.troops.old || ''),
+                    String(deltas.troops.new || ''),
+                    deltas.troops.changed ? 'Changed' : 'Unchanged',
+                ].forEach(function(text) {
+                    var td = document.createElement('td');
+                    td.textContent = text;
+                    troopsTr.appendChild(td);
+                });
+                tbody.appendChild(troopsTr);
             }
-            [
-                'Troops',
-                deltas.troops ? String(deltas.troops.old || '') : '',
-                deltas.troops ? String(deltas.troops.new || '') : '',
-                deltas.troops && deltas.troops.changed ? 'Changed' : 'Unchanged',
-            ].forEach(function(text) {
-                var td = document.createElement('td');
-                td.textContent = text;
-                troopsTr.appendChild(td);
-            });
-            tbody.appendChild(troopsTr);
         }
 
         table.appendChild(tbody);
