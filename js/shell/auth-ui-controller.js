@@ -273,6 +273,7 @@
                 displayName: displayName,
                 nickname: nickname,
                 avatarDataUrl: settingsDraftAvatarDataUrl || '',
+                theme: selectedTheme,
             }, gameplayContext);
         }
 

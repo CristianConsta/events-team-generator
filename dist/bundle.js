@@ -19728,7 +19728,8 @@
             FirebaseService2.setUserProfile({
               displayName,
               nickname,
-              avatarDataUrl: settingsDraftAvatarDataUrl || ""
+              avatarDataUrl: settingsDraftAvatarDataUrl || "",
+              theme: selectedTheme
             }, gameplayContext);
           }
           var result = await FirebaseService2.saveUserData(void 0, gameplayContext);
