@@ -1828,7 +1828,7 @@ select {
     min-width: 44px;
     border-radius: 12px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.36);
-    background: rgba(8, 13, 24, 0.72);
+    background: var(--ds-surface-2);
     box-shadow: var(--ds-shadow-soft);
 }
 .header-icon-btn svg {
@@ -1845,8 +1845,8 @@ select {
     margin: 0 auto 20px auto;
     padding: 15px;
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%),
-        rgba(10, 15, 28, 0.96);
+        linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
+        var(--ds-surface-overlay-strong);
     border: 1px solid var(--ds-border-strong);
     border-radius: 16px;
     box-shadow: var(--ds-shadow-elev);
@@ -1895,14 +1895,14 @@ select {
     padding: 6px 10px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.22);
     border-radius: 12px;
-    background: rgba(9, 15, 27, 0.58);
+    background: var(--ds-surface-2);
     box-shadow: none;
     transform: none;
     justify-content: flex-start;
     min-height: 44px;
 }
 #headerProfileBtn:hover {
-    background: rgba(255,255,255,0.08);
+    background: var(--ds-surface-hover);
     border-color: rgba(var(--ds-accent-primary-rgb), 0.48);
     transform: none;
     box-shadow: none;
@@ -1913,7 +1913,7 @@ select {
     min-width: 40px;
     border-radius: 50%;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.55);
-    background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+    background: var(--ds-surface-elevated);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2077,7 +2077,7 @@ select {
 
 /* ── Notification Bell ── */
 #notificationBtn:hover {
-    background: rgba(255,255,255,0.14);
+    background: var(--ds-surface-hover);
     transform: none;
     box-shadow: var(--ds-shadow-soft);
 }
@@ -2091,7 +2091,7 @@ select {
     min-height: 44px;
     border-radius: 12px;
     border-color: rgba(var(--ds-accent-primary-rgb), 0.34);
-    background: rgba(8, 13, 24, 0.72);
+    background: var(--ds-surface-2);
 }
 #notificationBtn svg {
     width: 18px;
@@ -2149,7 +2149,7 @@ select {
     color: var(--ds-accent-primary);
 }
 #navMenuBtn:hover {
-    background: rgba(255,255,255,0.14);
+    background: var(--ds-surface-hover);
     transform: none;
     box-shadow: var(--ds-shadow-soft);
 }
