@@ -4,8 +4,8 @@
 :root {
     /* === Design System Tokens === */
     --ds-surface-base: #070c19;
-    --ds-surface-raised: #101a31;
-    --ds-surface-elevated: #1a2947;
+    --ds-surface-raised: #152040;
+    --ds-surface-elevated: #1e3054;
     --ds-surface-overlay: rgba(14, 20, 37, 0.86);
     --ds-surface-overlay-strong: rgba(10, 15, 29, 0.95);
     --ds-surface-soft: rgba(255, 255, 255, 0.06);
