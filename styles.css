@@ -552,8 +552,8 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
     border-radius: var(--radius-md);
     overflow-x: auto;
     overflow-y: hidden;
-    background: rgba(8, 12, 22, 0.66);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    background: var(--ds-surface-raised);
+    box-shadow: inset 0 0 0 1px var(--ds-surface-1);
     scrollbar-width: thin;
 }
 .event-btn {
@@ -1558,7 +1558,7 @@ select {
 
 .clear-btn {
     padding: var(--btn-padding-md);
-    background: rgba(9, 14, 25, 0.72);
+    background: var(--ds-surface-raised);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.3);
     color: var(--ds-text-muted);
     border-radius: 10px;
@@ -1612,7 +1612,7 @@ select {
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.46);
-    background: rgba(8, 13, 24, 0.64);
+    background: var(--ds-surface-raised);
 }
 .display-toggle-btn {
     padding: 6px 10px;
@@ -1638,8 +1638,8 @@ select {
     justify-content: center;
     padding: 1px 5px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.09);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: var(--ds-surface-soft);
+    border: 1px solid var(--ds-border-default);
     font-size: 10px;
     letter-spacing: 0.05em;
     line-height: 1.2;
@@ -2208,7 +2208,7 @@ select {
     align-items: center;
     gap: 10px;
     text-align: left;
-    background: rgba(255,255,255,0.03);
+    background: var(--ds-surface-1);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.18);
     box-shadow: none;
 }
@@ -2326,7 +2326,7 @@ select {
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.2);
     border-radius: 12px;
     padding: 12px;
-    background: rgba(255,255,255,0.02);
+    background: var(--ds-surface-1);
 }
 .event-media-grid .event-media-block:first-child {
     min-width: 0;
@@ -3433,7 +3433,7 @@ select {
         row-gap: 4px;
         align-items: center;
     }
-    #playersTable tr:hover { background: rgba(255,255,255,0.06); }
+    #playersTable tr:hover { background: var(--ds-surface-hover); }
     #playersTable tr.selected-a { background: rgba(var(--ds-team-a-rgb),0.15); border-color: rgba(var(--ds-team-a-rgb),0.3); }
     #playersTable tr.selected-b { background: rgba(var(--ds-team-b-rgb),0.15); border-color: rgba(var(--ds-team-b-rgb),0.3); }
 
