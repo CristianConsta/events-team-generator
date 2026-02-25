@@ -174,6 +174,12 @@ dist/                   # Generated bundle (do not edit manually)
 - **`DSThemeColors`** (`js/core/theme-colors.js`): Runtime bridge for reading CSS tokens in JS. API: `get(name)`, `getRgb(name)`, `getAlpha(name, alpha)`, `teamConfig(team)`, `reliabilityColor(tier)`. Cache auto-invalidates on theme switch.
 - **Old unprefixed variables** (`--gold`, `--bg-0`, `--panel-bg`, etc.) are deprecated. Do not add new references to them. They exist only in the light theme block for backward compatibility and will be removed.
 - **Theme persistence**: Theme is saved in both `localStorage` (`ds_theme`) and Firebase user profile (`profile.theme`). On page load, `updateUserHeaderIdentity()` reads `profile.theme` from Firebase and calls `applyPlatformTheme()`. If the theme is not saved to the Firebase profile (via `setUserProfile`), the local selection will be overridden on next profile read. Always include `theme` in `setUserProfile()` calls.
+- **MANDATORY: When adding a new theme**, update ALL of these locations:
+  1. `DSThemeController.SUPPORTED_THEMES` Set in `js/shell/theme-controller.js`
+  2. `USER_PROFILE_THEMES` Set in `firebase-module.js` (line ~67) — controls which themes `normalizeUserProfile()` accepts. Missing entries silently fall back to `'standard'`.
+  3. `<option>` in `#settingsThemeSelect` in `index.html`
+  4. i18n key `settings_theme_{name}` in `translations.js` (all 6 languages)
+  5. `:root[data-theme='{name}']` CSS block in both `styles.css` and `theme-variables.css`
 
 ## Key Conventions
 
