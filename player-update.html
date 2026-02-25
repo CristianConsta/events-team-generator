@@ -5,10 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.googleapis.com; img-src 'self' data:; font-src 'self' data:; base-uri 'none'; form-action 'self'; frame-src 'none';">
     <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="theme-variables.css">
     <link rel="stylesheet" href="player-update.css">
     <title>Update Your Stats</title>
 </head>
 <body>
+    <script>
+(function() {
+    var theme = localStorage.getItem('ds_theme');
+    if (theme && theme !== 'standard') {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.body && document.body.setAttribute('data-theme', theme);
+    }
+})();
+    </script>
     <div id="playerUpdateRoot" class="update-card-root">
         <div id="updateLoading" class="update-state-loading">
             <span data-i18n="player_update_loading">Loading...</span>

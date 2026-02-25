@@ -180,7 +180,7 @@
                     var closeMsg = global.document.createElement('p');
                     closeMsg.style.marginTop = '12px';
                     closeMsg.style.fontSize = '0.875rem';
-                    closeMsg.style.color = 'var(--color-text-secondary, #9e9e9e)';
+                    closeMsg.style.color = 'var(--ds-text-muted)';
                     closeMsg.textContent = global.DSI18N && typeof global.DSI18N.t === 'function'
                         ? global.DSI18N.t('player_update_close_tab') || 'You can now close this tab.'
                         : 'You can now close this tab.';

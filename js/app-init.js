@@ -37,15 +37,15 @@
             const loginScreen = document.getElementById('loginScreen');
             if (loginScreen) {
                 loginScreen.innerHTML = `
-                    <div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h1 style="text-align: center; color: #DC143C;">${t('error_loading_title')}</h1>
-                        <p style="color: #333; text-align: center; margin: 20px 0;">${t('error_missing_firebase_line1')}</p>
-                        <p style="color: #666; text-align: center; font-size: 14px;">${t('error_missing_firebase_line2')}</p>
-                        <ul style="color: #666; margin: 20px 40px;">
+                    <div style="max-width: 600px; margin: 100px auto; padding: 40px; background: var(--ds-surface-inverse, white); border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <h1 style="text-align: center; color: var(--ds-state-error, #DC143C);">${t('error_loading_title')}</h1>
+                        <p style="color: var(--ds-text-inverse, #333); text-align: center; margin: 20px 0;">${t('error_missing_firebase_line1')}</p>
+                        <p style="color: var(--ds-text-inverse-muted, #666); text-align: center; font-size: 14px;">${t('error_missing_firebase_line2')}</p>
+                        <ul style="color: var(--ds-text-inverse-muted, #666); margin: 20px 40px;">
                             <li>${t('error_missing_firebase_file1')}</li>
                             <li>${t('error_missing_firebase_file2')}</li>
                         </ul>
-                        <p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">${t('error_missing_firebase_line3')}</p>
+                        <p style="color: var(--ds-text-inverse-muted, #666); text-align: center; font-size: 14px; margin-top: 20px;">${t('error_missing_firebase_line3')}</p>
                     </div>
                 `;
                 loginScreen.style.display = 'block';

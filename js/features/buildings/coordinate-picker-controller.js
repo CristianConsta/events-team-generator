@@ -164,8 +164,8 @@
             }
         } else {
             var grad = ctx.createLinearGradient(0, 0, mapWidth, mapHeight);
-            grad.addColorStop(0, '#1f2238');
-            grad.addColorStop(1, '#2b2f4a');
+            grad.addColorStop(0, (typeof DSThemeColors !== 'undefined' && DSThemeColors.get('surface-raised')) || '#1f2238');
+            grad.addColorStop(1, (typeof DSThemeColors !== 'undefined' && DSThemeColors.get('surface-elevated')) || '#2b2f4a');
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, mapWidth, mapHeight);
 
@@ -207,7 +207,7 @@
             var isActive = name === state.coordBuildings[state.coordBuildingIndex];
             ctx.beginPath();
             ctx.arc(pos[0], pos[1], isActive ? 8 : 5, 0, Math.PI * 2);
-            ctx.fillStyle = isActive ? '#FDC830' : 'rgba(255,255,255,0.7)';
+            ctx.fillStyle = isActive ? ((typeof DSThemeColors !== 'undefined' && DSThemeColors.get('accent-primary')) || '#FDC830') : 'rgba(255,255,255,0.7)';
             ctx.fill();
             ctx.strokeStyle = isActive ? '#000' : 'rgba(0,0,0,0.6)';
             ctx.lineWidth = 2;

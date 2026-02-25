@@ -1,15 +1,20 @@
 (function initCoreReliability(global) {
     var DECAY_FACTOR = 0.85;
 
+    var TIER_FALLBACK_COLORS = { excellent: '#2e7d32', good: '#1565c0', fair: '#c55a00', poor: '#c62828', critical: '#b71c1c', new: '#757575' };
+    function tierColor(tier) {
+        return (typeof DSThemeColors !== 'undefined' && DSThemeColors.reliabilityColor(tier)) || TIER_FALLBACK_COLORS[tier] || '#757575';
+    }
+
     var TIERS = [
-        { min: 90, max: 100, tier: 'excellent', label: 'Rock solid',      color: '#2e7d32', cssClass: 'reliability-excellent' },
-        { min: 70, max: 89,  tier: 'good',      label: 'Reliable',        color: '#1565c0', cssClass: 'reliability-good'      },
-        { min: 50, max: 69,  tier: 'fair',       label: 'Inconsistent',    color: '#ef6c00', cssClass: 'reliability-fair'      },
-        { min: 30, max: 49,  tier: 'poor',       label: 'Unreliable',      color: '#c62828', cssClass: 'reliability-poor'      },
-        { min: 0,  max: 29,  tier: 'critical',   label: 'Chronic no-show', color: '#b71c1c', cssClass: 'reliability-critical'  },
+        { min: 90, max: 100, tier: 'excellent', label: 'Rock solid',      get color() { return tierColor('excellent'); }, cssClass: 'reliability-excellent' },
+        { min: 70, max: 89,  tier: 'good',      label: 'Reliable',        get color() { return tierColor('good'); },      cssClass: 'reliability-good'      },
+        { min: 50, max: 69,  tier: 'fair',       label: 'Inconsistent',    get color() { return tierColor('fair'); },      cssClass: 'reliability-fair'      },
+        { min: 30, max: 49,  tier: 'poor',       label: 'Unreliable',      get color() { return tierColor('poor'); },      cssClass: 'reliability-poor'      },
+        { min: 0,  max: 29,  tier: 'critical',   label: 'Chronic no-show', get color() { return tierColor('critical'); },  cssClass: 'reliability-critical'  },
     ];
 
-    var NULL_TIER = { tier: 'new', label: 'No history', color: '#757575', cssClass: 'reliability-new' };
+    var NULL_TIER = { tier: 'new', label: 'No history', get color() { return tierColor('new'); }, cssClass: 'reliability-new' };
 
     function calculateReliabilityScore(history) {
         if (!Array.isArray(history)) {

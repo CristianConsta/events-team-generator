@@ -4,7 +4,9 @@
     var THEME_STORAGE_KEY = 'ds_theme';
     var THEME_STANDARD = 'standard';
     var THEME_LAST_WAR = 'last-war';
-    var SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR]);
+    var THEME_LIGHT = 'light';
+    var THEME_SYSTEM = 'system';
+    var SUPPORTED_THEMES = new Set([THEME_STANDARD, THEME_LAST_WAR, THEME_LIGHT, THEME_SYSTEM]);
 
     function normalizeThemePreference(theme) {
         if (typeof theme !== 'string') {
@@ -30,19 +32,41 @@
         }
     }
 
+    function resolveSystemTheme() {
+        if (typeof window !== 'undefined' && window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: light)').matches) {
+            return THEME_LIGHT;
+        }
+        return THEME_STANDARD;
+    }
+
     function applyPlatformTheme(theme, options) {
-        var nextTheme = normalizeThemePreference(theme);
+        var normalized = normalizeThemePreference(theme);
+        var resolvedTheme = normalized === THEME_SYSTEM ? resolveSystemTheme() : normalized;
         var root = document.documentElement;
         if (root) {
-            root.setAttribute('data-theme', nextTheme);
+            root.setAttribute('data-theme', resolvedTheme);
         }
         if (document.body) {
-            document.body.setAttribute('data-theme', nextTheme);
+            document.body.setAttribute('data-theme', resolvedTheme);
         }
         if (!options || options.skipPersist !== true) {
-            persistThemePreference(nextTheme);
+            // Persist the user's intent (e.g. 'system'), not the resolved value
+            try {
+                localStorage.setItem(THEME_STORAGE_KEY, normalized);
+            } catch (e) {
+                // Ignore local storage write failures.
+            }
         }
-        return nextTheme;
+        return resolvedTheme;
+    }
+
+    if (typeof window !== 'undefined' && window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function() {
+            if (getStoredThemePreference() === THEME_SYSTEM) {
+                applyPlatformTheme(THEME_SYSTEM, { skipPersist: true });
+            }
+        });
     }
 
     function getCurrentAppliedTheme() {
@@ -59,6 +83,8 @@
     global.DSThemeController = {
         THEME_STANDARD: THEME_STANDARD,
         THEME_LAST_WAR: THEME_LAST_WAR,
+        THEME_LIGHT: THEME_LIGHT,
+        THEME_SYSTEM: THEME_SYSTEM,
         normalizeThemePreference: normalizeThemePreference,
         getStoredThemePreference: getStoredThemePreference,
         persistThemePreference: persistThemePreference,

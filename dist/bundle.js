@@ -6753,6 +6753,8 @@
           settings_theme_label: "Theme",
           settings_theme_standard: "Standard",
           settings_theme_last_war: "Last War",
+          settings_theme_light: "Light",
+          settings_theme_system: "System (Auto)",
           settings_avatar_label: "Avatar",
           settings_avatar_upload: "Upload Avatar",
           settings_avatar_remove: "Remove Avatar",
@@ -7253,6 +7255,8 @@
           settings_theme_label: "Theme",
           settings_theme_standard: "Standard",
           settings_theme_last_war: "Last War",
+          settings_theme_light: "Clair",
+          settings_theme_system: "Syst\xE8me (Auto)",
           settings_avatar_label: "Avatar",
           settings_avatar_upload: "Televerser un avatar",
           settings_avatar_remove: "Supprimer l'avatar",
@@ -7753,6 +7757,8 @@
           settings_theme_label: "Design",
           settings_theme_standard: "Standard",
           settings_theme_last_war: "Last War",
+          settings_theme_light: "Hell",
+          settings_theme_system: "System (Auto)",
           settings_avatar_label: "Avatar",
           settings_avatar_upload: "Avatar hochladen",
           settings_avatar_remove: "Avatar entfernen",
@@ -8253,6 +8259,8 @@
           settings_theme_label: "Tema",
           settings_theme_standard: "Standard",
           settings_theme_last_war: "Last War",
+          settings_theme_light: "Chiaro",
+          settings_theme_system: "Sistema (Auto)",
           settings_avatar_label: "Avatar",
           settings_avatar_upload: "Carica avatar",
           settings_avatar_remove: "Rimuovi avatar",
@@ -8753,6 +8761,8 @@
           settings_theme_label: "Theme",
           settings_theme_standard: "Standard",
           settings_theme_last_war: "Last War",
+          settings_theme_light: "\uB77C\uC774\uD2B8",
+          settings_theme_system: "\uC2DC\uC2A4\uD15C (\uC790\uB3D9)",
           settings_avatar_label: "\uC544\uBC14\uD0C0",
           settings_avatar_upload: "\uC544\uBC14\uD0C0 \uC5C5\uB85C\uB4DC",
           settings_avatar_remove: "\uC544\uBC14\uD0C0 \uC0AD\uC81C",
@@ -9253,6 +9263,8 @@
           settings_theme_label: "Tema",
           settings_theme_standard: "Standard",
           settings_theme_last_war: "Last War",
+          settings_theme_light: "Luminos",
+          settings_theme_system: "Sistem (Auto)",
           settings_avatar_label: "Avatar",
           settings_avatar_upload: "Incarca avatar",
           settings_avatar_remove: "Sterge avatar",
@@ -10330,14 +10342,30 @@
     "js/core/reliability.js"() {
       (function initCoreReliability(global2) {
         var DECAY_FACTOR = 0.85;
+        var TIER_FALLBACK_COLORS = { excellent: "#2e7d32", good: "#1565c0", fair: "#c55a00", poor: "#c62828", critical: "#b71c1c", new: "#757575" };
+        function tierColor(tier) {
+          return typeof DSThemeColors !== "undefined" && DSThemeColors.reliabilityColor(tier) || TIER_FALLBACK_COLORS[tier] || "#757575";
+        }
         var TIERS = [
-          { min: 90, max: 100, tier: "excellent", label: "Rock solid", color: "#2e7d32", cssClass: "reliability-excellent" },
-          { min: 70, max: 89, tier: "good", label: "Reliable", color: "#1565c0", cssClass: "reliability-good" },
-          { min: 50, max: 69, tier: "fair", label: "Inconsistent", color: "#ef6c00", cssClass: "reliability-fair" },
-          { min: 30, max: 49, tier: "poor", label: "Unreliable", color: "#c62828", cssClass: "reliability-poor" },
-          { min: 0, max: 29, tier: "critical", label: "Chronic no-show", color: "#b71c1c", cssClass: "reliability-critical" }
+          { min: 90, max: 100, tier: "excellent", label: "Rock solid", get color() {
+            return tierColor("excellent");
+          }, cssClass: "reliability-excellent" },
+          { min: 70, max: 89, tier: "good", label: "Reliable", get color() {
+            return tierColor("good");
+          }, cssClass: "reliability-good" },
+          { min: 50, max: 69, tier: "fair", label: "Inconsistent", get color() {
+            return tierColor("fair");
+          }, cssClass: "reliability-fair" },
+          { min: 30, max: 49, tier: "poor", label: "Unreliable", get color() {
+            return tierColor("poor");
+          }, cssClass: "reliability-poor" },
+          { min: 0, max: 29, tier: "critical", label: "Chronic no-show", get color() {
+            return tierColor("critical");
+          }, cssClass: "reliability-critical" }
         ];
-        var NULL_TIER = { tier: "new", label: "No history", color: "#757575", cssClass: "reliability-new" };
+        var NULL_TIER = { tier: "new", label: "No history", get color() {
+          return tierColor("new");
+        }, cssClass: "reliability-new" };
         function calculateReliabilityScore(history) {
           if (!Array.isArray(history)) {
             return null;
@@ -10468,6 +10496,70 @@
           calculateReliabilityScore,
           getReliabilityTier,
           recalculatePlayerStats
+        };
+      })(window);
+    }
+  });
+
+  // js/core/theme-colors.js
+  var require_theme_colors = __commonJS({
+    "js/core/theme-colors.js"() {
+      (function initThemeColors(global2) {
+        "use strict";
+        var cache = {};
+        var root = document.documentElement;
+        function invalidateCache() {
+          cache = {};
+        }
+        if (typeof MutationObserver !== "undefined") {
+          new MutationObserver(function(mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+              if (mutations[i].attributeName === "data-theme") {
+                invalidateCache();
+                return;
+              }
+            }
+          }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+        }
+        function get(tokenName) {
+          if (cache[tokenName]) {
+            return cache[tokenName];
+          }
+          var val = getComputedStyle(root).getPropertyValue("--ds-" + tokenName).trim();
+          if (val) {
+            cache[tokenName] = val;
+          }
+          return val || "";
+        }
+        function getRgb(tokenName) {
+          return get(tokenName + "-rgb");
+        }
+        function getAlpha(tokenName, alpha) {
+          var rgb = getRgb(tokenName);
+          return rgb ? "rgba(" + rgb + ", " + alpha + ")" : "";
+        }
+        function teamConfig(team) {
+          var prefix = team === "A" ? "team-a" : "team-b";
+          return {
+            primary: get(prefix),
+            light: get(prefix + "-light"),
+            rgb: getRgb(prefix)
+          };
+        }
+        function reliabilityColor(tier) {
+          return get("reliability-" + tier);
+        }
+        function paletteColor(index, type) {
+          return get("palette-" + index + "-" + type);
+        }
+        global2.DSThemeColors = {
+          get,
+          getRgb,
+          getAlpha,
+          teamConfig,
+          reliabilityColor,
+          paletteColor,
+          invalidateCache
         };
       })(window);
     }
@@ -11240,11 +11332,12 @@
             var ctx = canvas.getContext("2d");
             ctx.fillStyle = team === "A" ? "#E8F4FF" : "#FFE8E8";
             ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 800);
+            var _tc = global2.DSThemeColors ? global2.DSThemeColors.teamConfig(team) : {};
             drawGeneratedMapHeader(ctx, {
               totalWidth: MAP_CANVAS_WIDTH,
               titleHeight: 100,
-              teamPrimary: team === "A" ? "#4169E1" : "#DC143C",
-              teamSecondary: team === "A" ? "#1E90FF" : "#FF6347",
+              teamPrimary: _tc.primary || (team === "A" ? "#4169E1" : "#DC143C"),
+              teamSecondary: _tc.light || (team === "A" ? "#1E90FF" : "#FF6347"),
               titleText: headerTitle,
               avatarImage: headerAvatar
             });
@@ -11418,9 +11511,11 @@
             };
             var headerAvatar = await loadActiveEventAvatarForHeader(deps);
             var headerTitle = getMapHeaderTitle(team, deps);
-            var teamPrimary = team === "A" ? "#4169E1" : "#DC143C";
-            var teamSecondary = team === "A" ? "#1E90FF" : "#FF6347";
-            var teamSoft = team === "A" ? "rgba(65, 105, 225, 0.25)" : "rgba(220, 20, 60, 0.25)";
+            var _teamColors = global2.DSThemeColors ? global2.DSThemeColors.teamConfig(team) : {};
+            var teamPrimary = _teamColors.primary || (team === "A" ? "#4169E1" : "#DC143C");
+            var teamSecondary = _teamColors.light || (team === "A" ? "#1E90FF" : "#FF6347");
+            var _teamRgb = _teamColors.rgb || (team === "A" ? "65,105,225" : "220,20,60");
+            var teamSoft = "rgba(" + _teamRgb + ", 0.25)";
             var gameplayContext = deps.getGameplayContext();
             var FS = deps.FirebaseService || typeof window !== "undefined" && window.FirebaseService;
             var activePlayerDB = FS && FS.getActivePlayerDatabase && gameplayContext ? FS.getActivePlayerDatabase(gameplayContext) : {};
@@ -11626,7 +11721,7 @@
                 ctx.stroke();
               }
               ctx.restore();
-              drawCrosshairIcon(pX + 20, pY + 24, 16, "#FFB84C");
+              drawCrosshairIcon(pX + 20, pY + 24, 16, (global2.DSThemeColors ? global2.DSThemeColors.get("accent-primary") : "") || "#FFB84C");
               ctx.font = "bold 15px Arial";
               ctx.fillStyle = "#F6F7FB";
               ctx.textAlign = "left";
@@ -12763,8 +12858,8 @@
             }
           } else {
             var grad = ctx.createLinearGradient(0, 0, mapWidth, mapHeight);
-            grad.addColorStop(0, "#1f2238");
-            grad.addColorStop(1, "#2b2f4a");
+            grad.addColorStop(0, typeof DSThemeColors !== "undefined" && DSThemeColors.get("surface-raised") || "#1f2238");
+            grad.addColorStop(1, typeof DSThemeColors !== "undefined" && DSThemeColors.get("surface-elevated") || "#2b2f4a");
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, mapWidth, mapHeight);
             ctx.strokeStyle = "rgba(255,255,255,0.12)";
@@ -12802,7 +12897,7 @@
             var isActive = name === state.coordBuildings[state.coordBuildingIndex];
             ctx.beginPath();
             ctx.arc(pos[0], pos[1], isActive ? 8 : 5, 0, Math.PI * 2);
-            ctx.fillStyle = isActive ? "#FDC830" : "rgba(255,255,255,0.7)";
+            ctx.fillStyle = isActive ? typeof DSThemeColors !== "undefined" && DSThemeColors.get("accent-primary") || "#FDC830" : "rgba(255,255,255,0.7)";
             ctx.fill();
             ctx.strokeStyle = isActive ? "#000" : "rgba(0,0,0,0.6)";
             ctx.lineWidth = 2;
@@ -19305,7 +19400,9 @@
         var THEME_STORAGE_KEY = "ds_theme";
         var THEME_STANDARD = "standard";
         var THEME_LAST_WAR = "last-war";
-        var SUPPORTED_THEMES = /* @__PURE__ */ new Set([THEME_STANDARD, THEME_LAST_WAR]);
+        var THEME_LIGHT = "light";
+        var THEME_SYSTEM = "system";
+        var SUPPORTED_THEMES = /* @__PURE__ */ new Set([THEME_STANDARD, THEME_LAST_WAR, THEME_LIGHT, THEME_SYSTEM]);
         function normalizeThemePreference(theme) {
           if (typeof theme !== "string") {
             return THEME_STANDARD;
@@ -19326,19 +19423,36 @@
           } catch (error) {
           }
         }
+        function resolveSystemTheme() {
+          if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+            return THEME_LIGHT;
+          }
+          return THEME_STANDARD;
+        }
         function applyPlatformTheme(theme, options) {
-          var nextTheme = normalizeThemePreference(theme);
+          var normalized = normalizeThemePreference(theme);
+          var resolvedTheme = normalized === THEME_SYSTEM ? resolveSystemTheme() : normalized;
           var root = document.documentElement;
           if (root) {
-            root.setAttribute("data-theme", nextTheme);
+            root.setAttribute("data-theme", resolvedTheme);
           }
           if (document.body) {
-            document.body.setAttribute("data-theme", nextTheme);
+            document.body.setAttribute("data-theme", resolvedTheme);
           }
           if (!options || options.skipPersist !== true) {
-            persistThemePreference(nextTheme);
+            try {
+              localStorage.setItem(THEME_STORAGE_KEY, normalized);
+            } catch (e) {
+            }
           }
-          return nextTheme;
+          return resolvedTheme;
+        }
+        if (typeof window !== "undefined" && window.matchMedia) {
+          window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", function() {
+            if (getStoredThemePreference() === THEME_SYSTEM) {
+              applyPlatformTheme(THEME_SYSTEM, { skipPersist: true });
+            }
+          });
         }
         function getCurrentAppliedTheme() {
           var root = document.documentElement;
@@ -19351,6 +19465,8 @@
         global2.DSThemeController = {
           THEME_STANDARD,
           THEME_LAST_WAR,
+          THEME_LIGHT,
+          THEME_SYSTEM,
           normalizeThemePreference,
           getStoredThemePreference,
           persistThemePreference,
@@ -24960,15 +25076,15 @@
             const loginScreen = document.getElementById("loginScreen");
             if (loginScreen) {
               loginScreen.innerHTML = `
-                    <div style="max-width: 600px; margin: 100px auto; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h1 style="text-align: center; color: #DC143C;">${t("error_loading_title")}</h1>
-                        <p style="color: #333; text-align: center; margin: 20px 0;">${t("error_missing_firebase_line1")}</p>
-                        <p style="color: #666; text-align: center; font-size: 14px;">${t("error_missing_firebase_line2")}</p>
-                        <ul style="color: #666; margin: 20px 40px;">
+                    <div style="max-width: 600px; margin: 100px auto; padding: 40px; background: var(--ds-surface-inverse, white); border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <h1 style="text-align: center; color: var(--ds-state-error, #DC143C);">${t("error_loading_title")}</h1>
+                        <p style="color: var(--ds-text-inverse, #333); text-align: center; margin: 20px 0;">${t("error_missing_firebase_line1")}</p>
+                        <p style="color: var(--ds-text-inverse-muted, #666); text-align: center; font-size: 14px;">${t("error_missing_firebase_line2")}</p>
+                        <ul style="color: var(--ds-text-inverse-muted, #666); margin: 20px 40px;">
                             <li>${t("error_missing_firebase_file1")}</li>
                             <li>${t("error_missing_firebase_file2")}</li>
                         </ul>
-                        <p style="color: #666; text-align: center; font-size: 14px; margin-top: 20px;">${t("error_missing_firebase_line3")}</p>
+                        <p style="color: var(--ds-text-inverse-muted, #666); text-align: center; font-size: 14px; margin-top: 20px;">${t("error_missing_firebase_line3")}</p>
                     </div>
                 `;
               loginScreen.style.display = "block";
@@ -25094,6 +25210,7 @@
   require_buildings();
   require_player_table();
   require_reliability();
+  require_theme_colors();
   require_team_selection_core();
   require_generator_actions();
   require_generator_view();

@@ -301,11 +301,12 @@
             ctx.fillStyle = team === 'A' ? '#E8F4FF' : '#FFE8E8';
             ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 800);
 
+            var _tc = global.DSThemeColors ? global.DSThemeColors.teamConfig(team) : {};
             drawGeneratedMapHeader(ctx, {
                 totalWidth: MAP_CANVAS_WIDTH,
                 titleHeight: 100,
-                teamPrimary: team === 'A' ? '#4169E1' : '#DC143C',
-                teamSecondary: team === 'A' ? '#1E90FF' : '#FF6347',
+                teamPrimary: _tc.primary || (team === 'A' ? '#4169E1' : '#DC143C'),
+                teamSecondary: _tc.light || (team === 'A' ? '#1E90FF' : '#FF6347'),
                 titleText: headerTitle,
                 avatarImage: headerAvatar,
             });
@@ -344,9 +345,11 @@
         try {
             var headerAvatar = await loadActiveEventAvatarForHeader(deps);
             var headerTitle = getMapHeaderTitle(team, deps);
-            var teamPrimary = team === 'A' ? '#4169E1' : '#DC143C';
-            var teamSecondary = team === 'A' ? '#1E90FF' : '#FF6347';
-            var teamSoft = team === 'A' ? 'rgba(65, 105, 225, 0.25)' : 'rgba(220, 20, 60, 0.25)';
+            var _teamColors = global.DSThemeColors ? global.DSThemeColors.teamConfig(team) : {};
+            var teamPrimary = _teamColors.primary || (team === 'A' ? '#4169E1' : '#DC143C');
+            var teamSecondary = _teamColors.light || (team === 'A' ? '#1E90FF' : '#FF6347');
+            var _teamRgb = _teamColors.rgb || (team === 'A' ? '65,105,225' : '220,20,60');
+            var teamSoft = 'rgba(' + _teamRgb + ', 0.25)';
             var gameplayContext = deps.getGameplayContext();
             var FS = deps.FirebaseService || (typeof window !== 'undefined' && window.FirebaseService);
             var activePlayerDB = (FS && FS.getActivePlayerDatabase && gameplayContext)
@@ -737,7 +740,7 @@
                 }
                 ctx.restore();
 
-                drawCrosshairIcon(pX + 20, pY + 24, 16, '#FFB84C');
+                drawCrosshairIcon(pX + 20, pY + 24, 16, (global.DSThemeColors ? global.DSThemeColors.get('accent-primary') : '') || '#FFB84C');
                 ctx.font = 'bold 15px Arial';
                 ctx.fillStyle = '#F6F7FB';
                 ctx.textAlign = 'left';

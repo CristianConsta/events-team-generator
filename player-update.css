@@ -8,8 +8,8 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--color-bg-dark, #121212);
-    color: var(--color-text-primary, #e0e0e0);
+    background: var(--ds-surface-base);
+    color: var(--ds-text-primary);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
 }
@@ -21,11 +21,11 @@ body {
     justify-content: center;
     padding: 16px;
     padding-bottom: calc(16px + env(safe-area-inset-bottom));
-    background: var(--color-bg-dark, #121212);
+    background: var(--ds-surface-base);
 }
 
 .update-card {
-    background: var(--color-surface, #1e1e1e);
+    background: var(--ds-surface-raised);
     border-radius: 12px;
     padding: 24px;
     width: 100%;
@@ -40,7 +40,7 @@ body {
     align-items: center;
     gap: 12px;
     padding: 32px;
-    color: var(--color-text-secondary, #9e9e9e);
+    color: var(--ds-text-muted);
     font-size: 1rem;
 }
 
@@ -49,8 +49,8 @@ body {
     display: block;
     width: 36px;
     height: 36px;
-    border: 3px solid var(--color-surface, #333);
-    border-top-color: var(--color-accent, #90caf9);
+    border: 3px solid var(--ds-surface-raised);
+    border-top-color: var(--ds-accent-secondary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
@@ -61,7 +61,7 @@ body {
 
 /* Form state */
 .update-state-form {
-    background: var(--color-surface, #1e1e1e);
+    background: var(--ds-surface-raised);
     border-radius: 12px;
     padding: 24px;
     width: 100%;
@@ -73,13 +73,13 @@ body {
     font-size: 1.4rem;
     font-weight: 600;
     margin-bottom: 8px;
-    color: var(--color-text-primary, #e0e0e0);
+    color: var(--ds-text-primary);
 }
 
 .update-player-name {
     font-size: 1rem;
     font-weight: 500;
-    color: var(--color-accent, #90caf9);
+    color: var(--ds-accent-secondary);
     margin-bottom: 20px;
 }
 
@@ -92,7 +92,7 @@ body {
 #updateStatsForm label {
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--color-text-secondary, #9e9e9e);
+    color: var(--ds-text-muted);
     margin-bottom: 2px;
     display: block;
 }
@@ -101,10 +101,10 @@ body {
 #updateStatsForm select {
     width: 100%;
     padding: 14px 12px;
-    background: var(--color-bg-dark, #121212);
-    border: 1px solid var(--color-border, #333);
+    background: var(--ds-surface-base);
+    border: 1px solid var(--ds-border-default);
     border-radius: 8px;
-    color: var(--color-text-primary, #e0e0e0);
+    color: var(--ds-text-primary);
     font-size: 1rem;
     transition: border-color 0.2s;
     -webkit-appearance: none;
@@ -113,20 +113,21 @@ body {
 
 #updateStatsForm input:focus,
 #updateStatsForm select:focus {
-    outline: none;
-    border-color: var(--color-accent, #90caf9);
+    outline: 2px solid var(--ds-accent-secondary);
+    outline-offset: 1px;
+    border-color: var(--ds-accent-secondary);
 }
 
 #updateStatsForm input:invalid:not(:placeholder-shown),
 #updateStatsForm select:invalid:not(:placeholder-shown) {
-    border-color: var(--color-error, #ef5350);
+    border-color: var(--ds-state-error);
 }
 
 #updateStatsForm button[type="submit"] {
     margin-top: 8px;
     padding: 16px;
-    background: var(--color-accent, #90caf9);
-    color: #121212;
+    background: var(--ds-accent-secondary);
+    color: var(--ds-surface-base);
     border: none;
     border-radius: 8px;
     font-size: 1rem;
@@ -150,7 +151,7 @@ body {
 
 /* Success state */
 .update-state-success {
-    background: var(--color-surface, #1e1e1e);
+    background: var(--ds-surface-raised);
     border-radius: 12px;
     padding: 32px 24px;
     width: 100%;
@@ -163,19 +164,19 @@ body {
     content: '✓';
     display: block;
     font-size: 2.5rem;
-    color: var(--color-success, #66bb6a);
+    color: var(--ds-state-success);
     margin-bottom: 16px;
 }
 
 .update-state-success p {
     font-size: 1rem;
-    color: var(--color-text-primary, #e0e0e0);
+    color: var(--ds-text-primary);
     line-height: 1.5;
 }
 
 /* Error state */
 .update-state-error {
-    background: var(--color-surface, #1e1e1e);
+    background: var(--ds-surface-raised);
     border-radius: 12px;
     padding: 32px 24px;
     width: 100%;
@@ -188,13 +189,13 @@ body {
     content: '✕';
     display: block;
     font-size: 2.5rem;
-    color: var(--color-error, #ef5350);
+    color: var(--ds-state-error);
     margin-bottom: 16px;
 }
 
 .update-state-error p {
     font-size: 1rem;
-    color: var(--color-text-secondary, #9e9e9e);
+    color: var(--ds-text-muted);
     line-height: 1.5;
 }
 
@@ -203,8 +204,8 @@ body {
     margin-top: 20px;
     padding: 12px;
     background: transparent;
-    color: var(--color-accent, #90caf9);
-    border: 1px solid var(--color-accent, #90caf9);
+    color: var(--ds-accent-secondary);
+    border: 1px solid var(--ds-accent-secondary);
     border-radius: 8px;
     font-size: 1rem;
     font-weight: 600;
@@ -214,7 +215,7 @@ body {
 }
 
 .update-secondary-btn:hover {
-    background: rgba(144, 202, 249, 0.1);
+    background: rgba(77, 134, 255, 0.1);
 }
 
 .update-secondary-btn:active {
@@ -225,7 +226,7 @@ body {
 .field-note {
     display: block;
     font-size: 0.75rem;
-    color: var(--color-text-secondary, #9e9e9e);
+    color: var(--ds-text-muted);
     margin-top: -8px;
     font-style: italic;
 }
@@ -234,7 +235,7 @@ body {
 .field-error {
     display: block;
     font-size: 0.8rem;
-    color: var(--color-error, #ef5350);
+    color: var(--ds-state-error);
     margin-top: -6px;
     line-height: 1.3;
 }
@@ -244,7 +245,7 @@ body {
 }
 
 .field-input-error {
-    border-color: var(--color-error, #ef5350) !important;
+    border-color: var(--ds-state-error) !important;
 }
 
 /* Utility */

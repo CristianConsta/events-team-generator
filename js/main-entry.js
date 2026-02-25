@@ -16,6 +16,7 @@ require('./core/generator-assignment.js');
 require('./core/buildings.js');
 require('./core/player-table.js');
 require('./core/reliability.js');
+require('./core/theme-colors.js');
 require('./features/generator/team-selection-core.js');
 require('./features/generator/generator-actions.js');
 require('./features/generator/generator-view.js');

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-XyHgm1QlR/g7SuPGSRH5CEmHKmP1/Vz4gS10GF05ouc=' https://apis.google.com https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.googleapis.com; font-src 'self' data:; base-uri 'none'; frame-src https://accounts.google.com https://*.google.com https://*.firebaseapp.com https://last-war-game-desert-storm.firebaseapp.com; form-action 'self';">
     <link rel="icon" href="data:,">
+    <meta name="theme-color" content="#070c19" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#F5F7FA" media="(prefers-color-scheme: light)">
     <title>Video Games Events Players Selection</title>
     <!-- Firebase SDKs -->
     <script defer src="vendor/firebase-app-compat.js"></script>
@@ -347,6 +349,8 @@
                         <select id="settingsThemeSelect">
                             <option value="standard" data-i18n="settings_theme_standard">Standard</option>
                             <option value="last-war" data-i18n="settings_theme_last_war">Last War</option>
+                            <option value="light" data-i18n="settings_theme_light">Light</option>
+                            <option value="system" data-i18n="settings_theme_system">System (Auto)</option>
                         </select>
                     </div>
 
