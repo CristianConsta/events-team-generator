@@ -4028,6 +4028,12 @@ select {
         --panel-border-strong: rgba(var(--ds-accent-primary-rgb), 0.7);
         --text-muted: var(--ds-text-primary);
     }
+    :root[data-theme='light'] {
+        --ds-surface-soft: rgba(0, 0, 0, 0.12);
+        --ds-surface-hover: rgba(0, 0, 0, 0.18);
+        --ds-border-default: #8090A8;
+        --ds-border-strong: #606878;
+    }
 }
 
 /* ── Reduced Motion ── */
