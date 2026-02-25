@@ -40,7 +40,7 @@
             var playerName = (token && token.playerName) || 'player';
             copyBtn.setAttribute('title', 'Copy link for ' + playerName);
             copyBtn.setAttribute('aria-label', 'Copy link for ' + playerName);
-            copyBtn.innerHTML = '<span class="action-btn-text">Copy</span><span class="action-btn-icon" aria-hidden="true">&#128203;</span>';
+            copyBtn.innerHTML = '<span class="action-btn-text">' + t('player_updates_copy_link') + '</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6,1h4v2H6z"/><line x1="5.5" y1="7" x2="10.5" y2="7"/><line x1="5.5" y1="10" x2="10.5" y2="10"/></svg></span>';
 
             item.appendChild(nameEl);
             item.appendChild(linkEl);

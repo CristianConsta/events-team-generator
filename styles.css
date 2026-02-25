@@ -1127,6 +1127,12 @@ select {
 .action-btn-icon {
     display: none;
 }
+.action-btn-icon svg,
+.invite-btn-icon svg {
+    width: 1em;
+    height: 1em;
+    vertical-align: middle;
+}
 @media (max-width: 768px) {
     .players-mgmt-invite-btn .invite-btn-text,
     .action-btn-text {
