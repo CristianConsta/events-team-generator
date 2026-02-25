@@ -100,7 +100,7 @@ body {
 #updateStatsForm input,
 #updateStatsForm select {
     width: 100%;
-    padding: 10px 12px;
+    padding: 14px 12px;
     background: var(--color-bg-dark, #121212);
     border: 1px solid var(--color-border, #333);
     border-radius: 8px;
@@ -124,7 +124,7 @@ body {
 
 #updateStatsForm button[type="submit"] {
     margin-top: 8px;
-    padding: 12px;
+    padding: 16px;
     background: var(--color-accent, #90caf9);
     color: #121212;
     border: none;
@@ -196,6 +196,29 @@ body {
     font-size: 1rem;
     color: var(--color-text-secondary, #9e9e9e);
     line-height: 1.5;
+}
+
+/* Secondary action buttons (Try Again / Done) */
+.update-secondary-btn {
+    margin-top: 20px;
+    padding: 12px;
+    background: transparent;
+    color: var(--color-accent, #90caf9);
+    border: 1px solid var(--color-accent, #90caf9);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.2s, opacity 0.2s;
+}
+
+.update-secondary-btn:hover {
+    background: rgba(144, 202, 249, 0.1);
+}
+
+.update-secondary-btn:active {
+    opacity: 0.72;
 }
 
 /* Field note */

@@ -3459,10 +3459,10 @@ select {
     }
     #playersMgmtTable .players-mgmt-actions {
         justify-content: flex-start;
-        gap: 6px;
+        gap: 8px;
     }
     #playersMgmtTable .players-mgmt-actions button {
-        min-height: 34px;
+        min-height: 44px;
         padding: 7px 10px;
         font-size: 13px;
         margin: 0;
@@ -3501,10 +3501,10 @@ select {
     }
 
     /* Compact team buttons for #playersTable */
-    #playersTable .team-btn { padding: 6px 10px; min-height: 36px; font-size: 13px; }
+    #playersTable .team-btn { padding: 6px 10px; min-height: 44px; font-size: 13px; }
     #playersTable .team-select-group { gap: 6px; }
-    #playersTable .role-btn { padding: 6px 8px; min-height: 36px; font-size: 12px; min-width: 64px; }
-    #playersTable .team-clear-btn { min-width: 56px; padding: 6px 8px; min-height: 36px; font-size: 12px; width: auto; }
+    #playersTable .role-btn { padding: 6px 8px; min-height: 44px; font-size: 12px; min-width: 64px; }
+    #playersTable .team-clear-btn { min-width: 56px; padding: 6px 8px; min-height: 44px; font-size: 12px; width: auto; }
     #playersTable .team-actions-stack { flex-wrap: nowrap; width: auto; }
 
     /* Role toggle — touch-friendly */

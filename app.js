@@ -2040,7 +2040,7 @@ function renderPlayersManagementAddPanel() {
     }
 
     if (!playersManagementAddPanelInit) {
-        playersManagementAddPanelExpanded = window.innerWidth >= 900;
+        playersManagementAddPanelExpanded = window.innerWidth >= 900 || allPlayers.length < 10;
         playersManagementAddPanelInit = true;
     }
     togglePlayersManagementAddPanel(playersManagementAddPanelExpanded);
@@ -2569,9 +2569,23 @@ async function handlePlayersManagementTableAction(event) {
     }
 
     if (action === 'delete') {
-        if (!confirm(t('players_list_delete_confirm', { name: originalName }))) {
+        if (button.getAttribute('data-confirm') !== 'pending') {
+            const originalText = button.textContent;
+            const originalBg = button.style.backgroundColor;
+            button.setAttribute('data-confirm', 'pending');
+            button.textContent = t('players_mgmt_confirm_delete');
+            button.style.backgroundColor = '#c0392b';
+            const revert = () => {
+                button.removeAttribute('data-confirm');
+                button.textContent = originalText;
+                button.style.backgroundColor = originalBg;
+            };
+            const timerId = setTimeout(revert, 3000);
+            button.dataset.confirmTimer = timerId;
             return;
         }
+        clearTimeout(parseInt(button.dataset.confirmTimer, 10));
+        button.removeAttribute('data-confirm');
         const result = await FirebaseService.removePlayerEntry(source, originalName, gameplayContext);
         if (result && result.success) {
             playersManagementEditingName = '';

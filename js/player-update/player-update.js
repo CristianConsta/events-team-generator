@@ -98,6 +98,34 @@
         // Step 3: show loading state
         showState('updateLoading');
 
+        // Wire terminal-state buttons
+        var retryBtn = getEl('updateRetryBtn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', function () {
+                showState('updateForm');
+            });
+        }
+        var doneBtn = getEl('updateDoneBtn');
+        if (doneBtn) {
+            doneBtn.addEventListener('click', function () {
+                if (global.window && typeof global.window.close === 'function') {
+                    global.window.close();
+                }
+                // Fallback: show a "you can close this tab" message
+                var successEl = getEl('updateSuccess');
+                if (successEl) {
+                    var closeMsg = global.document.createElement('p');
+                    closeMsg.style.marginTop = '12px';
+                    closeMsg.style.fontSize = '0.875rem';
+                    closeMsg.style.color = 'var(--color-text-secondary, #9e9e9e)';
+                    closeMsg.textContent = global.DSI18N && typeof global.DSI18N.t === 'function'
+                        ? global.DSI18N.t('player_update_close_tab') || 'You can now close this tab.'
+                        : 'You can now close this tab.';
+                    doneBtn.replaceWith(closeMsg);
+                }
+            });
+        }
+
         if (!hex || (!aid && !uidParam)) {
             showError(ERROR_CODES.TOKEN_INVALID);
             return;
@@ -243,6 +271,17 @@
                                 return;
                             }
 
+                            // disable submit button while writing
+                            var submitBtn = form.querySelector('button[type="submit"]');
+                            var originalBtnText = submitBtn ? submitBtn.textContent : '';
+                            if (submitBtn) {
+                                submitBtn.disabled = true;
+                                var submittingLabel = global.DSI18N && typeof global.DSI18N.t === 'function'
+                                    ? (global.DSI18N.t('player_update_submitting') || 'Submitting...')
+                                    : 'Submitting...';
+                                submitBtn.textContent = submittingLabel;
+                            }
+
                             // write pending_update doc
                             var pendingUpdateDoc = {
                                 contextType: isPersonal ? 'personal' : 'alliance',
@@ -308,6 +347,10 @@
                                     showState('updateSuccess');
                                 })
                                 .catch(function () {
+                                    if (submitBtn) {
+                                        submitBtn.disabled = false;
+                                        submitBtn.textContent = originalBtnText;
+                                    }
                                     showError(ERROR_CODES.NETWORK_ERROR);
                                 });
                         });
