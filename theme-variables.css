@@ -11,7 +11,7 @@
     --ds-surface-soft: rgba(255, 255, 255, 0.06);
     --ds-surface-hover: rgba(255, 255, 255, 0.12);
     --ds-surface-inverse: #FFFFFF;
-    --ds-surface-0: #070c19;
+    --ds-surface-0: var(--ds-surface-base);
     --ds-surface-1: rgba(255, 255, 255, 0.05);
     --ds-surface-2: rgba(255, 255, 255, 0.10);
     --ds-surface-3: rgba(255, 255, 255, 0.16);
