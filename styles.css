@@ -154,6 +154,7 @@
     --ds-event-active-start: rgba(240, 192, 64, 0.95);
     --ds-event-active-end: rgba(200, 150, 30, 0.95);
     --ds-event-active-text: #1a1f32;
+    color-scheme: dark;
 }
 :root[data-theme='last-war'] {
     --font-family-base: 'Rajdhani', 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
@@ -196,6 +197,7 @@
     --ds-event-active-start: rgba(242, 188, 85, 0.95);
     --ds-event-active-end: rgba(200, 150, 40, 0.95);
     --ds-event-active-text: #1A1505;
+    color-scheme: dark;
 }
 /* === Light Theme === */
 :root[data-theme='light'] {
@@ -275,6 +277,7 @@
     --ds-event-active-start: rgba(184, 134, 11, 0.95);
     --ds-event-active-end: rgba(153, 107, 0, 0.95);
     --ds-event-active-text: #1F2533;
+    color-scheme: light;
     /* Override old vars for backward compatibility */
     --gold: #B8860B;
     --gold-rgb: 184, 134, 11;
