@@ -990,10 +990,10 @@ select {
     min-height: 44px;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.32);
-    background: rgba(8, 13, 24, 0.72);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-primary);
     font-size: 14px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 1px 0 var(--ds-surface-1);
 }
 .filters input:focus {
     border-color: rgba(var(--ds-accent-primary-rgb), 0.7);
@@ -1002,7 +1002,7 @@ select {
 .filters input:focus:not(:focus-visible) {
     outline: none;
 }
-.filters input::placeholder { color: rgba(255,255,255,0.62); }
+.filters input::placeholder { color: var(--ds-text-muted); }
 #searchFilter { min-height: 44px; padding: 10px 12px; box-sizing: border-box; }
 
 /* Custom filter dropdowns */
@@ -1012,8 +1012,8 @@ select {
     height: 44px;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.32);
-    background: rgba(9, 14, 25, 0.74);
-    color: white;
+    background: var(--ds-surface-raised);
+    color: var(--ds-text-primary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1024,7 +1024,7 @@ select {
     transition: background var(--motion-medium), border-color var(--motion-medium), box-shadow var(--motion-medium);
 }
 .filter-icon-btn:hover {
-    background: rgba(255,255,255,0.14);
+    background: var(--ds-surface-hover);
     border-color: rgba(var(--ds-accent-primary-rgb), 0.62);
     transform: none;
     box-shadow: 0 8px 20px rgba(2, 8, 18, 0.45);
@@ -1035,7 +1035,7 @@ select {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    background: rgba(10, 15, 27, 0.98);
+    background: var(--ds-surface-overlay-strong);
     backdrop-filter: blur(12px);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.3);
     border-radius: var(--radius-md);
@@ -1052,7 +1052,7 @@ select {
     font-size: 14px;
     transition: background 0.15s;
 }
-.filter-option:hover { background: rgba(255,255,255,0.1); color: var(--ds-text-primary); }
+.filter-option:hover { background: var(--ds-surface-hover); color: var(--ds-text-primary); }
 .filter-option.selected { color: var(--ds-accent-primary); background: rgba(var(--ds-accent-primary-rgb), 0.16); font-weight: 700; }
 
 /* ── Team Counters & Selection ── */
@@ -2168,10 +2168,10 @@ select {
     width: 100%;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.3);
     border-radius: 10px;
-    background: rgba(8, 13, 24, 0.76);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-primary);
     padding: 10px 12px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 0 var(--ds-surface-1);
 }
 .settings-form-grid input:focus,
 .settings-form-grid select:focus {
@@ -3144,10 +3144,10 @@ select {
     width: 100%;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.3);
     border-radius: 10px;
-    background: rgba(8, 13, 24, 0.76);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-primary);
     padding: 10px 12px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 0 var(--ds-surface-1);
 }
 
 .support-form-grid textarea {
