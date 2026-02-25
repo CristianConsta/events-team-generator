@@ -173,6 +173,7 @@ dist/                   # Generated bundle (do not edit manually)
 - **JS canvas colors**: Use `DSThemeColors.get('token-name')` with a hardcoded fallback: `DSThemeColors.get('accent-primary') || '#F0C040'`. The fallback ensures canvas rendering works even if the DOM isn't ready.
 - **`DSThemeColors`** (`js/core/theme-colors.js`): Runtime bridge for reading CSS tokens in JS. API: `get(name)`, `getRgb(name)`, `getAlpha(name, alpha)`, `teamConfig(team)`, `reliabilityColor(tier)`. Cache auto-invalidates on theme switch.
 - **Old unprefixed variables** (`--gold`, `--bg-0`, `--panel-bg`, etc.) are deprecated. Do not add new references to them. They exist only in the light theme block for backward compatibility and will be removed.
+- **Theme persistence**: Theme is saved in both `localStorage` (`ds_theme`) and Firebase user profile (`profile.theme`). On page load, `updateUserHeaderIdentity()` reads `profile.theme` from Firebase and calls `applyPlatformTheme()`. If the theme is not saved to the Firebase profile (via `setUserProfile`), the local selection will be overridden on next profile read. Always include `theme` in `setUserProfile()` calls.
 
 ## Key Conventions
 
@@ -264,6 +265,19 @@ The app loads via a dynamic `<script defer>` in the inline script block of `inde
 - Always run `npm run build` before E2E tests — tests load `dist/bundle.js`, not individual source files
 - When modifying shell bootstrap or module initialization, always run both `npm test` (unit) AND chrome-desktop E2E to catch timing regressions
 
+## CI/CD Pipeline
+
+Deploy workflow (`.github/workflows/pages.yml`) has 3 jobs:
+1. **`lint-and-unit`**: checkout → npm ci → lint + budgets → coverage (includes all tests) → build → upload bundle artifact
+2. **`e2e-smoke`**: optional (manual trigger only), runs Playwright smoke tests
+3. **`package-and-deploy`**: sparse checkout → download bundle artifact → stage files → deploy to GitHub Pages
+
+Key design decisions:
+- **`test:coverage` replaces `test:unit`** — they run the same tests; `test:coverage` wraps them in c8. Never run both in CI.
+- **Bundle is built once** in lint-and-unit and passed via `actions/upload-artifact` to deploy job. Never rebuild in deploy.
+- **Sparse checkout** in deploy job — only fetches files needed for `_site/`, not the full repo.
+- **Deploy files list** must stay in sync with what `index.html` and `player-update.html` load via `<script>`/`<link>` tags. When adding a new top-level JS/CSS file, update the `Stage deploy files` step.
+
 ## What NOT to Do
 
 - Do not introduce a new build tool (esbuild is the only approved bundler)
@@ -273,6 +287,10 @@ The app loads via a dynamic `<script defer>` in the inline script block of `inde
 - Do not add inline `<script>` logic to `index.html` — keep JS in separate files
 - Do not commit `firebase-config.js` or service account files
 - Do not use bare `document.addEventListener('DOMContentLoaded', ...)` in bundled modules — use the readyState guard pattern (see Bundle Boot Sequence above)
+- Do not add CSS `var(--ds-*)` references without verifying the token is declared in ALL theme blocks (see Theming section)
+- Do not save user preferences to Firebase without including ALL settings fields — partial saves cause stale values to overwrite fresh local state on the next profile read
+- Do not run `test:unit` and `test:coverage` separately in CI — they execute the same tests; use `test:coverage` alone
+- Do not add duplicate steps across CI jobs (e.g., `npm ci` + `npm run build` in both lint and deploy jobs) — use artifacts to pass outputs between jobs
 
 ---
 
