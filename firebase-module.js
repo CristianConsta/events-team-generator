@@ -1863,30 +1863,24 @@ const FirebaseManager = (function() {
     }
 
     async function getDocWithPermissionTolerantFallback(ref, options) {
-        const config = options && typeof options === 'object' ? options : {};
-        const label = typeof config.label === 'string' && config.label ? config.label : 'document';
+        const label = options && typeof options.label === 'string' && options.label
+            ? options.label
+            : 'document';
         if (!ref || typeof ref.get !== 'function') {
-            return {
-                exists: false,
-                data: null,
-                permissionDenied: false,
-            };
+            return { exists: false, data: null, permissionDenied: false };
         }
         try {
             const doc = await ref.get();
+            const exists = !!(doc && doc.exists);
             return {
-                exists: !!(doc && doc.exists),
-                data: doc && doc.exists ? (doc.data() || {}) : null,
+                exists: exists,
+                data: exists ? (doc.data() || {}) : null,
                 permissionDenied: false,
             };
         } catch (error) {
             if (isPermissionDeniedError(error)) {
                 console.warn(`⚠️ Firestore rules denied ${label} read; continuing with available scopes.`);
-                return {
-                    exists: false,
-                    data: null,
-                    permissionDenied: true,
-                };
+                return { exists: false, data: null, permissionDenied: true };
             }
             throw error;
         }
@@ -4056,7 +4050,7 @@ const FirebaseManager = (function() {
                         error: strictErrorMessage,
                     };
                 }
-                console.info('Alliance data read skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
+                console.info('Alliance data read skipped (optional feature disabled by Firestore rules):', error.message || error.code);
                 stopAllianceDocListener();
                 allianceData = null;
                 activeAllianceDocScope = 'game';
@@ -4447,7 +4441,7 @@ const FirebaseManager = (function() {
                     invitationNotifications = [];
                     return [];
                 }
-                console.info('Invitation reads skipped (optional feature disabled by Firestore rules):', error.message || error.code || error);
+                console.info('Invitation reads skipped (optional feature disabled by Firestore rules):', error.message || error.code);
             } else {
                 console.error('Failed to check invitations:', error);
             }
