@@ -951,23 +951,27 @@
         </div>
 
         <!-- Event History View -->
-        <div id="eventHistoryView" class="app-view screen-shell hidden" aria-labelledby="eventHistoryHeading">
-            <div class="page-header screen-header">
-                <h2 id="eventHistoryHeading" class="config-title" data-i18n="event_history_title">Event History</h2>
-            </div>
-            <div class="card screen-panel">
-                <div class="event-history-filter-bar">
-                    <input type="text" id="eventHistorySearchFilter" data-i18n-placeholder="search_placeholder" placeholder="Search..." class="form-input">
-                    <select id="eventHistoryFilterEventType" class="form-select">
-                        <option value="" data-i18n="event_history_filter_all">All Events</option>
-                    </select>
-                    <select id="eventHistoryFilterTeam" class="form-select">
-                        <option value="" data-i18n="event_history_filter_all_teams">All Teams</option>
-                        <option value="A">Team A</option>
-                        <option value="B">Team B</option>
-                    </select>
+        <div id="eventHistoryView" class="view-section hidden" aria-labelledby="eventHistoryHeading">
+            <div class="container">
+                <div class="app-view screen-shell">
+                    <div class="page-header screen-header">
+                        <h2 id="eventHistoryHeading" class="config-title" data-i18n="event_history_title">Event History</h2>
+                    </div>
+                    <div class="card screen-panel">
+                        <div class="event-history-filter-bar">
+                            <input type="text" id="eventHistorySearchFilter" data-i18n-placeholder="search_placeholder" placeholder="Search..." class="form-input">
+                            <select id="eventHistoryFilterEventType" class="form-select">
+                                <option value="" data-i18n="event_history_filter_all">All Events</option>
+                            </select>
+                            <select id="eventHistoryFilterTeam" class="form-select">
+                                <option value="" data-i18n="event_history_filter_all_teams">All Teams</option>
+                                <option value="A">Team A</option>
+                                <option value="B">Team B</option>
+                            </select>
+                        </div>
+                        <div id="eventHistoryContainer"></div>
+                    </div>
                 </div>
-                <div id="eventHistoryContainer"></div>
             </div>
         </div>
 
