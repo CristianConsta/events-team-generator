@@ -181,6 +181,35 @@ dist/                   # Generated bundle (do not edit manually)
   4. i18n key `settings_theme_{name}` in `translations.js` (all 6 languages)
   5. `:root[data-theme='{name}']` CSS block in both `styles.css` and `theme-variables.css`
 
+## Adding New Pages
+
+Every top-level page/view in `index.html` **must** be placed inside the `<div class="container">` wrapper (line ~140) so its width matches the header. If the page lives outside `.container` (e.g., after modals or overlays), wrap it in its own `<div class="container">`.
+
+**Required HTML structure for a new page:**
+```html
+<div id="myNewPage" class="view-section hidden">
+    <div class="container">
+        <div class="app-view screen-shell">
+            <div class="page-header screen-header">
+                <h2 class="config-title" data-i18n="my_page_title">My Page</h2>
+            </div>
+            <div class="card screen-panel">
+                <!-- page content here -->
+            </div>
+        </div>
+    </div>
+</div>
+```
+
+**Checklist when adding a new page:**
+1. Place inside `.container` or wrap in `<div class="container">` — ensures max-width matches the header
+2. Use `class="view-section hidden"` on the outermost div — `hidden` by default, toggled by navigation
+3. Use `app-view screen-shell` → `page-header screen-header` → `card screen-panel` nesting for consistent spacing
+4. Add `data-i18n` attributes for the title — with translations in all 6 languages
+5. Add the page ID to `hideAllMainPages()` in `app.js` so it hides when navigating away
+6. Add the page ID to `setPageView()` in `app.js` if it should be treated as a named page view
+7. Add a nav button handler in `bindStaticUiActions()` (app.js) or `initializeApplicationUiRuntime()`
+
 ## Key Conventions
 
 - **File naming**: kebab-case (`player-table-ui.js`)
