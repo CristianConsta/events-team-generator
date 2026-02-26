@@ -1,0 +1,416 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && request.auth.uid == '2z2BdO8aVsUovqQWWL9WCRMdV933';
+    }
+
+    function authEmailLower() {
+      return signedIn() && request.auth.token.email is string
+        ? lower(request.auth.token.email)
+        : '';
+    }
+
+    function isGameScopedPayloadFor(gameId) {
+      return request.resource != null
+        && request.resource.data.gameId is string
+        && request.resource.data.gameId == gameId;
+    }
+
+    function isAllianceMemberPayload(data, uid) {
+      return data != null
+        && data.members is map
+        && data.members[uid] != null;
+    }
+
+    function isAllianceActor(data) {
+      return signedIn()
+        && (
+          (data.createdBy is string && data.createdBy == request.auth.uid)
+          || isAllianceMemberPayload(data, request.auth.uid)
+        );
+    }
+
+    function isInviteePayload(data) {
+      return signedIn()
+        && data.invitedEmail is string
+        && lower(data.invitedEmail) == authEmailLower();
+    }
+
+    function isInvitationActor(data) {
+      return signedIn()
+        && (
+          (data.invitedBy is string && data.invitedBy == request.auth.uid)
+          || isInviteePayload(data)
+        );
+    }
+
+    function invitationBelongsToGame(data, gameId) {
+      return data != null
+        && data.gameId is string
+        && data.gameId == gameId;
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSelf(uid);
+
+      // Legacy location kept for backward compatibility.
+      match /event_media/{eventId} {
+        allow read, write: if isSelf(uid);
+      }
+
+      // Personal update tokens for player self-update invites.
+      match /update_tokens/{tokenId} {
+        allow create: if isSelf(uid);
+        allow read: if isSelf(uid)
+                    || (isAnonymous()
+                        && resource.data.used == false
+                        && resource.data.expiresAt > request.time);
+        allow update: if isSelf(uid)
+                      || (isAnonymous()
+                          && resource.data.used == false
+                          && request.resource.data.used == true
+                          && request.resource.data.diff(resource.data)
+                                 .affectedKeys()
+                                 .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+        allow delete: if isSelf(uid);
+      }
+
+      // Personal pending player updates submitted via token links.
+      match /pending_updates/{updateId} {
+        allow create: if isAnonymous()
+                      && request.resource.data.ownerUid == uid
+                      && request.resource.data.tokenId is string
+                      && request.resource.data.tokenId.size() > 0
+                      && request.resource.data.playerName is string
+                      && request.resource.data.playerName.size() > 0
+                      && request.resource.data.playerName.size() <= 50
+                      && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                      && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                      && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                      && request.resource.data.status == 'pending'
+                      && (request.resource.data.gameId is string || request.resource.data.gameId == null)
+                      && request.resource.data.proposedValues.power is number
+                      && request.resource.data.proposedValues.power >= 0
+                      && request.resource.data.proposedValues.power <= 9999
+                      && request.resource.data.proposedValues.thp is number
+                      && request.resource.data.proposedValues.thp >= 0
+                      && request.resource.data.proposedValues.thp <= 99999
+                      && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+        allow read: if isSelf(uid);
+        allow update: if isSelf(uid)
+                      && request.resource.data.diff(resource.data)
+                             .affectedKeys()
+                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+      }
+
+      match /games/{gameId} {
+        allow read, write: if isSelf(uid);
+
+        match /players/{playerId} {
+          allow read, write: if isSelf(uid);
+        }
+
+        match /events/{eventId} {
+          allow read, write: if isSelf(uid);
+        }
+
+        match /event_media/{eventId} {
+          allow read, write: if isSelf(uid);
+        }
+      }
+    }
+
+    match /games/{gameId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isSuperAdmin(); // game metadata admin
+
+      match /alliances/{allianceId} {
+        allow read: if isAllianceActor(resource.data);
+        allow create: if signedIn()
+          && isGameScopedPayloadFor(gameId)
+          && request.resource.data.createdBy is string
+          && request.resource.data.createdBy == request.auth.uid
+          && isAllianceMemberPayload(request.resource.data, request.auth.uid);
+        allow update: if signedIn()
+          && resource != null
+          && isGameScopedPayloadFor(gameId)
+          && (
+            isAllianceActor(resource.data)
+            // Invitees can self-join through accept-invitation flow.
+            || (
+              request.resource.data.members is map
+              && request.resource.data.members[request.auth.uid] != null
+            )
+          );
+        allow delete: if isAllianceActor(resource.data);
+
+        // Alliance player DB as subcollection (replaces playerDatabase map field)
+        match /alliance_players/{playerDocId} {
+          allow read: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+          allow write: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+        }
+
+        // Alliance update tokens
+        match /update_tokens/{tokenId} {
+          allow create: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+          allow read: if isAllianceActor(
+                          get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                        )
+                        || (isAnonymous()
+                            && resource.data.used == false
+                            && resource.data.expiresAt > request.time);
+          allow update: if isAllianceActor(
+                            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                          )
+                          || (isAnonymous()
+                              && resource.data.used == false
+                              && request.resource.data.used == true
+                              && request.resource.data.diff(resource.data)
+                                     .affectedKeys()
+                                     .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+          allow delete: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+        }
+
+        // Alliance pending updates
+        match /pending_updates/{updateId} {
+          allow create: if isAnonymous()
+                        && request.resource.data.tokenId is string
+                        && request.resource.data.tokenId.size() > 0
+                        && request.resource.data.playerName is string
+                        && request.resource.data.playerName.size() > 0
+                        && request.resource.data.playerName.size() <= 50
+                        && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                        && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                        && request.resource.data.status == 'pending'
+                        && request.resource.data.proposedValues.power is number
+                        && request.resource.data.proposedValues.power >= 0
+                        && request.resource.data.proposedValues.power <= 9999
+                        && request.resource.data.proposedValues.thp is number
+                        && request.resource.data.proposedValues.thp >= 0
+                        && request.resource.data.proposedValues.thp <= 99999
+                        && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+          allow read: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+          allow update: if isAllianceActor(
+                            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                          )
+                          && request.resource.data.diff(resource.data)
+                                 .affectedKeys()
+                                 .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+        }
+
+        // Alliance invitations (moved from game-level to alliance-level)
+        match /invitations/{invitationId} {
+          allow read: if signedIn()
+            && isInvitationActor(resource.data);
+          allow create: if signedIn()
+            && request.resource.data.invitedBy is string
+            && request.resource.data.invitedBy == request.auth.uid
+            && request.resource.data.allianceId == allianceId
+            && request.resource.data.gameId == gameId
+            && isAllianceActor(
+              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+            );
+          allow update: if resource != null
+            && signedIn()
+            && isInvitationActor(resource.data);
+          allow delete: if resource != null
+            && resource.data.invitedBy is string
+            && resource.data.invitedBy == request.auth.uid;
+        }
+      }
+
+      // Per-user per-game state: userProfile, playerSource, allianceId, allianceName
+      match /user_state/{uid} {
+        allow read, write: if isSelf(uid);
+      }
+
+      // Personal player DB (subcollection per user)
+      match /soloplayers/{uid} {
+        allow read, write: if isSelf(uid);
+
+        match /players/{playerId} {
+          allow read, write: if isSelf(uid);
+        }
+
+        // Update tokens for player self-update invites
+        match /update_tokens/{tokenId} {
+          allow create: if isSelf(uid);
+          allow read: if isSelf(uid)
+                      || (isAnonymous()
+                          && resource.data.used == false
+                          && resource.data.expiresAt > request.time);
+          allow update: if isSelf(uid)
+                        || (isAnonymous()
+                            && resource.data.used == false
+                            && request.resource.data.used == true
+                            && request.resource.data.diff(resource.data)
+                                   .affectedKeys()
+                                   .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+          allow delete: if isSelf(uid);
+        }
+
+        // Personal pending updates submitted via token links
+        match /pending_updates/{updateId} {
+          allow create: if isAnonymous()
+                        && request.resource.data.ownerUid == uid
+                        && request.resource.data.tokenId is string
+                        && request.resource.data.tokenId.size() > 0
+                        && request.resource.data.playerName is string
+                        && request.resource.data.playerName.size() > 0
+                        && request.resource.data.playerName.size() <= 50
+                        && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                        && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                        && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                        && request.resource.data.status == 'pending'
+                        && (request.resource.data.gameId is string || request.resource.data.gameId == null)
+                        && request.resource.data.proposedValues.power is number
+                        && request.resource.data.proposedValues.power >= 0
+                        && request.resource.data.proposedValues.power <= 9999
+                        && request.resource.data.proposedValues.thp is number
+                        && request.resource.data.proposedValues.thp >= 0
+                        && request.resource.data.proposedValues.thp <= 99999
+                        && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+          allow read: if isSelf(uid);
+          allow update: if isSelf(uid)
+                        && request.resource.data.diff(resource.data)
+                               .affectedKeys()
+                               .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+        }
+      }
+
+      // Shared event definitions (game-level, all signed-in users can read/write)
+      match /events/{eventId} {
+        allow read: if signedIn();
+        allow write: if signedIn(); // TODO: tighten to alliance membership check in Phase 2.x
+      }
+
+      // Event history (game-level)
+      match /event_history/{historyId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+                      && request.resource.data.createdByUid == request.auth.uid;
+        allow update: if signedIn();
+        allow delete: if signedIn()
+                      && resource.data.createdByUid == request.auth.uid;
+
+        match /player_stats/{playerDocId} {
+          allow read: if signedIn();
+          allow write: if signedIn();
+        }
+      }
+    }
+
+    match /app_config/{docId} {
+      allow read: if signedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // Helper: check if the current user is a member of the given alliance.
+    // Looks up the alliance doc under each known game; returns true if found.
+    // NOTE: This performs a get() call which counts toward Firestore security-rule limits.
+    function isAllianceMember(allianceId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/games/last_war/alliances/$(allianceId))
+        && isAllianceMemberPayload(
+          get(/databases/$(database)/documents/games/last_war/alliances/$(allianceId)).data,
+          request.auth.uid
+        );
+    }
+
+    function isAnonymous() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // Legacy root collections retained for compatibility while rollout completes.
+    match /alliances/{allianceId} {
+      allow read: if signedIn();
+      allow write: if false;
+
+      match /event_history/{historyId} {
+        allow read: if isAllianceMember(allianceId);
+        allow create: if isAllianceMember(allianceId)
+                      && request.resource.data.createdByUid == request.auth.uid;
+        allow update: if isAllianceMember(allianceId);
+        allow delete: if isAllianceMember(allianceId);
+
+        match /attendance/{playerDocId} {
+          allow read: if isAllianceMember(allianceId);
+          allow write: if isAllianceMember(allianceId);
+        }
+      }
+
+      match /player_stats/{playerDocId} {
+        allow read: if isAllianceMember(allianceId);
+        allow write: if isAllianceMember(allianceId);
+      }
+
+      match /update_tokens/{tokenId} {
+        allow create: if isAllianceMember(allianceId);
+        allow read: if isAllianceMember(allianceId)
+                    || (isAnonymous()
+                        && resource.data.used == false
+                        && resource.data.expiresAt > request.time);
+        allow update: if isAllianceMember(allianceId)
+                      || (isAnonymous()
+                          && resource.data.used == false
+                          && request.resource.data.used == true
+                          && request.resource.data.diff(resource.data)
+                                 .affectedKeys()
+                                 .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+        allow delete: if isAllianceMember(allianceId);
+      }
+
+      match /pending_updates/{updateId} {
+        allow create: if isAnonymous()
+                      && (!('ownerUid' in request.resource.data) || request.resource.data.ownerUid == null)
+                      && request.resource.data.tokenId is string
+                      && request.resource.data.tokenId.size() > 0
+                      && request.resource.data.playerName is string
+                      && request.resource.data.playerName.size() > 0
+                      && request.resource.data.playerName.size() <= 50
+                      && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                      && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                      && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                      && request.resource.data.status == 'pending'
+                      && (request.resource.data.gameId is string || request.resource.data.gameId == null)
+                      && request.resource.data.proposedValues.power is number
+                      && request.resource.data.proposedValues.power >= 0
+                      && request.resource.data.proposedValues.power <= 9999
+                      && request.resource.data.proposedValues.thp is number
+                      && request.resource.data.proposedValues.thp >= 0
+                      && request.resource.data.proposedValues.thp <= 99999
+                      && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+        allow read: if isAllianceMember(allianceId);
+        allow update: if isAllianceMember(allianceId)
+                      && request.resource.data.diff(resource.data)
+                             .affectedKeys()
+                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+      }
+    }
+
+    match /invitations/{invitationId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}

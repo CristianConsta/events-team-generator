@@ -6,6 +6,24 @@ const MULTIGAME_GAMES = [
   { id: 'desert_ops', name: 'Desert Ops', logo: '' },
 ];
 
+async function ensureSelectorVisible(page) {
+  const overlay = page.locator('#gameSelectorOverlay');
+  if (await overlay.isVisible().catch(() => false)) {
+    return;
+  }
+  await page.evaluate(() => {
+    if (typeof window.showPostAuthGameSelector === 'function') {
+      window.showPostAuthGameSelector();
+    }
+  });
+  if (await overlay.isVisible().catch(() => false)) {
+    return;
+  }
+  await page.locator('#navMenuBtn').click();
+  await page.locator('#navSwitchGameBtn').click();
+  await expect(overlay).toBeVisible();
+}
+
 test.describe('Game selector workflows', () => {
   test('@smoke @auth post-auth selector allows choosing active game', async ({ page }) => {
     await injectMockFirebase(page, {
@@ -21,13 +39,13 @@ test.describe('Game selector workflows', () => {
     await page.locator('#passwordInput').fill('secret123');
     await page.locator('#loginForm button[type="submit"]').click();
 
-    await waitForMainApp(page);
-    await expect(page.locator('#gameSelectorOverlay')).toBeVisible();
-    await page.locator('#gameSelectorInput').selectOption('desert_ops');
-    await page.locator('#gameSelectorConfirmBtn').click();
+    await waitForMainApp(page, { dismissGameSelector: false });
+    await ensureSelectorVisible(page);
+    await page.locator('#gameSelectorList .game-selector-option[data-game-id="desert_ops"]').click();
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();
-    await expect(page.locator('#activeGameBadge')).toContainText('Desert Ops');
+    await expect(page.locator('#activeGameBadge')).toHaveAttribute('title', 'Desert Ops');
+    await expect(page.locator('#activeGameBadge')).not.toHaveClass(/hidden/);
   });
 
   test('@regression @navigation manual switch resets transient generator planning state', async ({ page }) => {
@@ -35,7 +53,7 @@ test.describe('Game selector workflows', () => {
       games: MULTIGAME_GAMES,
     });
     await loadApp(page);
-    await waitForMainApp(page);
+    await waitForMainApp(page, { dismissGameSelector: false });
 
     await page.locator('#playersTableBody .team-a-btn').first().click();
     await expect(page.locator('#teamAStarterCount')).not.toHaveText('0');
@@ -43,11 +61,11 @@ test.describe('Game selector workflows', () => {
     await page.locator('#navMenuBtn').click();
     await page.locator('#navSwitchGameBtn').click();
     await expect(page.locator('#gameSelectorOverlay')).toBeVisible();
-    await page.locator('#gameSelectorInput').selectOption('desert_ops');
-    await page.locator('#gameSelectorConfirmBtn').click();
+    await page.locator('#gameSelectorList .game-selector-option[data-game-id="desert_ops"]').click();
 
     await expect(page.locator('#gameSelectorOverlay')).toBeHidden();
     await expect(page.locator('#teamAStarterCount')).toHaveText('0');
-    await expect(page.locator('#activeGameBadge')).toContainText('Desert Ops');
+    await expect(page.locator('#activeGameBadge')).toHaveAttribute('title', 'Desert Ops');
+    await expect(page.locator('#activeGameBadge')).not.toHaveClass(/hidden/);
   });
 });

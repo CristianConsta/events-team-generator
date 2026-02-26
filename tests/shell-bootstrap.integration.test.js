@@ -25,6 +25,7 @@ test('shell bootstrap registers DOMContentLoaded and invokes app runtime initial
 
   let domContentLoadedHandler = null;
   global.document = {
+    readyState: 'loading',
     addEventListener(eventName, handler) {
       if (eventName === 'DOMContentLoaded') {
         domContentLoadedHandler = handler;
@@ -52,6 +53,7 @@ test('shell bootstrap registers DOMContentLoaded and invokes app runtime initial
 test('shell bootstrap tolerates missing app runtime initializer', () => {
   global.window = global;
   global.document = {
+    readyState: 'loading',
     addEventListener() {},
   };
 

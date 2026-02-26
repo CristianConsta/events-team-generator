@@ -209,12 +209,36 @@ test('auth callback triggers post-auth game selector hook on sign-in', () => {
   assert.ok(calls.includes('selector'));
 });
 
-test('auth callback ensures active game context on sign-in', () => {
+test('auth callback skips post-auth game selector when active game exists on sign-in', () => {
+  const calls = [];
+  buildEnv({ showPostAuthGameSelector: () => calls.push('selector') });
+
+  let authCb;
+  global.FirebaseService = {
+    isAvailable: () => true,
+    getActiveGame: () => ({ gameId: 'last_war', source: 'storage' }),
+    setAuthCallback:         (cb) => { authCb = cb; },
+    setDataLoadCallback:     () => {},
+    setAllianceDataCallback: () => {},
+  };
+
+  require(appInitPath);
+  authCb(true, { email: 'x@y.com', uid: 'uid1' });
+
+  assert.equal(calls.length, 0);
+});
+
+test('auth callback syncs active game context from existing state on sign-in', () => {
   buildEnv();
   let authCb;
+  let getCalls = 0;
   let ensureCalls = 0;
   global.FirebaseService = {
     isAvailable: () => true,
+    getActiveGame: () => {
+      getCalls += 1;
+      return { gameId: 'last_war', source: 'storage' };
+    },
     ensureActiveGame: () => {
       ensureCalls += 1;
       return { gameId: 'last_war', source: 'default' };
@@ -227,7 +251,8 @@ test('auth callback ensures active game context on sign-in', () => {
   require(appInitPath);
   authCb(true, { email: 'user@example.com' });
 
-  assert.equal(ensureCalls, 1);
+  assert.equal(getCalls, 1);
+  assert.equal(ensureCalls, 0);
   assert.equal(global.__ACTIVE_GAME_ID, 'last_war');
 });
 

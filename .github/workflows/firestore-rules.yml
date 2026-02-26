@@ -1,0 +1,54 @@
+name: Deploy Firestore Rules
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "firestore.rules"
+      - "firebase.json"
+      - ".github/workflows/firestore-rules.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "firestore-rules"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Configure Google credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret is not set" >&2
+            exit 1
+          fi
+          CREDENTIALS_FILE="$RUNNER_TEMP/firebase-service-account.json"
+          printf "%s" "$FIREBASE_SERVICE_ACCOUNT" > "$CREDENTIALS_FILE"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$CREDENTIALS_FILE" >> "$GITHUB_ENV"
+
+      - name: Deploy Firestore rules
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "FIREBASE_PROJECT_ID secret is not set" >&2
+            exit 1
+          fi
+          firebase deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID" --non-interactive

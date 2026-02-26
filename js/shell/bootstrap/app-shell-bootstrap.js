@@ -26,7 +26,13 @@
         boot: boot,
     };
 
-    if (global.document && typeof global.document.addEventListener === 'function') {
-        global.document.addEventListener('DOMContentLoaded', boot);
+    if (global.document) {
+        if (global.document.readyState === 'loading') {
+            global.document.addEventListener('DOMContentLoaded', boot);
+        } else {
+            // DOM already ready — defer boot so remaining modules in the
+            // bundle finish initialising first (e.g. app.js exports).
+            setTimeout(boot, 0);
+        }
     }
 })(window);

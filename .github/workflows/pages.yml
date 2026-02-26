@@ -2,8 +2,24 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths:
+      - "**.js"
+      - "**.mjs"
+      - "**.html"
+      - "**.css"
+      - "package*.json"
+      - "firestore.*"
+      - ".github/workflows/**"
+      - "playwright.config.*"
+      - "eslint.config.*"
   workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: "Run E2E smoke tests before deploy"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,11 +31,100 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  lint-and-unit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache ESLint
+        uses: actions/cache@v4
+        with:
+          path: .eslintcache
+          key: eslint-${{ hashFiles('eslint.config.*', '**/*.js') }}
+          restore-keys: eslint-
+
+      - name: Lint + size budgets
+        run: npm run lint:ci && npm run check:budgets
+
+      - name: Unit tests + coverage gate + build
+        run: npm run test:coverage && npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-bundle
+          path: dist/bundle.js
+          retention-days: 1
+
+  e2e-smoke:
+    if: inputs.run_e2e == true
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build bundle
+        run: npm run build
+
+      - name: Run E2E smoke tests
+        env:
+          CI: "true"
+          HOME: /root
+          PLAYWRIGHT_CHANNEL: "default"
+        run: npx playwright test --project=edge-desktop --project=edge-mobile --grep @smoke
+
+  package-and-deploy:
+    needs: [lint-and-unit, e2e-smoke]
+    if: always() && needs.lint-and-unit.result == 'success' && (needs.e2e-smoke.result == 'success' || needs.e2e-smoke.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            index.html
+            player-update.html
+            app.js
+            firebase-module.js
+            firebase-infra.js
+            firebase-auth-module.js
+            translations.js
+            styles.css
+            player-update.css
+            theme-variables.css
+            js
+            vendor
+          sparse-checkout-cone-mode: false
+
+      - name: Download built bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: built-bundle
+          path: dist
 
       - name: Create firebase-config.js from secret
         env:
@@ -31,21 +136,22 @@ jobs:
           fi
           printf "%s" "$FIREBASE_CONFIG_JS" > firebase-config.js
 
+      - name: Stage deploy files
+        run: |
+          mkdir -p _site
+          cp index.html player-update.html app.js firebase-module.js firebase-infra.js firebase-auth-module.js translations.js styles.css player-update.css theme-variables.css firebase-config.js _site/
+          cp -r js _site/js
+          cp -r vendor _site/vendor
+          cp -r dist _site/dist
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

@@ -5,6 +5,15 @@
         events: ['getAllEventData', 'upsertEvent', 'removeEvent', 'getBuildingConfig', 'setBuildingConfig', 'getBuildingPositions', 'setBuildingPositions'],
         alliance: ['loadAllianceData', 'createAlliance', 'leaveAlliance', 'sendInvitation'],
         notifications: ['checkInvitations', 'acceptInvitation', 'rejectInvitation', 'getInvitationNotifications'],
+        eventHistory: [
+            'saveHistoryRecord', 'saveAttendanceBatch', 'loadHistoryRecords',
+            'loadAttendance', 'updateAttendanceStatus', 'finalizeHistory',
+            'loadPlayerStats', 'upsertPlayerStats', 'subscribePendingFinalizationCount'
+        ],
+        playerUpdates: [
+            'saveTokenBatch', 'loadPendingUpdates', 'updatePendingUpdateStatus',
+            'revokeToken', 'loadActiveTokens', 'subscribePendingUpdatesCount'
+        ],
     };
 
     function validateDataGatewayShape(gateway) {

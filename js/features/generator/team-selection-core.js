@@ -65,11 +65,12 @@
     }
 
     function getCurrentTeamCounts(selections) {
+        const cloned = cloneSelections(selections);
         return {
-            teamAStarterCount: getStarterCount(selections, TEAM_A),
-            teamASubCount: getSubstituteCount(selections, TEAM_A),
-            teamBStarterCount: getStarterCount(selections, TEAM_B),
-            teamBSubCount: getSubstituteCount(selections, TEAM_B),
+            teamAStarterCount: countRole(cloned.teamA, ROLE_STARTER),
+            teamASubCount: countRole(cloned.teamA, ROLE_SUBSTITUTE),
+            teamBStarterCount: countRole(cloned.teamB, ROLE_STARTER),
+            teamBSubCount: countRole(cloned.teamB, ROLE_SUBSTITUTE),
         };
     }
 
@@ -270,6 +271,113 @@
         };
     }
 
+    /**
+     * Cycle a player through: Unassigned → Starter → Substitute → Unassigned
+     * on the given team. If the player is on the OTHER team, they are moved
+     * to this team as Starter (first state of the cycle).
+     */
+    function cycleTeamSelection(selections, playerName, team, limits) {
+        var name = toName(playerName);
+        if (!name) {
+            return {
+                changed: false,
+                reason: 'invalid_player',
+                teamA: [],
+                teamB: [],
+            };
+        }
+
+        var cloned = cloneSelections(selections);
+        var options = limits && typeof limits === 'object' ? limits : {};
+        var maxTotal = Number.isFinite(Number(options.maxTotal)) ? Number(options.maxTotal) : 30;
+        var maxStarters = Number.isFinite(Number(options.maxStarters)) ? Number(options.maxStarters) : 20;
+        var maxSubstitutes = Number.isFinite(Number(options.maxSubstitutes)) ? Number(options.maxSubstitutes) : 10;
+
+        var teamKey = normalizeTeamKey(team);
+        var otherTeamKey = teamKey === TEAM_A ? TEAM_B : TEAM_A;
+        var currentTeam = cloned[teamKey];
+        var otherTeam = cloned[otherTeamKey];
+
+        var existingIndex = currentTeam.findIndex(function findPlayer(player) { return player.name === name; });
+
+        if (existingIndex > -1) {
+            var currentRole = normalizeRole(currentTeam[existingIndex].role);
+
+            if (currentRole === ROLE_STARTER) {
+                // Starter → Substitute (if room)
+                if (countRole(currentTeam, ROLE_SUBSTITUTE) < maxSubstitutes) {
+                    currentTeam[existingIndex].role = ROLE_SUBSTITUTE;
+                    return {
+                        changed: true,
+                        reason: 'cycled_to_substitute',
+                        teamA: cloned.teamA,
+                        teamB: cloned.teamB,
+                    };
+                }
+                // Sub slots full — cycle to unassigned
+                currentTeam.splice(existingIndex, 1);
+                return {
+                    changed: true,
+                    reason: 'removed',
+                    teamA: cloned.teamA,
+                    teamB: cloned.teamB,
+                };
+            }
+
+            // Substitute → Unassigned
+            currentTeam.splice(existingIndex, 1);
+            return {
+                changed: true,
+                reason: 'removed',
+                teamA: cloned.teamA,
+                teamB: cloned.teamB,
+            };
+        }
+
+        // Player is on the other team — move to this team as Starter
+        var otherIndex = otherTeam.findIndex(function findOther(player) { return player.name === name; });
+        if (otherIndex > -1) {
+            otherTeam.splice(otherIndex, 1);
+        }
+
+        // Unassigned → Starter (if room)
+        if (currentTeam.length >= maxTotal) {
+            return {
+                changed: otherIndex > -1,
+                reason: 'team_full',
+                teamA: cloned.teamA,
+                teamB: cloned.teamB,
+            };
+        }
+
+        var starterCount = countRole(currentTeam, ROLE_STARTER);
+        var substituteCount = countRole(currentTeam, ROLE_SUBSTITUTE);
+
+        var role = null;
+        if (starterCount < maxStarters) {
+            role = ROLE_STARTER;
+        } else if (substituteCount < maxSubstitutes) {
+            role = ROLE_SUBSTITUTE;
+        }
+
+        if (!role) {
+            return {
+                changed: otherIndex > -1,
+                reason: 'roles_full',
+                teamA: cloned.teamA,
+                teamB: cloned.teamB,
+            };
+        }
+
+        currentTeam.push({ name: name, role: role });
+        return {
+            changed: true,
+            reason: 'added',
+            teamA: cloned.teamA,
+            teamB: cloned.teamB,
+        };
+    }
+
     global.DSFeatureGeneratorTeamSelection = {
         getStarterCount: getStarterCount,
         getSubstituteCount: getSubstituteCount,
@@ -277,6 +385,7 @@
         buildTeamSelectionMaps: buildTeamSelectionMaps,
         hasAnySelectedPlayers: hasAnySelectedPlayers,
         toggleTeamSelection: toggleTeamSelection,
+        cycleTeamSelection: cycleTeamSelection,
         setPlayerRole: setPlayerRole,
         clearPlayerSelection: clearPlayerSelection,
         clearAllSelections: clearAllSelections,

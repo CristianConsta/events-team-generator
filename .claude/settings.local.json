@@ -10,7 +10,43 @@
       "Bash(env)",
       "Bash(xxd:*)",
       "Bash(du:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(wc:*)",
+      "Bash(npm test:*)",
+      "Bash(npm install:*)",
+      "Bash(npm audit:*)",
+      "Bash(node -e:*)",
+      "Bash(node:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git rebase:*)",
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/eslint-fix.js"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/guard-firebase-config.js"
+          }
+        ]
+      }
     ]
   }
 }

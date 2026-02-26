@@ -1,0 +1,254 @@
+/* player-update.css — standalone styles for player-update.html */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--ds-surface-base);
+    color: var(--ds-text-primary);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+.update-card-root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    background: var(--ds-surface-base);
+}
+
+.update-card {
+    background: var(--ds-surface-raised);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Loading state */
+.update-state-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px;
+    color: var(--ds-text-muted);
+    font-size: 1rem;
+}
+
+.update-state-loading::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--ds-surface-raised);
+    border-top-color: var(--ds-accent-secondary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Form state */
+.update-state-form {
+    background: var(--ds-surface-raised);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.update-state-form h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--ds-text-primary);
+}
+
+.update-player-name {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--ds-accent-secondary);
+    margin-bottom: 20px;
+}
+
+#updateStatsForm {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#updateStatsForm label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ds-text-muted);
+    margin-bottom: 2px;
+    display: block;
+}
+
+#updateStatsForm input,
+#updateStatsForm select {
+    width: 100%;
+    padding: 14px 12px;
+    background: var(--ds-surface-base);
+    border: 1px solid var(--ds-border-default);
+    border-radius: 8px;
+    color: var(--ds-text-primary);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#updateStatsForm input:focus,
+#updateStatsForm select:focus {
+    outline: 2px solid var(--ds-accent-secondary);
+    outline-offset: 1px;
+    border-color: var(--ds-accent-secondary);
+}
+
+#updateStatsForm input:invalid:not(:placeholder-shown),
+#updateStatsForm select:invalid:not(:placeholder-shown) {
+    border-color: var(--ds-state-error);
+}
+
+#updateStatsForm button[type="submit"] {
+    margin-top: 8px;
+    padding: 16px;
+    background: var(--ds-accent-secondary);
+    color: var(--ds-surface-base);
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+#updateStatsForm button[type="submit"]:hover {
+    opacity: 0.88;
+}
+
+#updateStatsForm button[type="submit"]:active {
+    opacity: 0.72;
+}
+
+#updateStatsForm button[type="submit"]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Success state */
+.update-state-success {
+    background: var(--ds-surface-raised);
+    border-radius: 12px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.update-state-success::before {
+    content: '✓';
+    display: block;
+    font-size: 2.5rem;
+    color: var(--ds-state-success);
+    margin-bottom: 16px;
+}
+
+.update-state-success p {
+    font-size: 1rem;
+    color: var(--ds-text-primary);
+    line-height: 1.5;
+}
+
+/* Error state */
+.update-state-error {
+    background: var(--ds-surface-raised);
+    border-radius: 12px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.update-state-error::before {
+    content: '✕';
+    display: block;
+    font-size: 2.5rem;
+    color: var(--ds-state-error);
+    margin-bottom: 16px;
+}
+
+.update-state-error p {
+    font-size: 1rem;
+    color: var(--ds-text-muted);
+    line-height: 1.5;
+}
+
+/* Secondary action buttons (Try Again / Done) */
+.update-secondary-btn {
+    margin-top: 20px;
+    padding: 12px;
+    background: transparent;
+    color: var(--ds-accent-secondary);
+    border: 1px solid var(--ds-accent-secondary);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.2s, opacity 0.2s;
+}
+
+.update-secondary-btn:hover {
+    background: rgba(77, 134, 255, 0.1);
+}
+
+.update-secondary-btn:active {
+    opacity: 0.72;
+}
+
+/* Field note */
+.field-note {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--ds-text-muted);
+    margin-top: -8px;
+    font-style: italic;
+}
+
+/* Inline field validation errors */
+.field-error {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--ds-state-error);
+    margin-top: -6px;
+    line-height: 1.3;
+}
+
+.field-error:empty {
+    display: none;
+}
+
+.field-input-error {
+    border-color: var(--ds-state-error) !important;
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}

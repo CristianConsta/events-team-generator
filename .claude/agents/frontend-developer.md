@@ -14,14 +14,16 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 - Browser scripts are loaded from `index.html` with local files only.
 - Styling is centralized in `styles.css`.
 - User-facing copy is centralized in `translations.js`.
-- Core frontend modules live in `js/ui/` and integrate with `js/core/` plus `app.js`.
+- Core frontend modules live in `js/ui/`, `js/features/`, and `js/shell/`, and integrate with `js/core/` plus `app.js`.
 
 ## Files this agent owns
 
 - `index.html`
 - `styles.css`
 - `translations.js`
-- `js/ui/*.js`
+- `js/ui/*.js` — shared low-level UI helpers (alliance-panel-ui, event-buildings-editor-ui, event-list-ui, player-table-ui)
+- `js/features/**/*.js` — feature modules (generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings)
+- `js/shell/**/*.js` — app shell (bootstrap, navigation, modals, notifications-sheet)
 - `js/app-init.js`
 
 ## Hard constraints
@@ -44,8 +46,43 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 ## Validation checklist
 
 - Run unit/integration tests: `node --test tests/*.test.js` (or `cmd /c npm test` on restricted PowerShell setups).
-- If UI behavior changed, run relevant Playwright tests in `e2e/*.e2e.js`.
+- If UI behavior changed, run relevant Playwright tests in `tests/e2e/*.e2e.js`.
 - Confirm no regression in required page IDs and control hooks used by tests.
+
+## Session guardrails (UI behavior that must be preserved)
+
+1. Game selection flow
+- After login/sign-up, require explicit game selection modal.
+- Do not auto-select `last_war` when multiple games exist.
+- Keep modal mobile-friendly and row-based (logo/avatar + game name).
+
+2. Header contract
+- Maintain header order: game logo/avatar, user avatar + name/nickname, alliance, notifications.
+- Show game logo/avatar in header (not game name text as primary token).
+- If no game logo exists, render deterministic fallback avatar.
+
+3. Game metadata admin behavior
+- Game logo upload UX must match event image constraints (supported image types/size handling).
+- Remove meaningless free-form attributes JSON UI.
+- Do not expose metadata editing controls for non-super-admin users.
+
+4. Data-source UX safety
+- Never show misleading "not synced" message in authorized normal flow.
+- If strict mode blocks persistence, show explicit actionable error.
+
+5. i18n and responsive stability
+- All added text must be translated across all supported locales.
+- Preserve mobile safe-area behavior and existing nav/footer layout on small screens.
+
+6. Player upload UX contract
+- Upload starts from file chooser using downloaded template format.
+- If user is not in alliance for selected game:
+  - do not show target modal
+  - upload directly to My Database
+- If user is in alliance for selected game:
+  - show target modal with `My Database`, `Alliance Database`, `Both`
+  - keep modal accessible and mobile-friendly
+- Never present alliance upload choices when alliance enrollment is absent.
 
 ## Quick patterns
 

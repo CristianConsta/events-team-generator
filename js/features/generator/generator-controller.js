@@ -3,11 +3,12 @@
         const dependencies = deps && typeof deps === 'object' ? deps : {};
 
         function getRoleLimits() {
+            var actions = dependencies.generatorActions || global.DSFeatureGeneratorActions;
             if (
-                global.DSFeatureGeneratorActions
-                && typeof global.DSFeatureGeneratorActions.buildRoleLimits === 'function'
+                actions
+                && typeof actions.buildRoleLimits === 'function'
             ) {
-                return global.DSFeatureGeneratorActions.buildRoleLimits(dependencies.roleLimits);
+                return actions.buildRoleLimits(dependencies.roleLimits);
             }
             return {
                 maxTotal: 30,
@@ -22,11 +23,12 @@
                     return;
                 }
                 const nextRaw = event && event.target ? event.target.value : dependencies.defaultAlgorithm;
+                var actions = dependencies.generatorActions || global.DSFeatureGeneratorActions;
                 const normalized = (
-                    global.DSFeatureGeneratorActions
-                    && typeof global.DSFeatureGeneratorActions.normalizeAssignmentSelection === 'function'
+                    actions
+                    && typeof actions.normalizeAssignmentSelection === 'function'
                 )
-                    ? global.DSFeatureGeneratorActions.normalizeAssignmentSelection(
+                    ? actions.normalizeAssignmentSelection(
                         nextRaw,
                         dependencies.normalizeAssignmentAlgorithm,
                         dependencies.defaultAlgorithm
@@ -39,11 +41,12 @@
                     dependencies.setAssignmentAlgorithm(normalized);
                 }
 
+                var view = dependencies.generatorView || global.DSFeatureGeneratorView;
                 if (
-                    global.DSFeatureGeneratorView
-                    && typeof global.DSFeatureGeneratorView.syncAssignmentAlgorithmControl === 'function'
+                    view
+                    && typeof view.syncAssignmentAlgorithmControl === 'function'
                 ) {
-                    global.DSFeatureGeneratorView.syncAssignmentAlgorithmControl({
+                    view.syncAssignmentAlgorithmControl({
                         document: dependencies.document || global.document,
                         value: normalized,
                     });

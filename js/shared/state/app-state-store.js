@@ -17,6 +17,12 @@
                 sortFilter: 'power-desc',
             },
         },
+        eventHistory: {
+            filterGameId: '',
+        },
+        playerUpdates: {
+            reviewFilter: '',
+        },
     };
 
     function cloneDeep(value) {
@@ -139,6 +145,14 @@
                 teamBStarterCount: teamB.filter(function byStarter(item) { return item && item.role === 'starter'; }).length,
                 teamBSubCount: teamB.filter(function bySub(item) { return item && item.role === 'substitute'; }).length,
             };
+        },
+        selectEventHistoryFilter: function selectEventHistoryFilter(state) {
+            return state && state.eventHistory && state.eventHistory.filterGameId
+                ? state.eventHistory.filterGameId : '';
+        },
+        selectPlayerUpdatesFilter: function selectPlayerUpdatesFilter(state) {
+            return state && state.playerUpdates && state.playerUpdates.reviewFilter
+                ? state.playerUpdates.reviewFilter : '';
         },
         selectPlayersManagementFilters: function selectPlayersManagementFilters(state) {
             const filters = state && state.playersManagement && state.playersManagement.filters

@@ -27,7 +27,7 @@
     const MULTIGAME_FLAG_KEYS = Object.keys(MULTIGAME_FLAG_DEFAULTS);
     const ACTIVE_GAME_STORAGE_KEY = 'ds_active_game_id';
     const GAME_METADATA_SUPER_ADMIN_UID = '2z2BdO8aVsUovqQWWL9WCRMdV933';
-    let activeGameIdCache = '';
+    let activeGameContextCache = { uid: '', gameId: '' };
 
     function manager() {
         return typeof global.FirebaseManager !== 'undefined' ? global.FirebaseManager : null;
@@ -83,8 +83,8 @@
             isSignedIn: function isSignedIn() {
                 return gatewayUtils.withManager((svc) => svc.isSignedIn(), false);
             },
-            loadUserData: async function loadUserData(user) {
-                return gatewayUtils.withManager((svc) => svc.loadUserData(user), gatewayUtils.notLoadedResult());
+            loadUserData: async function loadUserData(user, context) {
+                return gatewayUtils.withManager((svc) => svc.loadUserData(user, context), gatewayUtils.notLoadedResult());
             },
             saveUserData: async function saveUserData(options) {
                 return gatewayUtils.withManager((svc) => svc.saveUserData(options), gatewayUtils.notLoadedResult());
@@ -247,6 +247,66 @@
         };
     }
 
+    function fallbackEventHistoryGateway(gatewayUtils) {
+        return {
+            saveHistoryRecord: async function saveHistoryRecord() { return gatewayUtils.notLoadedResult(); },
+            saveAttendanceBatch: async function saveAttendanceBatch() { return gatewayUtils.notLoadedResult(); },
+            loadHistoryRecords: async function loadHistoryRecords() { return []; },
+            loadAttendance: async function loadAttendance() { return []; },
+            updateAttendanceStatus: async function updateAttendanceStatus() { return gatewayUtils.notLoadedResult(); },
+            deactivateHistoryRecord: async function deactivateHistoryRecord() { return gatewayUtils.notLoadedResult(); },
+            enforceEventHistoryLimit: async function enforceEventHistoryLimit() { return gatewayUtils.notLoadedResult(); },
+            finalizeHistory: async function finalizeHistory() { return gatewayUtils.notLoadedResult(); },
+            loadPlayerStats: async function loadPlayerStats() { return {}; },
+            upsertPlayerStats: async function upsertPlayerStats() { return gatewayUtils.notLoadedResult(); },
+            subscribePendingFinalizationCount: function subscribePendingFinalizationCount() { return function noop() {}; },
+        };
+    }
+
+    function fallbackPlayerUpdatesGateway(gatewayUtils) {
+        return {
+            createUpdateToken: async function createUpdateToken(allianceId, playerName, options) {
+                return gatewayUtils.withManager(function (svc) { return svc.createUpdateToken(allianceId, playerName, options); }, gatewayUtils.notLoadedResult());
+            },
+            saveTokenBatch: async function saveTokenBatch(allianceId, tokenDocs) {
+                return gatewayUtils.withManager(function (svc) { return svc.saveTokenBatch(allianceId, tokenDocs); }, gatewayUtils.notLoadedResult());
+            },
+            loadPendingUpdates: async function loadPendingUpdates(allianceId, status) {
+                return gatewayUtils.withManager(function (svc) { return svc.loadPendingUpdates(allianceId, status); }, []);
+            },
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision) {
+                return gatewayUtils.withManager(function (svc) { return svc.updatePendingUpdateStatus(allianceId, updateId, decision); }, gatewayUtils.notLoadedResult());
+            },
+            revokeToken: async function revokeToken(allianceId, tokenId) {
+                return gatewayUtils.withManager(function (svc) { return svc.revokeToken(allianceId, tokenId); }, gatewayUtils.notLoadedResult());
+            },
+            loadActiveTokens: async function loadActiveTokens(allianceId) {
+                return gatewayUtils.withManager(function (svc) { return svc.loadActiveTokens(allianceId); }, []);
+            },
+            subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
+                return gatewayUtils.withManager(function (svc) { return svc.subscribePendingUpdatesCount(allianceId, uid, callback); }, function noop() {});
+            },
+            applyPlayerUpdateToPersonal: async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
+                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId); }, gatewayUtils.notLoadedResult());
+            },
+            applyPlayerUpdateToAlliance: async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+                return gatewayUtils.withManager(function (svc) { return svc.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId); }, gatewayUtils.notLoadedResult());
+            },
+            createPersonalUpdateToken: async function createPersonalUpdateToken(uid, playerName, options) {
+                return gatewayUtils.withManager(function (svc) { return svc.createPersonalUpdateToken(uid, playerName, options); }, gatewayUtils.notLoadedResult());
+            },
+            createPersonalPendingUpdate: async function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
+                return gatewayUtils.withManager(function (svc) { return svc.createPersonalPendingUpdate(uid, pendingUpdateDoc); }, gatewayUtils.notLoadedResult());
+            },
+            loadPersonalPendingUpdates: async function loadPersonalPendingUpdates(uid, status) {
+                return gatewayUtils.withManager(function (svc) { return svc.loadPersonalPendingUpdates(uid, status); }, []);
+            },
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+                return gatewayUtils.withManager(function (svc) { return svc.updatePersonalPendingUpdateStatus(uid, updateId, decision); }, gatewayUtils.notLoadedResult());
+            },
+        };
+    }
+
     function fromFactory(factoryName, fallbackFactory) {
         const factory = global[factoryName];
         if (factory && typeof factory.createGateway === 'function') {
@@ -260,6 +320,8 @@
     const eventsGateway = fromFactory('DSSharedFirebaseEventsGateway', fallbackEventsGateway);
     const allianceGateway = fromFactory('DSSharedFirebaseAllianceGateway', fallbackAllianceGateway);
     const notificationsGateway = fromFactory('DSSharedFirebaseNotificationsGateway', fallbackNotificationsGateway);
+    const eventHistoryGateway = fromFactory('DSSharedFirebaseEventHistoryGateway', fallbackEventHistoryGateway);
+    const playerUpdatesGateway = fromFactory('DSSharedFirebasePlayerUpdatesGateway', fallbackPlayerUpdatesGateway);
 
     function normalizeFeatureFlagValue(value, fallbackValue) {
         if (typeof value === 'boolean') {
@@ -329,6 +391,34 @@
             .replace(/^_+|_+$/g, '');
     }
 
+    function normalizeUid(value) {
+        if (typeof value !== 'string') {
+            return '';
+        }
+        return value.trim();
+    }
+
+    function getCurrentSignedInUid() {
+        return withManager(
+            (svc) => {
+                if (typeof svc.getCurrentUser !== 'function') {
+                    return '';
+                }
+                const user = svc.getCurrentUser();
+                return normalizeUid(user && user.uid);
+            },
+            ''
+        );
+    }
+
+    function getScopedActiveGameStorageKey(uid) {
+        const normalizedUid = normalizeUid(uid);
+        if (!normalizedUid) {
+            return '';
+        }
+        return `${ACTIVE_GAME_STORAGE_KEY}::${normalizedUid}`;
+    }
+
     function normalizeGameIdsFromCatalog(catalog) {
         if (!Array.isArray(catalog)) {
             return [];
@@ -368,36 +458,78 @@
         return 'last_war';
     }
 
-    function readStoredActiveGameId() {
-        if (!global.localStorage || typeof global.localStorage.getItem !== 'function') {
+    function readStoredActiveGameIdFromKey(storageKey) {
+        if (!storageKey || !global.localStorage || typeof global.localStorage.getItem !== 'function') {
             return '';
         }
         try {
-            return normalizeGameId(global.localStorage.getItem(ACTIVE_GAME_STORAGE_KEY));
+            return normalizeGameId(global.localStorage.getItem(storageKey));
         } catch (error) {
             return '';
         }
     }
 
-    function writeStoredActiveGameId(gameId) {
-        if (!global.localStorage || typeof global.localStorage.setItem !== 'function') {
+    function readStoredActiveGameId(currentUid) {
+        const scopedStorageKey = getScopedActiveGameStorageKey(currentUid);
+        if (scopedStorageKey) {
+            const scopedStoredId = readStoredActiveGameIdFromKey(scopedStorageKey);
+            if (scopedStoredId) {
+                return { gameId: scopedStoredId, source: 'storage' };
+            }
+        }
+
+        const legacyStoredId = readStoredActiveGameIdFromKey(ACTIVE_GAME_STORAGE_KEY);
+        if (!legacyStoredId) {
+            return { gameId: '', source: 'none' };
+        }
+
+        if (scopedStorageKey) {
+            writeStoredActiveGameId(legacyStoredId, currentUid);
+        }
+        return { gameId: legacyStoredId, source: 'storage-legacy' };
+    }
+
+    function writeStoredActiveGameIdToKey(storageKey, gameId) {
+        if (!storageKey || !global.localStorage || typeof global.localStorage.setItem !== 'function') {
             return;
         }
         try {
-            global.localStorage.setItem(ACTIVE_GAME_STORAGE_KEY, gameId);
+            global.localStorage.setItem(storageKey, gameId);
         } catch (error) {
             // Best effort only.
         }
     }
 
-    function removeStoredActiveGameId() {
-        if (!global.localStorage || typeof global.localStorage.removeItem !== 'function') {
+    function writeStoredActiveGameId(gameId, currentUid) {
+        const scopedStorageKey = getScopedActiveGameStorageKey(currentUid);
+        if (scopedStorageKey) {
+            writeStoredActiveGameIdToKey(scopedStorageKey, gameId);
+            removeStoredActiveGameIdFromKey(ACTIVE_GAME_STORAGE_KEY);
+            return;
+        }
+        writeStoredActiveGameIdToKey(ACTIVE_GAME_STORAGE_KEY, gameId);
+    }
+
+    function removeStoredActiveGameIdFromKey(storageKey) {
+        if (!storageKey || !global.localStorage || typeof global.localStorage.removeItem !== 'function') {
             return;
         }
         try {
-            global.localStorage.removeItem(ACTIVE_GAME_STORAGE_KEY);
+            global.localStorage.removeItem(storageKey);
         } catch (error) {
             // Best effort only.
+        }
+    }
+
+    function removeStoredActiveGameId(currentUid, options) {
+        const config = options && typeof options === 'object' ? options : {};
+        const clearLegacy = config.clearLegacy !== false;
+        const clearScoped = config.clearScoped === true;
+        if (clearLegacy) {
+            removeStoredActiveGameIdFromKey(ACTIVE_GAME_STORAGE_KEY);
+        }
+        if (clearScoped) {
+            removeStoredActiveGameIdFromKey(getScopedActiveGameStorageKey(currentUid));
         }
     }
 
@@ -412,27 +544,41 @@
             return { success: false, code: 'unknown-game-id', error: 'Unknown game id' };
         }
 
-        const changed = activeGameIdCache !== normalizedId;
-        activeGameIdCache = normalizedId;
-        writeStoredActiveGameId(normalizedId);
+        const currentUid = getCurrentSignedInUid();
+        const changed = activeGameContextCache.gameId !== normalizedId || activeGameContextCache.uid !== currentUid;
+        activeGameContextCache = {
+            uid: currentUid,
+            gameId: normalizedId,
+        };
+        writeStoredActiveGameId(normalizedId, currentUid);
         return { success: true, gameId: normalizedId, changed: changed };
     }
 
     function getActiveGame() {
-        if (activeGameIdCache) {
-            return { gameId: activeGameIdCache, source: 'memory' };
+        const currentUid = getCurrentSignedInUid();
+        if (
+            activeGameContextCache.gameId
+            && activeGameContextCache.uid === currentUid
+        ) {
+            return { gameId: activeGameContextCache.gameId, source: 'memory' };
         }
-        const storedId = readStoredActiveGameId();
-        if (storedId) {
-            activeGameIdCache = storedId;
-            return { gameId: storedId, source: 'storage' };
+
+        const stored = readStoredActiveGameId(currentUid);
+        if (stored.gameId) {
+            activeGameContextCache = {
+                uid: currentUid,
+                gameId: stored.gameId,
+            };
+            return { gameId: stored.gameId, source: stored.source };
         }
+
         return { gameId: '', source: 'none' };
     }
 
-    function clearActiveGame() {
-        activeGameIdCache = '';
-        removeStoredActiveGameId();
+    function clearActiveGame(options) {
+        const currentUid = getCurrentSignedInUid();
+        activeGameContextCache = { uid: '', gameId: '' };
+        removeStoredActiveGameId(currentUid, options);
     }
 
     function ensureActiveGame() {
@@ -615,8 +761,8 @@
         setActiveGame: function setActiveGamePublic(gameId) {
             return setActiveGame(gameId);
         },
-        clearActiveGame: function clearActiveGamePublic() {
-            return clearActiveGame();
+        clearActiveGame: function clearActiveGamePublic(options) {
+            return clearActiveGame(options);
         },
         ensureActiveGame: function ensureActiveGamePublic() {
             return ensureActiveGame();
@@ -671,17 +817,21 @@
             return withManager((svc) => svc.resetPassword(email), notLoadedResult());
         },
         signOut: async function signOut() {
-            clearActiveGame();
+            clearActiveGame({ clearLegacy: true, clearScoped: false });
             return withManager((svc) => svc.signOut(), notLoadedResult());
         },
         deleteUserAccountAndData: async function deleteUserAccountAndData() {
             return withManager((svc) => svc.deleteUserAccountAndData(), notLoadedResult());
         },
-        loadUserData: async function loadUserData(user) {
-            return withManager((svc) => svc.loadUserData(user), notLoadedResult());
+        loadUserData: async function loadUserData(user, context) {
+            const gameContext = resolveGameplayContext('loadUserData', context);
+            return withManager((svc) => svc.loadUserData(user, gameContext), notLoadedResult());
         },
         isSignedIn: function isSignedIn() {
             return withManager((svc) => svc.isSignedIn(), false);
+        },
+        getCurrentUser: function getCurrentUser() {
+            return withManager((svc) => svc.getCurrentUser(), null);
         },
         saveUserData: async function saveUserData(options, context) {
             const gameContext = resolveGameplayContext('saveUserData', context);
@@ -898,6 +1048,101 @@
         getAllianceMembers: function getAllianceMembers(context) {
             const gameContext = resolveGameplayContext('getAllianceMembers', context);
             return withManager((svc) => svc.getAllianceMembers(gameContext), {});
+        },
+        saveHistoryRecord: function saveHistoryRecord(allianceId, record) {
+            return eventHistoryGateway.saveHistoryRecord(allianceId, record);
+        },
+        saveAttendanceBatch: function saveAttendanceBatch(allianceId, historyId, attendanceDocs) {
+            return eventHistoryGateway.saveAttendanceBatch(allianceId, historyId, attendanceDocs);
+        },
+        loadHistoryRecords: function loadHistoryRecords(allianceId, filters) {
+            return eventHistoryGateway.loadHistoryRecords(allianceId, filters);
+        },
+        loadAttendance: function loadAttendance(allianceId, historyId) {
+            return eventHistoryGateway.loadAttendance(allianceId, historyId);
+        },
+        updateAttendanceStatus: function updateAttendanceStatus(allianceId, historyId, docId, status, markedBy) {
+            return eventHistoryGateway.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy);
+        },
+        deactivateHistoryRecord: function deactivateHistoryRecord(allianceId, historyId) {
+            return eventHistoryGateway.deactivateHistoryRecord(allianceId, historyId);
+        },
+        enforceEventHistoryLimit: function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
+            return eventHistoryGateway.enforceEventHistoryLimit(allianceId, eventTypeId, limit);
+        },
+        finalizeHistory: function finalizeHistory(allianceId, historyId, playerStatsUpdates) {
+            return eventHistoryGateway.finalizeHistory(allianceId, historyId, playerStatsUpdates);
+        },
+        loadPlayerStats: function loadPlayerStats(allianceId, playerDocIds) {
+            return eventHistoryGateway.loadPlayerStats(allianceId, playerDocIds);
+        },
+        upsertPlayerStats: function upsertPlayerStats(allianceId, docId, stats) {
+            return eventHistoryGateway.upsertPlayerStats(allianceId, docId, stats);
+        },
+        subscribePendingFinalizationCount: function subscribePendingFinalizationCount(allianceId, callback) {
+            return eventHistoryGateway.subscribePendingFinalizationCount(allianceId, callback);
+        },
+        createUpdateToken: function createUpdateToken(allianceId, playerName, options) {
+            return playerUpdatesGateway.createUpdateToken(allianceId, playerName, options);
+        },
+        saveTokenBatch: function saveTokenBatch(allianceId, tokenDocs) {
+            return playerUpdatesGateway.saveTokenBatch(allianceId, tokenDocs);
+        },
+        loadPendingUpdates: function loadPendingUpdates(allianceId, status) {
+            return playerUpdatesGateway.loadPendingUpdates(allianceId, status);
+        },
+        updatePendingUpdateStatus: function updatePendingUpdateStatus(allianceId, updateId, decision) {
+            return playerUpdatesGateway.updatePendingUpdateStatus(allianceId, updateId, decision);
+        },
+        revokeToken: function revokeToken(allianceId, tokenId) {
+            return playerUpdatesGateway.revokeToken(allianceId, tokenId);
+        },
+        loadActiveTokens: function loadActiveTokens(allianceId) {
+            return playerUpdatesGateway.loadActiveTokens(allianceId);
+        },
+        subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
+            return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);
+        },
+        applyPlayerUpdateToPersonal: function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
+            return playerUpdatesGateway.applyPlayerUpdateToPersonal(playerName, proposedValues, gameId);
+        },
+        applyPlayerUpdateToAlliance: function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+            return playerUpdatesGateway.applyPlayerUpdateToAlliance(playerName, proposedValues, gameId);
+        },
+        createPersonalUpdateToken: function createPersonalUpdateToken(uid, playerName, options) {
+            return playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, options);
+        },
+        createPersonalPendingUpdate: function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
+            return playerUpdatesGateway.createPersonalPendingUpdate(uid, pendingUpdateDoc);
+        },
+        loadPersonalPendingUpdates: function loadPersonalPendingUpdates(uid, status) {
+            return playerUpdatesGateway.loadPersonalPendingUpdates(uid, status);
+        },
+        updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+            return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision);
+        },
+        createUpdateTokenForContext: async function createUpdateTokenForContext(source, gameplayContext, playerName, options) {
+            var ctx = gameplayContext && typeof gameplayContext === 'object' ? gameplayContext : {};
+            var opts = options && typeof options === 'object' ? options : {};
+            if (source === 'personal') {
+                var uid = ctx.uid || '';
+                var gameId = ctx.gameId || opts.gameId || '';
+                var result = await playerUpdatesGateway.createPersonalUpdateToken(uid, playerName, Object.assign({}, opts, { gameId: gameId }));
+                if (!result || !result.success) {
+                    return result || { success: false, error: 'Not available' };
+                }
+                return { success: true, tokenId: result.tokenId, contextType: 'personal', ownerUid: uid, gameId: gameId };
+            }
+            if (source === 'alliance') {
+                var allianceId = ctx.allianceId || opts.allianceId || '';
+                var allianceGameId = ctx.gameId || opts.gameId || '';
+                var allianceResult = await playerUpdatesGateway.createUpdateToken(allianceId, playerName, Object.assign({}, opts, { gameId: allianceGameId }));
+                if (!allianceResult || !allianceResult.success) {
+                    return allianceResult || { success: false, error: 'Not available' };
+                }
+                return { success: true, tokenId: allianceResult.tokenId, contextType: 'alliance', allianceId: allianceId, gameId: allianceGameId };
+            }
+            return { success: false, error: 'Unknown source: ' + source };
         },
     };
 

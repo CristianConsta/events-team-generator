@@ -21,7 +21,8 @@ Your output should prioritize:
 
 - Frontend stack: plain HTML/CSS/ES6 JS (no framework)
 - Module pattern: IIFE exports on `window`
-- Main files: `app.js`, `index.html`, `styles.css`, `translations.js`, `js/core/*`, `js/ui/*`, `js/services/firebase-service.js`, `js/app-init.js`
+- Main files: `app.js`, `index.html`, `styles.css`, `translations.js`, `js/core/*`, `js/ui/*`, `js/features/**/*`, `js/shell/**/*`, `js/shared/**/*`, `js/services/firebase-service.js`, `js/app-init.js`
+- Key directories: `js/core/` (assignment, buildings, events, games, i18n, player-table, reliability, firestore-utils), `js/features/` (generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings), `js/shell/` (bootstrap, navigation, overlays), `js/shared/data/` (Firebase gateways), `js/shared/state/` (app-state-store, state-store-contract), `js/ui/` (shared UI helpers)
 - Test layers:
   - Unit/integration: `node --test tests/*.test.js`
   - E2E (Playwright Edge + mobile emulation): `npm run test:e2e`, tagged smoke/regression suites
@@ -78,3 +79,56 @@ A good plan in this repo must:
 - Be test-first where feasible
 - Include both automated and user-path validation
 - Be specific enough that another agent can implement without re-planning
+
+## Session guardrails (must include in plans)
+
+1. Repository targeting and branch baseline
+- Start every plan with explicit repo/branch baseline checks:
+  - `git remote -v`
+  - `git rev-parse --abbrev-ref HEAD`
+  - `git rev-parse HEAD`
+  - `git fetch origin` + compare local `main` vs `origin/main`
+- Never mix actions across different local repos/worktrees in one execution plan.
+
+2. Canonical multigame data model (source of truth)
+- Personal scoped data:
+  - `users/{uid}/games/{gameId}`: `playerSource`, `allianceId`, `allianceName`, `userProfile`, `metadata`
+  - `users/{uid}/games/{gameId}/players/*`
+  - `users/{uid}/games/{gameId}/events/*`
+  - `users/{uid}/games/{gameId}/event_media/*`
+- Shared alliance scoped data:
+  - `games/{gameId}/alliances/{allianceId}`
+  - `games/{gameId}/invitations/{invitationId}`
+- Super admin for game metadata updates: UID `2z2BdO8aVsUovqQWWL9WCRMdV933`.
+
+3. Migration sequencing
+- Always plan as: `rules update -> dry-run migration -> apply migration -> post-verify -> cutover`.
+- Migration must cover all legacy event paths:
+  - root `users/{uid}.events`
+  - root legacy building fields (`buildingConfig`, `buildingPositions`, versions)
+  - `users/{uid}/event_media/*`
+- Require generated migration report artifacts in `docs/architecture/`.
+
+4. Cutover policy
+- Include `MULTIGAME_STRICT_MODE` rollout plan:
+  - OFF during migration/verification
+  - ON only after integrity checks pass
+- In strict mode, no legacy fallback reads/writes are allowed.
+
+5. Phase completion gates
+- Every phase must include:
+  - exact files touched
+  - exact test commands
+  - Firestore integrity checks (counts/path presence)
+  - rollback note
+
+6. Player upload planning invariant
+- Include explicit acceptance criteria for upload routing:
+  - non-alliance user -> direct My Database upload, no modal
+  - alliance user -> modal with `My Database`, `Alliance Database`, `Both`
+- Include diff-update acceptance criteria per selected target DB:
+  - add missing
+  - update existing
+  - delete removed
+- Include verification for game scoping:
+  - upload modifies only selected `gameId` paths

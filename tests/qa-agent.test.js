@@ -326,9 +326,12 @@ test('qa: index.html — styles.css linked', () => {
 test('qa: index.html — all <script> tags use defer (no render-blocking scripts)', () => {
   const html = fs.readFileSync(paths.indexHtml, 'utf8');
   const scriptTags = html.match(/<script\s[^>]*src=[^>]*>/g) || [];
+  // firebase-config.js is intentionally non-defer so it loads before the deferred bundle
+  const exempted = ['firebase-config.js'];
   scriptTags.forEach((tag) => {
+    const isExempt = exempted.some((f) => tag.includes(f));
     assert.ok(
-      tag.includes('defer') || tag.includes('async'),
+      isExempt || tag.includes('defer') || tag.includes('async'),
       `Script tag missing defer/async: ${tag}`
     );
   });
@@ -345,9 +348,9 @@ test('qa: styles.css — safe-area-inset-bottom declared (iPhone notch support)'
 test('qa: styles.css — CSS custom properties (variables) declared', () => {
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.ok(css.includes(':root'), 'Missing :root block for CSS variables');
-  assert.ok(css.includes('--gold'), 'Missing --gold CSS variable');
-  assert.ok(css.includes('--team-a'), 'Missing --team-a CSS variable');
-  assert.ok(css.includes('--team-b'), 'Missing --team-b CSS variable');
+  assert.ok(css.includes('--ds-accent-primary'), 'Missing --ds-accent-primary CSS variable');
+  assert.ok(css.includes('--ds-team-a'), 'Missing --ds-team-a CSS variable');
+  assert.ok(css.includes('--ds-team-b'), 'Missing --ds-team-b CSS variable');
 });
 
 test('qa: styles.css — overflow-x hidden/auto on body or container (prevents mobile scroll bleed)', () => {

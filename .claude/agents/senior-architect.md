@@ -16,9 +16,10 @@ Approve or challenge proposed changes based on architectural integrity, migratio
 ## Project context
 
 - Frontend is vanilla HTML/CSS/ES6 JavaScript.
-- JS modules follow IIFE exports on `window`.
+- JS modules follow IIFE exports on `window`: `(function initX(global) { global.ModuleName = { ... }; })(window);`
 - No build step, no framework assumptions.
-- Main files include `app.js`, `firebase-module.js`, `translations.js`, `index.html`, `js/core/*`, `js/ui/*`, `js/services/*`.
+- Main files include `app.js`, `firebase-module.js`, `translations.js`, `index.html`, `js/core/*`, `js/ui/*`, `js/features/**/*`, `js/shell/**/*`, `js/shared/**/*`, `js/services/*`.
+- Directory structure: `js/core/` (domain logic), `js/features/` (feature modules: generator, players-management, events-manager, event-history, player-updates, alliance, notifications, buildings), `js/shell/` (app shell: bootstrap, navigation, overlays), `js/shared/data/` (Firebase gateways), `js/shared/state/` (app-state-store), `js/ui/` (shared UI helpers), `js/services/` (firebase-service adapter).
 - Tests: Node built-in tests (`npm test`) and Playwright E2E smoke/regression suites.
 
 ## What you validate
@@ -74,3 +75,42 @@ Do not approve if any of these are missing:
 - Clear phased rollout
 - Test strategy for both legacy and target behavior
 - Explicit ownership of each change area
+
+## Session guardrails (required for approval)
+
+1. Repo and release hygiene
+- Require proof of active repo and remote before approval (`git remote -v`, branch, HEAD).
+- Reject plans that do not define how local `main` is aligned to `origin/main` before publish.
+
+2. Data architecture invariants
+- Approve only if gameplay data is game-scoped:
+  - `users/{uid}/games/{gameId}` + `players/events/event_media` subcollections.
+- Approve only if alliance/invitation data is game-scoped:
+  - `games/{gameId}/alliances/*`, `games/{gameId}/invitations/*`.
+- Approve only if game metadata write access is limited to super admin UID `2z2BdO8aVsUovqQWWL9WCRMdV933`.
+
+3. Rules-first enforcement
+- Firestore rules changes must be phase 1 and validated in emulator tests before runtime or migration phases.
+- Reject if permissions for game-scoped reads/writes are not explicitly mapped.
+
+4. Migration completeness
+- Reject any migration that does not explicitly cover:
+  - legacy root player/events payloads
+  - legacy root building fields into event docs
+  - legacy `users/{uid}/event_media/*` into game-scoped `event_media`
+  - legacy alliance/invitation collections into `games/{gameId}` namespace
+- Require idempotency + dry-run + apply + report + verification queries.
+
+5. Strict-mode cutover discipline
+- `MULTIGAME_STRICT_MODE` cannot be enabled until post-migration integrity checks pass.
+- Require explicit go/no-go checklist and rollback sequence.
+
+6. Player upload contract (must stay true)
+- Player upload uses predefined Excel template from platform download.
+- Upload is game-scoped and must only mutate selected `gameId`.
+- If user has no alliance in selected game: no target modal; upload directly to My Database.
+- If user has alliance in selected game: show modal with exactly `My Database`, `Alliance Database`, `Both`.
+- Update semantics are diff-based for the selected target database:
+  - add players present in file and missing in DB
+  - update players present in both
+  - delete players missing from file

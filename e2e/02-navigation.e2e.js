@@ -26,6 +26,14 @@ test.describe('Navigation workflows', () => {
     await navigateTo(page, 'navAllianceBtn');
     await assertOnlyPageVisible(page, 'alliancePage');
 
+    // Event History is not in the navigateTo page map — click directly via JS.
+    await page.evaluate(() => {
+      const btn = document.getElementById('navEventHistoryBtn');
+      if (btn instanceof HTMLElement) { btn.click(); }
+    });
+    await expect(page.locator('#alliancePage')).toBeHidden();
+    await expect(page.locator('#eventHistoryView')).toBeVisible();
+
     await navigateTo(page, 'navGeneratorBtn');
     await assertOnlyPageVisible(page, 'generatorPage');
   });
@@ -41,5 +49,11 @@ test.describe('Navigation workflows', () => {
       }
     });
     await expect(page.locator('#settingsModal')).toBeHidden();
+  });
+
+  test('@regression @navigation support page opens from menu item', async ({ page }) => {
+    await navigateTo(page, 'navSupportBtn');
+    await assertOnlyPageVisible(page, 'supportPage');
+    await expect(page.locator('#supportPage')).toBeVisible();
   });
 });

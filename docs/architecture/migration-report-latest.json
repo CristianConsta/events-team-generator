@@ -1,0 +1,19 @@
+{
+  "startedAt": null,
+  "completedAt": null,
+  "mode": "dry-run",
+  "defaultGameId": "last_war",
+  "usersScanned": 0,
+  "usersWithLegacyPayload": 0,
+  "gameDocsPrepared": 0,
+  "playersPrepared": 0,
+  "eventsPrepared": 0,
+  "eventMediaPrepared": 0,
+  "legacyAlliancesScanned": 0,
+  "legacyInvitationsScanned": 0,
+  "legacyAlliancesPrepared": 0,
+  "legacyInvitationsPrepared": 0,
+  "rollbackNotes": [
+    "Populate this file by running scripts/migrate_multigame_first_class.js with --report docs/architecture/migration-report-latest.json."
+  ]
+}

@@ -1,0 +1,44 @@
+name: Real Firebase E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-e2e:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      PLAYWRIGHT_CHANNEL: "chromium"
+      E2E_REAL_EMAIL: ${{ secrets.E2E_REAL_EMAIL }}
+      E2E_REAL_PASSWORD: ${{ secrets.E2E_REAL_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Create firebase-config.js from secret
+        env:
+          FIREBASE_CONFIG_JS: ${{ secrets.FIREBASE_CONFIG_JS }}
+        run: |
+          if [ -z "$FIREBASE_CONFIG_JS" ]; then
+            echo "FIREBASE_CONFIG_JS secret not set" >&2
+            exit 1
+          fi
+          printf "%s" "$FIREBASE_CONFIG_JS" > firebase-config.js
+
+      - name: Run real Firebase smoke workflow
+        run: npm run test:e2e:real

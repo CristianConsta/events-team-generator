@@ -9,7 +9,7 @@
         function withManager(fn, fallback) {
             const svc = manager();
             if (!svc) {
-                return typeof fallback === 'function' ? fallback() : fallback;
+return typeof fallback === 'function' ? fallback() : fallback;
             }
             return fn(svc);
         }
