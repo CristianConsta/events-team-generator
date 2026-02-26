@@ -254,6 +254,7 @@
             loadHistoryRecords: async function loadHistoryRecords() { return []; },
             loadAttendance: async function loadAttendance() { return []; },
             updateAttendanceStatus: async function updateAttendanceStatus() { return gatewayUtils.notLoadedResult(); },
+            deactivateHistoryRecord: async function deactivateHistoryRecord() { return gatewayUtils.notLoadedResult(); },
             enforceEventHistoryLimit: async function enforceEventHistoryLimit() { return gatewayUtils.notLoadedResult(); },
             finalizeHistory: async function finalizeHistory() { return gatewayUtils.notLoadedResult(); },
             loadPlayerStats: async function loadPlayerStats() { return {}; },
@@ -1062,6 +1063,9 @@
         },
         updateAttendanceStatus: function updateAttendanceStatus(allianceId, historyId, docId, status, markedBy) {
             return eventHistoryGateway.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy);
+        },
+        deactivateHistoryRecord: function deactivateHistoryRecord(allianceId, historyId) {
+            return eventHistoryGateway.deactivateHistoryRecord(allianceId, historyId);
         },
         enforceEventHistoryLimit: function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
             return eventHistoryGateway.enforceEventHistoryLimit(allianceId, eventTypeId, limit);

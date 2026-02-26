@@ -32,6 +32,12 @@
                     gatewayUtils.notLoadedResult()
                 );
             },
+            deactivateHistoryRecord: async function deactivateHistoryRecord(allianceId, historyId) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.deactivateHistoryRecord(allianceId, historyId),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
             enforceEventHistoryLimit: async function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
                 return gatewayUtils.withManager(
                     (svc) => svc.enforceEventHistoryLimit(allianceId, eventTypeId, limit),

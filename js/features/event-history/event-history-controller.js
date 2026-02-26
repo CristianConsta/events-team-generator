@@ -74,15 +74,26 @@
             });
         }
 
-        // Wire open-attendance click delegation on history container
+        // Wire open-attendance and delete-history click delegation on history container
         var historyContainer = document.getElementById('eventHistoryContainer');
         if (historyContainer) {
             historyContainer.addEventListener('click', function(e) {
-                var btn = e.target.closest('[data-action="open-attendance"]');
-                if (!btn) return;
-                var historyId = btn.getAttribute('data-history-id');
-                if (historyId) {
-                    openAttendancePanel(historyId);
+                var openBtn = e.target.closest('[data-action="open-attendance"]');
+                if (openBtn) {
+                    var historyId = openBtn.getAttribute('data-history-id');
+                    if (historyId) {
+                        openAttendancePanel(historyId);
+                    }
+                    return;
+                }
+                var deleteBtn = e.target.closest('[data-action="delete-history"]');
+                if (deleteBtn) {
+                    var deleteHistoryId = deleteBtn.getAttribute('data-history-id');
+                    if (deleteHistoryId) {
+                        var confirmed = confirm(getTranslate()('event_history_delete_confirm'));
+                        if (!confirmed) return;
+                        deactivateHistoryRecord(deleteHistoryId);
+                    }
                 }
             });
         }
@@ -185,6 +196,18 @@
         }).catch(function(err) {
             console.error('showEventHistoryView error:', err);
         });
+    }
+
+    // Soft-delete a history record and refresh the list.
+    async function deactivateHistoryRecord(historyId) {
+        if (!_gateway || !historyId) return;
+        var allianceId = getAllianceId();
+        try {
+            await _gateway.deactivateHistoryRecord(allianceId, historyId);
+            showEventHistoryView();
+        } catch (err) {
+            console.error('deactivateHistoryRecord error:', err);
+        }
     }
 
     // Auto-save a team generation as a history entry.

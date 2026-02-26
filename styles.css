@@ -4222,6 +4222,22 @@ select {
 .event-history-attendance-btn:hover {
     background: var(--ds-surface-hover, rgba(255,255,255,0.06));
 }
+.event-history-delete-btn {
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 8px;
+    border-radius: var(--ds-radius-sm, 4px);
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ds-text-secondary);
+    opacity: 0.5;
+    transition: opacity 0.15s, color 0.15s;
+}
+.event-history-delete-btn:hover {
+    opacity: 1;
+    color: var(--ds-accent-danger);
+}
 .event-history-finalized-badge {
     font-size: 11px;
     padding: 2px 8px;

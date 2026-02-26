@@ -5421,6 +5421,31 @@ const FirebaseManager = (function() {
         }
     }
 
+    async function deactivateHistoryRecord(allianceIdParam, historyId) {
+        try {
+            if (!db || !historyId) {
+                return { ok: false, error: 'Not available' };
+            }
+            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            if (resolvedGameId) {
+                var gameRef = getGameEventHistoryCollectionRef(resolvedGameId);
+                if (gameRef) {
+                    await gameRef.doc(historyId).update({ active: false });
+                }
+            }
+            if (allianceIdParam) {
+                try {
+                    await db.collection('alliances').doc(allianceIdParam)
+                        .collection('event_history').doc(historyId).update({ active: false });
+                } catch (_e) { /* best-effort dual-write */ }
+            }
+            return { ok: true };
+        } catch (err) {
+            console.error('deactivateHistoryRecord error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
     // Canonical aliases — gateway contract uses these exact names
     async function saveHistoryRecord(allianceId, record) {
         return saveEventHistoryRecord(allianceId, record);
@@ -6267,6 +6292,7 @@ const FirebaseManager = (function() {
         loadEventHistoryRecords: loadEventHistoryRecords,
         loadEventAttendance: loadEventAttendance,
         enforceEventHistoryLimit: enforceEventHistoryLimit,
+        deactivateHistoryRecord: deactivateHistoryRecord,
         updateAttendanceStatus: updateAttendanceStatus,
         finalizeEventHistory: finalizeEventHistory,
         loadPlayerStats: loadPlayerStats,

@@ -83,6 +83,15 @@
             openBtn.textContent = btnText;
             actions.appendChild(openBtn);
 
+            var deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn-danger-subtle event-history-delete-btn';
+            deleteBtn.setAttribute('data-history-id', record.id || '');
+            deleteBtn.setAttribute('data-action', 'delete-history');
+            deleteBtn.setAttribute('title', t('event_history_delete'));
+            deleteBtn.textContent = '\u00D7';
+            actions.appendChild(deleteBtn);
+
             item.appendChild(teamBadge);
             item.appendChild(info);
             item.appendChild(actions);

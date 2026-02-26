@@ -5672,6 +5672,30 @@
             return { ok: false, error: err.message };
           }
         }
+        async function deactivateHistoryRecord(allianceIdParam, historyId) {
+          try {
+            if (!db || !historyId) {
+              return { ok: false, error: "Not available" };
+            }
+            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            if (resolvedGameId) {
+              var gameRef = getGameEventHistoryCollectionRef(resolvedGameId);
+              if (gameRef) {
+                await gameRef.doc(historyId).update({ active: false });
+              }
+            }
+            if (allianceIdParam) {
+              try {
+                await db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId).update({ active: false });
+              } catch (_e) {
+              }
+            }
+            return { ok: true };
+          } catch (err) {
+            console.error("deactivateHistoryRecord error:", err);
+            return { ok: false, error: err.message };
+          }
+        }
         async function saveHistoryRecord(allianceId2, record) {
           return saveEventHistoryRecord(allianceId2, record);
         }
@@ -6426,6 +6450,7 @@
           loadEventHistoryRecords,
           loadEventAttendance,
           enforceEventHistoryLimit,
+          deactivateHistoryRecord,
           updateAttendanceStatus,
           finalizeEventHistory,
           loadPlayerStats,
@@ -6907,6 +6932,8 @@
           event_history_finalized: "Finalized",
           event_history_view_attendance: "View Attendance",
           event_history_auto_saved: "Team saved to history",
+          event_history_delete: "Remove",
+          event_history_delete_confirm: "Remove this event from history?",
           attendance_panel_title: "Mark Attendance",
           attendance_finalize_btn: "Finalize Attendance",
           attendance_finalize_confirm: "This will lock the attendance record. Continue?",
@@ -7414,6 +7441,8 @@
           event_history_finalized: "Finalise",
           event_history_view_attendance: "Voir la presence",
           event_history_auto_saved: "Equipe sauvegardee dans l'historique",
+          event_history_delete: "Supprimer",
+          event_history_delete_confirm: "Supprimer cet evenement de l'historique?",
           attendance_panel_title: "Marquer la presence",
           attendance_finalize_btn: "Finaliser la presence",
           attendance_finalize_confirm: "Cela verrouillera le releve de presence. Continuer ?",
@@ -7921,6 +7950,8 @@
           event_history_finalized: "Abgeschlossen",
           event_history_view_attendance: "Anwesenheit anzeigen",
           event_history_auto_saved: "Team im Verlauf gespeichert",
+          event_history_delete: "Entfernen",
+          event_history_delete_confirm: "Dieses Ereignis aus dem Verlauf entfernen?",
           attendance_panel_title: "Anwesenheit markieren",
           attendance_finalize_btn: "Anwesenheit abschliessen",
           attendance_finalize_confirm: "Dadurch wird die Anwesenheitsliste gesperrt. Fortfahren?",
@@ -8428,6 +8459,8 @@
           event_history_finalized: "Finalizzato",
           event_history_view_attendance: "Vedi presenze",
           event_history_auto_saved: "Squadra salvata nella cronologia",
+          event_history_delete: "Rimuovi",
+          event_history_delete_confirm: "Rimuovere questo evento dalla cronologia?",
           attendance_panel_title: "Segna presenze",
           attendance_finalize_btn: "Finalizza presenze",
           attendance_finalize_confirm: "Questo blocchera il registro delle presenze. Continuare?",
@@ -8935,6 +8968,8 @@
           event_history_finalized: "\uD655\uC815\uB428",
           event_history_view_attendance: "\uCD9C\uC11D \uBCF4\uAE30",
           event_history_auto_saved: "\uD300\uC774 \uAE30\uB85D\uC5D0 \uC800\uC7A5\uB428",
+          event_history_delete: "\uC0AD\uC81C",
+          event_history_delete_confirm: "\uC774 \uC774\uBCA4\uD2B8\uB97C \uAE30\uB85D\uC5D0\uC11C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
           attendance_panel_title: "\uCD9C\uC11D \uD45C\uC2DC",
           attendance_finalize_btn: "\uCD9C\uC11D \uD655\uC815",
           attendance_finalize_confirm: "\uCD9C\uC11D \uAE30\uB85D\uC774 \uC7A0\uAE41\uB2C8\uB2E4. \uACC4\uC18D\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
@@ -9442,6 +9477,8 @@
           event_history_finalized: "Finalizat",
           event_history_view_attendance: "Vezi prezenta",
           event_history_auto_saved: "Echipa salvata in istoric",
+          event_history_delete: "Sterge",
+          event_history_delete_confirm: "Stergi acest eveniment din istoric?",
           attendance_panel_title: "Marcheaza prezenta",
           attendance_finalize_btn: "Finalizeaza prezenta",
           attendance_finalize_confirm: "Aceasta va bloca registrul de prezenta. Continui?",
@@ -15258,6 +15295,14 @@
             var btnText = record.finalized ? t2("event_history_view_attendance") : t2("attendance_panel_title");
             openBtn.textContent = btnText;
             actions.appendChild(openBtn);
+            var deleteBtn = document.createElement("button");
+            deleteBtn.type = "button";
+            deleteBtn.className = "btn-danger-subtle event-history-delete-btn";
+            deleteBtn.setAttribute("data-history-id", record.id || "");
+            deleteBtn.setAttribute("data-action", "delete-history");
+            deleteBtn.setAttribute("title", t2("event_history_delete"));
+            deleteBtn.textContent = "\xD7";
+            actions.appendChild(deleteBtn);
             item.appendChild(teamBadge);
             item.appendChild(info);
             item.appendChild(actions);
@@ -15421,11 +15466,22 @@
           var historyContainer = document.getElementById("eventHistoryContainer");
           if (historyContainer) {
             historyContainer.addEventListener("click", function(e) {
-              var btn = e.target.closest('[data-action="open-attendance"]');
-              if (!btn) return;
-              var historyId = btn.getAttribute("data-history-id");
-              if (historyId) {
-                openAttendancePanel(historyId);
+              var openBtn = e.target.closest('[data-action="open-attendance"]');
+              if (openBtn) {
+                var historyId = openBtn.getAttribute("data-history-id");
+                if (historyId) {
+                  openAttendancePanel(historyId);
+                }
+                return;
+              }
+              var deleteBtn = e.target.closest('[data-action="delete-history"]');
+              if (deleteBtn) {
+                var deleteHistoryId = deleteBtn.getAttribute("data-history-id");
+                if (deleteHistoryId) {
+                  var confirmed = confirm(getTranslate()("event_history_delete_confirm"));
+                  if (!confirmed) return;
+                  deactivateHistoryRecord(deleteHistoryId);
+                }
               }
             });
           }
@@ -15510,6 +15566,16 @@
           }).catch(function(err) {
             console.error("showEventHistoryView error:", err);
           });
+        }
+        async function deactivateHistoryRecord(historyId) {
+          if (!_gateway || !historyId) return;
+          var allianceId = getAllianceId();
+          try {
+            await _gateway.deactivateHistoryRecord(allianceId, historyId);
+            showEventHistoryView();
+          } catch (err) {
+            console.error("deactivateHistoryRecord error:", err);
+          }
         }
         async function autoSave(team, assignments, substitutes, context) {
           try {
@@ -17953,6 +18019,12 @@
                 gatewayUtils.notLoadedResult()
               );
             },
+            deactivateHistoryRecord: async function deactivateHistoryRecord(allianceId, historyId) {
+              return gatewayUtils.withManager(
+                (svc) => svc.deactivateHistoryRecord(allianceId, historyId),
+                gatewayUtils.notLoadedResult()
+              );
+            },
             enforceEventHistoryLimit: async function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
               return gatewayUtils.withManager(
                 (svc) => svc.enforceEventHistoryLimit(allianceId, eventTypeId, limit),
@@ -18341,6 +18413,9 @@
               return [];
             },
             updateAttendanceStatus: async function updateAttendanceStatus() {
+              return gatewayUtils.notLoadedResult();
+            },
+            deactivateHistoryRecord: async function deactivateHistoryRecord() {
               return gatewayUtils.notLoadedResult();
             },
             enforceEventHistoryLimit: async function enforceEventHistoryLimit() {
@@ -19129,6 +19204,9 @@
           },
           updateAttendanceStatus: function updateAttendanceStatus(allianceId, historyId, docId, status, markedBy) {
             return eventHistoryGateway.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy);
+          },
+          deactivateHistoryRecord: function deactivateHistoryRecord(allianceId, historyId) {
+            return eventHistoryGateway.deactivateHistoryRecord(allianceId, historyId);
           },
           enforceEventHistoryLimit: function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
             return eventHistoryGateway.enforceEventHistoryLimit(allianceId, eventTypeId, limit);
