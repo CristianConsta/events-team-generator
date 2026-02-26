@@ -5096,26 +5096,36 @@ const FirebaseManager = (function() {
 
     async function saveEventHistoryRecord(allianceId, record) {
         try {
-            if (!db || !allianceId) {
+            if (!db) {
                 return { ok: false, error: 'Not available' };
             }
-            const docRef = await db.collection('alliances').doc(allianceId)
-                .collection('event_history').add(Object.assign({}, record, {
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                }));
-            // Dual-write to game-scoped event_history
+            var recordWithTimestamp = Object.assign({}, record, {
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+            var docRef;
+            if (allianceId) {
+                docRef = await db.collection('alliances').doc(allianceId)
+                    .collection('event_history').add(recordWithTimestamp);
+            }
+            // Write to game-scoped event_history (primary for solo, dual-write for alliance)
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
                 try {
                     var newHistoryCollection = getGameEventHistoryCollectionRef(resolvedGameId);
                     if (newHistoryCollection) {
-                        await newHistoryCollection.doc(docRef.id).set(Object.assign({}, record, {
-                            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        }));
+                        if (docRef) {
+                            await newHistoryCollection.doc(docRef.id).set(recordWithTimestamp);
+                        } else {
+                            // Solo player — game-scoped is the primary path
+                            docRef = await newHistoryCollection.add(recordWithTimestamp);
+                        }
                     }
-                } catch (dualWriteErr) {
-                    console.warn('⚠️ Dual-write to game event_history failed:', dualWriteErr.message);
+                } catch (gameWriteErr) {
+                    console.warn('⚠️ Game-scoped event_history write failed:', gameWriteErr.message);
                 }
+            }
+            if (!docRef) {
+                return { ok: false, error: 'No write path available' };
             }
             return { ok: true, historyId: docRef.id };
         } catch (err) {
@@ -5126,19 +5136,22 @@ const FirebaseManager = (function() {
 
     async function saveAttendanceBatch(allianceIdParam, historyId, attendanceDocs) {
         try {
-            if (!db || !allianceIdParam || !historyId) {
+            if (!db || !historyId) {
                 return { ok: false, error: 'Not available' };
             }
-            const batch = db.batch();
-            const basePath = db.collection('alliances').doc(allianceIdParam)
-                .collection('event_history').doc(historyId)
-                .collection('attendance');
-            attendanceDocs.forEach(function(entry) {
-                var ref = basePath.doc(entry.docId);
-                batch.set(ref, entry.doc);
-            });
-            await batch.commit();
-            // Dual-write to game-scoped event_history/{historyId}/player_stats
+            // Write to alliance path if available
+            if (allianceIdParam) {
+                var batch = db.batch();
+                var basePath = db.collection('alliances').doc(allianceIdParam)
+                    .collection('event_history').doc(historyId)
+                    .collection('attendance');
+                attendanceDocs.forEach(function(entry) {
+                    var ref = basePath.doc(entry.docId);
+                    batch.set(ref, entry.doc);
+                });
+                await batch.commit();
+            }
+            // Write to game-scoped path (primary for solo, dual-write for alliance)
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
                 try {
@@ -5164,59 +5177,59 @@ const FirebaseManager = (function() {
 
     async function loadEventHistoryRecords(allianceIdParam, filters) {
         var f = filters && typeof filters === 'object' ? filters : {};
-        // Try new game-centric path first if activeGameplayGameId is set
+
+        function applyFilters(baseQuery) {
+            var q = baseQuery;
+            if (f.eventTypeId) {
+                q = q.where('eventTypeId', '==', f.eventTypeId);
+            }
+            if (f.activeOnly) {
+                q = q.where('active', '==', true);
+            }
+            if (f.gameId) {
+                q = q.where('gameId', '==', f.gameId);
+            }
+            q = q.orderBy('createdAt', 'desc');
+            if (f.limit && typeof f.limit === 'number') {
+                q = q.limit(f.limit);
+            } else {
+                q = q.limit(50);
+            }
+            return q;
+        }
+
+        function snapshotToResults(snapshot) {
+            var results = [];
+            snapshot.forEach(function(doc) {
+                results.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            return results;
+        }
+
+        // Try game-centric path first
         var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
         if (resolvedGameId) {
             try {
                 var newHistoryRef = getGameEventHistoryCollectionRef(resolvedGameId);
                 if (newHistoryRef) {
-                    var newQuery = newHistoryRef;
-                    if (f.gameId) {
-                        newQuery = newQuery.where('gameId', '==', f.gameId);
-                    }
-                    if (f.status) {
-                        newQuery = newQuery.where('status', '==', f.status);
-                    }
-                    newQuery = newQuery.orderBy('scheduledAt', 'desc');
-                    if (f.limit && typeof f.limit === 'number') {
-                        newQuery = newQuery.limit(f.limit);
-                    }
-                    var newSnapshot = await newQuery.get();
+                    var newSnapshot = await applyFilters(newHistoryRef).get();
                     if (newSnapshot && !newSnapshot.empty) {
-                        var newResults = [];
-                        newSnapshot.forEach(function(doc) {
-                            newResults.push(Object.assign({ id: doc.id }, doc.data()));
-                        });
-                        return newResults;
+                        return snapshotToResults(newSnapshot);
                     }
                 }
             } catch (newPathErr) {
                 console.warn('⚠️ New-path event history read failed, falling back to legacy:', newPathErr.message);
             }
         }
-        // Fall back to old path
+        // Fall back to alliance path
         try {
             if (!db || !allianceIdParam) {
                 return [];
             }
             var query = db.collection('alliances').doc(allianceIdParam)
                 .collection('event_history');
-            if (f.gameId) {
-                query = query.where('gameId', '==', f.gameId);
-            }
-            if (f.status) {
-                query = query.where('status', '==', f.status);
-            }
-            query = query.orderBy('scheduledAt', 'desc');
-            if (f.limit && typeof f.limit === 'number') {
-                query = query.limit(f.limit);
-            }
-            var snapshot = await query.get();
-            var results = [];
-            snapshot.forEach(function(doc) {
-                results.push(Object.assign({ id: doc.id }, doc.data()));
-            });
-            return results;
+            var snapshot = await applyFilters(query).get();
+            return snapshotToResults(snapshot);
         } catch (err) {
             console.error('loadEventHistoryRecords error:', err);
             return [];
@@ -5264,7 +5277,7 @@ const FirebaseManager = (function() {
 
     async function updateAttendanceStatus(allianceIdParam, historyId, docId, status, markedBy) {
         try {
-            if (!db || !allianceIdParam || !historyId || !docId) {
+            if (!db || !historyId || !docId) {
                 return { ok: false, error: 'Not available' };
             }
             var updatePayload = {
@@ -5272,11 +5285,14 @@ const FirebaseManager = (function() {
                 markedBy: markedBy,
                 markedAt: firebase.firestore.FieldValue.serverTimestamp(),
             };
-            await db.collection('alliances').doc(allianceIdParam)
-                .collection('event_history').doc(historyId)
-                .collection('attendance').doc(docId)
-                .update(updatePayload);
-            // Dual-write to game-scoped path (player_stats in new model)
+            // Write to alliance path if available
+            if (allianceIdParam) {
+                await db.collection('alliances').doc(allianceIdParam)
+                    .collection('event_history').doc(historyId)
+                    .collection('attendance').doc(docId)
+                    .update(updatePayload);
+            }
+            // Write to game-scoped path (primary for solo, dual-write for alliance)
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
                 try {
@@ -5297,25 +5313,28 @@ const FirebaseManager = (function() {
 
     async function finalizeEventHistory(allianceIdParam, historyId, playerStatsUpdates) {
         try {
-            if (!db || !allianceIdParam || !historyId) {
+            if (!db || !historyId) {
                 return { ok: false, error: 'Not available' };
             }
-            var batch = db.batch();
-            var historyRef = db.collection('alliances').doc(allianceIdParam)
-                .collection('event_history').doc(historyId);
-            batch.update(historyRef, {
-                finalized: true,
-                completedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            });
             var updates = Array.isArray(playerStatsUpdates) ? playerStatsUpdates : [];
-            updates.forEach(function(entry) {
-                var statsRef = db.collection('alliances').doc(allianceIdParam)
-                    .collection('player_stats').doc(entry.docId);
-                batch.set(statsRef, Object.assign({}, entry.stats, {
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                }), { merge: true });
-            });
-            await batch.commit();
+            // Write to alliance path if available
+            if (allianceIdParam) {
+                var batch = db.batch();
+                var historyRef = db.collection('alliances').doc(allianceIdParam)
+                    .collection('event_history').doc(historyId);
+                batch.update(historyRef, {
+                    finalized: true,
+                    completedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                });
+                updates.forEach(function(entry) {
+                    var statsRef = db.collection('alliances').doc(allianceIdParam)
+                        .collection('player_stats').doc(entry.docId);
+                    batch.set(statsRef, Object.assign({}, entry.stats, {
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    }), { merge: true });
+                });
+                await batch.commit();
+            }
             // Dual-write finalization to game-scoped paths
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
@@ -5343,6 +5362,61 @@ const FirebaseManager = (function() {
             return { ok: true };
         } catch (err) {
             console.error('finalizeEventHistory error:', err);
+            return { ok: false, error: err.message };
+        }
+    }
+
+    // Enforce max N active history records per eventTypeId.
+    // Soft-deletes (sets active=false) on oldest records beyond the limit.
+    async function enforceEventHistoryLimit(allianceIdParam, eventTypeId, limit) {
+        try {
+            if (!db || !eventTypeId) {
+                return { ok: true };
+            }
+            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            var historyRef = null;
+            if (resolvedGameId) {
+                historyRef = getGameEventHistoryCollectionRef(resolvedGameId);
+            }
+            if (!historyRef && allianceIdParam) {
+                historyRef = db.collection('alliances').doc(allianceIdParam).collection('event_history');
+            }
+            if (!historyRef) {
+                return { ok: true };
+            }
+
+            var snapshot = await historyRef
+                .where('eventTypeId', '==', eventTypeId)
+                .where('active', '==', true)
+                .orderBy('createdAt', 'asc')
+                .get();
+
+            if (!snapshot || snapshot.size <= limit) {
+                return { ok: true };
+            }
+
+            // Soft-delete oldest records beyond the limit
+            var excess = snapshot.size - limit;
+            var batch = db.batch();
+            var count = 0;
+            snapshot.forEach(function(doc) {
+                if (count < excess) {
+                    batch.update(doc.ref, { active: false });
+                    // Also update alliance path if dual-writing
+                    if (allianceIdParam && resolvedGameId) {
+                        try {
+                            var allianceRef = db.collection('alliances').doc(allianceIdParam)
+                                .collection('event_history').doc(doc.id);
+                            batch.update(allianceRef, { active: false });
+                        } catch (_e) { /* best-effort dual-write */ }
+                    }
+                }
+                count++;
+            });
+            await batch.commit();
+            return { ok: true, deactivated: excess };
+        } catch (err) {
+            console.warn('enforceEventHistoryLimit error:', err.message);
             return { ok: false, error: err.message };
         }
     }
@@ -6192,6 +6266,7 @@ const FirebaseManager = (function() {
         saveAttendanceBatch: saveAttendanceBatch,
         loadEventHistoryRecords: loadEventHistoryRecords,
         loadEventAttendance: loadEventAttendance,
+        enforceEventHistoryLimit: enforceEventHistoryLimit,
         updateAttendanceStatus: updateAttendanceStatus,
         finalizeEventHistory: finalizeEventHistory,
         loadPlayerStats: loadPlayerStats,

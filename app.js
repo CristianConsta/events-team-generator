@@ -4393,6 +4393,17 @@ function generateTeamAssignments(team) {
         substitutesB = substitutePlayers;
     }
 
+    // Auto-save to event history (fire-and-forget, non-blocking)
+    if (window._eventHistoryController && typeof window._eventHistoryController.autoSave === 'function') {
+        window._eventHistoryController.autoSave(team, assignments, substitutePlayers, {
+            eventTypeId: currentEvent,
+            eventDisplayName: getEventDisplayName(currentEvent),
+            gameId: activeGameId,
+        }).catch(function(err) {
+            console.error('Event history auto-save failed (non-blocking):', err);
+        });
+    }
+
     openDownloadModal(team);
 
     console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes using ${algorithmSelection.algorithmId}`);

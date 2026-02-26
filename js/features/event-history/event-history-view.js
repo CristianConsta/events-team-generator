@@ -1,20 +1,38 @@
 (function initEventHistoryView(global) {
-    function renderHistoryList(container, records) {
+    function defaultTranslate(key) { return key; }
+    function getTranslator(translate) {
+        return typeof translate === 'function' ? translate : defaultTranslate;
+    }
+
+    function renderHistoryList(container, records, options) {
         if (!container) return;
+        var opts = options || {};
+        var t = getTranslator(opts.translate);
         container.innerHTML = '';
+
         if (!records || records.length === 0) {
             var empty = document.createElement('p');
+            empty.className = 'event-history-empty';
             empty.setAttribute('data-i18n', 'event_history_empty');
-            empty.textContent = 'No events recorded yet.';
+            empty.textContent = t('event_history_empty');
             container.appendChild(empty);
             return;
         }
-        var list = document.createElement('ul');
+
+        var list = document.createElement('div');
         list.className = 'event-history-list';
         records.forEach(function(record) {
-            var item = document.createElement('li');
+            var item = document.createElement('div');
             item.className = 'event-history-item';
             item.setAttribute('data-history-id', record.id || '');
+
+            var teamBadge = document.createElement('span');
+            teamBadge.className = 'event-history-team-badge';
+            teamBadge.setAttribute('data-team', record.team || 'A');
+            teamBadge.textContent = record.team || 'A';
+
+            var info = document.createElement('div');
+            info.className = 'event-history-item-info';
 
             var name = document.createElement('span');
             name.className = 'event-history-item-name';
@@ -22,32 +40,52 @@
 
             var date = document.createElement('span');
             date.className = 'event-history-item-date';
-            var scheduledAt = record.scheduledAt;
-            if (scheduledAt && typeof scheduledAt.toDate === 'function') {
-                scheduledAt = scheduledAt.toDate();
+            var createdAt = record.createdAt;
+            if (createdAt && typeof createdAt.toDate === 'function') {
+                createdAt = createdAt.toDate();
             }
-            date.textContent = scheduledAt ? new Date(scheduledAt).toLocaleDateString() : '';
+            if (createdAt) {
+                var d = new Date(createdAt);
+                var dd = String(d.getDate()).padStart(2, '0');
+                var mm = String(d.getMonth() + 1).padStart(2, '0');
+                var yyyy = d.getFullYear();
+                date.textContent = dd + '.' + mm + '.' + yyyy;
+            }
 
-            var status = document.createElement('span');
-            status.className = 'event-history-item-status event-history-status-' + (record.status || 'planned');
-            var statusKey = 'event_history_status_' + (record.status || 'planned');
-            status.setAttribute('data-i18n', statusKey);
-            status.textContent = record.status || 'planned';
+            var playerCount = document.createElement('span');
+            playerCount.className = 'event-history-item-players';
+            var count = Array.isArray(record.players) ? record.players.length : 0;
+            playerCount.textContent = count + ' ' + t('event_history_players_label');
+
+            info.appendChild(name);
+            info.appendChild(date);
+            info.appendChild(playerCount);
+
+            var actions = document.createElement('div');
+            actions.className = 'event-history-item-actions';
+
+            if (record.finalized) {
+                var lockBadge = document.createElement('span');
+                lockBadge.className = 'event-history-finalized-badge';
+                lockBadge.setAttribute('data-i18n', 'event_history_finalized');
+                lockBadge.textContent = t('event_history_finalized');
+                actions.appendChild(lockBadge);
+            }
 
             var openBtn = document.createElement('button');
-            openBtn.className = 'secondary';
+            openBtn.type = 'button';
+            openBtn.className = 'btn-secondary event-history-attendance-btn';
             openBtn.setAttribute('data-history-id', record.id || '');
             openBtn.setAttribute('data-action', 'open-attendance');
-            openBtn.setAttribute('title', 'Mark attendance for ' + (record.eventName || 'event'));
-            openBtn.setAttribute('aria-label', 'Mark attendance for ' + (record.eventName || 'event'));
-            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span>';
+            var btnText = record.finalized
+                ? t('event_history_view_attendance')
+                : t('attendance_panel_title');
+            openBtn.textContent = btnText;
+            actions.appendChild(openBtn);
 
-            item.appendChild(name);
-            item.appendChild(date);
-            item.appendChild(status);
-            if (!record.finalized) {
-                item.appendChild(openBtn);
-            }
+            item.appendChild(teamBadge);
+            item.appendChild(info);
+            item.appendChild(actions);
             list.appendChild(item);
         });
         container.appendChild(list);
@@ -55,26 +93,24 @@
 
     function renderAttendancePanel(container, historyDoc, attendanceDocs, options) {
         if (!container) return;
+        var opts = options || {};
+        var t = getTranslator(opts.translate);
         container.innerHTML = '';
 
-        var stalenessCheck = options && options.stalenessCheck || null;
+        var isFinalized = historyDoc && historyDoc.finalized;
 
-        if (stalenessCheck && stalenessCheck.stale) {
-            var warning = document.createElement('div');
-            warning.className = 'attendance-staleness-warning';
-            warning.setAttribute('data-i18n', 'attendance_staleness_warning');
-            warning.textContent = 'This event was completed ' + stalenessCheck.daysSinceCompleted + ' days ago and attendance has not been finalized.';
-            container.appendChild(warning);
+        if (historyDoc) {
+            var header = document.createElement('div');
+            header.className = 'attendance-header';
+            var title = document.createElement('span');
+            title.className = 'attendance-event-name';
+            title.textContent = historyDoc.eventName || '';
+            header.appendChild(title);
+            container.appendChild(header);
         }
 
-        var statuses = ['attended', 'no_show', 'excused', 'late_sub', 'cancelled_event'];
-        var statusLabels = {
-            attended: 'Attended',
-            no_show: 'No Show',
-            excused: 'Excused',
-            late_sub: 'Late Sub',
-            cancelled_event: 'Event Cancelled',
-        };
+        var table = document.createElement('div');
+        table.className = 'attendance-table';
 
         (attendanceDocs || []).forEach(function(doc) {
             var row = document.createElement('div');
@@ -84,33 +120,59 @@
             var nameEl = document.createElement('span');
             nameEl.className = 'attendance-player-name';
             nameEl.textContent = doc.playerName || '';
+
+            var roleBadge = document.createElement('span');
+            roleBadge.className = 'attendance-role-badge';
+            var role = doc.role || (doc.attendanceDoc && doc.attendanceDoc.role) || 'starter';
+            roleBadge.textContent = role === 'substitute' ? t('role_substitute_short') : '';
+            if (role !== 'substitute') roleBadge.classList.add('hidden');
+
+            var status = doc.status || (doc.attendanceDoc && doc.attendanceDoc.status) || 'attended';
+            var toggleBtn = document.createElement('button');
+            toggleBtn.type = 'button';
+            toggleBtn.className = 'attendance-status-toggle attendance-status-' + status;
+            toggleBtn.setAttribute('data-player-name', doc.playerName || '');
+            toggleBtn.setAttribute('data-doc-id', doc.docId || doc.playerName || '');
+            toggleBtn.setAttribute('data-current-status', status);
+            toggleBtn.setAttribute('data-action', 'cycle-attendance-status');
+            toggleBtn.textContent = t('attendance_status_' + status);
+
+            if (isFinalized) {
+                toggleBtn.disabled = true;
+                toggleBtn.setAttribute('aria-disabled', 'true');
+            }
+
             row.appendChild(nameEl);
-
-            var radioGroup = document.createElement('div');
-            radioGroup.className = 'attendance-radio-group';
-
-            var groupName = 'attendance_' + (doc.docId || doc.playerName || '').replace(/\s+/g, '_');
-            statuses.forEach(function(s) {
-                var label = document.createElement('label');
-                var radio = document.createElement('input');
-                radio.type = 'radio';
-                radio.name = groupName;
-                radio.value = s;
-                radio.setAttribute('data-player-name', doc.playerName || '');
-                if (doc.status === s) {
-                    radio.checked = true;
-                }
-                if (historyDoc && historyDoc.finalized) {
-                    radio.disabled = true;
-                }
-                label.appendChild(radio);
-                label.appendChild(document.createTextNode(' ' + (statusLabels[s] || s)));
-                radioGroup.appendChild(label);
-            });
-
-            row.appendChild(radioGroup);
-            container.appendChild(row);
+            row.appendChild(roleBadge);
+            row.appendChild(toggleBtn);
+            table.appendChild(row);
         });
+
+        container.appendChild(table);
+    }
+
+    // Update a single toggle button after status cycle (no full re-render)
+    function updateToggleButton(button, newStatus, translate) {
+        var t = getTranslator(translate);
+        var statuses = global.DSFeatureEventHistoryCore
+            ? global.DSFeatureEventHistoryCore.ATTENDANCE_STATUSES
+            : ['attended', 'no_show', 'excused'];
+        statuses.forEach(function(s) {
+            button.classList.remove('attendance-status-' + s);
+        });
+        button.classList.add('attendance-status-' + newStatus);
+        button.setAttribute('data-current-status', newStatus);
+        button.textContent = t('attendance_status_' + newStatus);
+    }
+
+    function renderPendingBadge(container, count) {
+        if (!container) return;
+        container.textContent = count || '0';
+        if (count && count > 0) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+        }
     }
 
     function renderReliabilityDot(score, tier) {
@@ -125,20 +187,11 @@
         return dot;
     }
 
-    function renderPendingBadge(container, count) {
-        if (!container) return;
-        container.textContent = count || '0';
-        if (count && count > 0) {
-            container.classList.remove('hidden');
-        } else {
-            container.classList.add('hidden');
-        }
-    }
-
     global.DSFeatureEventHistoryView = {
         renderHistoryList: renderHistoryList,
         renderAttendancePanel: renderAttendancePanel,
-        renderReliabilityDot: renderReliabilityDot,
+        updateToggleButton: updateToggleButton,
         renderPendingBadge: renderPendingBadge,
+        renderReliabilityDot: renderReliabilityDot,
     };
 })(window);

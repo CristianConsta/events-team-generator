@@ -52,13 +52,13 @@ function makeMockGateway(overrides) {
         getAllianceId: function() { return 'alliance_integ_1'; },
         getCurrentUser: function() { return { uid: 'uid_leader_1' }; },
         subscribePendingFinalizationCount: function(allianceId, callback) {
-            // Immediately invoke callback with 0; return unsubscribe fn
             callback(0);
             return function unsubscribe() {};
         },
         loadHistoryRecords: async function() { return []; },
         saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_1' }; },
         saveAttendanceBatch: async function() { return { ok: true }; },
+        enforceEventHistoryLimit: async function() { return { ok: true }; },
         loadAttendance: async function() { return []; },
         updateAttendanceStatus: async function() { return { ok: true }; },
         loadPlayerStats: async function() { return {}; },
@@ -120,13 +120,12 @@ test('controller.init: destroy calls unsubscribe function', () => {
 test('controller.init: pending count > 0 causes badge container text to be set', () => {
     loadDependencies();
 
-    // Stub the DOM element
     const badgeEl = { textContent: '', classList: { remove: function() {}, add: function() {} } };
     global._domStubs['eventHistoryPendingBadge'] = badgeEl;
 
     var gateway = makeMockGateway({
         subscribePendingFinalizationCount: function(allianceId, callback) {
-            callback(3);   // 3 pending finalization events
+            callback(3);
             return function() {};
         },
     });
@@ -206,38 +205,63 @@ test('controller.init: no allianceId skips subscribePendingFinalizationCount', (
 });
 
 // ---------------------------------------------------------------------------
-// saveAssignmentAsHistory
+// autoSave
 // ---------------------------------------------------------------------------
 
-test('saveAssignmentAsHistory: returns ok=true and historyId on success', async () => {
+test('autoSave: returns ok=true and historyId on success', async () => {
     loadDependencies();
 
     var gateway = makeMockGateway({
-        saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_test_1' }; },
+        saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_auto_1' }; },
     });
 
     global.DSFeatureEventHistoryController.init(gateway);
 
-    const assignment = {
-        eventTypeId: 'desert_storm',
-        eventName: 'Desert Storm #1',
-        gameId: 'last_war',
-        scheduledAt: '2026-03-01T18:00:00Z',
-        teamA: [{ playerName: 'Alice' }],
-        teamB: [{ playerName: 'Bob' }],
-    };
-
-    const result = await global.DSFeatureEventHistoryController.saveAssignmentAsHistory(assignment);
+    const result = await global.DSFeatureEventHistoryController.autoSave(
+        'A',
+        [{ name: 'Alice', building: 'HQ' }],
+        [{ name: 'Bob' }],
+        { eventTypeId: 'desert_storm', eventDisplayName: 'Desert Storm', gameId: 'last_war' }
+    );
     assert.equal(result.ok, true);
-    assert.equal(result.historyId, 'hist_test_1');
+    assert.equal(result.historyId, 'hist_auto_1');
 });
 
-test('saveAssignmentAsHistory: calls saveAttendanceBatch for each player', async () => {
+test('autoSave: merges starters and substitutes into players', async () => {
+    loadDependencies();
+
+    var savedRecord = null;
+    var gateway = makeMockGateway({
+        saveHistoryRecord: async function(allianceId, record) {
+            savedRecord = record;
+            return { ok: true, historyId: 'hist_auto_2' };
+        },
+    });
+
+    global.DSFeatureEventHistoryController.init(gateway);
+
+    await global.DSFeatureEventHistoryController.autoSave(
+        'B',
+        [{ name: 'Alice' }, { name: 'Bob' }],
+        [{ name: 'Charlie' }],
+        { eventTypeId: 'canyon_storm', eventDisplayName: 'Canyon Storm', gameId: 'last_war' }
+    );
+
+    assert.ok(savedRecord);
+    assert.equal(savedRecord.team, 'B');
+    assert.equal(savedRecord.players.length, 3);
+    assert.equal(savedRecord.players[0].role, 'starter');
+    assert.equal(savedRecord.players[2].role, 'substitute');
+    assert.ok(savedRecord.eventName.includes('Canyon Storm'));
+    assert.ok(savedRecord.eventName.includes('Team B'));
+});
+
+test('autoSave: calls saveAttendanceBatch with correct count', async () => {
     loadDependencies();
 
     var batchCallArgs = null;
     var gateway = makeMockGateway({
-        saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_2' }; },
+        saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_auto_3' }; },
         saveAttendanceBatch: async function(allianceId, historyId, docs) {
             batchCallArgs = { allianceId, historyId, docs };
             return { ok: true };
@@ -246,19 +270,45 @@ test('saveAssignmentAsHistory: calls saveAttendanceBatch for each player', async
 
     global.DSFeatureEventHistoryController.init(gateway);
 
-    const assignment = {
-        teamA: [{ playerName: 'Alice' }, { playerName: 'Bob' }],
-        teamB: [{ playerName: 'Charlie' }],
-    };
-
-    await global.DSFeatureEventHistoryController.saveAssignmentAsHistory(assignment);
+    await global.DSFeatureEventHistoryController.autoSave(
+        'A',
+        [{ name: 'Alice' }, { name: 'Bob' }],
+        [{ name: 'Charlie' }],
+        { eventTypeId: 'desert_storm', eventDisplayName: 'Desert Storm', gameId: 'last_war' }
+    );
 
     assert.ok(batchCallArgs, 'saveAttendanceBatch should have been called');
-    assert.equal(batchCallArgs.historyId, 'hist_2');
-    assert.equal(batchCallArgs.docs.length, 3, 'Should save attendance for all 3 players');
+    assert.equal(batchCallArgs.historyId, 'hist_auto_3');
+    assert.equal(batchCallArgs.docs.length, 3, 'All 3 players should have attendance docs');
 });
 
-test('saveAssignmentAsHistory: returns ok=false when gateway returns error', async () => {
+test('autoSave: calls enforceEventHistoryLimit', async () => {
+    loadDependencies();
+
+    var limitCalled = false;
+    var limitArgs = {};
+    var gateway = makeMockGateway({
+        saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_limit' }; },
+        enforceEventHistoryLimit: async function(allianceId, eventTypeId, limit) {
+            limitCalled = true;
+            limitArgs = { allianceId, eventTypeId, limit };
+            return { ok: true };
+        },
+    });
+
+    global.DSFeatureEventHistoryController.init(gateway);
+
+    await global.DSFeatureEventHistoryController.autoSave(
+        'A', [], [],
+        { eventTypeId: 'desert_storm', eventDisplayName: 'Desert Storm', gameId: 'last_war' }
+    );
+
+    assert.equal(limitCalled, true, 'enforceEventHistoryLimit should be called');
+    assert.equal(limitArgs.eventTypeId, 'desert_storm');
+    assert.equal(limitArgs.limit, 10);
+});
+
+test('autoSave: returns ok=false when gateway save fails', async () => {
     loadDependencies();
 
     var gateway = makeMockGateway({
@@ -267,66 +317,63 @@ test('saveAssignmentAsHistory: returns ok=false when gateway returns error', asy
 
     global.DSFeatureEventHistoryController.init(gateway);
 
-    const result = await global.DSFeatureEventHistoryController.saveAssignmentAsHistory({
-        teamA: [], teamB: [],
-    });
+    const result = await global.DSFeatureEventHistoryController.autoSave(
+        'A', [], [],
+        { eventTypeId: 'test', eventDisplayName: 'Test', gameId: 'last_war' }
+    );
     assert.equal(result.ok, false);
 });
 
 // ---------------------------------------------------------------------------
-// markAttendanceBatch
+// saveAssignmentAsHistory (legacy wrapper)
 // ---------------------------------------------------------------------------
 
-test('markAttendanceBatch: calls updateAttendanceStatus for each player in map', async () => {
+test('saveAssignmentAsHistory: delegates to autoSave and returns ok=true', async () => {
     loadDependencies();
 
-    var updateCalls = [];
     var gateway = makeMockGateway({
-        updateAttendanceStatus: async function(allianceId, historyId, docId, status, markedBy) {
-            updateCalls.push({ docId, status });
-            return { ok: true };
+        saveHistoryRecord: async function() { return { ok: true, historyId: 'hist_legacy' }; },
+    });
+
+    global.DSFeatureEventHistoryController.init(gateway);
+
+    const result = await global.DSFeatureEventHistoryController.saveAssignmentAsHistory({
+        team: 'A',
+        eventTypeId: 'desert_storm',
+        eventDisplayName: 'Desert Storm',
+        gameId: 'last_war',
+        teamAssignments: {
+            teamA: [{ playerName: 'Alice' }],
+            teamB: [],
         },
-    });
-
-    global.DSFeatureEventHistoryController.init(gateway);
-
-    await global.DSFeatureEventHistoryController.markAttendanceBatch('hist_3', {
-        'Alice': 'attended',
-        'Bob': 'no_show',
-    });
-
-    assert.equal(updateCalls.length, 2);
-    const statuses = updateCalls.map(function(c) { return c.status; }).sort();
-    assert.deepEqual(statuses, ['attended', 'no_show']);
-});
-
-test('markAttendanceBatch: returns ok=true when all updates succeed', async () => {
-    loadDependencies();
-    var gateway = makeMockGateway();
-    global.DSFeatureEventHistoryController.init(gateway);
-
-    const result = await global.DSFeatureEventHistoryController.markAttendanceBatch('hist_4', {
-        'Alice': 'attended',
     });
     assert.equal(result.ok, true);
+    assert.equal(result.historyId, 'hist_legacy');
 });
 
-test('markAttendanceBatch: returns ok=false when any update fails', async () => {
+// ---------------------------------------------------------------------------
+// autoSave: solo player (no alliance)
+// ---------------------------------------------------------------------------
+
+test('autoSave: works without alliance (solo player)', async () => {
     loadDependencies();
 
-    var call = 0;
+    var savedAllianceId = 'NOT_CALLED';
     var gateway = makeMockGateway({
-        updateAttendanceStatus: async function() {
-            call++;
-            return call === 1 ? { ok: true } : { ok: false, error: 'write failed' };
+        getAllianceId: function() { return null; },
+        saveHistoryRecord: async function(allianceId) {
+            savedAllianceId = allianceId;
+            return { ok: true, historyId: 'hist_solo' };
         },
     });
 
     global.DSFeatureEventHistoryController.init(gateway);
 
-    const result = await global.DSFeatureEventHistoryController.markAttendanceBatch('hist_5', {
-        'Alice': 'attended',
-        'Bob': 'attended',
-    });
-    assert.equal(result.ok, false);
+    const result = await global.DSFeatureEventHistoryController.autoSave(
+        'A', [{ name: 'Alice' }], [],
+        { eventTypeId: 'desert_storm', eventDisplayName: 'Desert Storm', gameId: 'last_war' }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(savedAllianceId, null, 'allianceId should be null for solo players');
 });

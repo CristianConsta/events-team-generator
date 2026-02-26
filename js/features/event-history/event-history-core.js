@@ -1,115 +1,102 @@
 (function initFeatureEventHistoryCore(global) {
-    var VALID_TRANSITIONS_FROM_CONFIRMED = {
-        attended: true,
-        no_show: true,
-        late_sub: true,
-        excused: true,
-        cancelled_event: true,
-    };
+    var ATTENDANCE_STATUSES = ['attended', 'no_show', 'excused'];
 
-    var SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    function buildDisplayName(eventDisplayName, team, date) {
+        var dd = String(date.getDate()).padStart(2, '0');
+        var mm = String(date.getMonth() + 1).padStart(2, '0');
+        var yyyy = date.getFullYear();
+        var teamLabel = team === 'A' ? 'Team A' : 'Team B';
+        return (eventDisplayName || 'Event') + '-' + teamLabel + '-' + dd + '.' + mm + '.' + yyyy;
+    }
 
+    // Build a single-team history record.
+    // assignment: { team: 'A'|'B', players: [], eventTypeId, eventDisplayName, gameId }
+    // createdByUid: string | null
     function buildHistoryRecord(assignment, createdByUid) {
         var now = new Date();
+        var players = Array.isArray(assignment.players) ? assignment.players.map(function(p) {
+            return {
+                playerName: p.playerName || p.name || '',
+                building: p.building || null,
+                role: p.role || 'starter',
+            };
+        }) : [];
+
         return {
             eventTypeId: assignment.eventTypeId || null,
-            eventName: assignment.eventName || null,
+            eventName: buildDisplayName(
+                assignment.eventDisplayName || assignment.eventTypeId || 'Event',
+                assignment.team,
+                now
+            ),
             gameId: assignment.gameId || null,
-            scheduledAt: assignment.scheduledAt || null,
-            completedAt: null,
-            status: 'planned',
-            teamAssignments: {
-                teamA: Array.isArray(assignment.teamA) ? assignment.teamA.slice() : [],
-                teamB: Array.isArray(assignment.teamB) ? assignment.teamB.slice() : [],
-            },
-            notes: '',
-            createdBy: createdByUid || null,
-            createdAt: now,
+            team: assignment.team || 'A',
+            players: players,
+            active: true,
             finalized: false,
+            createdByUid: createdByUid || null,
+            createdAt: now,
         };
     }
 
-    function buildAttendanceDocs(teamAssignments) {
-        var results = [];
+    // Build attendance docs from flat players array.
+    // Each player defaults to status: 'attended'.
+    function buildAttendanceDocs(players, team) {
         var utils = global.DSFirestoreUtils;
-
-        function processTeam(players, teamLabel) {
-            if (!Array.isArray(players)) {
-                return;
-            }
-            players.forEach(function (player) {
-                var playerName = player && player.playerName;
-                if (!playerName) {
-                    return;
-                }
-                var docId = utils.sanitizeDocId(playerName);
-                results.push({
-                    docId: docId,
+        return (players || []).map(function(player) {
+            var playerName = player && (player.playerName || player.name);
+            if (!playerName) return null;
+            var docId = utils ? utils.sanitizeDocId(playerName) : playerName;
+            return {
+                docId: docId,
+                playerName: playerName,
+                attendanceDoc: {
                     playerName: playerName,
-                    attendanceDoc: {
-                        playerName: playerName,
-                        team: teamLabel,
-                        role: 'assigned',
-                        building: player.building || null,
-                        status: 'confirmed',
-                        confirmedAt: null,
-                        markedAt: null,
-                        markedBy: null,
-                    },
-                });
-            });
-        }
-
-        var assignments = teamAssignments || {};
-        processTeam(assignments.teamA, 'teamA');
-        processTeam(assignments.teamB, 'teamB');
-
-        return results;
+                    team: team || 'A',
+                    building: player.building || null,
+                    role: player.role || 'starter',
+                    status: 'attended',
+                    markedAt: null,
+                    markedBy: null,
+                },
+            };
+        }).filter(Boolean);
     }
 
-    function validateStatusTransition(currentStatus, newStatus) {
-        if (currentStatus === 'confirmed') {
-            if (VALID_TRANSITIONS_FROM_CONFIRMED[newStatus]) {
-                return { valid: true };
-            }
-            return {
-                valid: false,
-                reason: 'confirmed can only transition to attended, no_show, late_sub, excused, or cancelled_event',
-            };
-        }
-
-        // All other statuses are terminal
-        return {
-            valid: false,
-            reason: 'status "' + currentStatus + '" is terminal and cannot be changed',
-        };
+    // Cycle attendance status: attended → no_show → excused → attended
+    function nextAttendanceStatus(current) {
+        var idx = ATTENDANCE_STATUSES.indexOf(current);
+        if (idx === -1) return 'attended';
+        return ATTENDANCE_STATUSES[(idx + 1) % ATTENDANCE_STATUSES.length];
     }
 
     function checkFinalizationStaleness(historyDoc, now) {
-        if (!historyDoc || !historyDoc.completedAt || historyDoc.finalized === true) {
+        if (!historyDoc || !historyDoc.createdAt || historyDoc.finalized === true) {
             return { stale: false, daysSinceCompleted: 0 };
         }
 
-        var completedAt = historyDoc.completedAt;
-        var completedMs = completedAt instanceof Date
-            ? completedAt.getTime()
-            : (completedAt.toDate ? completedAt.toDate().getTime() : Number(completedAt));
+        var createdAt = historyDoc.createdAt;
+        var createdMs = createdAt instanceof Date
+            ? createdAt.getTime()
+            : (createdAt.toDate ? createdAt.toDate().getTime() : Number(createdAt));
 
         var nowMs = now instanceof Date ? now.getTime() : Number(now);
-        var diffMs = nowMs - completedMs;
+        var diffMs = nowMs - createdMs;
         var daysSinceCompleted = diffMs / (24 * 60 * 60 * 1000);
+        var SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-        var stale = diffMs > SEVEN_DAYS_MS;
         return {
-            stale: stale,
+            stale: diffMs > SEVEN_DAYS_MS,
             daysSinceCompleted: daysSinceCompleted,
         };
     }
 
     global.DSFeatureEventHistoryCore = {
+        ATTENDANCE_STATUSES: ATTENDANCE_STATUSES,
+        buildDisplayName: buildDisplayName,
         buildHistoryRecord: buildHistoryRecord,
         buildAttendanceDocs: buildAttendanceDocs,
-        validateStatusTransition: validateStatusTransition,
+        nextAttendanceStatus: nextAttendanceStatus,
         checkFinalizationStaleness: checkFinalizationStaleness,
     };
 })(window);

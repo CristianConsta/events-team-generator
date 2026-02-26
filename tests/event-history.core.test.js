@@ -18,110 +18,114 @@ function loadModule() {
 }
 
 // ---------------------------------------------------------------------------
+// buildDisplayName
+// ---------------------------------------------------------------------------
+
+test('buildDisplayName: generates correct format for Team A', () => {
+    loadModule();
+    const date = new Date(2026, 1, 26); // Feb 26, 2026
+    const result = global.DSFeatureEventHistoryCore.buildDisplayName('Desert Storm', 'A', date);
+    assert.equal(result, 'Desert Storm-Team A-26.02.2026');
+});
+
+test('buildDisplayName: generates correct format for Team B', () => {
+    loadModule();
+    const date = new Date(2026, 0, 5); // Jan 5, 2026
+    const result = global.DSFeatureEventHistoryCore.buildDisplayName('Canyon Storm', 'B', date);
+    assert.equal(result, 'Canyon Storm-Team B-05.01.2026');
+});
+
+test('buildDisplayName: uses Event as fallback when name is empty', () => {
+    loadModule();
+    const date = new Date(2026, 5, 15);
+    const result = global.DSFeatureEventHistoryCore.buildDisplayName('', 'A', date);
+    assert.equal(result, 'Event-Team A-15.06.2026');
+});
+
+// ---------------------------------------------------------------------------
 // buildHistoryRecord
 // ---------------------------------------------------------------------------
 
-test('buildHistoryRecord: returns doc with status=planned and finalized=false', () => {
+test('buildHistoryRecord: returns flat record with team and players', () => {
     loadModule();
     const assignment = {
+        team: 'A',
+        players: [{ playerName: 'Alice', building: 'HQ', role: 'starter' }],
         eventTypeId: 'desert_storm',
-        eventName: 'Desert Storm #1',
+        eventDisplayName: 'Desert Storm',
         gameId: 'last_war',
-        scheduledAt: '2026-03-01T18:00:00Z',
-        teamA: [],
-        teamB: [],
     };
     const record = global.DSFeatureEventHistoryCore.buildHistoryRecord(assignment, 'uid_leader');
-    assert.equal(record.status, 'planned');
+    assert.equal(record.team, 'A');
     assert.equal(record.finalized, false);
+    assert.equal(record.active, true);
+    assert.equal(record.players.length, 1);
+    assert.equal(record.players[0].playerName, 'Alice');
+    assert.equal(record.eventTypeId, 'desert_storm');
+    assert.ok(record.eventName.includes('Desert Storm'));
+    assert.ok(record.eventName.includes('Team A'));
 });
 
-test('buildHistoryRecord: createdBy matches passed uid', () => {
+test('buildHistoryRecord: createdByUid matches passed uid', () => {
     loadModule();
-    const assignment = {
-        eventTypeId: 'desert_storm',
-        eventName: 'Test',
-        gameId: 'last_war',
-        scheduledAt: null,
-        teamA: [],
-        teamB: [],
-    };
-    const record = global.DSFeatureEventHistoryCore.buildHistoryRecord(assignment, 'uid_test_user');
-    assert.equal(record.createdBy, 'uid_test_user');
+    const record = global.DSFeatureEventHistoryCore.buildHistoryRecord({
+        team: 'B', players: [], eventTypeId: 'test',
+    }, 'uid_test_user');
+    assert.equal(record.createdByUid, 'uid_test_user');
 });
 
-test('buildHistoryRecord: completedAt is null on creation', () => {
+test('buildHistoryRecord: handles missing fields gracefully', () => {
     loadModule();
-    const record = global.DSFeatureEventHistoryCore.buildHistoryRecord({}, 'uid_leader');
-    assert.equal(record.completedAt, null);
-});
-
-test('buildHistoryRecord: teamAssignments copies teamA and teamB arrays', () => {
-    loadModule();
-    const assignment = {
-        teamA: [{ playerName: 'Alice' }],
-        teamB: [{ playerName: 'Bob' }],
-    };
-    const record = global.DSFeatureEventHistoryCore.buildHistoryRecord(assignment, 'uid_leader');
-    assert.equal(record.teamAssignments.teamA.length, 1);
-    assert.equal(record.teamAssignments.teamB.length, 1);
+    const record = global.DSFeatureEventHistoryCore.buildHistoryRecord({}, null);
+    assert.equal(record.team, 'A');
+    assert.deepEqual(record.players, []);
+    assert.equal(record.createdByUid, null);
+    assert.equal(record.active, true);
 });
 
 // ---------------------------------------------------------------------------
 // buildAttendanceDocs
 // ---------------------------------------------------------------------------
 
-test('buildAttendanceDocs: one entry per player across both teams', () => {
+test('buildAttendanceDocs: one entry per player in flat array', () => {
     loadModule();
-    const teamAssignments = {
-        teamA: [{ playerName: 'Alice' }, { playerName: 'Bob' }],
-        teamB: [{ playerName: 'Charlie' }],
-    };
-    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(teamAssignments);
+    const players = [
+        { playerName: 'Alice', building: 'HQ' },
+        { playerName: 'Bob', building: 'Barracks' },
+        { playerName: 'Charlie' },
+    ];
+    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
     assert.equal(docs.length, 3);
 });
 
 test('buildAttendanceDocs: docId is sanitized, playerName is raw', () => {
     loadModule();
-    const teamAssignments = {
-        teamA: [{ playerName: 'Player.Name' }],
-        teamB: [],
-    };
-    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(teamAssignments);
+    const players = [{ playerName: 'Player.Name' }];
+    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
     assert.equal(docs[0].docId, 'Player_Name');
     assert.equal(docs[0].playerName, 'Player.Name');
 });
 
-test('buildAttendanceDocs: default status is confirmed', () => {
+test('buildAttendanceDocs: default status is attended', () => {
     loadModule();
-    const teamAssignments = {
-        teamA: [{ playerName: 'Alice' }],
-        teamB: [],
-    };
-    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(teamAssignments);
-    assert.equal(docs[0].attendanceDoc.status, 'confirmed');
+    const players = [{ playerName: 'Alice' }];
+    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
+    assert.equal(docs[0].attendanceDoc.status, 'attended');
 });
 
-test('buildAttendanceDocs: teamA player has team=teamA', () => {
+test('buildAttendanceDocs: team label passed through', () => {
     loadModule();
-    const teamAssignments = {
-        teamA: [{ playerName: 'Alice' }],
-        teamB: [{ playerName: 'Bob' }],
-    };
-    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(teamAssignments);
-    const aliceDoc = docs.find(d => d.playerName === 'Alice');
-    const bobDoc = docs.find(d => d.playerName === 'Bob');
-    assert.equal(aliceDoc.attendanceDoc.team, 'teamA');
-    assert.equal(bobDoc.attendanceDoc.team, 'teamB');
+    const players = [{ playerName: 'Alice' }];
+    const docsA = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
+    const docsB = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'B');
+    assert.equal(docsA[0].attendanceDoc.team, 'A');
+    assert.equal(docsB[0].attendanceDoc.team, 'B');
 });
 
 test('buildAttendanceDocs: player with dot in name — raw name preserved, docId sanitized', () => {
     loadModule();
-    const teamAssignments = {
-        teamA: [{ playerName: 'Super.Player' }],
-        teamB: [],
-    };
-    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(teamAssignments);
+    const players = [{ playerName: 'Super.Player' }];
+    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
     assert.equal(docs[0].playerName, 'Super.Player');
     assert.equal(docs[0].attendanceDoc.playerName, 'Super.Player');
     assert.equal(docs[0].docId, 'Super_Player');
@@ -129,87 +133,47 @@ test('buildAttendanceDocs: player with dot in name — raw name preserved, docId
 
 test('buildAttendanceDocs: special chars in name — docId sanitized', () => {
     loadModule();
-    const teamAssignments = {
-        teamA: [{ playerName: 'Player#1' }],
-        teamB: [],
-    };
-    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(teamAssignments);
+    const players = [{ playerName: 'Player#1' }];
+    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
     assert.equal(docs[0].docId, 'Player_1');
     assert.equal(docs[0].playerName, 'Player#1');
 });
 
+test('buildAttendanceDocs: skips entries without playerName', () => {
+    loadModule();
+    const players = [{ playerName: 'Alice' }, {}, { name: 'Bob' }];
+    const docs = global.DSFeatureEventHistoryCore.buildAttendanceDocs(players, 'A');
+    // 'Alice' has playerName, {} has neither, 'Bob' has name (accepted as fallback)
+    assert.equal(docs.length, 2);
+});
+
 // ---------------------------------------------------------------------------
-// validateStatusTransition
+// nextAttendanceStatus
 // ---------------------------------------------------------------------------
 
-test('validateStatusTransition: confirmed → attended is valid', () => {
+test('nextAttendanceStatus: attended → no_show', () => {
     loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('confirmed', 'attended').valid, true);
+    assert.equal(global.DSFeatureEventHistoryCore.nextAttendanceStatus('attended'), 'no_show');
 });
 
-test('validateStatusTransition: confirmed → no_show is valid', () => {
+test('nextAttendanceStatus: no_show → excused', () => {
     loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('confirmed', 'no_show').valid, true);
+    assert.equal(global.DSFeatureEventHistoryCore.nextAttendanceStatus('no_show'), 'excused');
 });
 
-test('validateStatusTransition: confirmed → late_sub is valid', () => {
+test('nextAttendanceStatus: excused → attended (cycles back)', () => {
     loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('confirmed', 'late_sub').valid, true);
+    assert.equal(global.DSFeatureEventHistoryCore.nextAttendanceStatus('excused'), 'attended');
 });
 
-test('validateStatusTransition: confirmed → excused is valid', () => {
+test('nextAttendanceStatus: unknown status → attended (default)', () => {
     loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('confirmed', 'excused').valid, true);
+    assert.equal(global.DSFeatureEventHistoryCore.nextAttendanceStatus('unknown'), 'attended');
 });
 
-test('validateStatusTransition: confirmed → cancelled_event is valid', () => {
+test('nextAttendanceStatus: empty string → attended (default)', () => {
     loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('confirmed', 'cancelled_event').valid, true);
-});
-
-test('validateStatusTransition: attended → attended is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('attended', 'attended').valid, false);
-});
-
-test('validateStatusTransition: attended → no_show is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('attended', 'no_show').valid, false);
-});
-
-test('validateStatusTransition: attended → confirmed is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('attended', 'confirmed').valid, false);
-});
-
-test('validateStatusTransition: no_show → attended is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('no_show', 'attended').valid, false);
-});
-
-test('validateStatusTransition: no_show → excused is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('no_show', 'excused').valid, false);
-});
-
-test('validateStatusTransition: late_sub → attended is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('late_sub', 'attended').valid, false);
-});
-
-test('validateStatusTransition: excused → attended is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('excused', 'attended').valid, false);
-});
-
-test('validateStatusTransition: cancelled_event → attended is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('cancelled_event', 'attended').valid, false);
-});
-
-test('validateStatusTransition: empty string → attended is invalid', () => {
-    loadModule();
-    assert.equal(global.DSFeatureEventHistoryCore.validateStatusTransition('', 'attended').valid, false);
+    assert.equal(global.DSFeatureEventHistoryCore.nextAttendanceStatus(''), 'attended');
 });
 
 // ---------------------------------------------------------------------------
@@ -219,9 +183,9 @@ test('validateStatusTransition: empty string → attended is invalid', () => {
 test('checkFinalizationStaleness: 8 days ago, finalized=false → stale', () => {
     loadModule();
     const now = new Date('2026-02-22T00:00:00Z');
-    const completedAt = new Date('2026-02-14T00:00:00Z'); // 8 days ago
+    const createdAt = new Date('2026-02-14T00:00:00Z'); // 8 days ago
     const result = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(
-        { completedAt, finalized: false },
+        { createdAt, finalized: false },
         now
     );
     assert.equal(result.stale, true);
@@ -231,9 +195,9 @@ test('checkFinalizationStaleness: 8 days ago, finalized=false → stale', () => 
 test('checkFinalizationStaleness: 3 days ago, finalized=false → not stale', () => {
     loadModule();
     const now = new Date('2026-02-22T00:00:00Z');
-    const completedAt = new Date('2026-02-19T00:00:00Z'); // 3 days ago
+    const createdAt = new Date('2026-02-19T00:00:00Z'); // 3 days ago
     const result = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(
-        { completedAt, finalized: false },
+        { createdAt, finalized: false },
         now
     );
     assert.equal(result.stale, false);
@@ -243,19 +207,19 @@ test('checkFinalizationStaleness: 3 days ago, finalized=false → not stale', ()
 test('checkFinalizationStaleness: finalized=true, 30 days ago → not stale', () => {
     loadModule();
     const now = new Date('2026-02-22T00:00:00Z');
-    const completedAt = new Date('2026-01-23T00:00:00Z'); // 30 days ago
+    const createdAt = new Date('2026-01-23T00:00:00Z'); // 30 days ago
     const result = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(
-        { completedAt, finalized: true },
+        { createdAt, finalized: true },
         now
     );
     assert.equal(result.stale, false);
 });
 
-test('checkFinalizationStaleness: completedAt=null → not stale', () => {
+test('checkFinalizationStaleness: createdAt=null → not stale', () => {
     loadModule();
     const now = new Date('2026-02-22T00:00:00Z');
     const result = global.DSFeatureEventHistoryCore.checkFinalizationStaleness(
-        { completedAt: null, finalized: false },
+        { createdAt: null, finalized: false },
         now
     );
     assert.equal(result.stale, false);

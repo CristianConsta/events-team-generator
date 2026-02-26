@@ -32,6 +32,12 @@
                     gatewayUtils.notLoadedResult()
                 );
             },
+            enforceEventHistoryLimit: async function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.enforceEventHistoryLimit(allianceId, eventTypeId, limit),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
             finalizeHistory: async function finalizeHistory(allianceId, historyId, playerStatsUpdates) {
                 return gatewayUtils.withManager(
                     (svc) => svc.finalizeEventHistory(allianceId, historyId, playerStatsUpdates),

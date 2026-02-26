@@ -952,7 +952,15 @@
 
         <!-- Event History View -->
         <section id="eventHistoryView" class="view-section hidden" aria-labelledby="eventHistoryHeading">
-            <h2 id="eventHistoryHeading" class="view-heading" data-i18n="event_history_title">Event History</h2>
+            <div class="page-header screen-header">
+                <h2 id="eventHistoryHeading" class="view-heading" data-i18n="event_history_title">Event History</h2>
+            </div>
+            <div class="event-history-filter-bar">
+                <label for="eventHistoryFilterEventType" data-i18n="event_history_filter_label">Filter by event</label>
+                <select id="eventHistoryFilterEventType" class="form-select">
+                    <option value="" data-i18n="event_history_filter_all">All Events</option>
+                </select>
+            </div>
             <div id="eventHistoryContainer"></div>
         </section>
 

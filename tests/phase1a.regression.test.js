@@ -86,22 +86,24 @@ test('regression: DSFeatureEventHistoryCore is loadable and exposes required fun
     assert.ok(global.DSFeatureEventHistoryCore, 'DSFeatureEventHistoryCore should be defined on window');
     assert.equal(typeof global.DSFeatureEventHistoryCore.buildHistoryRecord, 'function');
     assert.equal(typeof global.DSFeatureEventHistoryCore.buildAttendanceDocs, 'function');
-    assert.equal(typeof global.DSFeatureEventHistoryCore.validateStatusTransition, 'function');
+    assert.equal(typeof global.DSFeatureEventHistoryCore.nextAttendanceStatus, 'function');
     assert.equal(typeof global.DSFeatureEventHistoryCore.checkFinalizationStaleness, 'function');
+    assert.equal(typeof global.DSFeatureEventHistoryCore.buildDisplayName, 'function');
 });
 
 test('regression: DSFeatureEventHistoryCore.buildHistoryRecord returns expected shape', () => {
     loadAll();
     const record = global.DSFeatureEventHistoryCore.buildHistoryRecord({
         eventTypeId: 'desert_storm',
-        teamA: [],
-        teamB: [],
+        team: 'A',
+        players: [],
     }, 'uid_leader');
     assert.equal(typeof record, 'object');
-    assert.ok('status' in record);
+    assert.ok('active' in record);
     assert.ok('finalized' in record);
-    assert.ok('createdBy' in record);
-    assert.ok('teamAssignments' in record);
+    assert.ok('createdByUid' in record);
+    assert.ok('players' in record);
+    assert.ok('team' in record);
 });
 
 // ---------------------------------------------------------------------------
@@ -112,7 +114,6 @@ test('regression: DSFeatureEventHistoryActions is loadable and exposes required 
     loadAll();
     assert.ok(global.DSFeatureEventHistoryActions, 'DSFeatureEventHistoryActions should be defined on window');
     assert.equal(typeof global.DSFeatureEventHistoryActions.readHistoryFilterState, 'function');
-    assert.equal(typeof global.DSFeatureEventHistoryActions.readAttendanceFormState, 'function');
 });
 
 // ---------------------------------------------------------------------------
@@ -138,7 +139,7 @@ test('regression: DSFeatureEventHistoryController is loadable and exposes requir
     assert.equal(typeof global.DSFeatureEventHistoryController.init, 'function');
     assert.equal(typeof global.DSFeatureEventHistoryController.showEventHistoryView, 'function');
     assert.equal(typeof global.DSFeatureEventHistoryController.saveAssignmentAsHistory, 'function');
+    assert.equal(typeof global.DSFeatureEventHistoryController.autoSave, 'function');
     assert.equal(typeof global.DSFeatureEventHistoryController.openAttendancePanel, 'function');
-    assert.equal(typeof global.DSFeatureEventHistoryController.markAttendanceBatch, 'function');
     assert.equal(typeof global.DSFeatureEventHistoryController.finalizeAttendance, 'function');
 });

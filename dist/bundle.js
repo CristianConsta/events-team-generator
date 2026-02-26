@@ -5392,24 +5392,33 @@
         }
         async function saveEventHistoryRecord(allianceId2, record) {
           try {
-            if (!db || !allianceId2) {
+            if (!db) {
               return { ok: false, error: "Not available" };
             }
-            const docRef = await db.collection("alliances").doc(allianceId2).collection("event_history").add(Object.assign({}, record, {
+            var recordWithTimestamp = Object.assign({}, record, {
               createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }));
+            });
+            var docRef;
+            if (allianceId2) {
+              docRef = await db.collection("alliances").doc(allianceId2).collection("event_history").add(recordWithTimestamp);
+            }
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
               try {
                 var newHistoryCollection = getGameEventHistoryCollectionRef(resolvedGameId);
                 if (newHistoryCollection) {
-                  await newHistoryCollection.doc(docRef.id).set(Object.assign({}, record, {
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                  }));
+                  if (docRef) {
+                    await newHistoryCollection.doc(docRef.id).set(recordWithTimestamp);
+                  } else {
+                    docRef = await newHistoryCollection.add(recordWithTimestamp);
+                  }
                 }
-              } catch (dualWriteErr) {
-                console.warn("\u26A0\uFE0F Dual-write to game event_history failed:", dualWriteErr.message);
+              } catch (gameWriteErr) {
+                console.warn("\u26A0\uFE0F Game-scoped event_history write failed:", gameWriteErr.message);
               }
+            }
+            if (!docRef) {
+              return { ok: false, error: "No write path available" };
             }
             return { ok: true, historyId: docRef.id };
           } catch (err) {
@@ -5419,16 +5428,18 @@
         }
         async function saveAttendanceBatch(allianceIdParam, historyId, attendanceDocs) {
           try {
-            if (!db || !allianceIdParam || !historyId) {
+            if (!db || !historyId) {
               return { ok: false, error: "Not available" };
             }
-            const batch = db.batch();
-            const basePath = db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId).collection("attendance");
-            attendanceDocs.forEach(function(entry) {
-              var ref = basePath.doc(entry.docId);
-              batch.set(ref, entry.doc);
-            });
-            await batch.commit();
+            if (allianceIdParam) {
+              var batch = db.batch();
+              var basePath = db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId).collection("attendance");
+              attendanceDocs.forEach(function(entry) {
+                var ref = basePath.doc(entry.docId);
+                batch.set(ref, entry.doc);
+              });
+              await batch.commit();
+            }
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
               try {
@@ -5453,29 +5464,40 @@
         }
         async function loadEventHistoryRecords(allianceIdParam, filters) {
           var f = filters && typeof filters === "object" ? filters : {};
+          function applyFilters(baseQuery) {
+            var q = baseQuery;
+            if (f.eventTypeId) {
+              q = q.where("eventTypeId", "==", f.eventTypeId);
+            }
+            if (f.activeOnly) {
+              q = q.where("active", "==", true);
+            }
+            if (f.gameId) {
+              q = q.where("gameId", "==", f.gameId);
+            }
+            q = q.orderBy("createdAt", "desc");
+            if (f.limit && typeof f.limit === "number") {
+              q = q.limit(f.limit);
+            } else {
+              q = q.limit(50);
+            }
+            return q;
+          }
+          function snapshotToResults(snapshot2) {
+            var results = [];
+            snapshot2.forEach(function(doc) {
+              results.push(Object.assign({ id: doc.id }, doc.data()));
+            });
+            return results;
+          }
           var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
           if (resolvedGameId) {
             try {
               var newHistoryRef = getGameEventHistoryCollectionRef(resolvedGameId);
               if (newHistoryRef) {
-                var newQuery = newHistoryRef;
-                if (f.gameId) {
-                  newQuery = newQuery.where("gameId", "==", f.gameId);
-                }
-                if (f.status) {
-                  newQuery = newQuery.where("status", "==", f.status);
-                }
-                newQuery = newQuery.orderBy("scheduledAt", "desc");
-                if (f.limit && typeof f.limit === "number") {
-                  newQuery = newQuery.limit(f.limit);
-                }
-                var newSnapshot = await newQuery.get();
+                var newSnapshot = await applyFilters(newHistoryRef).get();
                 if (newSnapshot && !newSnapshot.empty) {
-                  var newResults = [];
-                  newSnapshot.forEach(function(doc) {
-                    newResults.push(Object.assign({ id: doc.id }, doc.data()));
-                  });
-                  return newResults;
+                  return snapshotToResults(newSnapshot);
                 }
               }
             } catch (newPathErr) {
@@ -5487,22 +5509,8 @@
               return [];
             }
             var query = db.collection("alliances").doc(allianceIdParam).collection("event_history");
-            if (f.gameId) {
-              query = query.where("gameId", "==", f.gameId);
-            }
-            if (f.status) {
-              query = query.where("status", "==", f.status);
-            }
-            query = query.orderBy("scheduledAt", "desc");
-            if (f.limit && typeof f.limit === "number") {
-              query = query.limit(f.limit);
-            }
-            var snapshot = await query.get();
-            var results = [];
-            snapshot.forEach(function(doc) {
-              results.push(Object.assign({ id: doc.id }, doc.data()));
-            });
-            return results;
+            var snapshot = await applyFilters(query).get();
+            return snapshotToResults(snapshot);
           } catch (err) {
             console.error("loadEventHistoryRecords error:", err);
             return [];
@@ -5544,7 +5552,7 @@
         }
         async function updateAttendanceStatus(allianceIdParam, historyId, docId, status, markedBy) {
           try {
-            if (!db || !allianceIdParam || !historyId || !docId) {
+            if (!db || !historyId || !docId) {
               return { ok: false, error: "Not available" };
             }
             var updatePayload = {
@@ -5552,7 +5560,9 @@
               markedBy,
               markedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
-            await db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId).collection("attendance").doc(docId).update(updatePayload);
+            if (allianceIdParam) {
+              await db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId).collection("attendance").doc(docId).update(updatePayload);
+            }
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
               try {
@@ -5572,23 +5582,25 @@
         }
         async function finalizeEventHistory(allianceIdParam, historyId, playerStatsUpdates) {
           try {
-            if (!db || !allianceIdParam || !historyId) {
+            if (!db || !historyId) {
               return { ok: false, error: "Not available" };
             }
-            var batch = db.batch();
-            var historyRef = db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId);
-            batch.update(historyRef, {
-              finalized: true,
-              completedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
             var updates = Array.isArray(playerStatsUpdates) ? playerStatsUpdates : [];
-            updates.forEach(function(entry) {
-              var statsRef = db.collection("alliances").doc(allianceIdParam).collection("player_stats").doc(entry.docId);
-              batch.set(statsRef, Object.assign({}, entry.stats, {
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-              }), { merge: true });
-            });
-            await batch.commit();
+            if (allianceIdParam) {
+              var batch = db.batch();
+              var historyRef = db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(historyId);
+              batch.update(historyRef, {
+                finalized: true,
+                completedAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              updates.forEach(function(entry) {
+                var statsRef = db.collection("alliances").doc(allianceIdParam).collection("player_stats").doc(entry.docId);
+                batch.set(statsRef, Object.assign({}, entry.stats, {
+                  updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }), { merge: true });
+              });
+              await batch.commit();
+            }
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
               try {
@@ -5614,6 +5626,49 @@
             return { ok: true };
           } catch (err) {
             console.error("finalizeEventHistory error:", err);
+            return { ok: false, error: err.message };
+          }
+        }
+        async function enforceEventHistoryLimit(allianceIdParam, eventTypeId, limit) {
+          try {
+            if (!db || !eventTypeId) {
+              return { ok: true };
+            }
+            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            var historyRef = null;
+            if (resolvedGameId) {
+              historyRef = getGameEventHistoryCollectionRef(resolvedGameId);
+            }
+            if (!historyRef && allianceIdParam) {
+              historyRef = db.collection("alliances").doc(allianceIdParam).collection("event_history");
+            }
+            if (!historyRef) {
+              return { ok: true };
+            }
+            var snapshot = await historyRef.where("eventTypeId", "==", eventTypeId).where("active", "==", true).orderBy("createdAt", "asc").get();
+            if (!snapshot || snapshot.size <= limit) {
+              return { ok: true };
+            }
+            var excess = snapshot.size - limit;
+            var batch = db.batch();
+            var count = 0;
+            snapshot.forEach(function(doc) {
+              if (count < excess) {
+                batch.update(doc.ref, { active: false });
+                if (allianceIdParam && resolvedGameId) {
+                  try {
+                    var allianceRef = db.collection("alliances").doc(allianceIdParam).collection("event_history").doc(doc.id);
+                    batch.update(allianceRef, { active: false });
+                  } catch (_e) {
+                  }
+                }
+              }
+              count++;
+            });
+            await batch.commit();
+            return { ok: true, deactivated: excess };
+          } catch (err) {
+            console.warn("enforceEventHistoryLimit error:", err.message);
             return { ok: false, error: err.message };
           }
         }
@@ -6370,6 +6425,7 @@
           saveAttendanceBatch,
           loadEventHistoryRecords,
           loadEventAttendance,
+          enforceEventHistoryLimit,
           updateAttendanceStatus,
           finalizeEventHistory,
           loadPlayerStats,
@@ -6841,11 +6897,16 @@
           event_history_empty: "No events recorded yet.",
           event_history_save_btn: "Save as History",
           event_history_filter_all: "All Events",
+          event_history_filter_label: "Filter by event",
           event_history_filter_completed: "Completed",
           event_history_filter_planned: "Planned",
           event_history_status_planned: "Planned",
           event_history_status_completed: "Completed",
           event_history_status_cancelled: "Cancelled",
+          event_history_players_label: "players",
+          event_history_finalized: "Finalized",
+          event_history_view_attendance: "View Attendance",
+          event_history_auto_saved: "Team saved to history",
           attendance_panel_title: "Mark Attendance",
           attendance_finalize_btn: "Finalize Attendance",
           attendance_finalize_confirm: "This will lock the attendance record. Continue?",
@@ -7343,11 +7404,16 @@
           event_history_empty: "Aucun evenement enregistre.",
           event_history_save_btn: "Sauvegarder en historique",
           event_history_filter_all: "Tous les evenements",
+          event_history_filter_label: "Filtrer par evenement",
           event_history_filter_completed: "Termine",
           event_history_filter_planned: "Planifie",
           event_history_status_planned: "Planifie",
           event_history_status_completed: "Termine",
           event_history_status_cancelled: "Annule",
+          event_history_players_label: "joueurs",
+          event_history_finalized: "Finalise",
+          event_history_view_attendance: "Voir la presence",
+          event_history_auto_saved: "Equipe sauvegardee dans l'historique",
           attendance_panel_title: "Marquer la presence",
           attendance_finalize_btn: "Finaliser la presence",
           attendance_finalize_confirm: "Cela verrouillera le releve de presence. Continuer ?",
@@ -7845,11 +7911,16 @@
           event_history_empty: "Noch keine Ereignisse aufgezeichnet.",
           event_history_save_btn: "Als Verlauf speichern",
           event_history_filter_all: "Alle Ereignisse",
+          event_history_filter_label: "Nach Ereignis filtern",
           event_history_filter_completed: "Abgeschlossen",
           event_history_filter_planned: "Geplant",
           event_history_status_planned: "Geplant",
           event_history_status_completed: "Abgeschlossen",
           event_history_status_cancelled: "Abgebrochen",
+          event_history_players_label: "Spieler",
+          event_history_finalized: "Abgeschlossen",
+          event_history_view_attendance: "Anwesenheit anzeigen",
+          event_history_auto_saved: "Team im Verlauf gespeichert",
           attendance_panel_title: "Anwesenheit markieren",
           attendance_finalize_btn: "Anwesenheit abschliessen",
           attendance_finalize_confirm: "Dadurch wird die Anwesenheitsliste gesperrt. Fortfahren?",
@@ -8347,11 +8418,16 @@
           event_history_empty: "Nessun evento registrato.",
           event_history_save_btn: "Salva come cronologia",
           event_history_filter_all: "Tutti gli eventi",
+          event_history_filter_label: "Filtra per evento",
           event_history_filter_completed: "Completato",
           event_history_filter_planned: "Pianificato",
           event_history_status_planned: "Pianificato",
           event_history_status_completed: "Completato",
           event_history_status_cancelled: "Annullato",
+          event_history_players_label: "giocatori",
+          event_history_finalized: "Finalizzato",
+          event_history_view_attendance: "Vedi presenze",
+          event_history_auto_saved: "Squadra salvata nella cronologia",
           attendance_panel_title: "Segna presenze",
           attendance_finalize_btn: "Finalizza presenze",
           attendance_finalize_confirm: "Questo blocchera il registro delle presenze. Continuare?",
@@ -8849,11 +8925,16 @@
           event_history_empty: "\uAE30\uB85D\uB41C \uC774\uBCA4\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.",
           event_history_save_btn: "\uAE30\uB85D\uC73C\uB85C \uC800\uC7A5",
           event_history_filter_all: "\uBAA8\uB4E0 \uC774\uBCA4\uD2B8",
+          event_history_filter_label: "\uC774\uBCA4\uD2B8\uBCC4 \uD544\uD130",
           event_history_filter_completed: "\uC644\uB8CC\uB428",
           event_history_filter_planned: "\uACC4\uD68D\uB428",
           event_history_status_planned: "\uACC4\uD68D\uB428",
           event_history_status_completed: "\uC644\uB8CC\uB428",
           event_history_status_cancelled: "\uCDE8\uC18C\uB428",
+          event_history_players_label: "\uD50C\uB808\uC774\uC5B4",
+          event_history_finalized: "\uD655\uC815\uB428",
+          event_history_view_attendance: "\uCD9C\uC11D \uBCF4\uAE30",
+          event_history_auto_saved: "\uD300\uC774 \uAE30\uB85D\uC5D0 \uC800\uC7A5\uB428",
           attendance_panel_title: "\uCD9C\uC11D \uD45C\uC2DC",
           attendance_finalize_btn: "\uCD9C\uC11D \uD655\uC815",
           attendance_finalize_confirm: "\uCD9C\uC11D \uAE30\uB85D\uC774 \uC7A0\uAE41\uB2C8\uB2E4. \uACC4\uC18D\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
@@ -9351,11 +9432,16 @@
           event_history_empty: "Nu s-au inregistrat inca evenimente.",
           event_history_save_btn: "Salveaza ca istoric",
           event_history_filter_all: "Toate evenimentele",
+          event_history_filter_label: "Filtreaza dupa eveniment",
           event_history_filter_completed: "Finalizat",
           event_history_filter_planned: "Planificat",
           event_history_status_planned: "Planificat",
           event_history_status_completed: "Finalizat",
           event_history_status_cancelled: "Anulat",
+          event_history_players_label: "jucatori",
+          event_history_finalized: "Finalizat",
+          event_history_view_attendance: "Vezi prezenta",
+          event_history_auto_saved: "Echipa salvata in istoric",
           attendance_panel_title: "Marcheaza prezenta",
           attendance_finalize_btn: "Finalizeaza prezenta",
           attendance_finalize_confirm: "Aceasta va bloca registrul de prezenta. Continui?",
@@ -14994,101 +15080,86 @@
   var require_event_history_core = __commonJS({
     "js/features/event-history/event-history-core.js"() {
       (function initFeatureEventHistoryCore(global2) {
-        var VALID_TRANSITIONS_FROM_CONFIRMED = {
-          attended: true,
-          no_show: true,
-          late_sub: true,
-          excused: true,
-          cancelled_event: true
-        };
-        var SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1e3;
+        var ATTENDANCE_STATUSES = ["attended", "no_show", "excused"];
+        function buildDisplayName(eventDisplayName, team, date) {
+          var dd = String(date.getDate()).padStart(2, "0");
+          var mm = String(date.getMonth() + 1).padStart(2, "0");
+          var yyyy = date.getFullYear();
+          var teamLabel = team === "A" ? "Team A" : "Team B";
+          return (eventDisplayName || "Event") + "-" + teamLabel + "-" + dd + "." + mm + "." + yyyy;
+        }
         function buildHistoryRecord(assignment, createdByUid) {
           var now = /* @__PURE__ */ new Date();
+          var players = Array.isArray(assignment.players) ? assignment.players.map(function(p) {
+            return {
+              playerName: p.playerName || p.name || "",
+              building: p.building || null,
+              role: p.role || "starter"
+            };
+          }) : [];
           return {
             eventTypeId: assignment.eventTypeId || null,
-            eventName: assignment.eventName || null,
+            eventName: buildDisplayName(
+              assignment.eventDisplayName || assignment.eventTypeId || "Event",
+              assignment.team,
+              now
+            ),
             gameId: assignment.gameId || null,
-            scheduledAt: assignment.scheduledAt || null,
-            completedAt: null,
-            status: "planned",
-            teamAssignments: {
-              teamA: Array.isArray(assignment.teamA) ? assignment.teamA.slice() : [],
-              teamB: Array.isArray(assignment.teamB) ? assignment.teamB.slice() : []
-            },
-            notes: "",
-            createdBy: createdByUid || null,
-            createdAt: now,
-            finalized: false
+            team: assignment.team || "A",
+            players,
+            active: true,
+            finalized: false,
+            createdByUid: createdByUid || null,
+            createdAt: now
           };
         }
-        function buildAttendanceDocs(teamAssignments) {
-          var results = [];
+        function buildAttendanceDocs(players, team) {
           var utils = global2.DSFirestoreUtils;
-          function processTeam(players, teamLabel) {
-            if (!Array.isArray(players)) {
-              return;
-            }
-            players.forEach(function(player) {
-              var playerName = player && player.playerName;
-              if (!playerName) {
-                return;
-              }
-              var docId = utils.sanitizeDocId(playerName);
-              results.push({
-                docId,
-                playerName,
-                attendanceDoc: {
-                  playerName,
-                  team: teamLabel,
-                  role: "assigned",
-                  building: player.building || null,
-                  status: "confirmed",
-                  confirmedAt: null,
-                  markedAt: null,
-                  markedBy: null
-                }
-              });
-            });
-          }
-          var assignments = teamAssignments || {};
-          processTeam(assignments.teamA, "teamA");
-          processTeam(assignments.teamB, "teamB");
-          return results;
-        }
-        function validateStatusTransition(currentStatus, newStatus) {
-          if (currentStatus === "confirmed") {
-            if (VALID_TRANSITIONS_FROM_CONFIRMED[newStatus]) {
-              return { valid: true };
-            }
+          return (players || []).map(function(player) {
+            var playerName = player && (player.playerName || player.name);
+            if (!playerName) return null;
+            var docId = utils ? utils.sanitizeDocId(playerName) : playerName;
             return {
-              valid: false,
-              reason: "confirmed can only transition to attended, no_show, late_sub, excused, or cancelled_event"
+              docId,
+              playerName,
+              attendanceDoc: {
+                playerName,
+                team: team || "A",
+                building: player.building || null,
+                role: player.role || "starter",
+                status: "attended",
+                markedAt: null,
+                markedBy: null
+              }
             };
-          }
-          return {
-            valid: false,
-            reason: 'status "' + currentStatus + '" is terminal and cannot be changed'
-          };
+          }).filter(Boolean);
+        }
+        function nextAttendanceStatus(current) {
+          var idx = ATTENDANCE_STATUSES.indexOf(current);
+          if (idx === -1) return "attended";
+          return ATTENDANCE_STATUSES[(idx + 1) % ATTENDANCE_STATUSES.length];
         }
         function checkFinalizationStaleness(historyDoc, now) {
-          if (!historyDoc || !historyDoc.completedAt || historyDoc.finalized === true) {
+          if (!historyDoc || !historyDoc.createdAt || historyDoc.finalized === true) {
             return { stale: false, daysSinceCompleted: 0 };
           }
-          var completedAt = historyDoc.completedAt;
-          var completedMs = completedAt instanceof Date ? completedAt.getTime() : completedAt.toDate ? completedAt.toDate().getTime() : Number(completedAt);
+          var createdAt = historyDoc.createdAt;
+          var createdMs = createdAt instanceof Date ? createdAt.getTime() : createdAt.toDate ? createdAt.toDate().getTime() : Number(createdAt);
           var nowMs = now instanceof Date ? now.getTime() : Number(now);
-          var diffMs = nowMs - completedMs;
+          var diffMs = nowMs - createdMs;
           var daysSinceCompleted = diffMs / (24 * 60 * 60 * 1e3);
-          var stale = diffMs > SEVEN_DAYS_MS;
+          var SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1e3;
           return {
-            stale,
+            stale: diffMs > SEVEN_DAYS_MS,
             daysSinceCompleted
           };
         }
         global2.DSFeatureEventHistoryCore = {
+          ATTENDANCE_STATUSES,
+          buildDisplayName,
           buildHistoryRecord,
           buildAttendanceDocs,
-          validateStatusTransition,
+          nextAttendanceStatus,
           checkFinalizationStaleness
         };
       })(window);
@@ -15099,29 +15170,13 @@
   var require_event_history_actions = __commonJS({
     "js/features/event-history/event-history-actions.js"() {
       (function initEventHistoryActions(global2) {
-        function readAttendanceFormState() {
-          var result = {};
-          var radios = document.querySelectorAll('.attendance-radio-group input[type="radio"]:checked');
-          radios.forEach(function(radio) {
-            var playerName = radio.getAttribute("data-player-name");
-            if (playerName) {
-              result[playerName] = radio.value;
-            }
-          });
-          return result;
-        }
         function readHistoryFilterState() {
-          var gameIdEl = document.getElementById("eventHistoryFilterGameId");
-          var statusEl = document.getElementById("eventHistoryFilterStatus");
-          var dateRangeEl = document.getElementById("eventHistoryFilterDateRange");
+          var eventTypeEl = document.getElementById("eventHistoryFilterEventType");
           return {
-            gameId: gameIdEl ? gameIdEl.value : "",
-            status: statusEl ? statusEl.value : "",
-            dateRange: dateRangeEl ? dateRangeEl.value : ""
+            eventTypeId: eventTypeEl ? eventTypeEl.value : ""
           };
         }
         global2.DSFeatureEventHistoryActions = {
-          readAttendanceFormState,
           readHistoryFilterState
         };
       })(window);
@@ -15132,73 +15187,101 @@
   var require_event_history_view = __commonJS({
     "js/features/event-history/event-history-view.js"() {
       (function initEventHistoryView(global2) {
-        function renderHistoryList(container, records) {
+        function defaultTranslate(key) {
+          return key;
+        }
+        function getTranslator(translate) {
+          return typeof translate === "function" ? translate : defaultTranslate;
+        }
+        function renderHistoryList(container, records, options) {
           if (!container) return;
+          var opts = options || {};
+          var t2 = getTranslator(opts.translate);
           container.innerHTML = "";
           if (!records || records.length === 0) {
             var empty = document.createElement("p");
+            empty.className = "event-history-empty";
             empty.setAttribute("data-i18n", "event_history_empty");
-            empty.textContent = "No events recorded yet.";
+            empty.textContent = t2("event_history_empty");
             container.appendChild(empty);
             return;
           }
-          var list = document.createElement("ul");
+          var list = document.createElement("div");
           list.className = "event-history-list";
           records.forEach(function(record) {
-            var item = document.createElement("li");
+            var item = document.createElement("div");
             item.className = "event-history-item";
             item.setAttribute("data-history-id", record.id || "");
+            var teamBadge = document.createElement("span");
+            teamBadge.className = "event-history-team-badge";
+            teamBadge.setAttribute("data-team", record.team || "A");
+            teamBadge.textContent = record.team || "A";
+            var info = document.createElement("div");
+            info.className = "event-history-item-info";
             var name = document.createElement("span");
             name.className = "event-history-item-name";
             name.textContent = record.eventName || "";
             var date = document.createElement("span");
             date.className = "event-history-item-date";
-            var scheduledAt = record.scheduledAt;
-            if (scheduledAt && typeof scheduledAt.toDate === "function") {
-              scheduledAt = scheduledAt.toDate();
+            var createdAt = record.createdAt;
+            if (createdAt && typeof createdAt.toDate === "function") {
+              createdAt = createdAt.toDate();
             }
-            date.textContent = scheduledAt ? new Date(scheduledAt).toLocaleDateString() : "";
-            var status = document.createElement("span");
-            status.className = "event-history-item-status event-history-status-" + (record.status || "planned");
-            var statusKey = "event_history_status_" + (record.status || "planned");
-            status.setAttribute("data-i18n", statusKey);
-            status.textContent = record.status || "planned";
+            if (createdAt) {
+              var d = new Date(createdAt);
+              var dd = String(d.getDate()).padStart(2, "0");
+              var mm = String(d.getMonth() + 1).padStart(2, "0");
+              var yyyy = d.getFullYear();
+              date.textContent = dd + "." + mm + "." + yyyy;
+            }
+            var playerCount = document.createElement("span");
+            playerCount.className = "event-history-item-players";
+            var count = Array.isArray(record.players) ? record.players.length : 0;
+            playerCount.textContent = count + " " + t2("event_history_players_label");
+            info.appendChild(name);
+            info.appendChild(date);
+            info.appendChild(playerCount);
+            var actions = document.createElement("div");
+            actions.className = "event-history-item-actions";
+            if (record.finalized) {
+              var lockBadge = document.createElement("span");
+              lockBadge.className = "event-history-finalized-badge";
+              lockBadge.setAttribute("data-i18n", "event_history_finalized");
+              lockBadge.textContent = t2("event_history_finalized");
+              actions.appendChild(lockBadge);
+            }
             var openBtn = document.createElement("button");
-            openBtn.className = "secondary";
+            openBtn.type = "button";
+            openBtn.className = "btn-secondary event-history-attendance-btn";
             openBtn.setAttribute("data-history-id", record.id || "");
             openBtn.setAttribute("data-action", "open-attendance");
-            openBtn.setAttribute("title", "Mark attendance for " + (record.eventName || "event"));
-            openBtn.setAttribute("aria-label", "Mark attendance for " + (record.eventName || "event"));
-            openBtn.innerHTML = '<span class="action-btn-text">Mark Attendance</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span>';
-            item.appendChild(name);
-            item.appendChild(date);
-            item.appendChild(status);
-            if (!record.finalized) {
-              item.appendChild(openBtn);
-            }
+            var btnText = record.finalized ? t2("event_history_view_attendance") : t2("attendance_panel_title");
+            openBtn.textContent = btnText;
+            actions.appendChild(openBtn);
+            item.appendChild(teamBadge);
+            item.appendChild(info);
+            item.appendChild(actions);
             list.appendChild(item);
           });
           container.appendChild(list);
         }
         function renderAttendancePanel(container, historyDoc, attendanceDocs, options) {
           if (!container) return;
+          var opts = options || {};
+          var t2 = getTranslator(opts.translate);
           container.innerHTML = "";
-          var stalenessCheck = options && options.stalenessCheck || null;
-          if (stalenessCheck && stalenessCheck.stale) {
-            var warning = document.createElement("div");
-            warning.className = "attendance-staleness-warning";
-            warning.setAttribute("data-i18n", "attendance_staleness_warning");
-            warning.textContent = "This event was completed " + stalenessCheck.daysSinceCompleted + " days ago and attendance has not been finalized.";
-            container.appendChild(warning);
+          var isFinalized = historyDoc && historyDoc.finalized;
+          if (historyDoc) {
+            var header = document.createElement("div");
+            header.className = "attendance-header";
+            var title = document.createElement("span");
+            title.className = "attendance-event-name";
+            title.textContent = historyDoc.eventName || "";
+            header.appendChild(title);
+            container.appendChild(header);
           }
-          var statuses = ["attended", "no_show", "excused", "late_sub", "cancelled_event"];
-          var statusLabels = {
-            attended: "Attended",
-            no_show: "No Show",
-            excused: "Excused",
-            late_sub: "Late Sub",
-            cancelled_event: "Event Cancelled"
-          };
+          var table = document.createElement("div");
+          table.className = "attendance-table";
           (attendanceDocs || []).forEach(function(doc) {
             var row = document.createElement("div");
             row.className = "attendance-player-row";
@@ -15206,39 +15289,40 @@
             var nameEl = document.createElement("span");
             nameEl.className = "attendance-player-name";
             nameEl.textContent = doc.playerName || "";
+            var roleBadge = document.createElement("span");
+            roleBadge.className = "attendance-role-badge";
+            var role = doc.role || doc.attendanceDoc && doc.attendanceDoc.role || "starter";
+            roleBadge.textContent = role === "substitute" ? t2("role_substitute_short") : "";
+            if (role !== "substitute") roleBadge.classList.add("hidden");
+            var status = doc.status || doc.attendanceDoc && doc.attendanceDoc.status || "attended";
+            var toggleBtn = document.createElement("button");
+            toggleBtn.type = "button";
+            toggleBtn.className = "attendance-status-toggle attendance-status-" + status;
+            toggleBtn.setAttribute("data-player-name", doc.playerName || "");
+            toggleBtn.setAttribute("data-doc-id", doc.docId || doc.playerName || "");
+            toggleBtn.setAttribute("data-current-status", status);
+            toggleBtn.setAttribute("data-action", "cycle-attendance-status");
+            toggleBtn.textContent = t2("attendance_status_" + status);
+            if (isFinalized) {
+              toggleBtn.disabled = true;
+              toggleBtn.setAttribute("aria-disabled", "true");
+            }
             row.appendChild(nameEl);
-            var radioGroup = document.createElement("div");
-            radioGroup.className = "attendance-radio-group";
-            var groupName = "attendance_" + (doc.docId || doc.playerName || "").replace(/\s+/g, "_");
-            statuses.forEach(function(s) {
-              var label = document.createElement("label");
-              var radio = document.createElement("input");
-              radio.type = "radio";
-              radio.name = groupName;
-              radio.value = s;
-              radio.setAttribute("data-player-name", doc.playerName || "");
-              if (doc.status === s) {
-                radio.checked = true;
-              }
-              if (historyDoc && historyDoc.finalized) {
-                radio.disabled = true;
-              }
-              label.appendChild(radio);
-              label.appendChild(document.createTextNode(" " + (statusLabels[s] || s)));
-              radioGroup.appendChild(label);
-            });
-            row.appendChild(radioGroup);
-            container.appendChild(row);
+            row.appendChild(roleBadge);
+            row.appendChild(toggleBtn);
+            table.appendChild(row);
           });
+          container.appendChild(table);
         }
-        function renderReliabilityDot(score, tier) {
-          tier = tier || { cssClass: "reliability-new", label: "No history" };
-          var dot = document.createElement("span");
-          dot.className = "reliability-dot " + tier.cssClass;
-          var ariaLabel = score !== null && score !== void 0 ? "Reliability: " + score + "% (" + tier.label + ")" : "No history yet";
-          dot.setAttribute("aria-label", ariaLabel);
-          dot.setAttribute("title", ariaLabel);
-          return dot;
+        function updateToggleButton(button, newStatus, translate) {
+          var t2 = getTranslator(translate);
+          var statuses = global2.DSFeatureEventHistoryCore ? global2.DSFeatureEventHistoryCore.ATTENDANCE_STATUSES : ["attended", "no_show", "excused"];
+          statuses.forEach(function(s) {
+            button.classList.remove("attendance-status-" + s);
+          });
+          button.classList.add("attendance-status-" + newStatus);
+          button.setAttribute("data-current-status", newStatus);
+          button.textContent = t2("attendance_status_" + newStatus);
         }
         function renderPendingBadge(container, count) {
           if (!container) return;
@@ -15249,11 +15333,21 @@
             container.classList.add("hidden");
           }
         }
+        function renderReliabilityDot(score, tier) {
+          tier = tier || { cssClass: "reliability-new", label: "No history" };
+          var dot = document.createElement("span");
+          dot.className = "reliability-dot " + tier.cssClass;
+          var ariaLabel = score !== null && score !== void 0 ? "Reliability: " + score + "% (" + tier.label + ")" : "No history yet";
+          dot.setAttribute("aria-label", ariaLabel);
+          dot.setAttribute("title", ariaLabel);
+          return dot;
+        }
         global2.DSFeatureEventHistoryView = {
           renderHistoryList,
           renderAttendancePanel,
-          renderReliabilityDot,
-          renderPendingBadge
+          updateToggleButton,
+          renderPendingBadge,
+          renderReliabilityDot
         };
       })(window);
     }
@@ -15266,6 +15360,7 @@
         var _gateway = null;
         var _unsubscribePendingCount = null;
         var _currentHistoryDoc = null;
+        var MAX_HISTORY_PER_EVENT = 10;
         function getAllianceId() {
           return _gateway ? _gateway.getAllianceId() : null;
         }
@@ -15274,6 +15369,11 @@
             return _gateway.getCurrentUser();
           }
           return null;
+        }
+        function getTranslate() {
+          return typeof global2.t === "function" ? global2.t : function(k) {
+            return k;
+          };
         }
         function init(gateway) {
           _gateway = gateway;
@@ -15289,6 +15389,73 @@
               }
             );
           }
+          var attendanceBody = document.getElementById("attendancePanelBody");
+          if (attendanceBody) {
+            attendanceBody.addEventListener("click", function(e) {
+              var btn = e.target.closest('[data-action="cycle-attendance-status"]');
+              if (!btn || btn.disabled) return;
+              var playerName = btn.getAttribute("data-player-name");
+              var currentStatus = btn.getAttribute("data-current-status");
+              var docId = btn.getAttribute("data-doc-id");
+              var modal = document.getElementById("attendancePanelModal");
+              var historyId = modal ? modal.getAttribute("data-history-id") : null;
+              if (!historyId || !playerName) return;
+              var core = global2.DSFeatureEventHistoryCore;
+              var newStatus = core ? core.nextAttendanceStatus(currentStatus) : "attended";
+              if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.updateToggleButton === "function") {
+                global2.DSFeatureEventHistoryView.updateToggleButton(btn, newStatus, getTranslate());
+              }
+              var allianceId2 = getAllianceId();
+              var user = getCurrentUser();
+              var markedBy = user ? user.uid : null;
+              if (_gateway && typeof _gateway.updateAttendanceStatus === "function") {
+                _gateway.updateAttendanceStatus(allianceId2, historyId, docId || playerName, newStatus, markedBy).catch(function(err) {
+                  console.error("toggleAttendanceStatus error:", err);
+                  if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.updateToggleButton === "function") {
+                    global2.DSFeatureEventHistoryView.updateToggleButton(btn, currentStatus, getTranslate());
+                  }
+                });
+              }
+            });
+          }
+          var historyContainer = document.getElementById("eventHistoryContainer");
+          if (historyContainer) {
+            historyContainer.addEventListener("click", function(e) {
+              var btn = e.target.closest('[data-action="open-attendance"]');
+              if (!btn) return;
+              var historyId = btn.getAttribute("data-history-id");
+              if (historyId) {
+                openAttendancePanel(historyId);
+              }
+            });
+          }
+          var finalizeBtn = document.getElementById("attendanceFinalizeBtn");
+          if (finalizeBtn) {
+            finalizeBtn.addEventListener("click", function() {
+              var modal = document.getElementById("attendancePanelModal");
+              var historyId = modal ? modal.getAttribute("data-history-id") : null;
+              if (!historyId) return;
+              var confirmed = confirm(getTranslate()("attendance_finalize_confirm"));
+              if (!confirmed) return;
+              finalizeAttendance(historyId, function() {
+                if (modal) modal.classList.add("hidden");
+                showEventHistoryView();
+              });
+            });
+          }
+          var cancelBtn = document.getElementById("attendanceCancelBtn");
+          if (cancelBtn) {
+            cancelBtn.addEventListener("click", function() {
+              var modal = document.getElementById("attendancePanelModal");
+              if (modal) modal.classList.add("hidden");
+            });
+          }
+          var filterEl = document.getElementById("eventHistoryFilterEventType");
+          if (filterEl) {
+            filterEl.addEventListener("change", function() {
+              showEventHistoryView();
+            });
+          }
           return {
             destroy: function destroy() {
               if (typeof _unsubscribePendingCount === "function") {
@@ -15300,80 +15467,136 @@
             }
           };
         }
+        function populateEventTypeFilter() {
+          var select = document.getElementById("eventHistoryFilterEventType");
+          if (!select) return;
+          var registry = global2.DSEventsRegistryController;
+          if (!registry || typeof registry.getEventIds !== "function") return;
+          var eventIds = registry.getEventIds();
+          while (select.options.length > 1) {
+            select.remove(1);
+          }
+          eventIds.forEach(function(eventId) {
+            var option = document.createElement("option");
+            option.value = eventId;
+            option.textContent = registry.getEventDisplayName ? registry.getEventDisplayName(eventId) : eventId;
+            select.appendChild(option);
+          });
+        }
         function showEventHistoryView() {
-          var allianceId = getAllianceId();
-          if (!allianceId || !_gateway) {
-            console.error("showEventHistoryView: no alliance or gateway");
+          if (!_gateway) {
+            console.error("showEventHistoryView: no gateway");
             return;
           }
+          populateEventTypeFilter();
+          var allianceId = getAllianceId();
           var filters = {};
           if (global2.DSFeatureEventHistoryActions && typeof global2.DSFeatureEventHistoryActions.readHistoryFilterState === "function") {
             filters = global2.DSFeatureEventHistoryActions.readHistoryFilterState();
           }
+          filters.activeOnly = true;
           _gateway.loadHistoryRecords(allianceId, filters).then(function(records) {
             var container = document.getElementById("eventHistoryContainer");
             if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderHistoryList === "function") {
-              global2.DSFeatureEventHistoryView.renderHistoryList(container, records);
+              global2.DSFeatureEventHistoryView.renderHistoryList(container, records, {
+                translate: getTranslate(),
+                onOpenAttendance: openAttendancePanel
+              });
             }
           }).catch(function(err) {
             console.error("showEventHistoryView error:", err);
           });
         }
-        async function saveAssignmentAsHistory(assignment) {
+        async function autoSave(team, assignments, substitutes, context) {
           try {
-            var allianceId = getAllianceId();
-            if (!allianceId || !_gateway) {
-              return { ok: false, error: "Not available" };
+            if (!_gateway) {
+              return { ok: false, error: "Not initialized" };
             }
             var user = getCurrentUser();
             var createdByUid = user ? user.uid : null;
-            if (!global2.DSFeatureEventHistoryCore || typeof global2.DSFeatureEventHistoryCore.buildHistoryRecord !== "function") {
+            var players = (assignments || []).map(function(a) {
+              return {
+                playerName: a.playerName || a.name || "",
+                building: a.building || null,
+                role: "starter"
+              };
+            });
+            (substitutes || []).forEach(function(s) {
+              players.push({
+                playerName: s.playerName || s.name || "",
+                building: null,
+                role: "substitute"
+              });
+            });
+            var core = global2.DSFeatureEventHistoryCore;
+            if (!core || typeof core.buildHistoryRecord !== "function") {
               return { ok: false, error: "DSFeatureEventHistoryCore not available" };
             }
-            var record = global2.DSFeatureEventHistoryCore.buildHistoryRecord(assignment, createdByUid);
+            var record = core.buildHistoryRecord({
+              team,
+              players,
+              eventTypeId: context.eventTypeId,
+              eventDisplayName: context.eventDisplayName,
+              gameId: context.gameId
+            }, createdByUid);
+            var allianceId = getAllianceId();
             var saveResult = await _gateway.saveHistoryRecord(allianceId, record);
             if (!saveResult || !saveResult.ok) {
               return saveResult || { ok: false, error: "Unknown error saving history record" };
             }
             var historyId = saveResult.historyId;
-            var attendanceDocs = global2.DSFeatureEventHistoryCore.buildAttendanceDocs(record.teamAssignments);
+            var attendanceDocs = core.buildAttendanceDocs(record.players, record.team);
             if (attendanceDocs.length > 0) {
-              var batchResult = await _gateway.saveAttendanceBatch(allianceId, historyId, attendanceDocs.map(function(entry) {
+              await _gateway.saveAttendanceBatch(allianceId, historyId, attendanceDocs.map(function(entry) {
                 return { docId: entry.docId, doc: entry.attendanceDoc };
               }));
-              if (!batchResult || !batchResult.ok) {
-                console.error("saveAssignmentAsHistory: attendance batch failed", batchResult);
-              }
+            }
+            if (typeof _gateway.enforceEventHistoryLimit === "function") {
+              await _gateway.enforceEventHistoryLimit(allianceId, context.eventTypeId, MAX_HISTORY_PER_EVENT);
             }
             return { ok: true, historyId };
           } catch (err) {
-            console.error("saveAssignmentAsHistory error:", err);
+            console.error("autoSave event history error:", err);
             return { ok: false, error: err.message };
           }
         }
+        async function saveAssignmentAsHistory(assignment) {
+          var team = assignment.team || "A";
+          var players = [];
+          if (assignment.teamAssignments) {
+            var teamData = team === "A" ? assignment.teamAssignments.teamA : assignment.teamAssignments.teamB;
+            players = Array.isArray(teamData) ? teamData : [];
+          } else if (Array.isArray(assignment.players)) {
+            players = assignment.players;
+          }
+          return autoSave(team, players, [], {
+            eventTypeId: assignment.eventTypeId || null,
+            eventDisplayName: assignment.eventDisplayName || assignment.eventName || null,
+            gameId: assignment.gameId || null
+          });
+        }
         async function openAttendancePanel(historyId) {
           try {
-            var allianceId = getAllianceId();
-            if (!allianceId || !_gateway || !historyId) {
+            if (!_gateway || !historyId) {
               console.error("openAttendancePanel: missing params");
               return;
             }
+            var allianceId = getAllianceId();
             var attendanceDocs = await _gateway.loadAttendance(allianceId, historyId);
             var historyDoc = _currentHistoryDoc;
             if (!historyDoc || historyDoc.id !== historyId) {
-              var records = await _gateway.loadHistoryRecords(allianceId, {});
+              var filters = { activeOnly: true };
+              var records = await _gateway.loadHistoryRecords(allianceId, filters);
               historyDoc = records.find(function(r) {
                 return r.id === historyId;
               }) || null;
               _currentHistoryDoc = historyDoc;
             }
-            var stalenessCheck = null;
-            if (global2.DSFeatureEventHistoryCore && typeof global2.DSFeatureEventHistoryCore.checkFinalizationStaleness === "function") {
-              stalenessCheck = global2.DSFeatureEventHistoryCore.checkFinalizationStaleness(historyDoc, /* @__PURE__ */ new Date());
-            }
             var container = document.getElementById("attendancePanelBody");
             if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderAttendancePanel === "function") {
-              global2.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs, { stalenessCheck });
+              global2.DSFeatureEventHistoryView.renderAttendancePanel(container, historyDoc, attendanceDocs, {
+                translate: getTranslate()
+              });
             }
             var modal = document.getElementById("attendancePanelModal");
             if (modal) {
@@ -15384,42 +15607,17 @@
             console.error("openAttendancePanel error:", err);
           }
         }
-        async function markAttendanceBatch(historyId, attendanceMap) {
+        async function finalizeAttendance(historyId, onSuccess) {
           try {
             var allianceId = getAllianceId();
-            if (!allianceId || !_gateway || !historyId) {
+            if (!_gateway || !historyId) {
               return { ok: false, error: "Not available" };
             }
-            if (!attendanceMap || typeof attendanceMap !== "object") {
-              return { ok: false, error: "Invalid attendanceMap" };
-            }
-            var utils = global2.DSFirestoreUtils;
-            var playerNames = Object.keys(attendanceMap);
-            var user = getCurrentUser();
-            var markedBy = user ? user.uid || null : null;
-            var promises = playerNames.map(function(playerName) {
-              var status = attendanceMap[playerName];
-              var docId = utils ? utils.sanitizeDocId(playerName) : playerName;
-              return _gateway.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy);
-            });
-            var results = await Promise.all(promises);
-            var failed = results.filter(function(r) {
-              return !r || !r.ok;
-            });
-            if (failed.length > 0) {
-              return { ok: false, error: "Some attendance updates failed" };
-            }
-            return { ok: true };
-          } catch (err) {
-            console.error("markAttendanceBatch error:", err);
-            return { ok: false, error: err.message };
-          }
-        }
-        async function finalizeAttendance(historyId) {
-          try {
-            var allianceId = getAllianceId();
-            if (!allianceId || !_gateway || !historyId) {
-              return { ok: false, error: "Not available" };
+            if (!_currentHistoryDoc || _currentHistoryDoc.id !== historyId) {
+              var records = await _gateway.loadHistoryRecords(allianceId, { activeOnly: true });
+              _currentHistoryDoc = records.find(function(r) {
+                return r.id === historyId;
+              }) || null;
             }
             var attendanceDocs = await _gateway.loadAttendance(allianceId, historyId);
             var utils = global2.DSFirestoreUtils;
@@ -15428,7 +15626,7 @@
               return doc.docId || (utils ? utils.sanitizeDocId(doc.playerName) : doc.playerName);
             });
             var existingStats = {};
-            if (playerDocIds.length > 0) {
+            if (playerDocIds.length > 0 && typeof _gateway.loadPlayerStats === "function") {
               existingStats = await _gateway.loadPlayerStats(allianceId, playerDocIds);
             }
             var playerStatsUpdates = [];
@@ -15440,8 +15638,7 @@
                 var newEntry = {
                   historyId,
                   status: doc.status,
-                  eventName: _currentHistoryDoc && _currentHistoryDoc.eventName || null,
-                  scheduledAt: _currentHistoryDoc && _currentHistoryDoc.scheduledAt || null
+                  eventName: _currentHistoryDoc && _currentHistoryDoc.eventName || null
                 };
                 var updatedHistory = [newEntry].concat(recentHistory);
                 var newStats = reliability.recalculatePlayerStats(updatedHistory, existing);
@@ -15451,9 +15648,13 @@
             var result = await _gateway.finalizeHistory(allianceId, historyId, playerStatsUpdates);
             if (result && result.ok) {
               _currentHistoryDoc = null;
-              var modal = document.getElementById("attendancePanelModal");
-              if (modal) {
-                modal.classList.add("hidden");
+              if (typeof onSuccess === "function") {
+                onSuccess();
+              } else {
+                var modal = document.getElementById("attendancePanelModal");
+                if (modal) {
+                  modal.classList.add("hidden");
+                }
               }
             }
             return result || { ok: false, error: "Unknown error" };
@@ -15465,9 +15666,9 @@
         global2.DSFeatureEventHistoryController = {
           init,
           showEventHistoryView,
+          autoSave,
           saveAssignmentAsHistory,
           openAttendancePanel,
-          markAttendanceBatch,
           finalizeAttendance
         };
       })(window);
@@ -17745,6 +17946,12 @@
             updateAttendanceStatus: async function updateAttendanceStatus(allianceId, historyId, docId, status, markedBy) {
               return gatewayUtils.withManager(
                 (svc) => svc.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy),
+                gatewayUtils.notLoadedResult()
+              );
+            },
+            enforceEventHistoryLimit: async function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
+              return gatewayUtils.withManager(
+                (svc) => svc.enforceEventHistoryLimit(allianceId, eventTypeId, limit),
                 gatewayUtils.notLoadedResult()
               );
             },
@@ -24937,6 +25144,15 @@
         } else {
           assignmentsB = assignments;
           substitutesB = substitutePlayers;
+        }
+        if (window._eventHistoryController && typeof window._eventHistoryController.autoSave === "function") {
+          window._eventHistoryController.autoSave(team, assignments, substitutePlayers, {
+            eventTypeId: currentEvent,
+            eventDisplayName: getEventDisplayName(currentEvent),
+            gameId: activeGameId
+          }).catch(function(err) {
+            console.error("Event history auto-save failed (non-blocking):", err);
+          });
         }
         openDownloadModal(team);
         console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes using ${algorithmSelection.algorithmId}`);

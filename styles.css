@@ -131,7 +131,16 @@
     --ds-status-cancelled-text: #757575;
     --ds-border-default: rgba(var(--ds-accent-primary-rgb), 0.26);
     --ds-border-strong: rgba(var(--ds-accent-primary-rgb), 0.46);
+    --ds-border-subtle: rgba(255, 255, 255, 0.10);
     --ds-border-inverse: #CCD3E0;
+    --ds-radius-sm: 4px;
+    --ds-accent-danger: #FF5252;
+    --ds-accent-danger-bg: rgba(255, 82, 82, 0.18);
+    --ds-accent-warning: #FFC107;
+    --ds-accent-warning-bg: rgba(255, 193, 7, 0.18);
+    --ds-accent-secondary-bg: rgba(255, 255, 255, 0.08);
+    --ds-team-a-bg: rgba(74, 158, 255, 0.12);
+    --ds-team-b-bg: rgba(255, 107, 74, 0.12);
     --ds-button-primary-start: #F9A826;
     --ds-button-primary-end: #FF6B35;
     --ds-button-primary-text: #ffffff;
@@ -190,6 +199,15 @@
     --ds-team-b-light: #F07D60;
     --ds-border-default: rgba(232, 168, 48, 0.22);
     --ds-border-strong: rgba(232, 168, 48, 0.42);
+    --ds-border-subtle: rgba(255, 255, 255, 0.08);
+    --ds-radius-sm: 4px;
+    --ds-accent-danger: #EF5350;
+    --ds-accent-danger-bg: rgba(239, 83, 80, 0.18);
+    --ds-accent-warning: #E8A020;
+    --ds-accent-warning-bg: rgba(232, 160, 32, 0.18);
+    --ds-accent-secondary-bg: rgba(255, 255, 255, 0.07);
+    --ds-team-a-bg: rgba(90, 160, 200, 0.12);
+    --ds-team-b-bg: rgba(240, 140, 100, 0.12);
     --ds-button-primary-start: #CC7A20;
     --ds-button-primary-end: #A03818;
     --ds-button-primary-text: #F0EBDA;
@@ -301,7 +319,16 @@
     --ds-status-cancelled-text: #757575;
     --ds-border-default: #D6CDBD;
     --ds-border-strong: #B5A994;
+    --ds-border-subtle: rgba(0, 0, 0, 0.12);
     --ds-border-inverse: #7A6E5D;
+    --ds-radius-sm: 4px;
+    --ds-accent-danger: #B71C1C;
+    --ds-accent-danger-bg: #FFEBEE;
+    --ds-accent-warning: #BF360C;
+    --ds-accent-warning-bg: #FFF3E0;
+    --ds-accent-secondary-bg: rgba(0, 0, 0, 0.06);
+    --ds-team-a-bg: rgba(30, 58, 122, 0.10);
+    --ds-team-b-bg: rgba(122, 14, 34, 0.10);
     --ds-button-primary-start: #9A7209;
     --ds-button-primary-end: #7A5A00;
     --ds-button-primary-text: #FFFFFF;
@@ -4103,43 +4130,162 @@ select {
 }
 .nav-badge.hidden { display: none; }
 
+/* Event history filter bar */
+.event-history-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+}
+.event-history-filter-bar label {
+    font-size: 13px;
+    color: var(--ds-text-muted);
+    white-space: nowrap;
+}
+
 /* Event history list */
-.event-history-list { list-style: none; padding: 0; margin: 0; }
+.event-history-list { padding: 0; margin: 0; }
+.event-history-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--ds-text-muted);
+}
 .event-history-item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--color-border);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ds-border-subtle, var(--ds-border-default));
+    transition: background 0.1s;
 }
-.event-history-item-name { font-weight: 600; flex: 1; }
-.event-history-item-date { font-size: 12px; color: var(--color-text-muted); }
-.event-history-item-status {
+.event-history-item:hover {
+    background: var(--ds-surface-hover, rgba(255,255,255,0.03));
+}
+.event-history-team-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.event-history-team-badge[data-team="A"] {
+    background: var(--ds-team-a-bg, rgba(74, 158, 255, 0.15));
+    color: var(--ds-team-a-text, #4A9EFF);
+}
+.event-history-team-badge[data-team="B"] {
+    background: var(--ds-team-b-bg, rgba(255, 107, 74, 0.15));
+    color: var(--ds-team-b-text, #FF6B4A);
+}
+.event-history-item-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.event-history-item-name {
+    font-weight: 600;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.event-history-item-date {
     font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 12px;
+    color: var(--ds-text-muted);
 }
-.event-history-status-completed { background: var(--ds-status-completed-bg); color: var(--ds-status-completed-text); }
-.event-history-status-planned    { background: var(--ds-status-planned-bg); color: var(--ds-status-planned-text); }
-.event-history-status-cancelled  { background: var(--ds-status-cancelled-bg); color: var(--ds-status-cancelled-text); }
+.event-history-item-players {
+    font-size: 12px;
+    color: var(--ds-text-muted);
+}
+.event-history-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.event-history-attendance-btn {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: var(--ds-radius-sm, 4px);
+    cursor: pointer;
+    border: 1px solid var(--ds-border-subtle, var(--ds-border-default));
+    background: var(--ds-surface-elevated, transparent);
+    color: var(--ds-text-primary);
+    white-space: nowrap;
+}
+.event-history-attendance-btn:hover {
+    background: var(--ds-surface-hover, rgba(255,255,255,0.06));
+}
+.event-history-finalized-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--ds-status-completed-bg, rgba(76,175,80,0.15));
+    color: var(--ds-status-completed-text, #4CAF50);
+    white-space: nowrap;
+}
 
 /* Attendance panel */
+.attendance-header {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--ds-border-subtle, var(--ds-border-default));
+}
+.attendance-event-name {
+    font-weight: 600;
+    font-size: 15px;
+}
+.attendance-table { margin: 0; }
 .attendance-player-row {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 8px 0;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--ds-border-subtle, var(--ds-border-default));
 }
-.attendance-player-name { flex: 1; font-weight: 500; }
-.attendance-radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
-.attendance-staleness-warning {
-    padding: 10px 14px;
-    background: var(--ds-staleness-warning-bg);
-    border-left: 3px solid var(--ds-staleness-warning-border);
-    border-radius: 4px;
-    font-size: 13px;
-    margin-bottom: 12px;
+.attendance-player-name { flex: 1; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attendance-role-badge {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--ds-accent-secondary-bg, rgba(255,255,255,0.08));
+    color: var(--ds-text-muted);
+}
+.attendance-role-badge.hidden { display: none; }
+
+/* Attendance status toggle button */
+.attendance-status-toggle {
+    min-width: 90px;
+    padding: 4px 12px;
+    border-radius: var(--ds-radius-sm, 4px);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s, color 0.15s;
+    text-align: center;
+}
+.attendance-status-toggle:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.attendance-status-toggle.attendance-status-attended {
+    background: var(--ds-status-completed-bg, rgba(76,175,80,0.2));
+    color: var(--ds-status-completed-text, #4CAF50);
+}
+.attendance-status-toggle.attendance-status-no_show {
+    background: var(--ds-accent-danger-bg, rgba(244,67,54,0.2));
+    color: var(--ds-accent-danger, #F44336);
+}
+.attendance-status-toggle.attendance-status-excused {
+    background: var(--ds-accent-warning-bg, rgba(255,193,7,0.2));
+    color: var(--ds-accent-warning, #FFC107);
 }
 
 /* ============================================================
