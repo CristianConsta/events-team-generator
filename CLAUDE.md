@@ -227,14 +227,13 @@ alliances/{allianceId}/
   members/{uid}             # Alliance membership
   invitations/{inviteId}    # Pending invites
 
-event_history/{docId}       # Global event history records
-  {auto-generated fields}   # timestamp, event_name, team_count, etc.
+games/{gameId}/
+  event_history/{historyId}   # Event history records (solo + alliance dual-write)
+    attendance/{playerDocId}  # Per-player attendance status
 
-attendance/{docId}          # Event attendance tracking
-  {auto-generated fields}   # Tracks which players attended which events
-
-player_stats/{docId}        # Aggregated player statistics
-  {auto-generated fields}   # Win rate, team assignments count, etc.
+alliances/{allianceId}/
+  event_history/{historyId}   # Alliance event history (dual-write with game-scoped)
+    attendance/{playerDocId}  # Per-player attendance status
 
 update_tokens/{tokenId}     # One-time tokens for player-facing updates
   {auto-generated fields}   # Secure link for player to update own data
@@ -646,17 +645,18 @@ games/{gameId}/                           ← shared game-level data
                                                expiresAt, used, gameId, currentSnapshot }
     pending_updates/{updateId}            ← { playerName, proposedValues, status,
                                                submittedAt, reviewedBy, contextType }
-    event_history/{historyId}             ← { eventName, eventId, gameId, createdByUid,
-                                               teamAssignments[], finalized, finalizedAt }
-      attendance/{playerDocId}            ← { playerName, status, markedBy, markedAt }
+    event_history/{historyId}             ← { eventName, eventTypeId, team, players[],
+                                               gameId, createdByUid, createdAt,
+                                               active, finalized, finalizedAt }
+      attendance/{playerDocId}            ← { playerName, team, status, markedBy, markedAt }
   user_state/{uid}                        ← { allianceId, playerSource, migrationVersion }
   soloplayers/{uid}/                      ← non-alliance user data
     players/{playerId}                    ← personal player DB
     update_tokens/{tokenId}               ← personal update tokens
     pending_updates/{updateId}            ← personal pending updates
-  event_history/{historyId}               ← game-scoped non-alliance history
-
-player_stats/{docId}                      ← { winRate, attendanceRate, recentHistory[], lastUpdated }
+  event_history/{historyId}               ← game-scoped event history (solo primary,
+                                               alliance dual-write)
+    attendance/{playerDocId}              ← { playerName, team, status, markedBy, markedAt }
 ```
 
 ### Collection → Code mapping
@@ -671,9 +671,10 @@ player_stats/{docId}                      ← { winRate, attendanceRate, recentH
 | `alliances/{id}/alliance_players` | `getAlliancePlayerDatabase()` | `uploadAlliancePlayerDatabase()`, `applyPlayerUpdateToAlliance()` |
 | `alliances/{id}/update_tokens` | `loadActiveTokens()` | `saveTokenBatch()`, `revokeToken()` |
 | `alliances/{id}/pending_updates` | `loadPendingUpdates()`, `subscribePendingUpdatesCount()` | player-update.html, `updatePendingUpdateStatus()` |
-| `alliances/{id}/event_history` | `loadHistoryRecords()`, `subscribePendingFinalizationCount()` | `saveHistoryRecord()`, `finalizeHistory()` |
-| `event_history/{id}/attendance` | `loadEventAttendance()` | `saveAttendanceBatch()`, `updateAttendanceStatus()` |
-| `player_stats/{docId}` | `loadPlayerStats()` | `finalizeEventHistory()` |
+| `games/{gid}/event_history` | `loadHistoryRecords()` | `saveHistoryRecord()`, `finalizeHistory()`, `enforceEventHistoryLimit()` |
+| `alliances/{id}/event_history` | `loadHistoryRecords()`, `subscribePendingFinalizationCount()` | `saveHistoryRecord()` (dual-write), `finalizeHistory()` |
+| `*/event_history/{id}/attendance` | `loadAttendance()` | `saveAttendanceBatch()`, `updateAttendanceStatus()` |
+| `*/event_history/{id}/player_stats` | `loadPlayerStats()` | `finalizeHistory()` |
 
 ### Key Window Globals Reference
 
