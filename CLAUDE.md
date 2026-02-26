@@ -228,12 +228,8 @@ alliances/{allianceId}/
   invitations/{inviteId}    # Pending invites
 
 games/{gameId}/
-  event_history/{historyId}   # Event history records (solo + alliance dual-write)
-    attendance/{playerDocId}  # Per-player attendance status
-
-alliances/{allianceId}/
-  event_history/{historyId}   # Alliance event history (dual-write with game-scoped)
-    attendance/{playerDocId}  # Per-player attendance status
+  event_history/{historyId}   # All history records (solo + alliance, shared collection)
+    player_stats/{playerDocId}# Per-player attendance status
 
 update_tokens/{tokenId}     # One-time tokens for player-facing updates
   {auto-generated fields}   # Secure link for player to update own data
@@ -645,18 +641,20 @@ games/{gameId}/                           ← shared game-level data
                                                expiresAt, used, gameId, currentSnapshot }
     pending_updates/{updateId}            ← { playerName, proposedValues, status,
                                                submittedAt, reviewedBy, contextType }
-    event_history/{historyId}             ← { eventName, eventTypeId, team, players[],
-                                               gameId, createdByUid, createdAt,
-                                               active, finalized, finalizedAt }
-      attendance/{playerDocId}            ← { playerName, team, status, markedBy, markedAt }
+    event_history/{historyId}             ← legacy dual-write (alliance path, read as fallback)
+      attendance/{playerDocId}            ← legacy attendance subcollection
   user_state/{uid}                        ← { allianceId, playerSource, migrationVersion }
   soloplayers/{uid}/                      ← non-alliance user data
     players/{playerId}                    ← personal player DB
     update_tokens/{tokenId}               ← personal update tokens
     pending_updates/{updateId}            ← personal pending updates
-  event_history/{historyId}               ← game-scoped event history (solo primary,
-                                               alliance dual-write)
-    attendance/{playerDocId}              ← { playerName, team, status, markedBy, markedAt }
+  event_history/{historyId}               ← { eventName, eventTypeId, team, players[],
+                                               gameId, createdByUid, createdAt,
+                                               active, finalized, finalizedAt }
+                                            Single collection for all users (solo + alliance).
+                                            Alliance members share records via allianceId field.
+                                            10-entry limit per eventTypeId enforced on write.
+    player_stats/{playerDocId}            ← { playerName, team, status, markedBy, markedAt }
 ```
 
 ### Collection → Code mapping
@@ -672,9 +670,8 @@ games/{gameId}/                           ← shared game-level data
 | `alliances/{id}/update_tokens` | `loadActiveTokens()` | `saveTokenBatch()`, `revokeToken()` |
 | `alliances/{id}/pending_updates` | `loadPendingUpdates()`, `subscribePendingUpdatesCount()` | player-update.html, `updatePendingUpdateStatus()` |
 | `games/{gid}/event_history` | `loadHistoryRecords()` | `saveHistoryRecord()`, `finalizeHistory()`, `enforceEventHistoryLimit()` |
-| `alliances/{id}/event_history` | `loadHistoryRecords()`, `subscribePendingFinalizationCount()` | `saveHistoryRecord()` (dual-write), `finalizeHistory()` |
-| `*/event_history/{id}/attendance` | `loadAttendance()` | `saveAttendanceBatch()`, `updateAttendanceStatus()` |
-| `*/event_history/{id}/player_stats` | `loadPlayerStats()` | `finalizeHistory()` |
+| `games/{gid}/event_history/{id}/player_stats` | `loadEventAttendance()` | `saveAttendanceBatch()`, `updateAttendanceStatus()`, `finalizeHistory()` |
+| `alliances/{id}/event_history` | `loadHistoryRecords()` (fallback), `subscribePendingFinalizationCount()` | `saveHistoryRecord()` (legacy dual-write) |
 
 ### Key Window Globals Reference
 
