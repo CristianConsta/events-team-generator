@@ -4,6 +4,32 @@
       "collectionGroup": "event_history",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "event_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventTypeId", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "event_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventTypeId", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "event_history",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "gameId", "order": "ASCENDING" },
         { "fieldPath": "scheduledAt", "order": "DESCENDING" }
       ]
