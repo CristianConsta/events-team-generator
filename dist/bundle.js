@@ -21637,12 +21637,8 @@
           if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === "function") {
             window._eventHistoryController.showEventHistoryView();
           }
-          const eventHistoryView = document.getElementById("eventHistoryView");
+          var eventHistoryView = document.getElementById("eventHistoryView");
           if (eventHistoryView) {
-            const allViewSections = document.querySelectorAll(".view-section");
-            allViewSections.forEach(function(s) {
-              s.classList.add("hidden");
-            });
             eventHistoryView.classList.remove("hidden");
           }
           closeNavigationMenu();
@@ -22556,7 +22552,7 @@
         reserveSpaceForFooter();
       }
       function hideAllMainPages() {
-        var pages = ["generatorPage", "configurationPage", "playersManagementPage", "alliancePage", "supportPage"];
+        var pages = ["generatorPage", "configurationPage", "playersManagementPage", "alliancePage", "supportPage", "eventHistoryView", "playerUpdatesReviewView"];
         pages.forEach(function(id) {
           var el = document.getElementById(id);
           if (el) el.classList.add("hidden");
@@ -22567,6 +22563,11 @@
         var allViewSections = document.querySelectorAll(".view-section");
         allViewSections.forEach(function(s) {
           s.classList.add("hidden");
+        });
+        var featureViews = ["eventHistoryView", "playerUpdatesReviewView"];
+        featureViews.forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.classList.add("hidden");
         });
         const generatorPage = document.getElementById("generatorPage");
         const configurationPage = document.getElementById("configurationPage");
