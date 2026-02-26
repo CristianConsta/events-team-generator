@@ -2,7 +2,7 @@
   "indexes": [
     {
       "collectionGroup": "event_history",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "active", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
@@ -10,7 +10,7 @@
     },
     {
       "collectionGroup": "event_history",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "eventTypeId", "order": "ASCENDING" },
         { "fieldPath": "active", "order": "ASCENDING" },
@@ -19,34 +19,11 @@
     },
     {
       "collectionGroup": "event_history",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "eventTypeId", "order": "ASCENDING" },
         { "fieldPath": "active", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "event_history",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "gameId", "order": "ASCENDING" },
-        { "fieldPath": "scheduledAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "event_history",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "scheduledAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "event_history",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "finalized", "order": "ASCENDING" }
       ]
     }
   ],
