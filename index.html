@@ -972,13 +972,15 @@
         </div>
 
         <!-- Attendance Check-in Modal -->
-        <div id="attendancePanelModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="attendancePanelTitle">
-            <div class="modal-card">
-                <h2 id="attendancePanelTitle" data-i18n="attendance_panel_title">Mark Attendance</h2>
+        <div id="attendancePanelModal" class="coord-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="attendancePanelTitle" tabindex="-1">
+            <div class="modal-shell modal-shell--attendance">
+                <div class="modal-header">
+                    <h2 id="attendancePanelTitle" class="modal-title" data-i18n="attendance_panel_title">Mark Attendance</h2>
+                    <button id="attendanceCancelBtn" class="clear-btn" title="Close" aria-label="Close"><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></span></button>
+                </div>
                 <div id="attendancePanelBody"></div>
-                <div class="modal-actions">
+                <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
                     <button id="attendanceFinalizeBtn" class="primary" title="Finalize attendance" aria-label="Finalize attendance"><span class="action-btn-text" data-i18n="attendance_finalize_btn">Finalize Attendance</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 7,12 13,4"/></svg></span></button>
-                    <button id="attendanceCancelBtn" class="secondary" title="Cancel" aria-label="Cancel"><span class="action-btn-text" data-i18n="players_list_cancel_button">Cancel</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></span></button>
                 </div>
             </div>
         </div>
