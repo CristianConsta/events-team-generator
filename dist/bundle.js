@@ -15520,14 +15520,14 @@
             var createdByUid = user ? user.uid : null;
             var players = (assignments || []).map(function(a) {
               return {
-                playerName: a.playerName || a.name || "",
+                playerName: a.playerName || a.player || a.name || "",
                 building: a.building || null,
                 role: "starter"
               };
             });
             (substitutes || []).forEach(function(s) {
               players.push({
-                playerName: s.playerName || s.name || "",
+                playerName: s.playerName || s.player || s.name || "",
                 building: null,
                 role: "substitute"
               });
