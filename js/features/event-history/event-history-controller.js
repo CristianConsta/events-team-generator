@@ -128,6 +128,10 @@
                 _gateway = null;
                 _currentHistoryDoc = null;
             },
+            showEventHistoryView: showEventHistoryView,
+            autoSave: autoSave,
+            openAttendancePanel: openAttendancePanel,
+            finalizeAttendance: finalizeAttendance,
         };
     }
 

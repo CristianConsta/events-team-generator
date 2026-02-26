@@ -15464,7 +15464,11 @@
               }
               _gateway = null;
               _currentHistoryDoc = null;
-            }
+            },
+            showEventHistoryView,
+            autoSave,
+            openAttendancePanel,
+            finalizeAttendance
           };
         }
         function populateEventTypeFilter() {
