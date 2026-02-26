@@ -4160,30 +4160,6 @@ select {
 .nav-badge.hidden { display: none; }
 
 /* Event history filter bar */
-.event-history-filter-bar {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    margin-bottom: 12px;
-}
-.event-history-filter-bar input,
-.event-history-filter-bar select {
-    min-height: 42px;
-    width: 100%;
-    padding: 9px 10px;
-    border-radius: var(--ds-radius-sm, 4px);
-    border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.32);
-    background: var(--ds-surface-raised);
-    color: var(--ds-text-primary);
-    font-size: 14px;
-    box-sizing: border-box;
-}
-@media (min-width: 700px) {
-    .event-history-filter-bar {
-        grid-template-columns: minmax(200px, 1fr) minmax(160px, auto) minmax(120px, auto);
-        align-items: center;
-    }
-}
 
 /* Event history list */
 .event-history-list { padding: 0; margin: 0; }

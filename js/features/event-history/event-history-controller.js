@@ -130,28 +130,6 @@
             });
         }
 
-        // Wire filter change listeners
-        var filterEl = document.getElementById('eventHistoryFilterEventType');
-        if (filterEl) {
-            filterEl.addEventListener('change', function() {
-                showEventHistoryView();
-            });
-        }
-        var teamFilterEl = document.getElementById('eventHistoryFilterTeam');
-        if (teamFilterEl) {
-            teamFilterEl.addEventListener('change', function() {
-                showEventHistoryView();
-            });
-        }
-        var searchEl = document.getElementById('eventHistorySearchFilter');
-        if (searchEl) {
-            var _searchDebounce;
-            searchEl.addEventListener('input', function() {
-                clearTimeout(_searchDebounce);
-                _searchDebounce = setTimeout(function() { showEventHistoryView(); }, 250);
-            });
-        }
-
         return {
             destroy: function destroy() {
                 if (typeof _unsubscribePendingCount === 'function') {
@@ -168,25 +146,72 @@
         };
     }
 
-    // Populate the event type filter dropdown from the events registry.
+    var _activeEventFilter = '';
+    var _activeTeamFilter = '';
+
+    // Render event type pill selector from the events registry.
     function populateEventTypeFilter() {
-        var select = document.getElementById('eventHistoryFilterEventType');
-        if (!select) return;
+        var container = document.getElementById('eventHistoryEventSelector');
+        if (!container) return;
+        container.innerHTML = '';
+        var t = getTranslate();
+
+        // "All" button
+        var allBtn = document.createElement('button');
+        allBtn.type = 'button';
+        allBtn.className = 'event-btn' + (_activeEventFilter === '' ? ' active' : '');
+        allBtn.dataset.event = '';
+        allBtn.textContent = t('event_history_filter_all');
+        allBtn.addEventListener('click', function() {
+            _activeEventFilter = '';
+            populateEventTypeFilter();
+            showEventHistoryView();
+        });
+        container.appendChild(allBtn);
+
         var registry = global.DSEventsRegistryController;
         if (!registry || typeof registry.getEventIds !== 'function') return;
-
         var eventIds = registry.getEventIds();
-        // Keep the "All Events" option, clear the rest
-        while (select.options.length > 1) {
-            select.remove(1);
-        }
         eventIds.forEach(function(eventId) {
-            var option = document.createElement('option');
-            option.value = eventId;
-            option.textContent = registry.getEventDisplayName
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'event-btn' + (eventId === _activeEventFilter ? ' active' : '');
+            btn.dataset.event = eventId;
+            btn.textContent = registry.getEventDisplayName
                 ? registry.getEventDisplayName(eventId)
                 : eventId;
-            select.appendChild(option);
+            btn.addEventListener('click', function() {
+                _activeEventFilter = eventId;
+                populateEventTypeFilter();
+                showEventHistoryView();
+            });
+            container.appendChild(btn);
+        });
+    }
+
+    // Render team pill selector.
+    function populateTeamFilter() {
+        var container = document.getElementById('eventHistoryTeamSelector');
+        if (!container) return;
+        container.innerHTML = '';
+        var t = getTranslate();
+        var teams = [
+            { value: '', labelKey: 'event_history_filter_all_teams' },
+            { value: 'A', labelKey: 'team_a_button' },
+            { value: 'B', labelKey: 'team_b_button' },
+        ];
+        teams.forEach(function(team) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'event-btn' + (team.value === _activeTeamFilter ? ' active' : '');
+            btn.dataset.team = team.value;
+            btn.textContent = t(team.labelKey);
+            btn.addEventListener('click', function() {
+                _activeTeamFilter = team.value;
+                populateTeamFilter();
+                showEventHistoryView();
+            });
+            container.appendChild(btn);
         });
     }
 
@@ -198,12 +223,13 @@
         }
 
         populateEventTypeFilter();
+        populateTeamFilter();
 
         var allianceId = getAllianceId(); // may be null for solo players
-        var filters = {};
-        if (global.DSFeatureEventHistoryActions && typeof global.DSFeatureEventHistoryActions.readHistoryFilterState === 'function') {
-            filters = global.DSFeatureEventHistoryActions.readHistoryFilterState();
-        }
+        var filters = {
+            eventTypeId: _activeEventFilter,
+            team: _activeTeamFilter,
+        };
         // Always filter to active records only
         filters.activeOnly = true;
 
@@ -214,18 +240,11 @@
         }
 
         _gateway.loadHistoryRecords(allianceId, filters).then(function(records) {
-            // Client-side filtering for team and search
+            // Client-side filtering for team
             var teamFilter = filters.team || '';
-            var searchQuery = filters.searchQuery || '';
-            if (teamFilter || searchQuery) {
+            if (teamFilter) {
                 records = records.filter(function(r) {
-                    if (teamFilter && r.team !== teamFilter) return false;
-                    if (searchQuery) {
-                        var name = (r.eventName || '').toLowerCase();
-                        var players = Array.isArray(r.players) ? r.players.map(function(p) { return (p.playerName || '').toLowerCase(); }).join(' ') : '';
-                        if (name.indexOf(searchQuery) === -1 && players.indexOf(searchQuery) === -1) return false;
-                    }
-                    return true;
+                    return r.team === teamFilter;
                 });
             }
             if (container && global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderHistoryList === 'function') {

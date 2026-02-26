@@ -958,18 +958,9 @@
                         <h2 id="eventHistoryHeading" class="config-title" data-i18n="event_history_title">Event History</h2>
                     </div>
                     <div class="card screen-panel">
-                        <div class="event-history-filter-bar">
-                            <input type="text" id="eventHistorySearchFilter" data-i18n-placeholder="search_placeholder" placeholder="Search..." class="form-input">
-                            <select id="eventHistoryFilterEventType" class="form-select">
-                                <option value="" data-i18n="event_history_filter_all">All Events</option>
-                            </select>
-                            <select id="eventHistoryFilterTeam" class="form-select">
-                                <option value="" data-i18n="event_history_filter_all_teams">All Teams</option>
-                                <option value="A">Team A</option>
-                                <option value="B">Team B</option>
-                            </select>
-                        </div>
-                        <div id="eventHistoryContainer"></div>
+                        <div class="event-selector event-selector-inline" id="eventHistoryEventSelector"></div>
+                        <div class="event-selector event-selector-inline" id="eventHistoryTeamSelector" style="margin-top:8px;"></div>
+                        <div id="eventHistoryContainer" style="margin-top:12px;"></div>
                     </div>
                 </div>
             </div>
