@@ -47,7 +47,39 @@
         return filteredPlayers;
     }
 
-    function createPlayerRow(player, getTroopLabel, translate) {
+    // SVG icon paths per reliability tier (16x16 viewBox)
+    var RELIABILITY_ICONS = {
+        excellent: '<path d="M8 1L2 4v4.5c0 3.5 2.5 6.5 6 7.5 3.5-1 6-4 6-7.5V4L8 1z" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="5.5,8 7.5,10.5 11,6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+        good: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="5,8 7.5,10.5 11,5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+        fair: '<path d="M8 2L1.5 13h13L8 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.8" fill="currentColor"/>',
+        poor: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="4.5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11" r="0.8" fill="currentColor"/>',
+        critical: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+        new: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 6.5a2 2 0 0 1 3.9.5c0 1-1.9 1-1.9 2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="12" r="0.8" fill="currentColor"/>',
+    };
+
+    function buildReliabilityIcon(playerName, playerStatsMap, translate) {
+        var t = getTranslator(translate);
+        var reliability = global.DSCoreReliability;
+        if (!reliability) return null;
+
+        var stats = playerStatsMap && playerStatsMap.get ? playerStatsMap.get(playerName) : null;
+        var score = stats ? stats.reliabilityScore : null;
+        var tierObj = reliability.getReliabilityTier(score);
+        var iconPath = RELIABILITY_ICONS[tierObj.tier] || RELIABILITY_ICONS.new;
+        var label = tierObj.labelKey ? t(tierObj.labelKey) : tierObj.label;
+        var tooltip = score !== null && score !== undefined
+            ? label + ' (' + score + '%)'
+            : label;
+
+        var span = document.createElement('span');
+        span.className = 'reliability-icon ' + tierObj.cssClass;
+        span.setAttribute('title', tooltip);
+        span.setAttribute('aria-label', tooltip);
+        span.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none">' + iconPath + '</svg>';
+        return span;
+    }
+
+    function createPlayerRow(player, getTroopLabel, translate, playerStatsMap) {
         const t = getTranslator(translate);
         const row = document.createElement('tr');
         row.className = 'players-table-row';
@@ -58,6 +90,8 @@
         const nameStrong = document.createElement('strong');
         nameStrong.textContent = player.name;
         nameCell.appendChild(nameStrong);
+        var icon = buildReliabilityIcon(player.name, playerStatsMap, translate);
+        if (icon) nameCell.appendChild(icon);
 
         const powerCell = document.createElement('td');
         powerCell.className = 'player-power';
@@ -86,11 +120,19 @@
         return row;
     }
 
-    function updatePlayerRowStaticData(row, player, getTroopLabel, translate) {
+    function updatePlayerRowStaticData(row, player, getTroopLabel, translate, playerStatsMap) {
         const t = getTranslator(translate);
+        const nameCell = row.querySelector('.players-table-name-cell');
         const nameStrong = row.querySelector('td strong');
         if (nameStrong) {
             nameStrong.textContent = player.name;
+        }
+        // Refresh reliability icon
+        if (nameCell) {
+            var oldIcon = nameCell.querySelector('.reliability-icon');
+            if (oldIcon) oldIcon.remove();
+            var icon = buildReliabilityIcon(player.name, playerStatsMap, translate);
+            if (icon) nameCell.appendChild(icon);
         }
 
         const powerCell = row.querySelector('.player-power');
@@ -210,14 +252,16 @@
             }
         });
 
+        const playerStatsMap = config.playerStatsMap instanceof Map ? config.playerStatsMap : null;
+
         // Keep DOM updates incremental by reordering/inserting rows in place.
         displayPlayers.forEach((player, index) => {
             let row = rowCache.get(player.name);
             if (!row) {
-                row = createPlayerRow(player, getTroopLabel, config.translate);
+                row = createPlayerRow(player, getTroopLabel, config.translate, playerStatsMap);
                 rowCache.set(player.name, row);
             } else {
-                updatePlayerRowStaticData(row, player, getTroopLabel, config.translate);
+                updatePlayerRowStaticData(row, player, getTroopLabel, config.translate, playerStatsMap);
             }
 
             applyPlayerRowSelectionState(row, player, counts, selectionMaps, config.translate);

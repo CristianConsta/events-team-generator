@@ -26,13 +26,15 @@ test('calculateReliabilityScore: non-array returns null', () => {
     assert.equal(global.DSCoreReliability.calculateReliabilityScore(undefined), null);
 });
 
-test('calculateReliabilityScore: 2 non-cancelled entries returns null (below threshold)', () => {
+test('calculateReliabilityScore: 2 non-cancelled entries returns a score (threshold is 1)', () => {
     loadModule();
     const history = [
         { status: 'attended' },
         { status: 'no_show' },
     ];
-    assert.equal(global.DSCoreReliability.calculateReliabilityScore(history), null);
+    const score = global.DSCoreReliability.calculateReliabilityScore(history);
+    assert.ok(score !== null, 'score should not be null with 2 entries');
+    assert.ok(score > 0 && score < 100, 'score should be between 0 and 100');
 });
 
 test('calculateReliabilityScore: exactly 3 attended entries returns score close to 100', () => {
@@ -83,16 +85,18 @@ test('calculateReliabilityScore: all 5 excused returns null (totalWeight=0)', ()
     assert.equal(global.DSCoreReliability.calculateReliabilityScore(history), null);
 });
 
-test('calculateReliabilityScore: cancelled_event + attended mix below threshold returns null', () => {
+test('calculateReliabilityScore: cancelled_event + attended mix with 2 valid entries returns score', () => {
     loadModule();
-    // Only 2 non-cancelled entries → null
+    // 2 non-cancelled entries → score (threshold is 1)
     const history = [
         { status: 'cancelled_event' },
         { status: 'cancelled_event' },
         { status: 'attended' },
         { status: 'attended' },
     ];
-    assert.equal(global.DSCoreReliability.calculateReliabilityScore(history), null);
+    const score = global.DSCoreReliability.calculateReliabilityScore(history);
+    assert.ok(score !== null, 'score should not be null with 2 valid entries');
+    assert.ok(score >= 99, 'all attended should be close to 100');
 });
 
 test('calculateReliabilityScore: 3 late_sub entries score equals 80', () => {

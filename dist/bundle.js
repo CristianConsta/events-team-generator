@@ -10476,23 +10476,23 @@
           return typeof DSThemeColors !== "undefined" && DSThemeColors.reliabilityColor(tier) || TIER_FALLBACK_COLORS[tier] || "#757575";
         }
         var TIERS = [
-          { min: 90, max: 100, tier: "excellent", label: "Rock solid", get color() {
+          { min: 90, max: 100, tier: "excellent", label: "Rock solid", labelKey: "reliability_tier_excellent", get color() {
             return tierColor("excellent");
           }, cssClass: "reliability-excellent" },
-          { min: 70, max: 89, tier: "good", label: "Reliable", get color() {
+          { min: 70, max: 89, tier: "good", label: "Reliable", labelKey: "reliability_tier_good", get color() {
             return tierColor("good");
           }, cssClass: "reliability-good" },
-          { min: 50, max: 69, tier: "fair", label: "Inconsistent", get color() {
+          { min: 50, max: 69, tier: "fair", label: "Inconsistent", labelKey: "reliability_tier_fair", get color() {
             return tierColor("fair");
           }, cssClass: "reliability-fair" },
-          { min: 30, max: 49, tier: "poor", label: "Unreliable", get color() {
+          { min: 30, max: 49, tier: "poor", label: "Unreliable", labelKey: "reliability_tier_poor", get color() {
             return tierColor("poor");
           }, cssClass: "reliability-poor" },
-          { min: 0, max: 29, tier: "critical", label: "Chronic no-show", get color() {
+          { min: 0, max: 29, tier: "critical", label: "Chronic no-show", labelKey: "reliability_tier_critical", get color() {
             return tierColor("critical");
           }, cssClass: "reliability-critical" }
         ];
-        var NULL_TIER = { tier: "new", label: "No history", get color() {
+        var NULL_TIER = { tier: "new", label: "No history", labelKey: "reliability_tier_new", get color() {
           return tierColor("new");
         }, cssClass: "reliability-new" };
         function calculateReliabilityScore(history) {
@@ -10523,7 +10523,7 @@
               totalWeight += weight;
             }
           }
-          if (validCount < 3) {
+          if (validCount < 1) {
             return null;
           }
           if (totalWeight === 0) {
@@ -10538,13 +10538,13 @@
           for (var i = 0; i < TIERS.length; i++) {
             var tier = TIERS[i];
             if (score >= tier.min && score <= tier.max) {
-              return { tier: tier.tier, label: tier.label, color: tier.color, cssClass: tier.cssClass };
+              return { tier: tier.tier, label: tier.label, labelKey: tier.labelKey, color: tier.color, cssClass: tier.cssClass };
             }
           }
           if (score < 0) {
-            return { tier: TIERS[4].tier, label: TIERS[4].label, color: TIERS[4].color, cssClass: TIERS[4].cssClass };
+            return { tier: TIERS[4].tier, label: TIERS[4].label, labelKey: TIERS[4].labelKey, color: TIERS[4].color, cssClass: TIERS[4].cssClass };
           }
-          return { tier: TIERS[0].tier, label: TIERS[0].label, color: TIERS[0].color, cssClass: TIERS[0].cssClass };
+          return { tier: TIERS[0].tier, label: TIERS[0].label, labelKey: TIERS[0].labelKey, color: TIERS[0].color, cssClass: TIERS[0].cssClass };
         }
         function recalculatePlayerStats(history, existing) {
           var base = existing && typeof existing === "object" ? existing : {};
@@ -16563,7 +16563,32 @@
           }
           return filteredPlayers;
         }
-        function createPlayerRow(player, getTroopLabel, translate) {
+        var RELIABILITY_ICONS = {
+          excellent: '<path d="M8 1L2 4v4.5c0 3.5 2.5 6.5 6 7.5 3.5-1 6-4 6-7.5V4L8 1z" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="5.5,8 7.5,10.5 11,6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+          good: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="5,8 7.5,10.5 11,5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+          fair: '<path d="M8 2L1.5 13h13L8 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r="0.8" fill="currentColor"/>',
+          poor: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="4.5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11" r="0.8" fill="currentColor"/>',
+          critical: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="5.5" y1="5.5" x2="10.5" y2="10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="10.5" y1="5.5" x2="5.5" y2="10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+          new: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 6.5a2 2 0 0 1 3.9.5c0 1-1.9 1-1.9 2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="12" r="0.8" fill="currentColor"/>'
+        };
+        function buildReliabilityIcon(playerName, playerStatsMap, translate) {
+          var t2 = getTranslator(translate);
+          var reliability = global2.DSCoreReliability;
+          if (!reliability) return null;
+          var stats = playerStatsMap && playerStatsMap.get ? playerStatsMap.get(playerName) : null;
+          var score = stats ? stats.reliabilityScore : null;
+          var tierObj = reliability.getReliabilityTier(score);
+          var iconPath = RELIABILITY_ICONS[tierObj.tier] || RELIABILITY_ICONS.new;
+          var label = tierObj.labelKey ? t2(tierObj.labelKey) : tierObj.label;
+          var tooltip = score !== null && score !== void 0 ? label + " (" + score + "%)" : label;
+          var span = document.createElement("span");
+          span.className = "reliability-icon " + tierObj.cssClass;
+          span.setAttribute("title", tooltip);
+          span.setAttribute("aria-label", tooltip);
+          span.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none">' + iconPath + "</svg>";
+          return span;
+        }
+        function createPlayerRow(player, getTroopLabel, translate, playerStatsMap) {
           const t2 = getTranslator(translate);
           const row = document.createElement("tr");
           row.className = "players-table-row";
@@ -16573,6 +16598,8 @@
           const nameStrong = document.createElement("strong");
           nameStrong.textContent = player.name;
           nameCell.appendChild(nameStrong);
+          var icon = buildReliabilityIcon(player.name, playerStatsMap, translate);
+          if (icon) nameCell.appendChild(icon);
           const powerCell = document.createElement("td");
           powerCell.className = "player-power";
           powerCell.textContent = `${player.power}M`;
@@ -16594,11 +16621,18 @@
           row.appendChild(actionsCell);
           return row;
         }
-        function updatePlayerRowStaticData(row, player, getTroopLabel, translate) {
+        function updatePlayerRowStaticData(row, player, getTroopLabel, translate, playerStatsMap) {
           const t2 = getTranslator(translate);
+          const nameCell = row.querySelector(".players-table-name-cell");
           const nameStrong = row.querySelector("td strong");
           if (nameStrong) {
             nameStrong.textContent = player.name;
+          }
+          if (nameCell) {
+            var oldIcon = nameCell.querySelector(".reliability-icon");
+            if (oldIcon) oldIcon.remove();
+            var icon = buildReliabilityIcon(player.name, playerStatsMap, translate);
+            if (icon) nameCell.appendChild(icon);
           }
           const powerCell = row.querySelector(".player-power");
           if (powerCell) {
@@ -16702,13 +16736,14 @@
               row.remove();
             }
           });
+          const playerStatsMap = config.playerStatsMap instanceof Map ? config.playerStatsMap : null;
           displayPlayers.forEach((player, index) => {
             let row = rowCache.get(player.name);
             if (!row) {
-              row = createPlayerRow(player, getTroopLabel, config.translate);
+              row = createPlayerRow(player, getTroopLabel, config.translate, playerStatsMap);
               rowCache.set(player.name, row);
             } else {
-              updatePlayerRowStaticData(row, player, getTroopLabel, config.translate);
+              updatePlayerRowStaticData(row, player, getTroopLabel, config.translate, playerStatsMap);
             }
             applyPlayerRowSelectionState(row, player, counts, selectionMaps, config.translate);
             const rowAtIndex = tbody.children[index] || null;
@@ -24674,12 +24709,36 @@
         }
         renderPlayersManagementPanel();
       }
+      function loadPlayerReliabilityStats() {
+        if (typeof FirebaseService === "undefined" || !allPlayers.length) return;
+        var gameplayContext = getGameplayContext();
+        if (!gameplayContext) return;
+        var allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+        if (!allianceId) return;
+        var utils = window.DSFirestoreUtils;
+        var docIds = allPlayers.map(function(p) {
+          return utils ? utils.sanitizeDocId(p.name) : p.name;
+        });
+        FirebaseService.loadPlayerStats(allianceId, docIds).then(function(statsObj) {
+          playerStatsMap = /* @__PURE__ */ new Map();
+          allPlayers.forEach(function(p) {
+            var docId = utils ? utils.sanitizeDocId(p.name) : p.name;
+            if (statsObj[docId]) {
+              playerStatsMap.set(p.name, statsObj[docId]);
+            }
+          });
+          renderPlayersTable();
+        }).catch(function(err) {
+          console.warn("loadPlayerReliabilityStats:", err.message || err);
+        });
+      }
       function showSelectionInterface() {
         document.getElementById("selectionSection").classList.remove("hidden");
         showGeneratorPage();
         renderSelectionSourceControls();
         renderPlayersTable();
         updateTeamCounters();
+        loadPlayerReliabilityStats();
       }
       function renderSelectionSourceControls() {
         window.DSPlayerDataUpload.renderSelectionSourceControls(_getUploadDeps());
@@ -24822,6 +24881,7 @@
       var currentTroopsFilter = "";
       var currentSortFilter = "power-desc";
       var playerRowCache = /* @__PURE__ */ new Map();
+      var playerStatsMap = /* @__PURE__ */ new Map();
       function hasActivePlayerFilters() {
         var _a;
         const searchTerm = (((_a = document.getElementById("searchFilter")) == null ? void 0 : _a.value) || "").trim();
@@ -24908,7 +24968,8 @@
           searchTerm,
           troopsFilter: currentTroopsFilter,
           sortFilter: currentSortFilter,
-          translate: t2
+          translate: t2,
+          playerStatsMap
         });
         updateClearAllButtonVisibility();
       }

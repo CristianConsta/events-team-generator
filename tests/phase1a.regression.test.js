@@ -68,13 +68,12 @@ test('regression: DSCoreReliability is loadable and exposes required functions',
     assert.equal(typeof global.DSCoreReliability.recalculatePlayerStats, 'function');
 });
 
-test('regression: DSCoreReliability.calculateReliabilityScore returns null for < 3 events', () => {
+test('regression: DSCoreReliability.calculateReliabilityScore returns score for 1+ events', () => {
     loadAll();
     const score = global.DSCoreReliability.calculateReliabilityScore([
         { status: 'attended' },
-        { status: 'attended' },
     ]);
-    assert.equal(score, null);
+    assert.equal(score, 100);
 });
 
 // ---------------------------------------------------------------------------

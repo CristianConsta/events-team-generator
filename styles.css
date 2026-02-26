@@ -4112,12 +4112,35 @@ select {
     cursor: help;
     /* Accessible: size is above 4.5px minimum for decorative indicators */
 }
-.reliability-excellent { background-color: var(--ds-reliability-excellent); }
-.reliability-good      { background-color: var(--ds-reliability-good); }
-.reliability-fair      { background-color: var(--ds-reliability-fair); }
-.reliability-poor      { background-color: var(--ds-reliability-poor); }
-.reliability-critical  { background-color: var(--ds-reliability-critical); }
-.reliability-new       { background-color: var(--ds-reliability-new); }
+.reliability-excellent { background-color: var(--ds-reliability-excellent); color: var(--ds-reliability-excellent); }
+.reliability-good      { background-color: var(--ds-reliability-good); color: var(--ds-reliability-good); }
+.reliability-fair      { background-color: var(--ds-reliability-fair); color: var(--ds-reliability-fair); }
+.reliability-poor      { background-color: var(--ds-reliability-poor); color: var(--ds-reliability-poor); }
+.reliability-critical  { background-color: var(--ds-reliability-critical); color: var(--ds-reliability-critical); }
+.reliability-new       { background-color: var(--ds-reliability-new); color: var(--ds-reliability-new); }
+
+/* Reliability icon (SVG inline, next to player name) */
+.reliability-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+    vertical-align: middle;
+    cursor: help;
+    flex-shrink: 0;
+}
+.reliability-icon svg {
+    display: block;
+}
+/* Override background for icon variant — icon uses color (stroke), not background */
+.reliability-icon.reliability-excellent,
+.reliability-icon.reliability-good,
+.reliability-icon.reliability-fair,
+.reliability-icon.reliability-poor,
+.reliability-icon.reliability-critical,
+.reliability-icon.reliability-new {
+    background-color: transparent;
+}
 
 /* Nav badge */
 .nav-badge {

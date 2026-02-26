@@ -8,14 +8,14 @@
     }
 
     var TIERS = [
-        { min: 90, max: 100, tier: 'excellent', label: 'Rock solid',      get color() { return tierColor('excellent'); }, cssClass: 'reliability-excellent' },
-        { min: 70, max: 89,  tier: 'good',      label: 'Reliable',        get color() { return tierColor('good'); },      cssClass: 'reliability-good'      },
-        { min: 50, max: 69,  tier: 'fair',       label: 'Inconsistent',    get color() { return tierColor('fair'); },      cssClass: 'reliability-fair'      },
-        { min: 30, max: 49,  tier: 'poor',       label: 'Unreliable',      get color() { return tierColor('poor'); },      cssClass: 'reliability-poor'      },
-        { min: 0,  max: 29,  tier: 'critical',   label: 'Chronic no-show', get color() { return tierColor('critical'); },  cssClass: 'reliability-critical'  },
+        { min: 90, max: 100, tier: 'excellent', label: 'Rock solid',      labelKey: 'reliability_tier_excellent', get color() { return tierColor('excellent'); }, cssClass: 'reliability-excellent' },
+        { min: 70, max: 89,  tier: 'good',      label: 'Reliable',        labelKey: 'reliability_tier_good',      get color() { return tierColor('good'); },      cssClass: 'reliability-good'      },
+        { min: 50, max: 69,  tier: 'fair',       label: 'Inconsistent',    labelKey: 'reliability_tier_fair',      get color() { return tierColor('fair'); },      cssClass: 'reliability-fair'      },
+        { min: 30, max: 49,  tier: 'poor',       label: 'Unreliable',      labelKey: 'reliability_tier_poor',      get color() { return tierColor('poor'); },      cssClass: 'reliability-poor'      },
+        { min: 0,  max: 29,  tier: 'critical',   label: 'Chronic no-show', labelKey: 'reliability_tier_critical',  get color() { return tierColor('critical'); },  cssClass: 'reliability-critical'  },
     ];
 
-    var NULL_TIER = { tier: 'new', label: 'No history', get color() { return tierColor('new'); }, cssClass: 'reliability-new' };
+    var NULL_TIER = { tier: 'new', label: 'No history', labelKey: 'reliability_tier_new', get color() { return tierColor('new'); }, cssClass: 'reliability-new' };
 
     function calculateReliabilityScore(history) {
         if (!Array.isArray(history)) {
@@ -52,7 +52,7 @@
             }
         }
 
-        if (validCount < 3) {
+        if (validCount < 1) {
             return null;
         }
         if (totalWeight === 0) {
@@ -70,15 +70,15 @@
         for (var i = 0; i < TIERS.length; i++) {
             var tier = TIERS[i];
             if (score >= tier.min && score <= tier.max) {
-                return { tier: tier.tier, label: tier.label, color: tier.color, cssClass: tier.cssClass };
+                return { tier: tier.tier, label: tier.label, labelKey: tier.labelKey, color: tier.color, cssClass: tier.cssClass };
             }
         }
 
         // Clamp: below 0 → critical, above 100 → excellent
         if (score < 0) {
-            return { tier: TIERS[4].tier, label: TIERS[4].label, color: TIERS[4].color, cssClass: TIERS[4].cssClass };
+            return { tier: TIERS[4].tier, label: TIERS[4].label, labelKey: TIERS[4].labelKey, color: TIERS[4].color, cssClass: TIERS[4].cssClass };
         }
-        return { tier: TIERS[0].tier, label: TIERS[0].label, color: TIERS[0].color, cssClass: TIERS[0].cssClass };
+        return { tier: TIERS[0].tier, label: TIERS[0].label, labelKey: TIERS[0].labelKey, color: TIERS[0].color, cssClass: TIERS[0].cssClass };
     }
 
     function recalculatePlayerStats(history, existing) {

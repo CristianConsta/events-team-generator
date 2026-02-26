@@ -3620,12 +3620,37 @@ function loadPlayerData() {
     renderPlayersManagementPanel();
 }
 
+function loadPlayerReliabilityStats() {
+    if (typeof FirebaseService === 'undefined' || !allPlayers.length) return;
+    var gameplayContext = getGameplayContext();
+    if (!gameplayContext) return;
+    var allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+    if (!allianceId) return; // stats only exist for alliance players
+    var utils = window.DSFirestoreUtils;
+    var docIds = allPlayers.map(function(p) {
+        return utils ? utils.sanitizeDocId(p.name) : p.name;
+    });
+    FirebaseService.loadPlayerStats(allianceId, docIds).then(function(statsObj) {
+        playerStatsMap = new Map();
+        allPlayers.forEach(function(p) {
+            var docId = utils ? utils.sanitizeDocId(p.name) : p.name;
+            if (statsObj[docId]) {
+                playerStatsMap.set(p.name, statsObj[docId]);
+            }
+        });
+        renderPlayersTable(); // re-render with stats
+    }).catch(function(err) {
+        console.warn('loadPlayerReliabilityStats:', err.message || err);
+    });
+}
+
 function showSelectionInterface() {
     document.getElementById('selectionSection').classList.remove('hidden');
     showGeneratorPage();
     renderSelectionSourceControls();
     renderPlayersTable();
     updateTeamCounters();
+    loadPlayerReliabilityStats();
 }
 
 function renderSelectionSourceControls() {
@@ -3809,6 +3834,7 @@ if (window.visualViewport) {
 let currentTroopsFilter = '';
 let currentSortFilter = 'power-desc';
 const playerRowCache = new Map();
+let playerStatsMap = new Map();
 
 function hasActivePlayerFilters() {
     const searchTerm = (document.getElementById('searchFilter')?.value || '').trim();
@@ -3926,6 +3952,7 @@ function renderPlayersTable() {
         troopsFilter: currentTroopsFilter,
         sortFilter: currentSortFilter,
         translate: t,
+        playerStatsMap: playerStatsMap,
     });
     updateClearAllButtonVisibility();
 }
