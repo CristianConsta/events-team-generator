@@ -18343,6 +18343,9 @@
             updateAttendanceStatus: async function updateAttendanceStatus() {
               return gatewayUtils.notLoadedResult();
             },
+            enforceEventHistoryLimit: async function enforceEventHistoryLimit() {
+              return gatewayUtils.notLoadedResult();
+            },
             finalizeHistory: async function finalizeHistory() {
               return gatewayUtils.notLoadedResult();
             },
@@ -19126,6 +19129,9 @@
           },
           updateAttendanceStatus: function updateAttendanceStatus(allianceId, historyId, docId, status, markedBy) {
             return eventHistoryGateway.updateAttendanceStatus(allianceId, historyId, docId, status, markedBy);
+          },
+          enforceEventHistoryLimit: function enforceEventHistoryLimit(allianceId, eventTypeId, limit) {
+            return eventHistoryGateway.enforceEventHistoryLimit(allianceId, eventTypeId, limit);
           },
           finalizeHistory: function finalizeHistory(allianceId, historyId, playerStatsUpdates) {
             return eventHistoryGateway.finalizeHistory(allianceId, historyId, playerStatsUpdates);

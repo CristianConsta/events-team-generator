@@ -307,9 +307,10 @@ service cloud.firestore {
       match /event_history/{historyId} {
         allow read: if signedIn();
         allow create: if signedIn()
-                      && request.resource.data.createdBy == request.auth.uid;
-        allow update, delete: if signedIn()
-                              && resource.data.createdBy == request.auth.uid;
+                      && request.resource.data.createdByUid == request.auth.uid;
+        allow update: if signedIn();
+        allow delete: if signedIn()
+                      && resource.data.createdByUid == request.auth.uid;
 
         match /player_stats/{playerDocId} {
           allow read: if signedIn();
@@ -348,7 +349,7 @@ service cloud.firestore {
       match /event_history/{historyId} {
         allow read: if isAllianceMember(allianceId);
         allow create: if isAllianceMember(allianceId)
-                      && request.resource.data.createdBy == request.auth.uid;
+                      && request.resource.data.createdByUid == request.auth.uid;
         allow update: if isAllianceMember(allianceId);
         allow delete: if isAllianceMember(allianceId);
 
