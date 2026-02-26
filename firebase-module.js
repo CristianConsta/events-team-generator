@@ -5526,6 +5526,7 @@ const FirebaseManager = (function() {
 
         var legacyUnsub = db.collection('alliances').doc(allianceIdParam)
             .collection('event_history')
+            .where('active', '==', true)
             .where('finalized', '==', false)
             .onSnapshot(function(snapshot) {
                 counts.legacy = snapshot.size;
@@ -5542,6 +5543,7 @@ const FirebaseManager = (function() {
         if (newHistoryRef) {
             try {
                 var gameUnsub = newHistoryRef
+                    .where('active', '==', true)
                     .where('finalized', '==', false)
                     .onSnapshot(function(snapshot) {
                         counts.game = snapshot.size;

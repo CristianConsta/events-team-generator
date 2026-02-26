@@ -5754,7 +5754,7 @@
           function emit() {
             callback(counts.game > 0 ? counts.game : counts.legacy);
           }
-          var legacyUnsub = db.collection("alliances").doc(allianceIdParam).collection("event_history").where("finalized", "==", false).onSnapshot(function(snapshot) {
+          var legacyUnsub = db.collection("alliances").doc(allianceIdParam).collection("event_history").where("active", "==", true).where("finalized", "==", false).onSnapshot(function(snapshot) {
             counts.legacy = snapshot.size;
             emit();
           }, function(err) {
@@ -5767,7 +5767,7 @@
           var newHistoryRef = resolvedGameId ? getGameEventHistoryCollectionRef(resolvedGameId) : null;
           if (newHistoryRef) {
             try {
-              var gameUnsub = newHistoryRef.where("finalized", "==", false).onSnapshot(function(snapshot) {
+              var gameUnsub = newHistoryRef.where("active", "==", true).where("finalized", "==", false).onSnapshot(function(snapshot) {
                 counts.game = snapshot.size;
                 emit();
               }, function(err) {
