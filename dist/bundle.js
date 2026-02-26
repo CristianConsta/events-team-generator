@@ -6922,6 +6922,7 @@
           event_history_empty: "No events recorded yet.",
           event_history_save_btn: "Save as History",
           event_history_filter_all: "All Events",
+          event_history_filter_all_teams: "All Teams",
           event_history_filter_label: "Filter by event",
           event_history_filter_completed: "Completed",
           event_history_filter_planned: "Planned",
@@ -7431,6 +7432,7 @@
           event_history_empty: "Aucun evenement enregistre.",
           event_history_save_btn: "Sauvegarder en historique",
           event_history_filter_all: "Tous les evenements",
+          event_history_filter_all_teams: "Toutes les equipes",
           event_history_filter_label: "Filtrer par evenement",
           event_history_filter_completed: "Termine",
           event_history_filter_planned: "Planifie",
@@ -7940,6 +7942,7 @@
           event_history_empty: "Noch keine Ereignisse aufgezeichnet.",
           event_history_save_btn: "Als Verlauf speichern",
           event_history_filter_all: "Alle Ereignisse",
+          event_history_filter_all_teams: "Alle Teams",
           event_history_filter_label: "Nach Ereignis filtern",
           event_history_filter_completed: "Abgeschlossen",
           event_history_filter_planned: "Geplant",
@@ -8449,6 +8452,7 @@
           event_history_empty: "Nessun evento registrato.",
           event_history_save_btn: "Salva come cronologia",
           event_history_filter_all: "Tutti gli eventi",
+          event_history_filter_all_teams: "Tutte le squadre",
           event_history_filter_label: "Filtra per evento",
           event_history_filter_completed: "Completato",
           event_history_filter_planned: "Pianificato",
@@ -8958,6 +8962,7 @@
           event_history_empty: "\uAE30\uB85D\uB41C \uC774\uBCA4\uD2B8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.",
           event_history_save_btn: "\uAE30\uB85D\uC73C\uB85C \uC800\uC7A5",
           event_history_filter_all: "\uBAA8\uB4E0 \uC774\uBCA4\uD2B8",
+          event_history_filter_all_teams: "\uBAA8\uB4E0 \uD300",
           event_history_filter_label: "\uC774\uBCA4\uD2B8\uBCC4 \uD544\uD130",
           event_history_filter_completed: "\uC644\uB8CC\uB428",
           event_history_filter_planned: "\uACC4\uD68D\uB428",
@@ -9467,6 +9472,7 @@
           event_history_empty: "Nu s-au inregistrat inca evenimente.",
           event_history_save_btn: "Salveaza ca istoric",
           event_history_filter_all: "Toate evenimentele",
+          event_history_filter_all_teams: "Toate echipele",
           event_history_filter_label: "Filtreaza dupa eveniment",
           event_history_filter_completed: "Finalizat",
           event_history_filter_planned: "Planificat",
@@ -15209,8 +15215,12 @@
       (function initEventHistoryActions(global2) {
         function readHistoryFilterState() {
           var eventTypeEl = document.getElementById("eventHistoryFilterEventType");
+          var teamEl = document.getElementById("eventHistoryFilterTeam");
+          var searchEl = document.getElementById("eventHistorySearchFilter");
           return {
-            eventTypeId: eventTypeEl ? eventTypeEl.value : ""
+            eventTypeId: eventTypeEl ? eventTypeEl.value : "",
+            team: teamEl ? teamEl.value : "",
+            searchQuery: searchEl ? searchEl.value.trim().toLowerCase() : ""
           };
         }
         global2.DSFeatureEventHistoryActions = {
@@ -15266,10 +15276,14 @@
             }
             if (createdAt) {
               var d = new Date(createdAt);
-              var dd = String(d.getDate()).padStart(2, "0");
-              var mm = String(d.getMonth() + 1).padStart(2, "0");
-              var yyyy = d.getFullYear();
-              date.textContent = dd + "." + mm + "." + yyyy;
+              var lang = global2.DSI18N && typeof global2.DSI18N.getLanguage === "function" ? global2.DSI18N.getLanguage() : "en";
+              try {
+                date.textContent = new Intl.DateTimeFormat(lang, { day: "2-digit", month: "short", year: "numeric" }).format(d);
+              } catch (_e) {
+                var dd = String(d.getDate()).padStart(2, "0");
+                var mm = String(d.getMonth() + 1).padStart(2, "0");
+                date.textContent = dd + "." + mm + "." + d.getFullYear();
+              }
             }
             var playerCount = document.createElement("span");
             playerCount.className = "event-history-item-players";
@@ -15494,7 +15508,11 @@
               var confirmed = confirm(getTranslate()("attendance_finalize_confirm"));
               if (!confirmed) return;
               finalizeAttendance(historyId, function() {
-                if (modal) modal.classList.add("hidden");
+                if (modal && global2.DSShellModalController) {
+                  global2.DSShellModalController.close({ overlay: modal });
+                } else if (modal) {
+                  modal.classList.add("hidden");
+                }
                 showEventHistoryView();
               });
             });
@@ -15503,13 +15521,33 @@
           if (cancelBtn) {
             cancelBtn.addEventListener("click", function() {
               var modal = document.getElementById("attendancePanelModal");
-              if (modal) modal.classList.add("hidden");
+              if (modal && global2.DSShellModalController) {
+                global2.DSShellModalController.close({ overlay: modal });
+              } else if (modal) {
+                modal.classList.add("hidden");
+              }
             });
           }
           var filterEl = document.getElementById("eventHistoryFilterEventType");
           if (filterEl) {
             filterEl.addEventListener("change", function() {
               showEventHistoryView();
+            });
+          }
+          var teamFilterEl = document.getElementById("eventHistoryFilterTeam");
+          if (teamFilterEl) {
+            teamFilterEl.addEventListener("change", function() {
+              showEventHistoryView();
+            });
+          }
+          var searchEl = document.getElementById("eventHistorySearchFilter");
+          if (searchEl) {
+            var _searchDebounce;
+            searchEl.addEventListener("input", function() {
+              clearTimeout(_searchDebounce);
+              _searchDebounce = setTimeout(function() {
+                showEventHistoryView();
+              }, 250);
             });
           }
           return {
@@ -15555,9 +15593,27 @@
             filters = global2.DSFeatureEventHistoryActions.readHistoryFilterState();
           }
           filters.activeOnly = true;
+          var container = document.getElementById("eventHistoryContainer");
+          if (container) {
+            container.innerHTML = '<div class="skeleton-loader" aria-label="Loading..."><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div>';
+          }
           _gateway.loadHistoryRecords(allianceId, filters).then(function(records) {
-            var container = document.getElementById("eventHistoryContainer");
-            if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderHistoryList === "function") {
+            var teamFilter = filters.team || "";
+            var searchQuery = filters.searchQuery || "";
+            if (teamFilter || searchQuery) {
+              records = records.filter(function(r) {
+                if (teamFilter && r.team !== teamFilter) return false;
+                if (searchQuery) {
+                  var name = (r.eventName || "").toLowerCase();
+                  var players = Array.isArray(r.players) ? r.players.map(function(p) {
+                    return (p.playerName || "").toLowerCase();
+                  }).join(" ") : "";
+                  if (name.indexOf(searchQuery) === -1 && players.indexOf(searchQuery) === -1) return false;
+                }
+                return true;
+              });
+            }
+            if (container && global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderHistoryList === "function") {
               global2.DSFeatureEventHistoryView.renderHistoryList(container, records, {
                 translate: getTranslate(),
                 onOpenAttendance: openAttendancePanel
@@ -15670,8 +15726,12 @@
             }
             var modal = document.getElementById("attendancePanelModal");
             if (modal) {
-              modal.classList.remove("hidden");
               modal.setAttribute("data-history-id", historyId);
+              if (global2.DSShellModalController) {
+                global2.DSShellModalController.open({ overlay: modal });
+              } else {
+                modal.classList.remove("hidden");
+              }
             }
           } catch (err) {
             console.error("openAttendancePanel error:", err);

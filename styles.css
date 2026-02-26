@@ -247,6 +247,12 @@
     --ds-palette-6-bg: rgba(60, 90, 30, 0.28);
     --ds-backdrop-glow-a: rgba(232, 168, 48, 0.08);
     --ds-backdrop-glow-b: rgba(74, 160, 204, 0.06);
+    --ds-status-completed-bg: rgba(144, 238, 144, 0.15);
+    --ds-status-completed-text: #90EE90;
+    --ds-status-planned-bg: rgba(74, 160, 204, 0.15);
+    --ds-status-planned-text: #90C8E0;
+    --ds-status-cancelled-bg: rgba(255, 255, 255, 0.06);
+    --ds-status-cancelled-text: rgba(240, 235, 218, 0.5);
     --ds-event-active-start: rgba(232, 168, 48, 0.95);
     --ds-event-active-end: rgba(180, 130, 20, 0.95);
     --ds-event-active-text: #0A0800;
@@ -4132,16 +4138,28 @@ select {
 
 /* Event history filter bar */
 .event-history-filter-bar {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 10px;
-    padding: 10px 16px;
     margin-bottom: 12px;
 }
-.event-history-filter-bar label {
-    font-size: 13px;
-    color: var(--ds-text-muted);
-    white-space: nowrap;
+.event-history-filter-bar input,
+.event-history-filter-bar select {
+    min-height: 42px;
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: var(--ds-radius-sm, 4px);
+    border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.32);
+    background: var(--ds-surface-raised);
+    color: var(--ds-text-primary);
+    font-size: 14px;
+    box-sizing: border-box;
+}
+@media (min-width: 700px) {
+    .event-history-filter-bar {
+        grid-template-columns: minmax(200px, 1fr) minmax(160px, auto) minmax(120px, auto);
+        align-items: center;
+    }
 }
 
 /* Event history list */
@@ -4174,11 +4192,11 @@ select {
     flex-shrink: 0;
 }
 .event-history-team-badge[data-team="A"] {
-    background: var(--ds-team-a-bg, rgba(74, 158, 255, 0.15));
+    background: var(--ds-team-a-bg, rgba(74, 158, 255, 0.12));
     color: var(--ds-team-a-text, #4A9EFF);
 }
 .event-history-team-badge[data-team="B"] {
-    background: var(--ds-team-b-bg, rgba(255, 107, 74, 0.15));
+    background: var(--ds-team-b-bg, rgba(255, 107, 74, 0.12));
     color: var(--ds-team-b-text, #FF6B4A);
 }
 .event-history-item-info {
@@ -4196,11 +4214,11 @@ select {
     white-space: nowrap;
 }
 .event-history-item-date {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ds-text-muted);
 }
 .event-history-item-players {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--ds-text-muted);
 }
 .event-history-item-actions {
@@ -4212,6 +4230,7 @@ select {
 .event-history-attendance-btn {
     font-size: 12px;
     padding: 4px 12px;
+    min-height: 44px;
     border-radius: var(--ds-radius-sm, 4px);
     cursor: pointer;
     border: 1px solid var(--ds-border-subtle, var(--ds-border-default));
@@ -4225,7 +4244,12 @@ select {
 .event-history-delete-btn {
     font-size: 16px;
     line-height: 1;
-    padding: 2px 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     border-radius: var(--ds-radius-sm, 4px);
     cursor: pointer;
     border: 1px solid transparent;
@@ -4292,7 +4316,7 @@ select {
     cursor: not-allowed;
 }
 .attendance-status-toggle.attendance-status-attended {
-    background: var(--ds-status-completed-bg, rgba(76,175,80,0.2));
+    background: var(--ds-status-completed-bg, rgba(76,175,80,0.15));
     color: var(--ds-status-completed-text, #4CAF50);
 }
 .attendance-status-toggle.attendance-status-no_show {
@@ -4302,6 +4326,30 @@ select {
 .attendance-status-toggle.attendance-status-excused {
     background: var(--ds-accent-warning-bg, rgba(255,193,7,0.2));
     color: var(--ds-accent-warning, #FFC107);
+}
+.attendance-status-toggle:focus-visible,
+.event-history-attendance-btn:focus-visible,
+.event-history-delete-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ds-focus-ring);
+}
+
+/* Event history skeleton loader */
+.event-history-list + .skeleton-loader,
+.skeleton-loader {
+    padding: 16px;
+}
+.skeleton-loader .skeleton-line {
+    height: 48px;
+    margin-bottom: 10px;
+    border-radius: var(--ds-radius-sm, 4px);
+    background: var(--ds-skeleton-base, rgba(255, 255, 255, 0.07));
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.5; }
+    100% { opacity: 1; }
 }
 
 /* ============================================================

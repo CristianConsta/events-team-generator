@@ -108,7 +108,11 @@
                 var confirmed = confirm(getTranslate()('attendance_finalize_confirm'));
                 if (!confirmed) return;
                 finalizeAttendance(historyId, function() {
-                    if (modal) modal.classList.add('hidden');
+                    if (modal && global.DSShellModalController) {
+                        global.DSShellModalController.close({ overlay: modal });
+                    } else if (modal) {
+                        modal.classList.add('hidden');
+                    }
                     showEventHistoryView();
                 });
             });
@@ -118,15 +122,33 @@
         if (cancelBtn) {
             cancelBtn.addEventListener('click', function() {
                 var modal = document.getElementById('attendancePanelModal');
-                if (modal) modal.classList.add('hidden');
+                if (modal && global.DSShellModalController) {
+                    global.DSShellModalController.close({ overlay: modal });
+                } else if (modal) {
+                    modal.classList.add('hidden');
+                }
             });
         }
 
-        // Wire filter change listener once
+        // Wire filter change listeners
         var filterEl = document.getElementById('eventHistoryFilterEventType');
         if (filterEl) {
             filterEl.addEventListener('change', function() {
                 showEventHistoryView();
+            });
+        }
+        var teamFilterEl = document.getElementById('eventHistoryFilterTeam');
+        if (teamFilterEl) {
+            teamFilterEl.addEventListener('change', function() {
+                showEventHistoryView();
+            });
+        }
+        var searchEl = document.getElementById('eventHistorySearchFilter');
+        if (searchEl) {
+            var _searchDebounce;
+            searchEl.addEventListener('input', function() {
+                clearTimeout(_searchDebounce);
+                _searchDebounce = setTimeout(function() { showEventHistoryView(); }, 250);
             });
         }
 
@@ -185,9 +207,28 @@
         // Always filter to active records only
         filters.activeOnly = true;
 
+        // Show loading skeleton while fetching
+        var container = document.getElementById('eventHistoryContainer');
+        if (container) {
+            container.innerHTML = '<div class="skeleton-loader" aria-label="Loading..."><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div>';
+        }
+
         _gateway.loadHistoryRecords(allianceId, filters).then(function(records) {
-            var container = document.getElementById('eventHistoryContainer');
-            if (global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderHistoryList === 'function') {
+            // Client-side filtering for team and search
+            var teamFilter = filters.team || '';
+            var searchQuery = filters.searchQuery || '';
+            if (teamFilter || searchQuery) {
+                records = records.filter(function(r) {
+                    if (teamFilter && r.team !== teamFilter) return false;
+                    if (searchQuery) {
+                        var name = (r.eventName || '').toLowerCase();
+                        var players = Array.isArray(r.players) ? r.players.map(function(p) { return (p.playerName || '').toLowerCase(); }).join(' ') : '';
+                        if (name.indexOf(searchQuery) === -1 && players.indexOf(searchQuery) === -1) return false;
+                    }
+                    return true;
+                });
+            }
+            if (container && global.DSFeatureEventHistoryView && typeof global.DSFeatureEventHistoryView.renderHistoryList === 'function') {
                 global.DSFeatureEventHistoryView.renderHistoryList(container, records, {
                     translate: getTranslate(),
                     onOpenAttendance: openAttendancePanel,
@@ -328,8 +369,12 @@
 
             var modal = document.getElementById('attendancePanelModal');
             if (modal) {
-                modal.classList.remove('hidden');
                 modal.setAttribute('data-history-id', historyId);
+                if (global.DSShellModalController) {
+                    global.DSShellModalController.open({ overlay: modal });
+                } else {
+                    modal.classList.remove('hidden');
+                }
             }
         } catch (err) {
             console.error('openAttendancePanel error:', err);

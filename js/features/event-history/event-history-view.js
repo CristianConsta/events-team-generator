@@ -46,10 +46,14 @@
             }
             if (createdAt) {
                 var d = new Date(createdAt);
-                var dd = String(d.getDate()).padStart(2, '0');
-                var mm = String(d.getMonth() + 1).padStart(2, '0');
-                var yyyy = d.getFullYear();
-                date.textContent = dd + '.' + mm + '.' + yyyy;
+                var lang = (global.DSI18N && typeof global.DSI18N.getLanguage === 'function') ? global.DSI18N.getLanguage() : 'en';
+                try {
+                    date.textContent = new Intl.DateTimeFormat(lang, { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+                } catch (_e) {
+                    var dd = String(d.getDate()).padStart(2, '0');
+                    var mm = String(d.getMonth() + 1).padStart(2, '0');
+                    date.textContent = dd + '.' + mm + '.' + d.getFullYear();
+                }
             }
 
             var playerCount = document.createElement('span');

@@ -951,18 +951,25 @@
         </div>
 
         <!-- Event History View -->
-        <section id="eventHistoryView" class="view-section hidden" aria-labelledby="eventHistoryHeading">
+        <div id="eventHistoryView" class="app-view screen-shell hidden" aria-labelledby="eventHistoryHeading">
             <div class="page-header screen-header">
-                <h2 id="eventHistoryHeading" class="view-heading" data-i18n="event_history_title">Event History</h2>
+                <h2 id="eventHistoryHeading" class="config-title" data-i18n="event_history_title">Event History</h2>
             </div>
-            <div class="event-history-filter-bar">
-                <label for="eventHistoryFilterEventType" data-i18n="event_history_filter_label">Filter by event</label>
-                <select id="eventHistoryFilterEventType" class="form-select">
-                    <option value="" data-i18n="event_history_filter_all">All Events</option>
-                </select>
+            <div class="card screen-panel">
+                <div class="event-history-filter-bar">
+                    <input type="text" id="eventHistorySearchFilter" data-i18n-placeholder="search_placeholder" placeholder="Search..." class="form-input">
+                    <select id="eventHistoryFilterEventType" class="form-select">
+                        <option value="" data-i18n="event_history_filter_all">All Events</option>
+                    </select>
+                    <select id="eventHistoryFilterTeam" class="form-select">
+                        <option value="" data-i18n="event_history_filter_all_teams">All Teams</option>
+                        <option value="A">Team A</option>
+                        <option value="B">Team B</option>
+                    </select>
+                </div>
+                <div id="eventHistoryContainer"></div>
             </div>
-            <div id="eventHistoryContainer"></div>
-        </section>
+        </div>
 
         <!-- Attendance Check-in Modal -->
         <div id="attendancePanelModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="attendancePanelTitle">
