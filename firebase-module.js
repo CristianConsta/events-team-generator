@@ -5129,6 +5129,7 @@ const FirebaseManager = (function() {
             }
             var recordWithTimestamp = Object.assign({}, record, {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                allianceId: allianceId || null,
             });
             var docRef;
             if (allianceId) {
@@ -5208,6 +5209,13 @@ const FirebaseManager = (function() {
 
         function applyFilters(baseQuery) {
             var q = baseQuery;
+            // Scope to caller's context: alliance members see their alliance's records,
+            // solo users see only their own records.
+            if (allianceIdParam) {
+                q = q.where('allianceId', '==', allianceIdParam);
+            } else if (currentUser) {
+                q = q.where('createdByUid', '==', currentUser.uid);
+            }
             if (f.eventTypeId) {
                 q = q.where('eventTypeId', '==', f.eventTypeId);
             }
@@ -5571,6 +5579,7 @@ const FirebaseManager = (function() {
         if (newHistoryRef) {
             try {
                 var gameUnsub = newHistoryRef
+                    .where('allianceId', '==', allianceIdParam)
                     .where('active', '==', true)
                     .where('finalized', '==', false)
                     .onSnapshot(function(snapshot) {
