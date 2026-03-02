@@ -2325,7 +2325,7 @@ function renderPlayersManagementTable() {
         emptyRow.classList.add('players-mgmt-empty-row');
         let emptyHtml = `<td colspan="5"><span style="opacity: 0.7;">${escapeHtml(t('players_list_empty'))}</span>`;
         if (source === 'personal' && allRows.length === 0) {
-            emptyHtml += ` <button data-pm-action="fill-sample" class="secondary" type="button" style="margin-left: 8px;">${escapeHtml(t('players_fill_sample_button'))}</button>`;
+            emptyHtml += ` <button id="fillSamplePlayersBtn" data-pm-action="fill-sample" class="secondary" type="button" style="margin-left: 8px;">${escapeHtml(t('players_fill_sample_button'))}</button>`;
         }
         emptyHtml += '</td>';
         emptyRow.innerHTML = emptyHtml;

@@ -5,7 +5,8 @@
         { titleKey: 'onboarding_step1_title', descKey: 'onboarding_step1_desc', targetSelector: '#navMenuBtn',           position: 'bottom' },
         { titleKey: 'onboarding_step2_title', descKey: 'onboarding_step2_desc', targetSelector: '#navPlayersBtn',        position: 'bottom' },
         { titleKey: 'onboarding_step3_title', descKey: 'onboarding_step3_desc', targetSelector: '#downloadTemplateBtn',  position: 'bottom' },
-        { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '#uploadPlayerBtn',      position: 'bottom' },
+        { titleKey: 'onboarding_step4_title', descKey: 'onboarding_step4_desc', targetSelector: '#uploadPlayerBtn',         position: 'bottom' },
+        { titleKey: 'onboarding_fill_sample_title', descKey: 'onboarding_fill_sample_desc', targetSelector: '#fillSamplePlayersBtn', position: 'bottom', skipIfAbsent: true },
         { titleKey: 'onboarding_step5_title', descKey: 'onboarding_step5_desc', targetSelector: '#playersMgmtAddPanelHeader', position: 'bottom' },
         { titleKey: 'onboarding_step6_title', descKey: 'onboarding_step6_desc', targetSelector: '#navConfigBtn',         position: 'bottom' },
         { titleKey: 'onboarding_step7_title', descKey: 'onboarding_step7_desc', targetSelector: '#eventsList',           position: 'top'    },
@@ -59,6 +60,10 @@
         var target = document.querySelector(step.targetSelector);
 
         if (!target || target.closest('.hidden') || getComputedStyle(target).display === 'none') {
+            if (step.skipIfAbsent) {
+                showOnboardingStep(index + 1);
+                return;
+            }
             pendingOnboardingStep = index;
             return;
         }
