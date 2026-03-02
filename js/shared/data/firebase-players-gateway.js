@@ -23,6 +23,12 @@
             removePlayerEntry: async function removePlayerEntry(source, playerName) {
                 return gatewayUtils.withManager((svc) => svc.removePlayerEntry(source, playerName), gatewayUtils.notLoadedResult());
             },
+            clearPersonalPlayerDatabase: async function clearPersonalPlayerDatabase() {
+                return gatewayUtils.withManager((svc) => svc.clearPersonalPlayerDatabase(), gatewayUtils.notLoadedResult());
+            },
+            fillPersonalPlayerDatabase: async function fillPersonalPlayerDatabase(players) {
+                return gatewayUtils.withManager((svc) => svc.fillPersonalPlayerDatabase(players), gatewayUtils.notLoadedResult());
+            },
             getPlayerSource: function getPlayerSource() {
                 return gatewayUtils.withManager((svc) => svc.getPlayerSource(), 'personal');
             },

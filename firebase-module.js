@@ -3817,7 +3817,41 @@ const FirebaseManager = (function() {
 
         return { success: true, name: normalizedName, source: normalizedSource };
     }
-    
+
+    async function clearPersonalPlayerDatabase(context) {
+        if (!currentUser) {
+            return { success: false, error: 'No user signed in' };
+        }
+        const result = await persistPlayerDatabaseForSource('personal', {}, context);
+        if (!result.success) return result;
+        return { success: true };
+    }
+
+    async function fillPersonalPlayerDatabase(players, context) {
+        if (!currentUser) {
+            return { success: false, error: 'No user signed in' };
+        }
+        if (!Array.isArray(players) || players.length === 0) {
+            return { success: false, error: 'No players provided' };
+        }
+        const now = new Date().toISOString();
+        const nextDatabase = {};
+        players.forEach(function (p) {
+            const name = normalizeEditablePlayerName(p.name);
+            if (name) {
+                nextDatabase[name] = {
+                    power: typeof p.power === 'number' ? p.power : 0,
+                    thp: typeof p.thp === 'number' ? p.thp : 0,
+                    troops: normalizeEditablePlayerTroops(p.troops),
+                    lastUpdated: now,
+                };
+            }
+        });
+        const result = await persistPlayerDatabaseForSource('personal', nextDatabase, context);
+        if (!result.success) return result;
+        return { success: true, playerCount: Object.keys(nextDatabase).length };
+    }
+
     // ============================================================
     // ALLIANCE FUNCTIONS
     // ============================================================
@@ -6110,6 +6144,14 @@ const FirebaseManager = (function() {
         removePlayerEntry: function removePlayerEntryGameAware(source, playerName, context) {
             const gameContext = resolveGameplayContext('removePlayerEntry', context);
             return removePlayerEntry(source, playerName, gameContext);
+        },
+        clearPersonalPlayerDatabase: function clearPersonalPlayerDatabaseGameAware(context) {
+            const gameContext = resolveGameplayContext('clearPersonalPlayerDatabase', context);
+            return clearPersonalPlayerDatabase(gameContext);
+        },
+        fillPersonalPlayerDatabase: function fillPersonalPlayerDatabaseGameAware(players, context) {
+            const gameContext = resolveGameplayContext('fillPersonalPlayerDatabase', context);
+            return fillPersonalPlayerDatabase(players, gameContext);
         },
         getAllEventData: function getAllEventDataGameAware(context) {
             const gameContext = resolveGameplayContext('getAllEventData', context);

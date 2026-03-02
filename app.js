@@ -668,6 +668,9 @@ function bindStaticUiActions() {
         if (input) input.click();
     });
     on('playerFileInput', 'change', uploadPlayerData);
+    on('clearAllPlayersBtn', 'click', function () {
+        handleClearAllPlayers(document.getElementById('clearAllPlayersBtn'));
+    });
 
     on('eventsPanelHeader', 'click', () => {
         const controller = getEventsManagerFeatureController();
@@ -2320,7 +2323,12 @@ function renderPlayersManagementTable() {
     if (rows.length === 0) {
         const emptyRow = document.createElement('tr');
         emptyRow.classList.add('players-mgmt-empty-row');
-        emptyRow.innerHTML = `<td colspan="5" style="opacity: 0.7;">${escapeHtml(t('players_list_empty'))}</td>`;
+        let emptyHtml = `<td colspan="5"><span style="opacity: 0.7;">${escapeHtml(t('players_list_empty'))}</span>`;
+        if (source === 'personal' && allRows.length === 0) {
+            emptyHtml += ` <button data-pm-action="fill-sample" class="secondary" type="button" style="margin-left: 8px;">${escapeHtml(t('players_fill_sample_button'))}</button>`;
+        }
+        emptyHtml += '</td>';
+        emptyRow.innerHTML = emptyHtml;
         tbody.appendChild(emptyRow);
         return;
     }
@@ -2406,6 +2414,13 @@ function renderPlayersManagementPanel() {
     if (hintEl) {
         hintEl.textContent = t('players_list_hint');
     }
+
+    const clearBtn = document.getElementById('clearAllPlayersBtn');
+    if (clearBtn) {
+        const isPersonal = getPlayersManagementActiveSource() === 'personal';
+        const hasPlayers = buildPlayersManagementRows('personal').length > 0;
+        clearBtn.classList.toggle('hidden', !(isPersonal && hasPlayers));
+    }
 }
 
 async function switchPlayersManagementSource(source) {
@@ -2433,6 +2448,91 @@ function resetPlayersManagementAddForm() {
     }
     if (troopsSelect) {
         troopsSelect.value = 'Tank';
+    }
+}
+
+function generateSamplePlayers(count) {
+    var names = [
+        'Shadow_Phoenix', 'IronFist_X', 'WarPath42', 'DragonSlayer', 'ThunderBolt99',
+        'NightHawk_Z', 'StormBreaker', 'VoidWalker', 'CrimsonBlade', 'FrostGiant',
+        'DarkMatter77', 'SwiftStrike', 'TigerClaw88', 'SilentArrow', 'BlitzKrieg',
+        'ChaosLord', 'EagleEye_X', 'MightyQuinn', 'ViperFang', 'GhostRider66',
+        'LightningFist', 'BerserkerKing', 'QuantumLeap', 'ShadowBane', 'WarlordX',
+        'HyperDrive', 'SteelTitan', 'NovaBurst', 'PhantomKnight', 'IceDragon',
+        'BloodMoon', 'CyberWolf', 'DoomBringer', 'TurboForce', 'AcidRain',
+        'ZeroHour', 'NeonSaber', 'OmegaForce', 'TerrorByte', 'SkyHammer',
+    ];
+    var troops = ['Tank', 'Aero', 'Missile', 'Unknown'];
+    return names.slice(0, count).map(function (name, i) {
+        return {
+            name: name,
+            power: Math.round((10000 + Math.random() * 140000) * 10) / 10,
+            thp: Math.round(Math.random() * 650 * 10) / 10,
+            troops: troops[i % troops.length],
+        };
+    });
+}
+
+async function handleFillWithSamplePlayers() {
+    if (typeof FirebaseService === 'undefined') {
+        showMessage('playersMgmtStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+    const source = getPlayersManagementActiveSource();
+    if (source !== 'personal') return;
+    const gameplayContext = getGameplayContext('playersMgmtStatus');
+    if (!gameplayContext) return;
+
+    showMessage('playersMgmtStatus', t('players_fill_sample_processing'), 'processing');
+    const players = generateSamplePlayers(40);
+    const result = await FirebaseService.fillPersonalPlayerDatabase(players, gameplayContext);
+    if (result && result.success) {
+        await refreshPlayersDataAfterMutation('personal');
+        renderPlayersManagementPanel();
+        showMessage('playersMgmtStatus', t('players_fill_sample_success', { count: result.playerCount }), 'success');
+    } else {
+        showMessage('playersMgmtStatus', t('error_generic') || 'Error adding sample players.', 'error');
+    }
+}
+
+async function handleClearAllPlayers(button) {
+    if (!button) return;
+    if (typeof FirebaseService === 'undefined') {
+        showMessage('playersMgmtStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+    const source = getPlayersManagementActiveSource();
+    if (source !== 'personal') return;
+
+    if (button.getAttribute('data-confirm') !== 'pending') {
+        const originalHtml = button.innerHTML;
+        button.setAttribute('data-confirm', 'pending');
+        button.innerHTML = '<span class="action-btn-text">' + escapeHtml(t('players_mgmt_confirm_delete')) + '</span>';
+        button.classList.add('btn-confirm-pending');
+        const timerId = setTimeout(function () {
+            button.removeAttribute('data-confirm');
+            button.innerHTML = originalHtml;
+            button.classList.remove('btn-confirm-pending');
+        }, 3000);
+        button.dataset.confirmTimer = timerId;
+        return;
+    }
+
+    clearTimeout(parseInt(button.dataset.confirmTimer, 10));
+    button.removeAttribute('data-confirm');
+    button.classList.remove('btn-confirm-pending');
+
+    const gameplayContext = getGameplayContext('playersMgmtStatus');
+    if (!gameplayContext) return;
+
+    showMessage('playersMgmtStatus', t('players_clear_all_processing'), 'processing');
+    const result = await FirebaseService.clearPersonalPlayerDatabase(gameplayContext);
+    if (result && result.success) {
+        await refreshPlayersDataAfterMutation('personal');
+        renderPlayersManagementPanel();
+        showMessage('playersMgmtStatus', t('players_clear_all_success'), 'success');
+    } else {
+        showMessage('playersMgmtStatus', t('error_generic') || 'Error clearing players.', 'error');
     }
 }
 
@@ -2502,6 +2602,10 @@ async function handlePlayersManagementTableAction(event) {
     if (!gameplayContext) {
         return;
     }
+    if (action === 'fill-sample') {
+        handleFillWithSamplePlayers();
+        return;
+    }
     if (!action || !originalName) {
         return;
     }
@@ -2556,14 +2660,13 @@ async function handlePlayersManagementTableAction(event) {
     if (action === 'delete') {
         if (button.getAttribute('data-confirm') !== 'pending') {
             const originalText = button.textContent;
-            const originalBg = button.style.backgroundColor;
             button.setAttribute('data-confirm', 'pending');
             button.textContent = t('players_mgmt_confirm_delete');
-            button.style.backgroundColor = '#c0392b';
+            button.classList.add('btn-confirm-pending');
             const revert = () => {
                 button.removeAttribute('data-confirm');
                 button.textContent = originalText;
-                button.style.backgroundColor = originalBg;
+                button.classList.remove('btn-confirm-pending');
             };
             const timerId = setTimeout(revert, 3000);
             button.dataset.confirmTimer = timerId;

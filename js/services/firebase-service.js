@@ -857,6 +857,14 @@
             const gameContext = resolveGameplayContext('removePlayerEntry', context);
             return withManager((svc) => svc.removePlayerEntry(source, playerName, gameContext), notLoadedResult());
         },
+        clearPersonalPlayerDatabase: async function clearPersonalPlayerDatabase(context) {
+            const gameContext = resolveGameplayContext('clearPersonalPlayerDatabase', context);
+            return withManager((svc) => svc.clearPersonalPlayerDatabase(gameContext), notLoadedResult());
+        },
+        fillPersonalPlayerDatabase: async function fillPersonalPlayerDatabase(players, context) {
+            const gameContext = resolveGameplayContext('fillPersonalPlayerDatabase', context);
+            return withManager((svc) => svc.fillPersonalPlayerDatabase(players, gameContext), notLoadedResult());
+        },
         getAllEventData: function getAllEventData(context) {
             const gameContext = resolveGameplayContext('getAllEventData', context);
             return withManager((svc) => svc.getAllEventData(gameContext), {});
