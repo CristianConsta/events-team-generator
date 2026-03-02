@@ -462,6 +462,7 @@ function bindStaticUiActions() {
         if (eventHistoryView) {
             eventHistoryView.classList.remove('hidden');
         }
+        resumePendingOnboardingStep();
         closeNavigationMenu();
     });
     on('navPlayerUpdatesBtn', 'click', function() {

@@ -12,7 +12,10 @@
         { titleKey: 'onboarding_step8_title', descKey: 'onboarding_step8_desc', targetSelector: '#mapCoordinatesBtn',    position: 'top'    },
         { titleKey: 'onboarding_step9_title', descKey: 'onboarding_step9_desc', targetSelector: '#navGeneratorBtn',      position: 'bottom' },
         { titleKey: 'onboarding_step10_title', descKey: 'onboarding_step10_desc', targetSelector: '#navAllianceBtn',     position: 'bottom' },
-        { titleKey: 'onboarding_step11_title', descKey: 'onboarding_step11_desc', targetSelector: '#alliancePage',       position: 'top'    }
+        { titleKey: 'onboarding_step11_title', descKey: 'onboarding_step11_desc', targetSelector: '#alliancePage',       position: 'top'    },
+        { titleKey: 'onboarding_step12_title', descKey: 'onboarding_step12_desc', targetSelector: '#navEventHistoryBtn',  position: 'bottom' },
+        { titleKey: 'onboarding_step13_title', descKey: 'onboarding_step13_desc', targetSelector: '#eventHistoryView',    position: 'top'    },
+        { titleKey: 'onboarding_step14_title', descKey: 'onboarding_step14_desc', targetSelector: '#navPlayerUpdatesBtn', position: 'bottom' },
     ];
 
     var onboardingActive = false;
@@ -45,7 +48,9 @@
             step.targetSelector === '#navPlayersBtn' ||
             step.targetSelector === '#navConfigBtn' ||
             step.targetSelector === '#navGeneratorBtn' ||
-            step.targetSelector === '#navAllianceBtn'
+            step.targetSelector === '#navAllianceBtn' ||
+            step.targetSelector === '#navEventHistoryBtn' ||
+            step.targetSelector === '#navPlayerUpdatesBtn'
         ) {
             if (deps && typeof deps.openNavigationMenu === 'function') {
                 deps.openNavigationMenu();
