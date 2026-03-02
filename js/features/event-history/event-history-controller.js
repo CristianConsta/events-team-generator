@@ -164,7 +164,6 @@
         allBtn.textContent = t('event_history_filter_all');
         allBtn.addEventListener('click', function() {
             _activeEventFilter = '';
-            populateEventTypeFilter();
             showEventHistoryView();
         });
         container.appendChild(allBtn);
@@ -182,7 +181,6 @@
                 : eventId;
             btn.addEventListener('click', function() {
                 _activeEventFilter = eventId;
-                populateEventTypeFilter();
                 showEventHistoryView();
             });
             container.appendChild(btn);
@@ -208,7 +206,6 @@
             btn.textContent = t(team.labelKey);
             btn.addEventListener('click', function() {
                 _activeTeamFilter = team.value;
-                populateTeamFilter();
                 showEventHistoryView();
             });
             container.appendChild(btn);

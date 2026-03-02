@@ -4159,7 +4159,9 @@ select {
 }
 .nav-badge.hidden { display: none; }
 
-/* Event history filter bar */
+/* Event history filter selectors */
+#eventHistoryTeamSelector { margin-top: 8px; }
+#eventHistoryContainer    { margin-top: 12px; }
 
 /* Event history list */
 .event-history-list { padding: 0; margin: 0; }

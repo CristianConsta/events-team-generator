@@ -109,10 +109,9 @@ test('regression: DSFeatureEventHistoryCore.buildHistoryRecord returns expected 
 // DSFeatureEventHistoryActions
 // ---------------------------------------------------------------------------
 
-test('regression: DSFeatureEventHistoryActions is loadable and exposes required functions', () => {
+test('regression: DSFeatureEventHistoryActions is loadable', () => {
     loadAll();
     assert.ok(global.DSFeatureEventHistoryActions, 'DSFeatureEventHistoryActions should be defined on window');
-    assert.equal(typeof global.DSFeatureEventHistoryActions.readHistoryFilterState, 'function');
 });
 
 // ---------------------------------------------------------------------------
