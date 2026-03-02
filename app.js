@@ -97,6 +97,14 @@ function clearPanelMotionTimer(element) {
     delete element.dataset.motionTimerId;
 }
 
+function scheduleFrame(callback) {
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(callback);
+    } else {
+        setTimeout(callback, 0);
+    }
+}
+
 function setPanelVisibility(element, shouldOpen) {
     if (!element) {
         return;
@@ -105,8 +113,7 @@ function setPanelVisibility(element, shouldOpen) {
     element.style.setProperty('--panel-motion-ms', `${UI_MOTION_MS.panel}ms`);
     if (shouldOpen) {
         element.classList.remove('hidden');
-        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-        schedule(() => {
+        scheduleFrame(() => {
             element.classList.add('ui-open');
         });
         return;
@@ -124,23 +131,20 @@ function openModalOverlay(overlay, options) {
     if (!(overlay instanceof HTMLElement)) {
         return;
     }
+    const focusSelector = options && typeof options.initialFocusSelector === 'string'
+        ? options.initialFocusSelector
+        : null;
     if (window.DSShellModalController && typeof window.DSShellModalController.open === 'function') {
         window.DSShellModalController.open({
             overlay: overlay,
-            initialFocusSelector: options && typeof options.initialFocusSelector === 'string'
-                ? options.initialFocusSelector
-                : null,
+            initialFocusSelector: focusSelector,
         });
         return;
     }
     overlay.classList.remove('hidden');
-    const focusSelector = options && typeof options.initialFocusSelector === 'string'
-        ? options.initialFocusSelector
-        : '';
     const focusTarget = focusSelector ? overlay.querySelector(focusSelector) : null;
     if (focusTarget instanceof HTMLElement) {
-        const schedule = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-        schedule(() => focusTarget.focus());
+        scheduleFrame(() => focusTarget.focus());
     }
 }
 
@@ -1095,6 +1099,7 @@ function syncPlayersManagementFilterState() {
         },
     });
 }
+
 // Helper functions for starter/substitute counts
 function getStarterCount(teamKey) {
     if (
@@ -3249,15 +3254,16 @@ async function checkAndDisplayNotifications() {
         return;
     }
     const notifications = await FirebaseService.checkInvitations(gameplayContext);
-    const badgeState = (
+    var badgeState;
+    if (
         window.DSFeatureNotificationsCore
         && typeof window.DSFeatureNotificationsCore.getNotificationBadgeState === 'function'
-    )
-        ? window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications)
-        : {
-            count: Array.isArray(notifications) ? notifications.length : 0,
-            hasNotifications: Array.isArray(notifications) && notifications.length > 0,
-        };
+    ) {
+        badgeState = window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications);
+    } else {
+        const count = Array.isArray(notifications) ? notifications.length : 0;
+        badgeState = { count: count, hasNotifications: count > 0 };
+    }
     const badge = document.getElementById('notificationBadge');
     const notificationBtn = document.getElementById('notificationBtn');
     if (badge) {

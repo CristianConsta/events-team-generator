@@ -1,12 +1,13 @@
 (function initFirebaseService(global) {
     function createUtils(runtime) {
-        const host = runtime || global;
+        var host = runtime || global;
+        function getManager() {
+            return typeof host.FirebaseManager !== 'undefined' ? host.FirebaseManager : null;
+        }
         return {
-            manager: function manager() {
-                return typeof host.FirebaseManager !== 'undefined' ? host.FirebaseManager : null;
-            },
+            manager: getManager,
             withManager: function withManager(fn, fallback) {
-                const svc = typeof host.FirebaseManager !== 'undefined' ? host.FirebaseManager : null;
+                var svc = getManager();
                 if (!svc) {
                     return typeof fallback === 'function' ? fallback() : fallback;
                 }
