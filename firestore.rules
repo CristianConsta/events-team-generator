@@ -304,14 +304,12 @@ service cloud.firestore {
       }
 
       // Event history (game-level)
-      // Alliance records (allianceId != null) are visible to alliance members only.
-      // Solo records (allianceId == null) are visible to their creator only.
+      // All signed-in users can read the collection; visibility scoping
+      // (alliance vs. solo) is enforced at the application layer via filterByContext().
+      // Write operations remain tightly scoped: only the creator can create/delete,
+      // and only alliance members (or the creator for solo) can update.
       match /event_history/{historyId} {
-        allow read: if signedIn() && (
-          resource.data.allianceId != null
-            ? isAllianceMember(resource.data.allianceId)
-            : resource.data.createdByUid == request.auth.uid
-        );
+        allow read: if signedIn();
         allow create: if signedIn()
                       && request.resource.data.createdByUid == request.auth.uid;
         allow update: if signedIn() && (

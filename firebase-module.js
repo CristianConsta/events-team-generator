@@ -5209,13 +5209,6 @@ const FirebaseManager = (function() {
 
         function applyFilters(baseQuery) {
             var q = baseQuery;
-            // Scope to caller's context: alliance members see their alliance's records,
-            // solo users see only their own records.
-            if (allianceIdParam) {
-                q = q.where('allianceId', '==', allianceIdParam);
-            } else if (currentUser) {
-                q = q.where('createdByUid', '==', currentUser.uid);
-            }
             if (f.eventTypeId) {
                 q = q.where('eventTypeId', '==', f.eventTypeId);
             }
@@ -5242,6 +5235,18 @@ const FirebaseManager = (function() {
             return results;
         }
 
+        // Scope visibility at the application layer: alliance members see their
+        // alliance's records; solo users see only their own records.
+        function filterByContext(records) {
+            if (allianceIdParam) {
+                return records.filter(function(r) { return r.allianceId === allianceIdParam; });
+            }
+            if (currentUser) {
+                return records.filter(function(r) { return r.createdByUid === currentUser.uid; });
+            }
+            return [];
+        }
+
         // Try game-centric path first
         var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
         if (resolvedGameId) {
@@ -5249,8 +5254,10 @@ const FirebaseManager = (function() {
                 var newHistoryRef = getGameEventHistoryCollectionRef(resolvedGameId);
                 if (newHistoryRef) {
                     var newSnapshot = await applyFilters(newHistoryRef).get();
-                    if (newSnapshot && !newSnapshot.empty) {
-                        return snapshotToResults(newSnapshot);
+                    if (newSnapshot) {
+                        // Always return game-scoped results on success (even if empty),
+                        // so a successful empty result doesn't fall through to legacy path.
+                        return filterByContext(snapshotToResults(newSnapshot));
                     }
                 }
             } catch (newPathErr) {
@@ -5579,11 +5586,16 @@ const FirebaseManager = (function() {
         if (newHistoryRef) {
             try {
                 var gameUnsub = newHistoryRef
-                    .where('allianceId', '==', allianceIdParam)
                     .where('active', '==', true)
-                    .where('finalized', '==', false)
                     .onSnapshot(function(snapshot) {
-                        counts.game = snapshot.size;
+                        var count = 0;
+                        snapshot.forEach(function(doc) {
+                            var data = doc.data();
+                            if (data.allianceId === allianceIdParam && data.finalized === false) {
+                                count++;
+                            }
+                        });
+                        counts.game = count;
                         emit();
                     }, function(err) {
                         console.warn('⚠️ subscribePendingFinalizationCount game-scoped error:', err.message);
