@@ -5235,11 +5235,18 @@ const FirebaseManager = (function() {
             return results;
         }
 
-        // Scope visibility at the application layer: alliance members see their
-        // alliance's records; solo users see only their own records.
+        // Scope visibility at the application layer:
+        // - Own records: always shown (personal and alliance source)
+        // - Other alliance members' records: only shown when playerSource === 'alliance'
+        //   (missing playerSource treated as 'alliance' for backward compat with old records)
+        // - Solo users: see only their own records
         function filterByContext(records) {
             if (allianceIdParam) {
-                return records.filter(function(r) { return r.allianceId === allianceIdParam; });
+                return records.filter(function(r) {
+                    if (r.createdByUid === currentUser.uid) return true;
+                    var source = r.playerSource || 'alliance';
+                    return r.allianceId === allianceIdParam && source === 'alliance';
+                });
             }
             if (currentUser) {
                 return records.filter(function(r) { return r.createdByUid === currentUser.uid; });

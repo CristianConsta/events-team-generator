@@ -2755,6 +2755,22 @@ button.btn-confirm-pending {
     background: rgba(100, 160, 255, 0.15);
     color: var(--ds-accent-secondary);
 }
+.event-history-source-badge {
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 2px 7px;
+    opacity: 0.85;
+    vertical-align: middle;
+    align-self: center;
+}
+.event-history-source-badge--personal {
+    background: rgba(var(--ds-accent-primary-rgb), 0.15);
+    color: var(--ds-accent-primary);
+}
+.event-history-source-badge--alliance {
+    background: rgba(100, 160, 255, 0.15);
+    color: var(--ds-accent-secondary);
+}
 .modal-shell--coord-picker {
     width: min(1000px, 95vw);
     max-height: 90vh;

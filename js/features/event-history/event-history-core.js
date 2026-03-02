@@ -34,6 +34,7 @@
             players: players,
             active: true,
             finalized: false,
+            playerSource: assignment.playerSource || 'personal',
             createdByUid: createdByUid || null,
             createdAt: now,
         };

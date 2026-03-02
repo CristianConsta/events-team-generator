@@ -4539,6 +4539,7 @@ function generateTeamAssignments(team) {
             eventTypeId: currentEvent,
             eventDisplayName: getEventDisplayName(currentEvent),
             gameId: activeGameId,
+            playerSource: FirebaseService.getPlayerSource(gameplayContext),
         }).catch(function(err) {
             console.error('Event history auto-save failed (non-blocking):', err);
         });

@@ -248,6 +248,7 @@
                 global.DSFeatureEventHistoryView.renderHistoryList(container, records, {
                     translate: getTranslate(),
                     onOpenAttendance: openAttendancePanel,
+                    currentUserUid: (getCurrentUser() && getCurrentUser().uid) || null,
                 });
             }
         }).catch(function(err) {
@@ -308,6 +309,7 @@
                 eventTypeId: context.eventTypeId,
                 eventDisplayName: context.eventDisplayName,
                 gameId: context.gameId,
+                playerSource: context.playerSource || 'personal',
             }, createdByUid);
 
             var allianceId = getAllianceId(); // null for solo players
