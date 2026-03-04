@@ -6191,6 +6191,9 @@
             );
             var tokenPlayerName = resolvedTokenPlayer.playerName || normalizeEditablePlayerName(playerName) || playerName;
             var tokenPlayerKey = resolvedTokenPlayer.playerKey || getPlayerDocId(tokenPlayerName);
+            if (!tokenPlayerKey) {
+              return { success: false, error: "missing_player_key" };
+            }
             var currentSnapshot = opts.currentSnapshot && typeof opts.currentSnapshot === "object" ? buildSnapshotFromEntry(opts.currentSnapshot) : resolvedTokenPlayer.currentSnapshot || {};
             var tokenDoc = {
               contextType: "alliance",
@@ -6283,6 +6286,9 @@
             );
             var tokenPlayerName = resolvedTokenPlayer.playerName || normalizeEditablePlayerName(playerName) || playerName;
             var tokenPlayerKey = resolvedTokenPlayer.playerKey || getPlayerDocId(tokenPlayerName);
+            if (!tokenPlayerKey) {
+              return { success: false, error: "missing_player_key" };
+            }
             var currentSnapshot = opts.currentSnapshot && typeof opts.currentSnapshot === "object" ? buildSnapshotFromEntry(opts.currentSnapshot) : resolvedTokenPlayer.currentSnapshot || {};
             var tokenDoc = {
               contextType: "personal",
@@ -6324,6 +6330,9 @@
           try {
             if (!db || !uid || !pendingUpdateDoc) {
               return { ok: false, error: "Not available" };
+            }
+            if (!(pendingUpdateDoc.playerKey && typeof pendingUpdateDoc.playerKey === "string" && pendingUpdateDoc.playerKey.trim())) {
+              return { ok: false, error: "missing_player_key" };
             }
             var docRef = await db.collection("users").doc(uid).collection("pending_updates").add(pendingUpdateDoc);
             var resolvedGameId = normalizeGameId(pendingUpdateDoc && pendingUpdateDoc.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
@@ -6542,16 +6551,40 @@
           };
           var gameContext = resolveGameplayContext("applyPlayerUpdateToPersonal", gameId || null);
           var result = await upsertPlayerEntry("personal", resolvedPlayerName, nextPlayer, gameContext);
+          if (!result.success) {
+            console.error("[FirebaseManager] applyPlayerUpdateToPersonal failed", {
+              gameId: gameId || null,
+              playerName,
+              resolvedPlayerName,
+              playerKey: identifiersBag.playerKey || "",
+              error: result.errorKey || result.error || "unknown"
+            });
+          }
           return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
         }
         async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId, identifiers) {
-          if (!currentUser || !allianceId) {
-            return { ok: false, error: "Not in alliance" };
-          }
           if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
             return { ok: false, error: "snapshot_integrity_error" };
           }
           var identifiersBag = identifiers && typeof identifiers === "object" ? identifiers : {};
+          var requestedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+          await setActiveAllianceGameContext(requestedGameId);
+          var requestedAllianceId = typeof identifiersBag.allianceId === "string" ? identifiersBag.allianceId.trim() : "";
+          if (!allianceId && requestedAllianceId) {
+            allianceId = requestedAllianceId;
+          }
+          if (requestedAllianceId && allianceId && requestedAllianceId !== allianceId) {
+            return { ok: false, error: "invalid-alliance-context" };
+          }
+          if (!currentUser || !allianceId) {
+            return { ok: false, error: "Not in alliance" };
+          }
+          if (!allianceData || typeof allianceData !== "object") {
+            var loadResult = await loadAllianceData({ gameId: requestedGameId });
+            if (loadResult && loadResult.success === false) {
+              return { ok: false, error: loadResult.errorKey || loadResult.error || "players_list_error_no_alliance" };
+            }
+          }
           var resolvedPlayerName = resolvePlayerNameByKey("alliance", identifiersBag.playerKey, gameId) || playerName;
           var nextPlayer = {
             name: resolvedPlayerName,
@@ -6561,6 +6594,18 @@
           };
           var gameContext = resolveGameplayContext("applyPlayerUpdateToAlliance", gameId || null);
           var result = await upsertPlayerEntry("alliance", resolvedPlayerName, nextPlayer, gameContext);
+          if (!result.success) {
+            console.error("[FirebaseManager] applyPlayerUpdateToAlliance failed", {
+              gameId: gameId || null,
+              requestedGameId,
+              playerName,
+              resolvedPlayerName,
+              playerKey: identifiersBag.playerKey || "",
+              allianceId: allianceId || null,
+              requestedAllianceId: requestedAllianceId || null,
+              error: result.errorKey || result.error || "unknown"
+            });
+          }
           return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
         }
         return {
@@ -16792,7 +16837,12 @@
         function init(gateway) {
           _gateway = gateway;
           return {
-            destroy
+            destroy,
+            subscribeBadge,
+            setPendingUpdateDocs,
+            approveUpdate,
+            rejectUpdate,
+            revokeToken
           };
         }
         function destroy() {
@@ -16929,6 +16979,9 @@
         }
         function _safeCallPromise(fn) {
           return Promise.resolve().then(fn).catch(function(err) {
+            if (global2.console && typeof global2.console.error === "function") {
+              global2.console.error("[PlayerUpdatesController] async call failed:", err);
+            }
             return { ok: false, error: err && err.message };
           });
         }
@@ -16992,7 +17045,8 @@
           var proposed = update.proposedValues || {};
           var playerName = update.playerName;
           var identifiers = {
-            playerKey: update.playerKey || ""
+            playerKey: update.playerKey || "",
+            allianceId: update.allianceId || allianceId || ""
           };
           var contextType = update.contextType;
           var requestedPersonal = target === "personal" || target === "both";
@@ -17020,6 +17074,20 @@
             var personalOk = !requestedPersonal || personalResult && personalResult.ok;
             var allianceOk = !requestedAlliance || allianceResult && allianceResult.ok;
             if (!personalOk || !allianceOk) {
+              if (global2.console && typeof global2.console.error === "function") {
+                global2.console.error("[PlayerUpdatesController] approve apply failed", {
+                  updateId,
+                  contextType,
+                  allianceId,
+                  gameId: update && update.gameId ? update.gameId : null,
+                  playerName,
+                  playerKey: identifiers.playerKey || "",
+                  requestedPersonal,
+                  requestedAlliance,
+                  personalResult,
+                  allianceResult
+                });
+              }
               return {
                 ok: false,
                 error: allianceResult && allianceResult.error || personalResult && personalResult.error || "apply_failed"
@@ -17041,11 +17109,35 @@
             };
             if (contextType === "personal") {
               var ownerUid = update.ownerUid;
-              return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null).catch(function(err) {
+              return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null).then(function(statusResult) {
+                if (!statusResult || statusResult.ok === false) {
+                  if (global2.console && typeof global2.console.error === "function") {
+                    global2.console.error("[PlayerUpdatesController] approve status update failed (personal)", {
+                      updateId,
+                      ownerUid,
+                      gameId: update && update.gameId ? update.gameId : null,
+                      result: statusResult
+                    });
+                  }
+                }
+                return statusResult;
+              }).catch(function(err) {
                 return { ok: false, error: err && err.message };
               });
             } else {
-              return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null).catch(function(err) {
+              return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null).then(function(statusResult) {
+                if (!statusResult || statusResult.ok === false) {
+                  if (global2.console && typeof global2.console.error === "function") {
+                    global2.console.error("[PlayerUpdatesController] approve status update failed (alliance)", {
+                      updateId,
+                      allianceId,
+                      gameId: update && update.gameId ? update.gameId : null,
+                      result: statusResult
+                    });
+                  }
+                }
+                return statusResult;
+              }).catch(function(err) {
                 return { ok: false, error: err && err.message };
               });
             }
@@ -17055,14 +17147,20 @@
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
           var update = _pendingUpdateDocs[updateId];
           if (!update) return Promise.resolve({ ok: false, error: "update not found" });
-          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : void 0) : null;
+          if (!allianceId && update && update.contextType === "alliance") {
+            allianceId = update.allianceId || null;
+          }
           var target = update.contextType === "alliance" ? "alliance" : "personal";
           return _doApprove(updateId, update, allianceId, target);
         }
         function rejectUpdate(updateId) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
           var update = _pendingUpdateDocs[updateId];
-          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : void 0) : null;
+          if (!allianceId && update && update.contextType === "alliance") {
+            allianceId = update.allianceId || null;
+          }
           var currentUser = _gateway.getCurrentUser ? _gateway.getCurrentUser() : null;
           var reviewedBy = currentUser ? currentUser.uid : null;
           var decision = {
@@ -22368,8 +22466,9 @@
           Promise.all([alliancePromise, personalPromise]).then(function(results) {
             var combined = (results[0] || []).concat(results[1] || []);
             combined = hydrateMissingSnapshots(combined);
-            if (window._playerUpdatesController && typeof window._playerUpdatesController.setPendingUpdateDocs === "function") {
-              window._playerUpdatesController.setPendingUpdateDocs(combined);
+            var playerUpdatesControllerHandle = window._playerUpdatesController || window.DSFeaturePlayerUpdatesController;
+            if (playerUpdatesControllerHandle && typeof playerUpdatesControllerHandle.setPendingUpdateDocs === "function") {
+              playerUpdatesControllerHandle.setPendingUpdateDocs(combined);
             }
             window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, combined);
           }).catch(function() {
@@ -24686,6 +24785,12 @@
             troops: typeof sourceEntry.troops === "string" && sourceEntry.troops.trim() ? sourceEntry.troops.trim() : "Unknown"
           } : {};
           const playerKey = window.DSFirebaseInfra && typeof window.DSFirebaseInfra.getPlayerDocId === "function" ? window.DSFirebaseInfra.getPlayerDocId(canonicalPlayerName) : "";
+          if (!playerKey) {
+            button.disabled = false;
+            button.innerHTML = originalButtonContent;
+            showMessage("playersMgmtStatus", t2("invite_error"), "error");
+            return;
+          }
           const currentLang = window.DSI18N && typeof window.DSI18N.getCurrentLanguage === "function" ? window.DSI18N.getCurrentLanguage() : "en";
           if (source === "personal") {
             const currentUser = FirebaseService.getCurrentUser ? FirebaseService.getCurrentUser() : null;
@@ -24712,7 +24817,7 @@
               showMessage("playersMgmtStatus", t2("invite_error"), "error");
               return;
             }
-            inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?token=" + encodeURIComponent(result.tokenId) + "&uid=" + encodeURIComponent(uid) + "&lang=" + encodeURIComponent(currentLang) + (gameId ? "&gid=" + encodeURIComponent(gameId) : "") + (playerKey ? "&pk=" + encodeURIComponent(playerKey) : "");
+            inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?token=" + encodeURIComponent(result.tokenId) + "&uid=" + encodeURIComponent(uid) + "&lang=" + encodeURIComponent(currentLang) + (gameId ? "&gid=" + encodeURIComponent(gameId) : "") + "&pk=" + encodeURIComponent(playerKey);
           } else {
             const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext2) : null;
             if (!allianceId) {
@@ -24737,7 +24842,7 @@
               showMessage("playersMgmtStatus", t2("invite_error"), "error");
               return;
             }
-            inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?token=" + encodeURIComponent(result.tokenId) + "&alliance=" + encodeURIComponent(allianceId) + "&lang=" + encodeURIComponent(currentLang) + (allianceGameId ? "&gid=" + encodeURIComponent(allianceGameId) : "") + (playerKey ? "&pk=" + encodeURIComponent(playerKey) : "");
+            inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?token=" + encodeURIComponent(result.tokenId) + "&alliance=" + encodeURIComponent(allianceId) + "&lang=" + encodeURIComponent(currentLang) + (allianceGameId ? "&gid=" + encodeURIComponent(allianceGameId) : "") + "&pk=" + encodeURIComponent(playerKey);
           }
           showInviteLinkPopover(button, inviteUrl);
         }
@@ -26509,11 +26614,12 @@
               if (typeof handleAllianceDataRealtimeUpdate === "function") {
                 handleAllianceDataRealtimeUpdate();
               }
-              if (global2._playerUpdatesController && typeof global2._playerUpdatesController.subscribeBadge === "function") {
+              var playerUpdatesControllerHandle = global2._playerUpdatesController || global2.DSFeaturePlayerUpdatesController;
+              if (playerUpdatesControllerHandle && typeof playerUpdatesControllerHandle.subscribeBadge === "function") {
                 const puAllianceId = global2.FirebaseService.getAllianceId ? global2.FirebaseService.getAllianceId() : null;
                 if (puAllianceId) {
                   var puUid = global2.currentAuthUser ? global2.currentAuthUser.uid : null;
-                  global2._playerUpdatesController.subscribeBadge(puAllianceId, puUid);
+                  playerUpdatesControllerHandle.subscribeBadge(puAllianceId, puUid);
                 }
               }
             });

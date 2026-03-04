@@ -6,6 +6,22 @@
         NETWORK_ERROR: 'player_update_error_network',
         AUTH_FAILED: 'player_update_error_auth',
     };
+    var SUPPORTED_LANGUAGES = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+    var lastRenderedSnapshot = null;
+
+    function normalizeLanguageCode(rawLang) {
+        if (typeof rawLang !== 'string') {
+            return 'en';
+        }
+        var normalized = rawLang.trim().toLowerCase();
+        if (!normalized) {
+            return 'en';
+        }
+        if (normalized.indexOf('-') !== -1) {
+            normalized = normalized.split('-')[0];
+        }
+        return SUPPORTED_LANGUAGES.indexOf(normalized) !== -1 ? normalized : 'en';
+    }
 
     function parseParams() {
         var search = global.location && global.location.search ? global.location.search : '';
@@ -102,6 +118,13 @@
         el.textContent = currentValueLabel() + ': ' + suffix;
     }
 
+    function refreshCurrentStatLabels() {
+        var snapshot = lastRenderedSnapshot || {};
+        setCurrentStatValue('currentPowerValue', snapshot.power);
+        setCurrentStatValue('currentThpValue', snapshot.thp);
+        setCurrentStatValue('currentTroopsValue', snapshot.troops);
+    }
+
     function setFieldError(inputEl, errorSpanId, message) {
         var span = getEl(errorSpanId);
         if (span) {
@@ -166,10 +189,8 @@
             nameEl.textContent = playerName || '';
         }
 
-        var current = snapshot || {};
-        setCurrentStatValue('currentPowerValue', current.power);
-        setCurrentStatValue('currentThpValue', current.thp);
-        setCurrentStatValue('currentTroopsValue', current.troops);
+        lastRenderedSnapshot = snapshot || {};
+        refreshCurrentStatLabels();
 
         var powerEl = getEl('updatePower');
         if (powerEl) {
@@ -192,16 +213,35 @@
         var uidParam = params.uid || '';
         var gameIdParam = params.gid || params.gameId || '';
         var playerKeyParam = params.pk || params.playerKey || '';
-        var lang = params.lang || 'EN';
+        var lang = normalizeLanguageCode(params.lang || 'en');
 
-        // Step 2: set i18n language
-        if (global.DSI18N) {
-            if (typeof global.DSI18N.setLanguage === 'function') {
-                global.DSI18N.setLanguage(lang);
-            }
-            if (typeof global.DSI18N.applyTranslations === 'function') {
-                global.DSI18N.applyTranslations();
-            }
+        // Step 2: initialize i18n and language selector
+        var languageSelectEl = getEl('languageSelect');
+        if (global.DSI18N && typeof global.DSI18N.init === 'function') {
+            global.DSI18N.init({
+                onApply: function() {
+                    refreshCurrentStatLabels();
+                    if (global.document && global.document.title !== undefined) {
+                        global.document.title = tLocal('player_update_page_title');
+                    }
+                },
+            });
+        }
+        if (global.DSI18N && typeof global.DSI18N.setLanguage === 'function') {
+            global.DSI18N.setLanguage(lang);
+        } else if (global.DSI18N && typeof global.DSI18N.applyTranslations === 'function') {
+            global.DSI18N.applyTranslations();
+        }
+        if (languageSelectEl) {
+            languageSelectEl.value = (global.DSI18N && typeof global.DSI18N.getLanguage === 'function')
+                ? global.DSI18N.getLanguage()
+                : lang;
+            languageSelectEl.addEventListener('change', function(evt) {
+                var nextLang = normalizeLanguageCode(evt && evt.target ? evt.target.value : 'en');
+                if (global.DSI18N && typeof global.DSI18N.setLanguage === 'function') {
+                    global.DSI18N.setLanguage(nextLang);
+                }
+            });
         }
         if (global.document && global.document.title !== undefined) {
             global.document.title = tLocal('player_update_page_title');

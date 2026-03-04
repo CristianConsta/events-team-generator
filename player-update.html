@@ -20,6 +20,17 @@
 })();
     </script>
     <div id="playerUpdateRoot" class="update-card-root">
+        <div class="update-language-switcher">
+            <label for="languageSelect" data-i18n="settings_language_label">Language</label>
+            <select id="languageSelect" aria-label="Language selector">
+                <option value="en" data-i18n="language_name_en">English</option>
+                <option value="fr" data-i18n="language_name_fr">French</option>
+                <option value="de" data-i18n="language_name_de">German</option>
+                <option value="it" data-i18n="language_name_it">Italian</option>
+                <option value="ko" data-i18n="language_name_ko">Korean</option>
+                <option value="ro" data-i18n="language_name_ro">Romanian</option>
+            </select>
+        </div>
         <div id="updateLoading" class="update-state-loading">
             <span data-i18n="player_update_loading">Loading...</span>
         </div>

@@ -46,7 +46,7 @@ function createMockGlobal(options) {
 
     ['updateLoading', 'updateForm', 'updateSuccess', 'updateError',
      'updateErrorMessage', 'updatePlayerName', 'updatePower', 'updateThp',
-     'updateTroops', 'updateStatsForm', 'currentPowerValue', 'currentThpValue', 'currentTroopsValue'].forEach(function (id) {
+     'updateTroops', 'updateStatsForm', 'currentPowerValue', 'currentThpValue', 'currentTroopsValue', 'languageSelect'].forEach(function (id) {
         elements[id] = makeEl(id);
     });
 
@@ -160,6 +160,21 @@ function loadPlayerUpdate(mockGlobal) {
 describe('player-update.js', function () {
 
     describe('param validation', function () {
+        it('normalizes invite lang param to lowercase supported value', function () {
+            const g = createMockGlobal({ search: '?token=tok1&uid=user1&lang=EN' });
+            let capturedLang = null;
+            g.DSI18N = {
+                init: function () {},
+                setLanguage: function (lang) { capturedLang = lang; },
+                getLanguage: function () { return capturedLang || 'en'; },
+                t: function (key) { return key; },
+            };
+            loadPlayerUpdate(g);
+            g.DSPlayerUpdate.init();
+
+            assert.equal(capturedLang, 'en');
+        });
+
         it('shows TOKEN_INVALID when no token param', function () {
             const g = createMockGlobal({ search: '?uid=abc' });
             loadPlayerUpdate(g);
