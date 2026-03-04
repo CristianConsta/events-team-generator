@@ -5974,24 +5974,40 @@
             return [];
           }
         }
-        async function updatePendingUpdateStatus(allianceIdParam, updateId, decision) {
+        function buildGameIdCandidates(primaryGameId) {
+          var seen = {};
+          var candidates = [];
+          function pushCandidate(candidate) {
+            var normalized = normalizeGameId(candidate);
+            if (!normalized || seen[normalized]) {
+              return;
+            }
+            seen[normalized] = true;
+            candidates.push(normalized);
+          }
+          pushCandidate(primaryGameId);
+          pushCandidate(activeGameplayGameId);
+          pushCandidate(DEFAULT_GAME_ID);
+          return candidates;
+        }
+        async function updatePendingUpdateStatus(allianceIdParam, updateId, decision, gameIdParam) {
           try {
             if (!db || !allianceIdParam || !updateId) {
               return { ok: false, error: "Not available" };
             }
             var updateTasks = [];
-            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
-            if (resolvedGameId) {
-              var newRef = getGameAlliancePendingUpdatesCollectionRef(resolvedGameId, allianceIdParam);
+            var candidateGameIds = buildGameIdCandidates(gameIdParam);
+            candidateGameIds.forEach(function(candidateGameId) {
+              var newRef = getGameAlliancePendingUpdatesCollectionRef(candidateGameId, allianceIdParam);
               if (newRef) {
                 updateTasks.push(
                   newRef.doc(updateId).update(decision).catch(function(err) {
-                    console.warn("\u26A0\uFE0F Game-scoped alliance pending_updates status update failed:", err && err.message ? err.message : err);
+                    console.warn("\u26A0\uFE0F Game-scoped alliance pending_updates status update failed (" + candidateGameId + "):", err && err.message ? err.message : err);
                     throw err;
                   })
                 );
               }
-            }
+            });
             updateTasks.push(
               db.collection("alliances").doc(allianceIdParam).collection("pending_updates").doc(updateId).update(decision).catch(function(err) {
                 console.warn("\u26A0\uFE0F Legacy alliance pending_updates status update failed:", err && err.message ? err.message : err);
@@ -6225,24 +6241,24 @@
             return [];
           }
         }
-        async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+        async function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameIdParam) {
           try {
             if (!db || !uid || !updateId) {
               return { ok: false, error: "Not available" };
             }
             var updateTasks = [];
-            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
-            if (resolvedGameId) {
-              var newRef = getGameSoloPendingUpdatesCollectionRef(resolvedGameId, uid);
+            var candidateGameIds = buildGameIdCandidates(gameIdParam);
+            candidateGameIds.forEach(function(candidateGameId) {
+              var newRef = getGameSoloPendingUpdatesCollectionRef(candidateGameId, uid);
               if (newRef) {
                 updateTasks.push(
                   newRef.doc(updateId).update(decision).catch(function(err) {
-                    console.warn("\u26A0\uFE0F Game-scoped solo pending_updates status update failed:", err && err.message ? err.message : err);
+                    console.warn("\u26A0\uFE0F Game-scoped solo pending_updates status update failed (" + candidateGameId + "):", err && err.message ? err.message : err);
                     throw err;
                   })
                 );
               }
-            }
+            });
             updateTasks.push(
               db.collection("users").doc(uid).collection("pending_updates").doc(updateId).update(decision).catch(function(err) {
                 console.warn("\u26A0\uFE0F Legacy solo pending_updates status update failed:", err && err.message ? err.message : err);
@@ -16895,11 +16911,11 @@
             };
             if (contextType === "personal") {
               var ownerUid = update.ownerUid;
-              return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision).catch(function(err) {
+              return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null).catch(function(err) {
                 return { ok: false, error: err && err.message };
               });
             } else {
-              return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision).catch(function(err) {
+              return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null).catch(function(err) {
                 return { ok: false, error: err && err.message };
               });
             }
@@ -16935,11 +16951,11 @@
           };
           if (update && update.contextType === "personal") {
             var ownerUid = update.ownerUid;
-            return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision).catch(function(err) {
+            return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null).catch(function(err) {
               return { ok: false, error: err && err.message };
             });
           } else {
-            return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision).catch(function(err) {
+            return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update && update.gameId ? update.gameId : null).catch(function(err) {
               return { ok: false, error: err && err.message };
             });
           }
@@ -18643,9 +18659,9 @@
                 []
               );
             },
-            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision) {
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision, gameId) {
               return gatewayUtils.withManager(
-                (svc) => svc.updatePendingUpdateStatus(allianceId, updateId, decision),
+                (svc) => svc.updatePendingUpdateStatus(allianceId, updateId, decision, gameId),
                 gatewayUtils.notLoadedResult()
               );
             },
@@ -18698,9 +18714,9 @@
                 []
               );
             },
-            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId) {
               return gatewayUtils.withManager(
-                (svc) => svc.updatePersonalPendingUpdateStatus(uid, updateId, decision),
+                (svc) => svc.updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId),
                 gatewayUtils.notLoadedResult()
               );
             }
@@ -19007,9 +19023,9 @@
                 return svc.loadPendingUpdates(allianceId, status);
               }, []);
             },
-            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision) {
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision, gameId) {
               return gatewayUtils.withManager(function(svc) {
-                return svc.updatePendingUpdateStatus(allianceId, updateId, decision);
+                return svc.updatePendingUpdateStatus(allianceId, updateId, decision, gameId);
               }, gatewayUtils.notLoadedResult());
             },
             revokeToken: async function revokeToken(allianceId, tokenId) {
@@ -19053,9 +19069,9 @@
                 return svc.loadPersonalPendingUpdates(uid, status);
               }, []);
             },
-            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId) {
               return gatewayUtils.withManager(function(svc) {
-                return svc.updatePersonalPendingUpdateStatus(uid, updateId, decision);
+                return svc.updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId);
               }, gatewayUtils.notLoadedResult());
             }
           };
@@ -19794,8 +19810,8 @@
           loadPendingUpdates: function loadPendingUpdates(allianceId, status) {
             return playerUpdatesGateway.loadPendingUpdates(allianceId, status);
           },
-          updatePendingUpdateStatus: function updatePendingUpdateStatus(allianceId, updateId, decision) {
-            return playerUpdatesGateway.updatePendingUpdateStatus(allianceId, updateId, decision);
+          updatePendingUpdateStatus: function updatePendingUpdateStatus(allianceId, updateId, decision, gameId) {
+            return playerUpdatesGateway.updatePendingUpdateStatus(allianceId, updateId, decision, gameId);
           },
           revokeToken: function revokeToken(allianceId, tokenId) {
             return playerUpdatesGateway.revokeToken(allianceId, tokenId);
@@ -19821,8 +19837,8 @@
           loadPersonalPendingUpdates: function loadPersonalPendingUpdates(uid, status) {
             return playerUpdatesGateway.loadPersonalPendingUpdates(uid, status);
           },
-          updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
-            return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision);
+          updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId) {
+            return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId);
           },
           createUpdateTokenForContext: async function createUpdateTokenForContext(source, gameplayContext2, playerName, options) {
             var ctx = gameplayContext2 && typeof gameplayContext2 === "object" ? gameplayContext2 : {};

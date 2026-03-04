@@ -20,9 +20,9 @@
                     []
                 );
             },
-            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision) {
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision, gameId) {
                 return gatewayUtils.withManager(
-                    (svc) => svc.updatePendingUpdateStatus(allianceId, updateId, decision),
+                    (svc) => svc.updatePendingUpdateStatus(allianceId, updateId, decision, gameId),
                     gatewayUtils.notLoadedResult()
                 );
             },
@@ -74,9 +74,9 @@
                     []
                 );
             },
-            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId) {
                 return gatewayUtils.withManager(
-                    (svc) => svc.updatePersonalPendingUpdateStatus(uid, updateId, decision),
+                    (svc) => svc.updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId),
                     gatewayUtils.notLoadedResult()
                 );
             },

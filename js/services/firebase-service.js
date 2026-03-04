@@ -275,8 +275,8 @@
             loadPendingUpdates: async function loadPendingUpdates(allianceId, status) {
                 return gatewayUtils.withManager(function (svc) { return svc.loadPendingUpdates(allianceId, status); }, []);
             },
-            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision) {
-                return gatewayUtils.withManager(function (svc) { return svc.updatePendingUpdateStatus(allianceId, updateId, decision); }, gatewayUtils.notLoadedResult());
+            updatePendingUpdateStatus: async function updatePendingUpdateStatus(allianceId, updateId, decision, gameId) {
+                return gatewayUtils.withManager(function (svc) { return svc.updatePendingUpdateStatus(allianceId, updateId, decision, gameId); }, gatewayUtils.notLoadedResult());
             },
             revokeToken: async function revokeToken(allianceId, tokenId) {
                 return gatewayUtils.withManager(function (svc) { return svc.revokeToken(allianceId, tokenId); }, gatewayUtils.notLoadedResult());
@@ -302,8 +302,8 @@
             loadPersonalPendingUpdates: async function loadPersonalPendingUpdates(uid, status) {
                 return gatewayUtils.withManager(function (svc) { return svc.loadPersonalPendingUpdates(uid, status); }, []);
             },
-            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
-                return gatewayUtils.withManager(function (svc) { return svc.updatePersonalPendingUpdateStatus(uid, updateId, decision); }, gatewayUtils.notLoadedResult());
+            updatePersonalPendingUpdateStatus: async function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId) {
+                return gatewayUtils.withManager(function (svc) { return svc.updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId); }, gatewayUtils.notLoadedResult());
             },
         };
     }
@@ -1100,8 +1100,8 @@
         loadPendingUpdates: function loadPendingUpdates(allianceId, status) {
             return playerUpdatesGateway.loadPendingUpdates(allianceId, status);
         },
-        updatePendingUpdateStatus: function updatePendingUpdateStatus(allianceId, updateId, decision) {
-            return playerUpdatesGateway.updatePendingUpdateStatus(allianceId, updateId, decision);
+        updatePendingUpdateStatus: function updatePendingUpdateStatus(allianceId, updateId, decision, gameId) {
+            return playerUpdatesGateway.updatePendingUpdateStatus(allianceId, updateId, decision, gameId);
         },
         revokeToken: function revokeToken(allianceId, tokenId) {
             return playerUpdatesGateway.revokeToken(allianceId, tokenId);
@@ -1127,8 +1127,8 @@
         loadPersonalPendingUpdates: function loadPersonalPendingUpdates(uid, status) {
             return playerUpdatesGateway.loadPersonalPendingUpdates(uid, status);
         },
-        updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
-            return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision);
+        updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId) {
+            return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision, gameId);
         },
         createUpdateTokenForContext: async function createUpdateTokenForContext(source, gameplayContext, playerName, options) {
             var ctx = gameplayContext && typeof gameplayContext === 'object' ? gameplayContext : {};

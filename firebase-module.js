@@ -5779,24 +5779,41 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function updatePendingUpdateStatus(allianceIdParam, updateId, decision) {
+    function buildGameIdCandidates(primaryGameId) {
+        var seen = {};
+        var candidates = [];
+        function pushCandidate(candidate) {
+            var normalized = normalizeGameId(candidate);
+            if (!normalized || seen[normalized]) {
+                return;
+            }
+            seen[normalized] = true;
+            candidates.push(normalized);
+        }
+        pushCandidate(primaryGameId);
+        pushCandidate(activeGameplayGameId);
+        pushCandidate(DEFAULT_GAME_ID);
+        return candidates;
+    }
+
+    async function updatePendingUpdateStatus(allianceIdParam, updateId, decision, gameIdParam) {
         try {
             if (!db || !allianceIdParam || !updateId) {
                 return { ok: false, error: 'Not available' };
             }
             var updateTasks = [];
-            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
-            if (resolvedGameId) {
-                var newRef = getGameAlliancePendingUpdatesCollectionRef(resolvedGameId, allianceIdParam);
+            var candidateGameIds = buildGameIdCandidates(gameIdParam);
+            candidateGameIds.forEach(function(candidateGameId) {
+                var newRef = getGameAlliancePendingUpdatesCollectionRef(candidateGameId, allianceIdParam);
                 if (newRef) {
                     updateTasks.push(
                         newRef.doc(updateId).update(decision).catch(function(err) {
-                            console.warn('⚠️ Game-scoped alliance pending_updates status update failed:', err && err.message ? err.message : err);
+                            console.warn('⚠️ Game-scoped alliance pending_updates status update failed (' + candidateGameId + '):', err && err.message ? err.message : err);
                             throw err;
                         })
                     );
                 }
-            }
+            });
             updateTasks.push(
                 db.collection('alliances').doc(allianceIdParam)
                     .collection('pending_updates').doc(updateId)
@@ -6058,24 +6075,24 @@ const FirebaseManager = (function() {
         }
     }
 
-    async function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
+    async function updatePersonalPendingUpdateStatus(uid, updateId, decision, gameIdParam) {
         try {
             if (!db || !uid || !updateId) {
                 return { ok: false, error: 'Not available' };
             }
             var updateTasks = [];
-            var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
-            if (resolvedGameId) {
-                var newRef = getGameSoloPendingUpdatesCollectionRef(resolvedGameId, uid);
+            var candidateGameIds = buildGameIdCandidates(gameIdParam);
+            candidateGameIds.forEach(function(candidateGameId) {
+                var newRef = getGameSoloPendingUpdatesCollectionRef(candidateGameId, uid);
                 if (newRef) {
                     updateTasks.push(
                         newRef.doc(updateId).update(decision).catch(function(err) {
-                            console.warn('⚠️ Game-scoped solo pending_updates status update failed:', err && err.message ? err.message : err);
+                            console.warn('⚠️ Game-scoped solo pending_updates status update failed (' + candidateGameId + '):', err && err.message ? err.message : err);
                             throw err;
                         })
                     );
                 }
-            }
+            });
             updateTasks.push(
                 db.collection('users').doc(uid)
                     .collection('pending_updates').doc(updateId)

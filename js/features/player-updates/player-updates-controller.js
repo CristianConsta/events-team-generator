@@ -365,10 +365,10 @@
 
             if (contextType === 'personal') {
                 var ownerUid = update.ownerUid;
-                return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision)
+                return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null)
                     .catch(function(err) { return { ok: false, error: err && err.message }; });
             } else {
-                return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision)
+                return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null)
                     .catch(function(err) { return { ok: false, error: err && err.message }; });
             }
         });
@@ -415,10 +415,10 @@
 
         if (update && update.contextType === 'personal') {
             var ownerUid = update.ownerUid;
-            return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision)
+            return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null)
                 .catch(function(err) { return { ok: false, error: err && err.message }; });
         } else {
-            return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision)
+            return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update && update.gameId ? update.gameId : null)
                 .catch(function(err) { return { ok: false, error: err && err.message }; });
         }
     }

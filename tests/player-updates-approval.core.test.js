@@ -278,6 +278,64 @@ test('approveUpdate threads gameId from pending update doc to gateway', async fu
     assert.equal(capturedGameId, 'canyon_storm');
 });
 
+test('approveUpdate threads gameId to pending status update gateway call', async function () {
+    setupGlobals();
+    var capturedStatusGameId = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        applyPlayerUpdateToPersonal: function () {
+            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision, gameId) {
+            capturedStatusGameId = gameId;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-status-game-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'Lord',
+        gameId: 'canyon_storm',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-status-game-1');
+    assert.equal(result.ok, true);
+    assert.equal(capturedStatusGameId, 'canyon_storm');
+});
+
+test('rejectUpdate threads gameId to pending status update gateway call', async function () {
+    setupGlobals();
+    var capturedStatusGameId = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision, gameId) {
+            capturedStatusGameId = gameId;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-reject-status-game-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'Lord',
+        gameId: 'desert_storm',
+        proposedValues: {},
+    }]);
+
+    var result = await ctrl.rejectUpdate('update-reject-status-game-1');
+    assert.equal(result.ok, true);
+    assert.equal(capturedStatusGameId, 'desert_storm');
+});
+
 test('approveUpdate returns cancelled when apply_failed', async function () {
     setupGlobals();
     var ctrl = loadController();
