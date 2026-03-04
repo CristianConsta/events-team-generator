@@ -359,13 +359,15 @@ test('approveUpdate returns cancelled when apply_failed', async function () {
     assert.equal(result.error, 'some error');
 });
 
-test('approveUpdate for alliance context with target both: alliance success + personal failure still approves', async function () {
+test('approveUpdate for alliance context applies to alliance source only', async function () {
     setupGlobals();
     var decisionCaptured = null;
+    var personalApplyCalled = false;
     var ctrl = loadController();
     ctrl.init(createMockGateway({
         getAllianceId: function () { return 'alliance-123'; },
         applyPlayerUpdateToPersonal: function () {
+            personalApplyCalled = true;
             return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
         },
         applyPlayerUpdateToAlliance: function () {
@@ -385,20 +387,110 @@ test('approveUpdate for alliance context with target both: alliance success + pe
         proposedValues: { power: 100, thp: 500, troops: 'Tank' },
     }]);
 
-    // No modal in test env -> defaults to "both"
     var result = await ctrl.approveUpdate('update-alliance-both-1');
     assert.equal(result.ok, true);
+    assert.equal(personalApplyCalled, false);
     assert.ok(decisionCaptured);
     assert.equal(decisionCaptured.appliedTo, 'alliance');
 });
 
-test('approveUpdate for alliance context with target both: fails when alliance apply fails', async function () {
+test('approveUpdate for alliance context: applies only to alliance when player exists only in alliance DB', async function () {
+    setupGlobals();
+    var personalApplyCalled = false;
+    var allianceApplyCalled = false;
+    var decisionCaptured = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        getPlayerDatabase: function () { return {}; },
+        getAlliancePlayerDatabase: function () {
+            return {
+                Lord: { power: 100, thp: 500, troops: 'Tank' },
+            };
+        },
+        applyPlayerUpdateToPersonal: function () {
+            personalApplyCalled = true;
+            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            allianceApplyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision) {
+            decisionCaptured = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-alliance-only-db-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'Lord',
+        proposedValues: { power: 120, thp: 520, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-alliance-only-db-1');
+    assert.equal(result.ok, true);
+    assert.equal(personalApplyCalled, false);
+    assert.equal(allianceApplyCalled, true);
+    assert.ok(decisionCaptured);
+    assert.equal(decisionCaptured.appliedTo, 'alliance');
+});
+
+test('approveUpdate for personal invite context applies to personal DB even for alliance users', async function () {
+    setupGlobals();
+    var personalApplyCalled = false;
+    var allianceApplyCalled = false;
+    var decisionCaptured = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        getPlayerDatabase: function () {
+            return {
+                Lord: { power: 100, thp: 500, troops: 'Tank' },
+            };
+        },
+        getAlliancePlayerDatabase: function () { return {}; },
+        applyPlayerUpdateToPersonal: function () {
+            personalApplyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            allianceApplyCalled = true;
+            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+        },
+        updatePersonalPendingUpdateStatus: function (ownerUid, updateId, decision) {
+            decisionCaptured = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-personal-only-db-1',
+        contextType: 'personal',
+        ownerUid: 'owner-uid',
+        playerName: 'Lord',
+        proposedValues: { power: 120, thp: 520, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-personal-only-db-1');
+    assert.equal(result.ok, true);
+    assert.equal(personalApplyCalled, true);
+    assert.equal(allianceApplyCalled, false);
+    assert.ok(decisionCaptured);
+    assert.equal(decisionCaptured.appliedTo, 'personal');
+});
+
+test('approveUpdate for alliance context fails when player missing in alliance DB', async function () {
     setupGlobals();
     var statusUpdated = false;
+    var personalApplyCalled = false;
     var ctrl = loadController();
     ctrl.init(createMockGateway({
         getAllianceId: function () { return 'alliance-123'; },
         applyPlayerUpdateToPersonal: function () {
+            personalApplyCalled = true;
             return Promise.resolve({ ok: true });
         },
         applyPlayerUpdateToAlliance: function () {
@@ -418,10 +510,10 @@ test('approveUpdate for alliance context with target both: fails when alliance a
         proposedValues: { power: 100, thp: 500, troops: 'Tank' },
     }]);
 
-    // No modal in test env -> defaults to "both"
     var result = await ctrl.approveUpdate('update-alliance-both-2');
     assert.equal(result.ok, false);
     assert.equal(result.error, 'players_list_error_not_found');
+    assert.equal(personalApplyCalled, false);
     assert.equal(statusUpdated, false);
 });
 
@@ -464,7 +556,6 @@ test('approveUpdate for alliance context: case-insensitive fallback updates play
         proposedValues: { power: 100, thp: 500, troops: 'Tank' },
     }]);
 
-    // No modal in test env -> defaults to "both"
     var result = await ctrl.approveUpdate('update-lord-1');
     assert.equal(result.ok, true);
     assert.equal(statusUpdated, true);
@@ -483,9 +574,6 @@ test('approveUpdate for alliance context: retries after loadAllianceData when al
         loadAllianceData: function () {
             loadAllianceDataCalls += 1;
             return Promise.resolve({ success: true });
-        },
-        applyPlayerUpdateToPersonal: function () {
-            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
         },
         applyPlayerUpdateToAlliance: function () {
             applyAllianceCalls += 1;
@@ -516,7 +604,7 @@ test('approveUpdate for alliance context: retries after loadAllianceData when al
     assert.equal(statusUpdated, true);
 });
 
-test('approveUpdate returns underlying alliance error when both-mode alliance apply fails', async function () {
+test('approveUpdate for alliance context returns underlying alliance error on failure', async function () {
     setupGlobals();
     var ctrl = loadController();
     ctrl.init(createMockGateway({

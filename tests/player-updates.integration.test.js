@@ -195,7 +195,6 @@ test('approveUpdate: calls updatePendingUpdateStatus with status approved', asyn
         playerName: 'Alice',
         proposedValues: { power: 1100, thp: 5500, troops: 'Tank' },
     }]);
-    // No applyTargetModal in DOM → defaults to 'both'
     const result = await global.DSFeaturePlayerUpdatesController.approveUpdate('upd_001');
 
     assert.equal(result.ok, true);
@@ -204,7 +203,7 @@ test('approveUpdate: calls updatePendingUpdateStatus with status approved', asyn
     assert.equal(capturedArgs.updateId, 'upd_001');
     assert.equal(capturedArgs.update.status, 'approved');
     assert.equal(capturedArgs.update.reviewedBy, 'uid_leader_pu');
-    assert.equal(capturedArgs.update.appliedTo, 'both');
+    assert.equal(capturedArgs.update.appliedTo, 'alliance');
 });
 
 test('approveUpdate: returns ok=false if updateId is missing', async () => {

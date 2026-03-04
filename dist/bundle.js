@@ -16895,17 +16895,19 @@
             var allianceResult = results[1];
             var personalOk = !requestedPersonal || personalResult && personalResult.ok;
             var allianceOk = !requestedAlliance || allianceResult && allianceResult.ok;
-            var effectiveAppliedTo = target;
-            if (target === "both" && contextType === "alliance") {
-              if (!allianceOk) {
-                return { ok: false, error: allianceResult && allianceResult.error || "apply_failed" };
-              }
-              effectiveAppliedTo = personalOk ? "both" : "alliance";
-            } else if (!personalOk || !allianceOk) {
+            if (!personalOk || !allianceOk) {
               return {
                 ok: false,
                 error: allianceResult && allianceResult.error || personalResult && personalResult.error || "apply_failed"
               };
+            }
+            var effectiveAppliedTo = target;
+            var appliedPersonal = requestedPersonal && personalOk;
+            var appliedAlliance = requestedAlliance && allianceOk;
+            if (appliedPersonal && appliedAlliance) {
+              effectiveAppliedTo = "both";
+            } else if (appliedAlliance) {
+              effectiveAppliedTo = "alliance";
             }
             var decision = {
               status: "approved",
@@ -16930,17 +16932,8 @@
           var update = _pendingUpdateDocs[updateId];
           if (!update) return Promise.resolve({ ok: false, error: "update not found" });
           var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-          var isAllianceUser = !!allianceId;
-          if (isAllianceUser) {
-            return _showApplyTargetPrompt().then(function(target) {
-              if (!target) {
-                return { ok: false, cancelled: true };
-              }
-              return _doApprove(updateId, update, allianceId, target);
-            });
-          } else {
-            return _doApprove(updateId, update, null, "personal");
-          }
+          var target = update.contextType === "alliance" ? "alliance" : "personal";
+          return _doApprove(updateId, update, allianceId, target);
         }
         function rejectUpdate(updateId) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });

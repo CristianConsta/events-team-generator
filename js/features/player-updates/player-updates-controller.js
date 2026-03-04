@@ -338,22 +338,22 @@
 
             var personalOk = !requestedPersonal || (personalResult && personalResult.ok);
             var allianceOk = !requestedAlliance || (allianceResult && allianceResult.ok);
-
-            var effectiveAppliedTo = target;
-            // In "Both" mode for alliance review, alliance success is mandatory while personal can be optional.
-            // This avoids silent no-op approvals when reviewer has no matching player in personal DB.
-            if (target === 'both' && contextType === 'alliance') {
-                if (!allianceOk) {
-                    return { ok: false, error: (allianceResult && allianceResult.error) || 'apply_failed' };
-                }
-                effectiveAppliedTo = personalOk ? 'both' : 'alliance';
-            } else if (!personalOk || !allianceOk) {
+            if (!personalOk || !allianceOk) {
                 return {
                     ok: false,
                     error: (allianceResult && allianceResult.error)
                         || (personalResult && personalResult.error)
                         || 'apply_failed',
                 };
+            }
+
+            var effectiveAppliedTo = target;
+            var appliedPersonal = requestedPersonal && personalOk;
+            var appliedAlliance = requestedAlliance && allianceOk;
+            if (appliedPersonal && appliedAlliance) {
+                effectiveAppliedTo = 'both';
+            } else if (appliedAlliance) {
+                effectiveAppliedTo = 'alliance';
             }
 
             var decision = {
@@ -374,9 +374,10 @@
         });
     }
 
-    // Approve a pending update — applies proposed values to player database(s).
-    // For alliance users: prompts which database to update (personal / alliance / both).
-    // For non-alliance users: always applies to personal database.
+    // Approve a pending update — applies proposed values to the source database.
+    // Source is defined by invite context:
+    // - personal invite => personal player DB
+    // - alliance invite => alliance player DB
     function approveUpdate(updateId) {
         if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
 
@@ -384,18 +385,8 @@
         if (!update) return Promise.resolve({ ok: false, error: 'update not found' });
 
         var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-        var isAllianceUser = !!allianceId;
-
-        if (isAllianceUser) {
-            return _showApplyTargetPrompt().then(function(target) {
-                if (!target) {
-                    return { ok: false, cancelled: true };
-                }
-                return _doApprove(updateId, update, allianceId, target);
-            });
-        } else {
-            return _doApprove(updateId, update, null, 'personal');
-        }
+        var target = (update.contextType === 'alliance') ? 'alliance' : 'personal';
+        return _doApprove(updateId, update, allianceId, target);
     }
 
     // Reject a pending update — only updates status, no data changes.
