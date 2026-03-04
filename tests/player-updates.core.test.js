@@ -45,35 +45,42 @@ test('generateToken: two consecutive calls return different values', () => {
 
 test('buildUpdateLink: contains ?token= param', () => {
     loadModule();
-    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'en');
+    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'en', 'last_war');
     assert.ok(link.includes('?token=abc'), `Expected ?token=abc in: ${link}`);
 });
 
-test('buildUpdateLink: contains &aid= param', () => {
+test('buildUpdateLink: contains &alliance= param', () => {
     loadModule();
-    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'en');
-    assert.ok(link.includes('&aid=alliance1'), `Expected &aid=alliance1 in: ${link}`);
+    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'en', 'last_war');
+    assert.ok(link.includes('&alliance=alliance1'), `Expected &alliance=alliance1 in: ${link}`);
 });
 
 test('buildUpdateLink: contains &lang= param', () => {
     loadModule();
-    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'fr');
+    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'fr', 'last_war');
     assert.ok(link.includes('&lang=fr'), `Expected &lang=fr in: ${link}`);
+});
+
+test('buildUpdateLink: contains &gid= param when gameId is provided', () => {
+    loadModule();
+    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'fr', 'last_war');
+    assert.ok(link.includes('&gid=last_war'), `Expected &gid=last_war in: ${link}`);
 });
 
 test('buildUpdateLink: special chars in params are encoded', () => {
     loadModule();
-    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('a b+c', 'all&id', 'en');
-    // token and aid should be URL-encoded
+    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('a b+c', 'all&id', 'en', 'game id');
+    // token, alliance and gid should be URL-encoded
     assert.ok(!link.includes(' '), 'Spaces should be encoded');
     assert.ok(link.includes('a%20b'), 'Space in token should be %20');
-    assert.ok(link.includes('all%26id'), '& in aid should be %26');
+    assert.ok(link.includes('all%26id'), '& in alliance should be %26');
+    assert.ok(link.includes('game%20id'), 'Space in gid should be %20');
 });
 
-test('buildUpdateLink: buildUpdateLink("abc", "alliance1", "fr") produces correct query string', () => {
+test('buildUpdateLink: buildUpdateLink("abc", "alliance1", "fr", "last_war") produces correct query string', () => {
     loadModule();
-    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'fr');
-    assert.ok(link.endsWith('?token=abc&aid=alliance1&lang=fr'), `Link should end with correct query: ${link}`);
+    const link = global.DSFeaturePlayerUpdatesCore.buildUpdateLink('abc', 'alliance1', 'fr', 'last_war');
+    assert.ok(link.endsWith('?token=abc&alliance=alliance1&lang=fr&gid=last_war'), `Link should end with correct query: ${link}`);
 });
 
 // ---------------------------------------------------------------------------

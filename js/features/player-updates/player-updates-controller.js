@@ -104,7 +104,7 @@
             var tokens = tokenDocs.map(function (t, i) {
                 var tokenHex = t.doc ? t.doc.token : '';
                 var link = global.DSFeaturePlayerUpdatesCore
-                    ? global.DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex, allianceId, lang)
+                    ? global.DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex, allianceId, lang, gameId)
                     : '';
                 return { playerName: t.playerName, link: link };
             });

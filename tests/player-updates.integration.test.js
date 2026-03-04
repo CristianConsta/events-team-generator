@@ -363,16 +363,20 @@ test('invite flow: invite URL uses alliance param (not aid) matching player-upda
 
     const tokenId = 'tok-abc123';
     const allianceId = 'alliance_pu_integ_1';
+    const gameId = 'last_war';
     const origin = global.location.origin;
 
-    // Reproduce the URL construction from app.js line 5116
+    // Reproduce the URL construction from app.js alliance branch
     const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
-        + '&alliance=' + encodeURIComponent(allianceId);
+        + '&alliance=' + encodeURIComponent(allianceId)
+        + '&lang=' + encodeURIComponent('en')
+        + '&gid=' + encodeURIComponent(gameId);
 
     assert.ok(inviteUrl.includes('alliance='), 'URL should contain alliance= param');
     assert.ok(!inviteUrl.includes('&aid='), 'URL should not use deprecated &aid= param');
     assert.ok(inviteUrl.includes('token=' + tokenId));
     assert.ok(inviteUrl.includes('alliance=' + allianceId));
+    assert.ok(inviteUrl.includes('gid=' + gameId), 'URL should contain gid= param');
 });
 
 // ---------------------------------------------------------------------------
@@ -427,32 +431,40 @@ test('invite flow personal: URL uses ?token=...&uid=... (no alliance param)', ()
     loadModules();
     const tokenId = 'tok-personal-xyz';
     const uid = 'uid_leader_pu';
+    const gameId = 'last_war';
     const origin = global.location.origin;
 
     // Reproduce the URL construction from app.js personal branch
     const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
-        + '&uid=' + encodeURIComponent(uid);
+        + '&uid=' + encodeURIComponent(uid)
+        + '&lang=' + encodeURIComponent('en')
+        + '&gid=' + encodeURIComponent(gameId);
 
     assert.ok(inviteUrl.includes('uid='), 'Personal invite URL should contain uid= param');
     assert.ok(!inviteUrl.includes('alliance='), 'Personal invite URL should NOT contain alliance= param');
     assert.ok(inviteUrl.includes('token=' + tokenId));
     assert.ok(inviteUrl.includes('uid=' + uid));
+    assert.ok(inviteUrl.includes('gid=' + gameId), 'Personal invite URL should include gid= param');
 });
 
 test('invite flow alliance: URL uses ?token=...&alliance=... (no uid param)', () => {
     loadModules();
     const tokenId = 'tok-alliance-xyz';
     const allianceId = 'alliance_pu_integ_1';
+    const gameId = 'last_war';
     const origin = global.location.origin;
 
     // Reproduce the URL construction from app.js alliance branch
     const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
-        + '&alliance=' + encodeURIComponent(allianceId);
+        + '&alliance=' + encodeURIComponent(allianceId)
+        + '&lang=' + encodeURIComponent('en')
+        + '&gid=' + encodeURIComponent(gameId);
 
     assert.ok(inviteUrl.includes('alliance='), 'Alliance invite URL should contain alliance= param');
     assert.ok(!inviteUrl.includes('&uid='), 'Alliance invite URL should NOT contain uid= param');
     assert.ok(inviteUrl.includes('token=' + tokenId));
     assert.ok(inviteUrl.includes('alliance=' + allianceId));
+    assert.ok(inviteUrl.includes('gid=' + gameId), 'Alliance invite URL should include gid= param');
 });
 
 test('invite flow: createUpdateToken stores playerName in token doc shape', async () => {

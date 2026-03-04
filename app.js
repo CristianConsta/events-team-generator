@@ -2820,6 +2820,9 @@ async function handlePlayersManagementTableAction(event) {
         button.innerHTML = '<span class="invite-btn-text">' + escapeHtml(t('invite_generating')) + '</span>';
         let result;
         let inviteUrl;
+        const currentLang = (window.DSI18N && typeof window.DSI18N.getCurrentLanguage === 'function')
+            ? window.DSI18N.getCurrentLanguage()
+            : 'en';
         if (source === 'personal') {
             const currentUser = FirebaseService.getCurrentUser ? FirebaseService.getCurrentUser() : null;
             const uid = currentUser ? currentUser.uid : null;
@@ -2839,7 +2842,11 @@ async function handlePlayersManagementTableAction(event) {
                 showMessage('playersMgmtStatus', t('invite_error'), 'error');
                 return;
             }
-            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0] + '?token=' + encodeURIComponent(result.tokenId) + '&uid=' + encodeURIComponent(uid);
+            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0]
+                + '?token=' + encodeURIComponent(result.tokenId)
+                + '&uid=' + encodeURIComponent(uid)
+                + '&lang=' + encodeURIComponent(currentLang)
+                + (gameId ? '&gid=' + encodeURIComponent(gameId) : '');
         } else {
             const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
             if (!allianceId) {
@@ -2861,7 +2868,11 @@ async function handlePlayersManagementTableAction(event) {
                 showMessage('playersMgmtStatus', t('invite_error'), 'error');
                 return;
             }
-            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0] + '?token=' + encodeURIComponent(result.tokenId) + '&alliance=' + encodeURIComponent(allianceId);
+            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0]
+                + '?token=' + encodeURIComponent(result.tokenId)
+                + '&alliance=' + encodeURIComponent(allianceId)
+                + '&lang=' + encodeURIComponent(currentLang)
+                + (allianceGameId ? '&gid=' + encodeURIComponent(allianceGameId) : '');
         }
         showInviteLinkPopover(button, inviteUrl);
     }

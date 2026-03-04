@@ -33,15 +33,19 @@
         };
     }
 
-    function buildUpdateLink(token, allianceId, lang) {
+    function buildUpdateLink(token, allianceId, lang, gameId) {
         var origin = global.location && global.location.origin ? global.location.origin : '';
-        return (
+        var link = (
             origin +
             '/player-update.html' +
             '?token=' + encodeURIComponent(token) +
-            '&aid=' + encodeURIComponent(allianceId) +
+            '&alliance=' + encodeURIComponent(allianceId) +
             '&lang=' + encodeURIComponent(lang)
         );
+        if (gameId) {
+            link += '&gid=' + encodeURIComponent(gameId);
+        }
+        return link;
     }
 
     function formatLinksForMessaging(players) {
