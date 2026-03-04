@@ -341,6 +341,65 @@ test('approveUpdate threads playerKey to apply gateway call', async function () 
     assert.equal(capturedIdentifiers.playerKey, 'lord_abc123');
 });
 
+test('approveUpdate threads allianceId to apply gateway identifiers bag', async function () {
+    setupGlobals();
+    var capturedIdentifiers = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        applyPlayerUpdateToAlliance: function (name, values, gameId, identifiers) {
+            capturedIdentifiers = identifiers;
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function () {
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-alliance-id-identifiers-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-119',
+        playerName: 'Lord',
+        gameId: 'last_war',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-alliance-id-identifiers-1');
+    assert.equal(result.ok, true);
+    assert.ok(capturedIdentifiers);
+    assert.equal(capturedIdentifiers.allianceId, 'alliance-119');
+});
+
+test('approveUpdate falls back to update.allianceId when gateway.getAllianceId is null', async function () {
+    setupGlobals();
+    var capturedAllianceId = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        applyPlayerUpdateToAlliance: function () {
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function (allianceId) {
+            capturedAllianceId = allianceId;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-alliance-id-fallback-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-119',
+        playerName: 'Lord',
+        gameId: 'last_war',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-alliance-id-fallback-1');
+    assert.equal(result.ok, true);
+    assert.equal(capturedAllianceId, 'alliance-119');
+});
+
 test('rejectUpdate threads gameId to pending status update gateway call', async function () {
     setupGlobals();
     var capturedStatusGameId = null;
@@ -365,6 +424,32 @@ test('rejectUpdate threads gameId to pending status update gateway call', async 
     var result = await ctrl.rejectUpdate('update-reject-status-game-1');
     assert.equal(result.ok, true);
     assert.equal(capturedStatusGameId, 'desert_storm');
+});
+
+test('rejectUpdate falls back to update.allianceId when gateway.getAllianceId is null', async function () {
+    setupGlobals();
+    var capturedAllianceId = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        updatePendingUpdateStatus: function (allianceId) {
+            capturedAllianceId = allianceId;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-reject-alliance-id-fallback-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-119',
+        playerName: 'Lord',
+        gameId: 'last_war',
+        proposedValues: {},
+    }]);
+
+    var result = await ctrl.rejectUpdate('update-reject-alliance-id-fallback-1');
+    assert.equal(result.ok, true);
+    assert.equal(capturedAllianceId, 'alliance-119');
 });
 
 test('approveUpdate returns cancelled when apply_failed', async function () {

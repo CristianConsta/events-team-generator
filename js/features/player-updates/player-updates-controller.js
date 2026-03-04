@@ -250,6 +250,7 @@
         var playerName = update.playerName;
         var identifiers = {
             playerKey: update.playerKey || '',
+            allianceId: update.allianceId || allianceId || '',
         };
         var contextType = update.contextType;
 
@@ -326,7 +327,12 @@
         var update = _pendingUpdateDocs[updateId];
         if (!update) return Promise.resolve({ ok: false, error: 'update not found' });
 
-        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+        var allianceId = _gateway.getAllianceId
+            ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : undefined)
+            : null;
+        if (!allianceId && update && update.contextType === 'alliance') {
+            allianceId = update.allianceId || null;
+        }
         var target = (update.contextType === 'alliance') ? 'alliance' : 'personal';
         return _doApprove(updateId, update, allianceId, target);
     }
@@ -336,7 +342,12 @@
         if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
 
         var update = _pendingUpdateDocs[updateId];
-        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
+        var allianceId = _gateway.getAllianceId
+            ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : undefined)
+            : null;
+        if (!allianceId && update && update.contextType === 'alliance') {
+            allianceId = update.allianceId || null;
+        }
         var currentUser = _gateway.getCurrentUser ? _gateway.getCurrentUser() : null;
         var reviewedBy = currentUser ? currentUser.uid : null;
 

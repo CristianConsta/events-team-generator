@@ -6026,6 +6026,9 @@ const FirebaseManager = (function() {
             );
             var tokenPlayerName = resolvedTokenPlayer.playerName || normalizeEditablePlayerName(playerName) || playerName;
             var tokenPlayerKey = resolvedTokenPlayer.playerKey || getPlayerDocId(tokenPlayerName);
+            if (!tokenPlayerKey) {
+                return { success: false, error: 'missing_player_key' };
+            }
             var currentSnapshot = (opts.currentSnapshot && typeof opts.currentSnapshot === 'object')
                 ? buildSnapshotFromEntry(opts.currentSnapshot)
                 : (resolvedTokenPlayer.currentSnapshot || {});
@@ -6132,6 +6135,9 @@ const FirebaseManager = (function() {
             );
             var tokenPlayerName = resolvedTokenPlayer.playerName || normalizeEditablePlayerName(playerName) || playerName;
             var tokenPlayerKey = resolvedTokenPlayer.playerKey || getPlayerDocId(tokenPlayerName);
+            if (!tokenPlayerKey) {
+                return { success: false, error: 'missing_player_key' };
+            }
             var currentSnapshot = (opts.currentSnapshot && typeof opts.currentSnapshot === 'object')
                 ? buildSnapshotFromEntry(opts.currentSnapshot)
                 : (resolvedTokenPlayer.currentSnapshot || {});
@@ -6179,6 +6185,9 @@ const FirebaseManager = (function() {
         try {
             if (!db || !uid || !pendingUpdateDoc) {
                 return { ok: false, error: 'Not available' };
+            }
+            if (!(pendingUpdateDoc.playerKey && typeof pendingUpdateDoc.playerKey === 'string' && pendingUpdateDoc.playerKey.trim())) {
+                return { ok: false, error: 'missing_player_key' };
             }
             var docRef = await db.collection('users').doc(uid)
                 .collection('pending_updates')
@@ -6421,13 +6430,28 @@ const FirebaseManager = (function() {
     }
 
     async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId, identifiers) {
-        if (!currentUser || !allianceId) {
-            return { ok: false, error: 'Not in alliance' };
-        }
         if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
             return { ok: false, error: 'snapshot_integrity_error' };
         }
         var identifiersBag = identifiers && typeof identifiers === 'object' ? identifiers : {};
+        var requestedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+        await setActiveAllianceGameContext(requestedGameId);
+        var requestedAllianceId = typeof identifiersBag.allianceId === 'string' ? identifiersBag.allianceId.trim() : '';
+        if (!allianceId && requestedAllianceId) {
+            allianceId = requestedAllianceId;
+        }
+        if (requestedAllianceId && allianceId && requestedAllianceId !== allianceId) {
+            return { ok: false, error: 'invalid-alliance-context' };
+        }
+        if (!currentUser || !allianceId) {
+            return { ok: false, error: 'Not in alliance' };
+        }
+        if (!allianceData || typeof allianceData !== 'object') {
+            var loadResult = await loadAllianceData({ gameId: requestedGameId });
+            if (loadResult && loadResult.success === false) {
+                return { ok: false, error: loadResult.errorKey || loadResult.error || 'players_list_error_no_alliance' };
+            }
+        }
         var resolvedPlayerName = resolvePlayerNameByKey('alliance', identifiersBag.playerKey, gameId) || playerName;
         var nextPlayer = {
             name: resolvedPlayerName,

@@ -2883,6 +2883,12 @@ async function handlePlayersManagementTableAction(event) {
         const playerKey = (window.DSFirebaseInfra && typeof window.DSFirebaseInfra.getPlayerDocId === 'function')
             ? window.DSFirebaseInfra.getPlayerDocId(canonicalPlayerName)
             : '';
+        if (!playerKey) {
+            button.disabled = false;
+            button.innerHTML = originalButtonContent;
+            showMessage('playersMgmtStatus', t('invite_error'), 'error');
+            return;
+        }
         const currentLang = (window.DSI18N && typeof window.DSI18N.getCurrentLanguage === 'function')
             ? window.DSI18N.getCurrentLanguage()
             : 'en';
@@ -2916,7 +2922,7 @@ async function handlePlayersManagementTableAction(event) {
                 + '&uid=' + encodeURIComponent(uid)
                 + '&lang=' + encodeURIComponent(currentLang)
                 + (gameId ? '&gid=' + encodeURIComponent(gameId) : '')
-                + (playerKey ? '&pk=' + encodeURIComponent(playerKey) : '');
+                + '&pk=' + encodeURIComponent(playerKey);
         } else {
             const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
             if (!allianceId) {
@@ -2946,7 +2952,7 @@ async function handlePlayersManagementTableAction(event) {
                 + '&alliance=' + encodeURIComponent(allianceId)
                 + '&lang=' + encodeURIComponent(currentLang)
                 + (allianceGameId ? '&gid=' + encodeURIComponent(allianceGameId) : '')
-                + (playerKey ? '&pk=' + encodeURIComponent(playerKey) : '');
+                + '&pk=' + encodeURIComponent(playerKey);
         }
         showInviteLinkPopover(button, inviteUrl);
     }

@@ -342,6 +342,7 @@ describe('player-update.js', function () {
                         return {
                             used: false,
                             playerName: 'Test',
+                            playerKey: 'test_key',
                             expiresAt: { toDate: function () { return pastDate; } },
                         };
                     },
@@ -365,6 +366,7 @@ describe('player-update.js', function () {
                         return {
                             used: false,
                             playerName: 'HeroPlayer',
+                            playerKey: 'hero_player_key',
                             expiresAt: { toDate: function () { return futureDate; } },
                             currentSnapshot: { power: 5000, thp: 200, troops: 'Tank' },
                         };
@@ -384,6 +386,31 @@ describe('player-update.js', function () {
             assert.equal(g._elements.currentPowerValue.textContent, 'Current value: 5000');
             assert.equal(g._elements.currentThpValue.textContent, 'Current value: 200');
             assert.equal(g._elements.currentTroopsValue.textContent, 'Current value: Tank');
+        });
+
+        it('shows TOKEN_INVALID when token is missing playerKey', async function () {
+            const futureDate = new Date(Date.now() + 86400000);
+            const g = createMockGlobal({
+                search: '?token=abc&uid=user1',
+                tokenSnapshot: {
+                    exists: true,
+                    data: function () {
+                        return {
+                            used: false,
+                            playerName: 'HeroPlayer',
+                            expiresAt: { toDate: function () { return futureDate; } },
+                            currentSnapshot: { power: 5000, thp: 200, troops: 'Tank' },
+                        };
+                    },
+                    ref: {},
+                },
+            });
+            loadPlayerUpdate(g);
+            g.DSPlayerUpdate.init();
+            await new Promise(function (r) { setTimeout(r, 50); });
+
+            assert.equal(g._elements.updateError.classList.contains('hidden'), false);
+            assert.equal(g._elements.updateErrorMessage.textContent, 'player_update_error_invalid');
         });
     });
 

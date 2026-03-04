@@ -332,7 +332,12 @@
 
                         var tokenDoc = snapshot.data();
                         tokenRef = snapshot.ref;
-                        var tokenPlayerKey = tokenDoc.playerKey || playerKeyParam || '';
+                        var tokenPlayerKey = '';
+                        if (typeof tokenDoc.playerKey === 'string' && tokenDoc.playerKey.trim()) {
+                            tokenPlayerKey = tokenDoc.playerKey.trim();
+                        } else if (typeof playerKeyParam === 'string' && playerKeyParam.trim()) {
+                            tokenPlayerKey = playerKeyParam.trim();
+                        }
 
                         // Step 7: token already used
                         if (tokenDoc.used === true || isTokenSubmissionLimitReached(tokenDoc)) {
@@ -347,6 +352,11 @@
                             : new Date(tokenDoc.expiresAt);
                         if (expiresAt < now) {
                             showError(ERROR_CODES.TOKEN_EXPIRED);
+                            return;
+                        }
+                        // Player key is mandatory so pending update can target a unique player doc.
+                        if (!tokenPlayerKey) {
+                            showError(ERROR_CODES.TOKEN_INVALID);
                             return;
                         }
 

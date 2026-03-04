@@ -81,13 +81,11 @@ service cloud.firestore {
 
     function tokenPlayerKeyMatches(tokenData, pendingData) {
       return tokenData != null
-        && (
-          !('playerKey' in tokenData)
-          || (
-            pendingData.playerKey is string
-            && pendingData.playerKey == tokenData.playerKey
-          )
-        );
+        && tokenData.playerKey is string
+        && tokenData.playerKey.size() > 0
+        && pendingData.playerKey is string
+        && pendingData.playerKey.size() > 0
+        && pendingData.playerKey == tokenData.playerKey;
     }
 
     match /users/{uid} {
@@ -100,7 +98,9 @@ service cloud.firestore {
 
       // Personal update tokens for player self-update invites.
       match /update_tokens/{tokenId} {
-        allow create: if isSelf(uid);
+        allow create: if isSelf(uid)
+                      && request.resource.data.playerKey is string
+                      && request.resource.data.playerKey.size() > 0;
         allow read: if isSelf(uid)
                     || (isAnonymous()
                         && resource.data.used == false
@@ -208,7 +208,9 @@ service cloud.firestore {
         match /update_tokens/{tokenId} {
           allow create: if isAllianceActor(
             get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
-          );
+          )
+          && request.resource.data.playerKey is string
+          && request.resource.data.playerKey.size() > 0;
           allow read: if isAllianceActor(
                           get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
                         )
@@ -306,7 +308,9 @@ service cloud.firestore {
 
         // Update tokens for player self-update invites
         match /update_tokens/{tokenId} {
-          allow create: if isSelf(uid);
+          allow create: if isSelf(uid)
+                        && request.resource.data.playerKey is string
+                        && request.resource.data.playerKey.size() > 0;
           allow read: if isSelf(uid)
                       || (isAnonymous()
                           && resource.data.used == false
@@ -438,7 +442,9 @@ service cloud.firestore {
       }
 
       match /update_tokens/{tokenId} {
-        allow create: if isAllianceMember(allianceId);
+        allow create: if isAllianceMember(allianceId)
+                      && request.resource.data.playerKey is string
+                      && request.resource.data.playerKey.size() > 0;
         allow read: if isAllianceMember(allianceId)
                     || (isAnonymous()
                         && resource.data.used == false

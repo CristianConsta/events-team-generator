@@ -96,6 +96,7 @@ test('update_tokens: alliance member can create update_tokens', async () => {
             token: 'abcdef1234567890abcdef1234567890',
             allianceId: ALLIANCE_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             createdBy: MEMBER_UID,
             expiresAt: futureTimestamp(),
@@ -128,6 +129,21 @@ test('update_tokens: anonymous user CANNOT create update_tokens', async () => {
     );
 });
 
+test('update_tokens: alliance member CANNOT create update_tokens without playerKey', async () => {
+    const db = authedDb(MEMBER_UID);
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/update_tokens/token_missing_player_key`).set({
+            token: 'missing_key_token',
+            allianceId: ALLIANCE_ID,
+            playerName: 'Alice',
+            gameId: 'last_war',
+            createdBy: MEMBER_UID,
+            expiresAt: futureTimestamp(),
+            used: false,
+        })
+    );
+});
+
 // ---------------------------------------------------------------------------
 // update_tokens — read (anonymous access for valid tokens)
 // ---------------------------------------------------------------------------
@@ -137,6 +153,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_valid`, {
         token: 'valid_token_1234',
         playerName: 'Alice',
+        playerKey: 'alice_key',
         gameId: 'last_war',
         used: false,
         expiresAt: futureTimestamp(),
@@ -146,6 +163,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_expired`, {
         token: 'expired_token_1234',
         playerName: 'Bob',
+        playerKey: 'bob_key',
         gameId: 'last_war',
         used: false,
         expiresAt: pastTimestamp(),
@@ -155,6 +173,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_used`, {
         token: 'used_token_1234',
         playerName: 'Charlie',
+        playerKey: 'charlie_key',
         gameId: 'last_war',
         used: true,
         expiresAt: futureTimestamp(),
@@ -164,6 +183,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_scope_test`, {
         token: 'scope_test_token',
         playerName: 'Dave',
+        playerKey: 'dave_key',
         gameId: 'last_war',
         used: false,
         expiresAt: futureTimestamp(),
@@ -174,6 +194,7 @@ test.before(async () => {
         contextType: 'personal',
         ownerUid: PERSONAL_UID,
         playerName: 'Eve',
+        playerKey: 'eve_key',
         gameId: 'last_war',
         used: false,
         expiresAt: futureTimestamp(),
@@ -184,6 +205,7 @@ test.before(async () => {
         contextType: 'personal',
         ownerUid: PERSONAL_UID,
         playerName: 'Eve',
+        playerKey: 'eve_key',
         gameId: 'last_war',
         used: true,
         expiresAt: futureTimestamp(),
@@ -234,6 +256,7 @@ test('update_tokens: anonymous user can update token to mark as used (only used,
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_to_use`, {
         token: 'token_to_use_value',
         playerName: 'Diana',
+        playerKey: 'diana_key',
         used: false,
         expiresAt: futureTimestamp(),
         usedAt: null,
@@ -255,6 +278,7 @@ test('update_tokens: anonymous user CANNOT update token playerName field', async
     await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/token_tamper`, {
         token: 'token_tamper_value',
         playerName: 'Eve',
+        playerKey: 'eve_key',
         used: false,
         expiresAt: futureTimestamp(),
         usedAt: null,
@@ -295,6 +319,7 @@ test('pending_updates: anonymous user can create pending_updates with valid toke
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/${UPDATE_ID}`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -313,6 +338,7 @@ test('pending_updates: anonymous user CANNOT create with wrong playerName (scope
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_wrong_name`).set({
             tokenId: 'token_scope_test',
             playerName: 'NotDave',  // token has playerName: 'Dave'
+            playerKey: 'dave_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -331,6 +357,7 @@ test('pending_updates: anonymous user CANNOT create with wrong gameId (scope vio
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_wrong_game`).set({
             tokenId: 'token_scope_test',
             playerName: 'Dave',
+            playerKey: 'dave_key',
             gameId: 'canyon_storm',  // token has gameId: 'last_war'
             submittedAt: new Date(),
             status: 'pending',
@@ -349,6 +376,7 @@ test('pending_updates: anonymous user CANNOT create with used token', async () =
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_used_token`).set({
             tokenId: 'token_used',
             playerName: 'Charlie',
+            playerKey: 'charlie_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -365,6 +393,25 @@ test('pending_updates: anonymous user CANNOT create without tokenId', async () =
     const db = anonDb('anon_uid_scope_test_4');
     await assertFails(
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_no_token`).set({
+            playerName: 'Alice',
+            playerKey: 'alice_key',
+            gameId: 'last_war',
+            submittedAt: new Date(),
+            status: 'pending',
+            proposedValues: {
+                power: 5000,
+                thp: 50000,
+                troops: 'Tank',
+            },
+        })
+    );
+});
+
+test('pending_updates: anonymous user CANNOT create without playerKey', async () => {
+    const db = anonDb('anon_uid_scope_test_no_key');
+    await assertFails(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_no_player_key`).set({
+            tokenId: TOKEN_ID,
             playerName: 'Alice',
             gameId: 'last_war',
             submittedAt: new Date(),
@@ -401,6 +448,7 @@ test('pending_updates: anonymous user CANNOT create with status != pending', asy
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_status`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'approved',  // must be 'pending'
@@ -419,6 +467,7 @@ test('pending_updates: anonymous user CANNOT create pending_updates with power >
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_power`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             status: 'pending',
             proposedValues: {
@@ -436,6 +485,7 @@ test('pending_updates: anonymous user CANNOT create pending_updates with power <
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_neg_power`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             status: 'pending',
             proposedValues: {
@@ -453,6 +503,7 @@ test('pending_updates: anonymous user CANNOT create pending_updates with thp > 9
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_thp`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             status: 'pending',
             proposedValues: {
@@ -470,6 +521,7 @@ test('pending_updates: anonymous user CANNOT create pending_updates with invalid
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_bad_troops`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             status: 'pending',
             proposedValues: {
@@ -487,6 +539,7 @@ test('pending_updates: alliance member CANNOT create pending_updates (not anonym
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_by_member`).set({
             tokenId: TOKEN_ID,
             playerName: 'Alice',
+            playerKey: 'alice_key',
             gameId: 'last_war',
             status: 'pending',
             proposedValues: {
@@ -510,6 +563,7 @@ test('pending_updates (personal): anonymous user can create with valid token cro
             ownerUid: PERSONAL_UID,
             tokenId: PERSONAL_TOKEN_ID,
             playerName: 'Eve',
+            playerKey: 'eve_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -529,6 +583,7 @@ test('pending_updates (personal): anonymous user CANNOT create with wrong player
             ownerUid: PERSONAL_UID,
             tokenId: PERSONAL_TOKEN_ID,
             playerName: 'NotEve',  // token has playerName: 'Eve'
+            playerKey: 'eve_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -548,6 +603,7 @@ test('pending_updates (personal): anonymous user CANNOT create with wrong gameId
             ownerUid: PERSONAL_UID,
             tokenId: PERSONAL_TOKEN_ID,
             playerName: 'Eve',
+            playerKey: 'eve_key',
             gameId: 'canyon_storm',  // token has gameId: 'last_war'
             submittedAt: new Date(),
             status: 'pending',
@@ -567,6 +623,7 @@ test('pending_updates (personal): anonymous user CANNOT create with used token',
             ownerUid: PERSONAL_UID,
             tokenId: 'personal_token_used',
             playerName: 'Eve',
+            playerKey: 'eve_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -586,6 +643,7 @@ test('pending_updates (personal): anonymous user CANNOT create with wrong ownerU
             ownerUid: 'some_other_uid',  // must match path uid
             tokenId: PERSONAL_TOKEN_ID,
             playerName: 'Eve',
+            playerKey: 'eve_key',
             gameId: 'last_war',
             submittedAt: new Date(),
             status: 'pending',
@@ -606,6 +664,7 @@ test.before(async () => {
     await seedDoc(`alliances/${ALLIANCE_ID}/pending_updates/update_seeded`, {
         tokenId: TOKEN_ID,
         playerName: 'Alice',
+        playerKey: 'alice_key',
         gameId: 'last_war',
         status: 'pending',
         proposedValues: { power: 3000, thp: 30000, troops: 'Tank' },
