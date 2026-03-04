@@ -16433,29 +16433,48 @@
           var proposed = update.proposedValues || {};
           var playerName = update.playerName;
           var contextType = update.contextType;
-          var applyPromises = [];
-          if (target === "personal" || target === "both") {
-            applyPromises.push(
-              _gateway.applyPlayerUpdateToPersonal(playerName, proposed, update.gameId || null)
-            );
-          }
-          if ((target === "alliance" || target === "both") && allianceId) {
-            applyPromises.push(
-              _gateway.applyPlayerUpdateToAlliance(playerName, proposed, update.gameId || null)
-            );
-          }
-          return Promise.all(applyPromises).then(function(applyResults) {
-            var anyFailed = applyResults.some(function(r) {
-              return !r || !r.ok;
+          var requestedPersonal = target === "personal" || target === "both";
+          var requestedAlliance = target === "alliance" || target === "both";
+          var applyResults = {
+            personal: null,
+            alliance: null
+          };
+          if (requestedPersonal) {
+            applyResults.personal = _gateway.applyPlayerUpdateToPersonal(playerName, proposed, update.gameId || null).catch(function(err) {
+              return { ok: false, error: err && err.message };
             });
-            if (anyFailed) {
+          }
+          if (requestedAlliance) {
+            if (allianceId) {
+              applyResults.alliance = _gateway.applyPlayerUpdateToAlliance(playerName, proposed, update.gameId || null).catch(function(err) {
+                return { ok: false, error: err && err.message };
+              });
+            } else {
+              applyResults.alliance = Promise.resolve({ ok: false, error: "missing_alliance_id" });
+            }
+          }
+          return Promise.all([
+            applyResults.personal || Promise.resolve(null),
+            applyResults.alliance || Promise.resolve(null)
+          ]).then(function(results) {
+            var personalResult = results[0];
+            var allianceResult = results[1];
+            var personalOk = !requestedPersonal || personalResult && personalResult.ok;
+            var allianceOk = !requestedAlliance || allianceResult && allianceResult.ok;
+            var effectiveAppliedTo = target;
+            if (target === "both" && contextType === "alliance") {
+              if (!allianceOk) {
+                return { ok: false, error: "apply_failed" };
+              }
+              effectiveAppliedTo = personalOk ? "both" : "alliance";
+            } else if (!personalOk || !allianceOk) {
               return { ok: false, error: "apply_failed" };
             }
             var decision = {
               status: "approved",
               reviewedBy,
               reviewedAt: /* @__PURE__ */ new Date(),
-              appliedTo: target
+              appliedTo: effectiveAppliedTo
             };
             if (contextType === "personal") {
               var ownerUid = update.ownerUid;

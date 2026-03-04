@@ -300,3 +300,69 @@ test('approveUpdate returns cancelled when apply_failed', async function () {
     assert.equal(result.ok, false);
     assert.equal(result.error, 'apply_failed');
 });
+
+test('approveUpdate for alliance context with target both: alliance success + personal failure still approves', async function () {
+    setupGlobals();
+    var decisionCaptured = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        applyPlayerUpdateToPersonal: function () {
+            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision) {
+            decisionCaptured = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-alliance-both-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'AlliancePlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    // No modal in test env -> defaults to "both"
+    var result = await ctrl.approveUpdate('update-alliance-both-1');
+    assert.equal(result.ok, true);
+    assert.ok(decisionCaptured);
+    assert.equal(decisionCaptured.appliedTo, 'alliance');
+});
+
+test('approveUpdate for alliance context with target both: fails when alliance apply fails', async function () {
+    setupGlobals();
+    var statusUpdated = false;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        applyPlayerUpdateToPersonal: function () {
+            return Promise.resolve({ ok: true });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+        },
+        updatePendingUpdateStatus: function () {
+            statusUpdated = true;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-alliance-both-2',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'AlliancePlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    // No modal in test env -> defaults to "both"
+    var result = await ctrl.approveUpdate('update-alliance-both-2');
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'apply_failed');
+    assert.equal(statusUpdated, false);
+});
