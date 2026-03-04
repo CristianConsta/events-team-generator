@@ -496,6 +496,35 @@ test('renderReviewPanel: does not throw when container is null and updates provi
     });
 });
 
+test('renderComparisonRow: approve button click calls controller approveUpdate', async () => {
+    loadView();
+    var capturedUpdateId = null;
+    global.DSFeaturePlayerUpdatesController = {
+        approveUpdate: async function (updateId) {
+            capturedUpdateId = updateId;
+            return { ok: true };
+        },
+    };
+
+    var row = global.DSFeaturePlayerUpdatesView.renderComparisonRow({
+        id: 'upd_click_1',
+        playerName: 'Lord',
+        contextType: 'alliance',
+        currentSnapshot: { power: 66, thp: 196.5, troops: 'Tank' },
+        proposedValues: { power: 66.3, thp: 197.5, troops: 'Tank' },
+    });
+
+    // row children: [header, table, decisionGroup]
+    var decisionGroup = row && row.children && row.children[2];
+    var approveBtn = decisionGroup && decisionGroup.children && decisionGroup.children[0];
+    assert.ok(approveBtn && approveBtn._listeners && typeof approveBtn._listeners.click === 'function',
+        'Approve button click handler must be attached');
+
+    approveBtn._listeners.click();
+    await new Promise(function (resolve) { setTimeout(resolve, 0); });
+    assert.equal(capturedUpdateId, 'upd_click_1');
+});
+
 // ---------------------------------------------------------------------------
 // 10. Controller allianceId resolution — uses _gateway.getAllianceId()
 // ---------------------------------------------------------------------------

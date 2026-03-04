@@ -16,6 +16,11 @@
         _gateway = gateway;
         return {
             destroy: destroy,
+            subscribeBadge: subscribeBadge,
+            setPendingUpdateDocs: setPendingUpdateDocs,
+            approveUpdate: approveUpdate,
+            rejectUpdate: rejectUpdate,
+            revokeToken: revokeToken,
         };
     }
 
@@ -168,6 +173,9 @@
 
     function _safeCallPromise(fn) {
         return Promise.resolve().then(fn).catch(function(err) {
+            if (global.console && typeof global.console.error === 'function') {
+                global.console.error('[PlayerUpdatesController] async call failed:', err);
+            }
             return { ok: false, error: err && err.message };
         });
     }
@@ -282,6 +290,20 @@
             var personalOk = !requestedPersonal || (personalResult && personalResult.ok);
             var allianceOk = !requestedAlliance || (allianceResult && allianceResult.ok);
             if (!personalOk || !allianceOk) {
+                if (global.console && typeof global.console.error === 'function') {
+                    global.console.error('[PlayerUpdatesController] approve apply failed', {
+                        updateId: updateId,
+                        contextType: contextType,
+                        allianceId: allianceId,
+                        gameId: update && update.gameId ? update.gameId : null,
+                        playerName: playerName,
+                        playerKey: identifiers.playerKey || '',
+                        requestedPersonal: requestedPersonal,
+                        requestedAlliance: requestedAlliance,
+                        personalResult: personalResult,
+                        allianceResult: allianceResult,
+                    });
+                }
                 return {
                     ok: false,
                     error: (allianceResult && allianceResult.error)
@@ -309,9 +331,35 @@
             if (contextType === 'personal') {
                 var ownerUid = update.ownerUid;
                 return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null)
+                    .then(function(statusResult) {
+                        if (!statusResult || statusResult.ok === false) {
+                            if (global.console && typeof global.console.error === 'function') {
+                                global.console.error('[PlayerUpdatesController] approve status update failed (personal)', {
+                                    updateId: updateId,
+                                    ownerUid: ownerUid,
+                                    gameId: update && update.gameId ? update.gameId : null,
+                                    result: statusResult,
+                                });
+                            }
+                        }
+                        return statusResult;
+                    })
                     .catch(function(err) { return { ok: false, error: err && err.message }; });
             } else {
                 return _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null)
+                    .then(function(statusResult) {
+                        if (!statusResult || statusResult.ok === false) {
+                            if (global.console && typeof global.console.error === 'function') {
+                                global.console.error('[PlayerUpdatesController] approve status update failed (alliance)', {
+                                    updateId: updateId,
+                                    allianceId: allianceId,
+                                    gameId: update && update.gameId ? update.gameId : null,
+                                    result: statusResult,
+                                });
+                            }
+                        }
+                        return statusResult;
+                    })
                     .catch(function(err) { return { ok: false, error: err && err.message }; });
             }
         });

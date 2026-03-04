@@ -156,13 +156,14 @@
                 if (typeof handleAllianceDataRealtimeUpdate === 'function') {
                     handleAllianceDataRealtimeUpdate();
                 }
-                if (global._playerUpdatesController && typeof global._playerUpdatesController.subscribeBadge === 'function') {
+                var playerUpdatesControllerHandle = global._playerUpdatesController || global.DSFeaturePlayerUpdatesController;
+                if (playerUpdatesControllerHandle && typeof playerUpdatesControllerHandle.subscribeBadge === 'function') {
                     const puAllianceId = global.FirebaseService.getAllianceId
                         ? global.FirebaseService.getAllianceId()
                         : null;
                     if (puAllianceId) {
                         var puUid = global.currentAuthUser ? global.currentAuthUser.uid : null;
-                    global._playerUpdatesController.subscribeBadge(puAllianceId, puUid);
+                    playerUpdatesControllerHandle.subscribeBadge(puAllianceId, puUid);
                     }
                 }
             });

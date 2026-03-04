@@ -602,9 +602,10 @@ function bindStaticUiActions() {
             var combined = (results[0] || []).concat(results[1] || []);
             combined = hydrateMissingSnapshots(combined);
             // Register docs with controller so approveUpdate/rejectUpdate can look up metadata
-            if (window._playerUpdatesController
-                && typeof window._playerUpdatesController.setPendingUpdateDocs === 'function') {
-                window._playerUpdatesController.setPendingUpdateDocs(combined);
+            var playerUpdatesControllerHandle = window._playerUpdatesController || window.DSFeaturePlayerUpdatesController;
+            if (playerUpdatesControllerHandle
+                && typeof playerUpdatesControllerHandle.setPendingUpdateDocs === 'function') {
+                playerUpdatesControllerHandle.setPendingUpdateDocs(combined);
             }
             window.DSFeaturePlayerUpdatesView.renderReviewPanel(container, combined);
         }).catch(function() {

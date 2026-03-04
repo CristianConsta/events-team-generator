@@ -209,6 +209,10 @@ test('init returns destroy function', () => {
     loadModules();
     const handle = global.DSFeaturePlayerUpdatesController.init(makeMockGateway());
     assert.ok(handle && typeof handle.destroy === 'function');
+    assert.equal(typeof handle.setPendingUpdateDocs, 'function');
+    assert.equal(typeof handle.subscribeBadge, 'function');
+    assert.equal(typeof handle.approveUpdate, 'function');
+    assert.equal(typeof handle.rejectUpdate, 'function');
 });
 
 // ---------------------------------------------------------------------------
