@@ -430,21 +430,38 @@
                                 }
                             }
 
-                            legacyPendingRef
-                                .add(pendingUpdateDoc)
-                                .then(function (newDocRef) {
-                                    // Dual-write to game-scoped pending_updates
-                                    var newPendingRef = buildNewPendingRef(effectiveGameId);
-                                    var dualWritePromise = newPendingRef
-                                        ? newPendingRef.doc(newDocRef.id).set(pendingUpdateDoc).catch(function() {})
-                                        : Promise.resolve();
-                                    return dualWritePromise.then(function() {
-                                        // update token as used
-                                        return tokenRef.update({
-                                            used: true,
-                                            usedAt: firebase.firestore.Timestamp.now(),
-                                            usedByAnonUid: anonUid,
-                                        });
+                            var newPendingRef = buildNewPendingRef(effectiveGameId);
+
+                            function writePendingUpdateWithFallback() {
+                                if (!newPendingRef) {
+                                    return legacyPendingRef.add(pendingUpdateDoc);
+                                }
+
+                                return newPendingRef
+                                    .add(pendingUpdateDoc)
+                                    .then(function(newDocRef) {
+                                        // Keep legacy path in sync when possible, but don't fail the submission.
+                                        return legacyPendingRef.doc(newDocRef.id).set(pendingUpdateDoc).catch(function() {})
+                                            .then(function() { return newDocRef; });
+                                    })
+                                    .catch(function() {
+                                        // Fall back to legacy path if game-scoped write is blocked/unavailable.
+                                        return legacyPendingRef.add(pendingUpdateDoc)
+                                            .then(function(legacyDocRef) {
+                                                // Backfill game-scoped copy on best-effort basis.
+                                                return newPendingRef.doc(legacyDocRef.id).set(pendingUpdateDoc).catch(function() {})
+                                                    .then(function() { return legacyDocRef; });
+                                            });
+                                    });
+                            }
+
+                            writePendingUpdateWithFallback()
+                                .then(function () {
+                                    // update token as used
+                                    return tokenRef.update({
+                                        used: true,
+                                        usedAt: firebase.firestore.Timestamp.now(),
+                                        usedByAnonUid: anonUid,
                                     });
                                 })
                                 .then(function () {

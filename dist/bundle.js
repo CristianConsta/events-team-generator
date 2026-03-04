@@ -5979,19 +5979,37 @@
             if (!db || !allianceIdParam || !updateId) {
               return { ok: false, error: "Not available" };
             }
-            await db.collection("alliances").doc(allianceIdParam).collection("pending_updates").doc(updateId).update(decision);
+            var updateTasks = [];
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
-              try {
-                var newRef = getGameAlliancePendingUpdatesCollectionRef(resolvedGameId, allianceIdParam);
-                if (newRef) {
-                  await newRef.doc(updateId).update(decision);
-                }
-              } catch (dualWriteErr) {
-                console.warn("\u26A0\uFE0F Dual-write to game alliance pending_updates status failed:", dualWriteErr.message);
+              var newRef = getGameAlliancePendingUpdatesCollectionRef(resolvedGameId, allianceIdParam);
+              if (newRef) {
+                updateTasks.push(
+                  newRef.doc(updateId).update(decision).catch(function(err) {
+                    console.warn("\u26A0\uFE0F Game-scoped alliance pending_updates status update failed:", err && err.message ? err.message : err);
+                    throw err;
+                  })
+                );
               }
             }
-            return { ok: true };
+            updateTasks.push(
+              db.collection("alliances").doc(allianceIdParam).collection("pending_updates").doc(updateId).update(decision).catch(function(err) {
+                console.warn("\u26A0\uFE0F Legacy alliance pending_updates status update failed:", err && err.message ? err.message : err);
+                throw err;
+              })
+            );
+            var settled = await Promise.allSettled(updateTasks);
+            var succeeded = settled.some(function(result) {
+              return result.status === "fulfilled";
+            });
+            if (succeeded) {
+              return { ok: true };
+            }
+            var firstError = settled.find(function(result) {
+              return result.status === "rejected";
+            });
+            var reason = firstError ? firstError.reason : null;
+            return { ok: false, error: reason && reason.message ? reason.message : "status_update_failed" };
           } catch (err) {
             console.error("updatePendingUpdateStatus error:", err);
             return { ok: false, error: err.message };
@@ -6212,19 +6230,37 @@
             if (!db || !uid || !updateId) {
               return { ok: false, error: "Not available" };
             }
-            await db.collection("users").doc(uid).collection("pending_updates").doc(updateId).update(decision);
+            var updateTasks = [];
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
-              try {
-                var newRef = getGameSoloPendingUpdatesCollectionRef(resolvedGameId, uid);
-                if (newRef) {
-                  await newRef.doc(updateId).update(decision);
-                }
-              } catch (dualWriteErr) {
-                console.warn("\u26A0\uFE0F Dual-write to game solo pending_updates status failed:", dualWriteErr.message);
+              var newRef = getGameSoloPendingUpdatesCollectionRef(resolvedGameId, uid);
+              if (newRef) {
+                updateTasks.push(
+                  newRef.doc(updateId).update(decision).catch(function(err) {
+                    console.warn("\u26A0\uFE0F Game-scoped solo pending_updates status update failed:", err && err.message ? err.message : err);
+                    throw err;
+                  })
+                );
               }
             }
-            return { ok: true };
+            updateTasks.push(
+              db.collection("users").doc(uid).collection("pending_updates").doc(updateId).update(decision).catch(function(err) {
+                console.warn("\u26A0\uFE0F Legacy solo pending_updates status update failed:", err && err.message ? err.message : err);
+                throw err;
+              })
+            );
+            var settled = await Promise.allSettled(updateTasks);
+            var succeeded = settled.some(function(result) {
+              return result.status === "fulfilled";
+            });
+            if (succeeded) {
+              return { ok: true };
+            }
+            var firstError = settled.find(function(result) {
+              return result.status === "rejected";
+            });
+            var reason = firstError ? firstError.reason : null;
+            return { ok: false, error: reason && reason.message ? reason.message : "status_update_failed" };
           } catch (err) {
             console.error("updatePersonalPendingUpdateStatus error:", err);
             return { ok: false, error: err.message };
@@ -16744,9 +16780,39 @@
           }
           return result.error === "players_list_error_not_found";
         }
+        function _isAllianceDataMissingResult(result) {
+          if (!result || result.ok) {
+            return false;
+          }
+          return result.error === "players_list_error_no_alliance";
+        }
         function _safeCallPromise(fn) {
           return Promise.resolve().then(fn).catch(function(err) {
             return { ok: false, error: err && err.message };
+          });
+        }
+        function _retryWithCanonicalName(source, playerName, proposed, gameId, initialResult) {
+          if (!_isPlayerNotFoundResult(initialResult)) {
+            return Promise.resolve(initialResult);
+          }
+          var dbGetter = source === "alliance" ? _gateway.getAlliancePlayerDatabase : _gateway.getPlayerDatabase;
+          if (typeof dbGetter !== "function") {
+            return Promise.resolve(initialResult);
+          }
+          var context = gameId ? { gameId } : void 0;
+          var playerMap = {};
+          try {
+            playerMap = dbGetter(context) || {};
+          } catch (err) {
+            playerMap = {};
+          }
+          var canonicalName = _findCanonicalName(playerMap, playerName);
+          if (!canonicalName || canonicalName === playerName) {
+            return Promise.resolve(initialResult);
+          }
+          var applyFn = source === "alliance" ? _gateway.applyPlayerUpdateToAlliance : _gateway.applyPlayerUpdateToPersonal;
+          return _safeCallPromise(function() {
+            return applyFn(canonicalName, proposed, gameId);
           });
         }
         function _applyWithNameFallback(source, playerName, proposed, gameId) {
@@ -16761,26 +16827,22 @@
           return _safeCallPromise(function() {
             return applyFn(playerName, proposed, gameId);
           }).then(function(result) {
-            if (!_isPlayerNotFoundResult(result)) {
-              return result;
+            if (source === "alliance" && _isAllianceDataMissingResult(result) && typeof _gateway.loadAllianceData === "function") {
+              return _safeCallPromise(function() {
+                return _gateway.loadAllianceData(context);
+              }).then(function(loadResult) {
+                var loadSucceeded = !loadResult || loadResult.success !== false;
+                if (!loadSucceeded) {
+                  return result;
+                }
+                return _safeCallPromise(function() {
+                  return applyFn(playerName, proposed, gameId);
+                }).then(function(retryResult) {
+                  return _retryWithCanonicalName(source, playerName, proposed, gameId, retryResult);
+                });
+              });
             }
-            var dbGetter = source === "alliance" ? _gateway.getAlliancePlayerDatabase : _gateway.getPlayerDatabase;
-            if (typeof dbGetter !== "function") {
-              return result;
-            }
-            var playerMap = {};
-            try {
-              playerMap = dbGetter(context) || {};
-            } catch (err) {
-              playerMap = {};
-            }
-            var canonicalName = _findCanonicalName(playerMap, playerName);
-            if (!canonicalName || canonicalName === playerName) {
-              return result;
-            }
-            return _safeCallPromise(function() {
-              return applyFn(canonicalName, proposed, gameId);
-            });
+            return _retryWithCanonicalName(source, playerName, proposed, gameId, result);
           });
         }
         function _doApprove(updateId, update, allianceId, target) {
@@ -16816,11 +16878,14 @@
             var effectiveAppliedTo = target;
             if (target === "both" && contextType === "alliance") {
               if (!allianceOk) {
-                return { ok: false, error: "apply_failed" };
+                return { ok: false, error: allianceResult && allianceResult.error || "apply_failed" };
               }
               effectiveAppliedTo = personalOk ? "both" : "alliance";
             } else if (!personalOk || !allianceOk) {
-              return { ok: false, error: "apply_failed" };
+              return {
+                ok: false,
+                error: allianceResult && allianceResult.error || personalResult && personalResult.error || "apply_failed"
+              };
             }
             var decision = {
               status: "approved",

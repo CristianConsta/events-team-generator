@@ -220,9 +220,48 @@
         return result.error === 'players_list_error_not_found';
     }
 
+    function _isAllianceDataMissingResult(result) {
+        if (!result || result.ok) {
+            return false;
+        }
+        return result.error === 'players_list_error_no_alliance';
+    }
+
     function _safeCallPromise(fn) {
         return Promise.resolve().then(fn).catch(function(err) {
             return { ok: false, error: err && err.message };
+        });
+    }
+
+    function _retryWithCanonicalName(source, playerName, proposed, gameId, initialResult) {
+        if (!_isPlayerNotFoundResult(initialResult)) {
+            return Promise.resolve(initialResult);
+        }
+
+        var dbGetter = source === 'alliance'
+            ? _gateway.getAlliancePlayerDatabase
+            : _gateway.getPlayerDatabase;
+        if (typeof dbGetter !== 'function') {
+            return Promise.resolve(initialResult);
+        }
+
+        var context = gameId ? { gameId: gameId } : undefined;
+        var playerMap = {};
+        try {
+            playerMap = dbGetter(context) || {};
+        } catch (err) {
+            playerMap = {};
+        }
+        var canonicalName = _findCanonicalName(playerMap, playerName);
+        if (!canonicalName || canonicalName === playerName) {
+            return Promise.resolve(initialResult);
+        }
+
+        var applyFn = source === 'alliance'
+            ? _gateway.applyPlayerUpdateToAlliance
+            : _gateway.applyPlayerUpdateToPersonal;
+        return _safeCallPromise(function() {
+            return applyFn(canonicalName, proposed, gameId);
         });
     }
 
@@ -240,30 +279,25 @@
         return _safeCallPromise(function() {
             return applyFn(playerName, proposed, gameId);
         }).then(function(result) {
-            if (!_isPlayerNotFoundResult(result)) {
-                return result;
+            if (source === 'alliance'
+                && _isAllianceDataMissingResult(result)
+                && typeof _gateway.loadAllianceData === 'function') {
+                return _safeCallPromise(function() {
+                    return _gateway.loadAllianceData(context);
+                }).then(function(loadResult) {
+                    var loadSucceeded = !loadResult || loadResult.success !== false;
+                    if (!loadSucceeded) {
+                        return result;
+                    }
+                    return _safeCallPromise(function() {
+                        return applyFn(playerName, proposed, gameId);
+                    }).then(function(retryResult) {
+                        return _retryWithCanonicalName(source, playerName, proposed, gameId, retryResult);
+                    });
+                });
             }
 
-            var dbGetter = source === 'alliance'
-                ? _gateway.getAlliancePlayerDatabase
-                : _gateway.getPlayerDatabase;
-            if (typeof dbGetter !== 'function') {
-                return result;
-            }
-
-            var playerMap = {};
-            try {
-                playerMap = dbGetter(context) || {};
-            } catch (err) {
-                playerMap = {};
-            }
-            var canonicalName = _findCanonicalName(playerMap, playerName);
-            if (!canonicalName || canonicalName === playerName) {
-                return result;
-            }
-            return _safeCallPromise(function() {
-                return applyFn(canonicalName, proposed, gameId);
-            });
+            return _retryWithCanonicalName(source, playerName, proposed, gameId, result);
         });
     }
 
@@ -310,11 +344,16 @@
             // This avoids silent no-op approvals when reviewer has no matching player in personal DB.
             if (target === 'both' && contextType === 'alliance') {
                 if (!allianceOk) {
-                    return { ok: false, error: 'apply_failed' };
+                    return { ok: false, error: (allianceResult && allianceResult.error) || 'apply_failed' };
                 }
                 effectiveAppliedTo = personalOk ? 'both' : 'alliance';
             } else if (!personalOk || !allianceOk) {
-                return { ok: false, error: 'apply_failed' };
+                return {
+                    ok: false,
+                    error: (allianceResult && allianceResult.error)
+                        || (personalResult && personalResult.error)
+                        || 'apply_failed',
+                };
             }
 
             var decision = {

@@ -5784,22 +5784,38 @@ const FirebaseManager = (function() {
             if (!db || !allianceIdParam || !updateId) {
                 return { ok: false, error: 'Not available' };
             }
-            await db.collection('alliances').doc(allianceIdParam)
-                .collection('pending_updates').doc(updateId)
-                .update(decision);
-            // Dual-write to game-scoped alliance pending_updates
+            var updateTasks = [];
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
-                try {
-                    var newRef = getGameAlliancePendingUpdatesCollectionRef(resolvedGameId, allianceIdParam);
-                    if (newRef) {
-                        await newRef.doc(updateId).update(decision);
-                    }
-                } catch (dualWriteErr) {
-                    console.warn('⚠️ Dual-write to game alliance pending_updates status failed:', dualWriteErr.message);
+                var newRef = getGameAlliancePendingUpdatesCollectionRef(resolvedGameId, allianceIdParam);
+                if (newRef) {
+                    updateTasks.push(
+                        newRef.doc(updateId).update(decision).catch(function(err) {
+                            console.warn('⚠️ Game-scoped alliance pending_updates status update failed:', err && err.message ? err.message : err);
+                            throw err;
+                        })
+                    );
                 }
             }
-            return { ok: true };
+            updateTasks.push(
+                db.collection('alliances').doc(allianceIdParam)
+                    .collection('pending_updates').doc(updateId)
+                    .update(decision)
+                    .catch(function(err) {
+                        console.warn('⚠️ Legacy alliance pending_updates status update failed:', err && err.message ? err.message : err);
+                        throw err;
+                    })
+            );
+
+            var settled = await Promise.allSettled(updateTasks);
+            var succeeded = settled.some(function(result) { return result.status === 'fulfilled'; });
+            if (succeeded) {
+                return { ok: true };
+            }
+
+            var firstError = settled.find(function(result) { return result.status === 'rejected'; });
+            var reason = firstError ? firstError.reason : null;
+            return { ok: false, error: reason && reason.message ? reason.message : 'status_update_failed' };
         } catch (err) {
             console.error('updatePendingUpdateStatus error:', err);
             return { ok: false, error: err.message };
@@ -6047,22 +6063,38 @@ const FirebaseManager = (function() {
             if (!db || !uid || !updateId) {
                 return { ok: false, error: 'Not available' };
             }
-            await db.collection('users').doc(uid)
-                .collection('pending_updates').doc(updateId)
-                .update(decision);
-            // Dual-write to game-scoped solo pending_updates
+            var updateTasks = [];
             var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
-                try {
-                    var newRef = getGameSoloPendingUpdatesCollectionRef(resolvedGameId, uid);
-                    if (newRef) {
-                        await newRef.doc(updateId).update(decision);
-                    }
-                } catch (dualWriteErr) {
-                    console.warn('⚠️ Dual-write to game solo pending_updates status failed:', dualWriteErr.message);
+                var newRef = getGameSoloPendingUpdatesCollectionRef(resolvedGameId, uid);
+                if (newRef) {
+                    updateTasks.push(
+                        newRef.doc(updateId).update(decision).catch(function(err) {
+                            console.warn('⚠️ Game-scoped solo pending_updates status update failed:', err && err.message ? err.message : err);
+                            throw err;
+                        })
+                    );
                 }
             }
-            return { ok: true };
+            updateTasks.push(
+                db.collection('users').doc(uid)
+                    .collection('pending_updates').doc(updateId)
+                    .update(decision)
+                    .catch(function(err) {
+                        console.warn('⚠️ Legacy solo pending_updates status update failed:', err && err.message ? err.message : err);
+                        throw err;
+                    })
+            );
+
+            var settled = await Promise.allSettled(updateTasks);
+            var succeeded = settled.some(function(result) { return result.status === 'fulfilled'; });
+            if (succeeded) {
+                return { ok: true };
+            }
+
+            var firstError = settled.find(function(result) { return result.status === 'rejected'; });
+            var reason = firstError ? firstError.reason : null;
+            return { ok: false, error: reason && reason.message ? reason.message : 'status_update_failed' };
         } catch (err) {
             console.error('updatePersonalPendingUpdateStatus error:', err);
             return { ok: false, error: err.message };
