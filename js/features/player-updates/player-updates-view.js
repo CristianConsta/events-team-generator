@@ -1,5 +1,44 @@
 (function initFeaturePlayerUpdatesView(global) {
     var FRESHNESS_THRESHOLD_DAYS = 30;
+    var REVIEW_STATUS_ID = 'playerUpdatesReviewStatus';
+
+    function _resolveResultErrorMessage(result) {
+        var fallback = (global.DSI18N && global.DSI18N.t)
+            ? global.DSI18N.t('player_updates_apply_failed')
+            : 'Failed to apply update. Please try again.';
+        if (!result || !result.error) {
+            return fallback;
+        }
+        if (global.DSI18N && typeof global.DSI18N.t === 'function') {
+            var translated = global.DSI18N.t(result.error);
+            if (translated && translated !== result.error) {
+                return translated;
+            }
+        }
+        return fallback;
+    }
+
+    function _showReviewStatus(message, type) {
+        var container = document.getElementById('playerUpdatesReviewContainer');
+        if (!container) {
+            return;
+        }
+        var status = document.getElementById(REVIEW_STATUS_ID);
+        if (!status) {
+            status = document.createElement('div');
+            status.id = REVIEW_STATUS_ID;
+            status.className = 'message';
+            status.setAttribute('role', 'status');
+            status.setAttribute('aria-live', 'polite');
+            if (container.firstChild) {
+                container.insertBefore(status, container.firstChild);
+            } else {
+                container.appendChild(status);
+            }
+        }
+        status.className = 'message ' + (type || 'error');
+        status.textContent = String(message || '');
+    }
 
     // Render token generation modal with links.
     // container: HTMLElement, tokens: Array<{ playerName, link }>
@@ -56,6 +95,12 @@
     function renderReviewPanel(container, updates) {
         if (!container) return;
         container.innerHTML = '';
+        var status = document.createElement('div');
+        status.id = REVIEW_STATUS_ID;
+        status.className = 'hidden';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        container.appendChild(status);
 
         var refreshBtn = document.createElement('button');
         refreshBtn.className = 'btn btn-secondary btn-sm';
@@ -225,6 +270,7 @@
                         row.classList.add('review-decision-applied');
                         row.setAttribute('aria-disabled', 'true');
                     } else {
+                        _showReviewStatus(_resolveResultErrorMessage(result), 'error');
                         approveBtn.disabled = false;
                         rejectBtn.disabled = false;
                     }
@@ -243,6 +289,7 @@
                         row.classList.add('review-decision-applied');
                         row.setAttribute('aria-disabled', 'true');
                     } else {
+                        _showReviewStatus(_resolveResultErrorMessage(result), 'error');
                         rejectBtn.disabled = false;
                         approveBtn.disabled = false;
                     }

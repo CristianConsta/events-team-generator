@@ -333,8 +333,8 @@
           return { gameId: DEFAULT_GAME_ID, explicit: false };
         }
         function getResolvedGameId(methodName, context) {
-          const gameplayContext = resolveGameplayContext(methodName, context);
-          return gameplayContext && gameplayContext.gameId ? gameplayContext.gameId : DEFAULT_GAME_ID;
+          const gameplayContext2 = resolveGameplayContext(methodName, context);
+          return gameplayContext2 && gameplayContext2.gameId ? gameplayContext2.gameId : DEFAULT_GAME_ID;
         }
         function resolveInitialAuthGameId(userOrUid) {
           if (typeof window !== "undefined") {
@@ -779,7 +779,7 @@
   // firebase-module.js
   var require_firebase_module = __commonJS({
     "firebase-module.js"() {
-      var FirebaseManager = (function() {
+      var FirebaseManager = function() {
         var DSFirebaseInfra = typeof window !== "undefined" && window.DSFirebaseInfra || typeof global !== "undefined" && global.DSFirebaseInfra;
         var DSFirebaseAuth = typeof window !== "undefined" && window.DSFirebaseAuth || typeof global !== "undefined" && global.DSFirebaseAuth;
         let firebaseConfig = null;
@@ -2541,30 +2541,22 @@
           rememberLastSavedUserState();
         }
         async function getDocWithPermissionTolerantFallback(ref, options) {
-          const config = options && typeof options === "object" ? options : {};
-          const label = typeof config.label === "string" && config.label ? config.label : "document";
+          const label = options && typeof options.label === "string" && options.label ? options.label : "document";
           if (!ref || typeof ref.get !== "function") {
-            return {
-              exists: false,
-              data: null,
-              permissionDenied: false
-            };
+            return { exists: false, data: null, permissionDenied: false };
           }
           try {
             const doc = await ref.get();
+            const exists = !!(doc && doc.exists);
             return {
-              exists: !!(doc && doc.exists),
-              data: doc && doc.exists ? doc.data() || {} : null,
+              exists,
+              data: exists ? doc.data() || {} : null,
               permissionDenied: false
             };
           } catch (error) {
             if (isPermissionDeniedError(error)) {
               console.warn(`\u26A0\uFE0F Firestore rules denied ${label} read; continuing with available scopes.`);
-              return {
-                exists: false,
-                data: null,
-                permissionDenied: true
-              };
+              return { exists: false, data: null, permissionDenied: true };
             }
             throw error;
           }
@@ -4300,6 +4292,38 @@
           }
           return { success: true, name: normalizedName, source: normalizedSource };
         }
+        async function clearPersonalPlayerDatabase(context) {
+          if (!currentUser) {
+            return { success: false, error: "No user signed in" };
+          }
+          const result = await persistPlayerDatabaseForSource("personal", {}, context);
+          if (!result.success) return result;
+          return { success: true };
+        }
+        async function fillPersonalPlayerDatabase(players, context) {
+          if (!currentUser) {
+            return { success: false, error: "No user signed in" };
+          }
+          if (!Array.isArray(players) || players.length === 0) {
+            return { success: false, error: "No players provided" };
+          }
+          const now = (/* @__PURE__ */ new Date()).toISOString();
+          const nextDatabase = {};
+          players.forEach(function(p) {
+            const name = normalizeEditablePlayerName(p.name);
+            if (name) {
+              nextDatabase[name] = {
+                power: typeof p.power === "number" ? p.power : 0,
+                thp: typeof p.thp === "number" ? p.thp : 0,
+                troops: normalizeEditablePlayerTroops(p.troops),
+                lastUpdated: now
+              };
+            }
+          });
+          const result = await persistPlayerDatabaseForSource("personal", nextDatabase, context);
+          if (!result.success) return result;
+          return { success: true, playerCount: Object.keys(nextDatabase).length };
+        }
         async function createAlliance(name, context) {
           if (!currentUser) return { success: false, error: "Not signed in" };
           if (!name || name.length > 40) return { success: false, error: "Name must be 1-40 characters" };
@@ -4489,7 +4513,7 @@
                   error: strictErrorMessage
                 };
               }
-              console.info("Alliance data read skipped (optional feature disabled by Firestore rules):", error.message || error.code || error);
+              console.info("Alliance data read skipped (optional feature disabled by Firestore rules):", error.message || error.code);
               stopAllianceDocListener();
               allianceData = null;
               activeAllianceDocScope = "game";
@@ -4810,7 +4834,7 @@
                 invitationNotifications = [];
                 return [];
               }
-              console.info("Invitation reads skipped (optional feature disabled by Firestore rules):", error.message || error.code || error);
+              console.info("Invitation reads skipped (optional feature disabled by Firestore rules):", error.message || error.code);
             } else {
               console.error("Failed to check invitations:", error);
             }
@@ -5396,7 +5420,8 @@
               return { ok: false, error: "Not available" };
             }
             var recordWithTimestamp = Object.assign({}, record, {
-              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              allianceId: allianceId2 || null
             });
             var docRef;
             if (allianceId2) {
@@ -5490,14 +5515,29 @@
             });
             return results;
           }
+          function filterByContext(records) {
+            if (allianceIdParam) {
+              return records.filter(function(r) {
+                if (r.createdByUid === currentUser.uid) return true;
+                var source = r.playerSource || "alliance";
+                return r.allianceId === allianceIdParam && source === "alliance";
+              });
+            }
+            if (currentUser) {
+              return records.filter(function(r) {
+                return r.createdByUid === currentUser.uid;
+              });
+            }
+            return [];
+          }
           var resolvedGameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
           if (resolvedGameId) {
             try {
               var newHistoryRef = getGameEventHistoryCollectionRef(resolvedGameId);
               if (newHistoryRef) {
                 var newSnapshot = await applyFilters(newHistoryRef).get();
-                if (newSnapshot && !newSnapshot.empty) {
-                  return snapshotToResults(newSnapshot);
+                if (newSnapshot) {
+                  return filterByContext(snapshotToResults(newSnapshot));
                 }
               }
             } catch (newPathErr) {
@@ -5767,8 +5807,15 @@
           var newHistoryRef = resolvedGameId ? getGameEventHistoryCollectionRef(resolvedGameId) : null;
           if (newHistoryRef) {
             try {
-              var gameUnsub = newHistoryRef.where("active", "==", true).where("finalized", "==", false).onSnapshot(function(snapshot) {
-                counts.game = snapshot.size;
+              var gameUnsub = newHistoryRef.where("active", "==", true).onSnapshot(function(snapshot) {
+                var count = 0;
+                snapshot.forEach(function(doc) {
+                  var data = doc.data();
+                  if (data.allianceId === allianceIdParam && data.finalized === false) {
+                    count++;
+                  }
+                });
+                counts.game = count;
                 emit();
               }, function(err) {
                 console.warn("\u26A0\uFE0F subscribePendingFinalizationCount game-scoped error:", err.message);
@@ -5785,6 +5832,65 @@
               fn();
             });
           };
+        }
+        function hasTokenSnapshotValues(snapshot) {
+          if (!snapshot || typeof snapshot !== "object") {
+            return false;
+          }
+          var hasPower = snapshot.power !== null && snapshot.power !== void 0 && snapshot.power !== "";
+          var hasThp = snapshot.thp !== null && snapshot.thp !== void 0 && snapshot.thp !== "";
+          var hasTroops = typeof snapshot.troops === "string" && snapshot.troops.trim() !== "";
+          return hasPower || hasThp || hasTroops;
+        }
+        function getPlayerEntryByName(playerMap, playerName) {
+          if (!playerMap || typeof playerMap !== "object") {
+            return null;
+          }
+          var normalizedName = normalizeEditablePlayerName(playerName);
+          if (!normalizedName) {
+            return null;
+          }
+          if (Object.prototype.hasOwnProperty.call(playerMap, normalizedName)) {
+            return playerMap[normalizedName];
+          }
+          var wanted = normalizedName.toLowerCase();
+          var keys = Object.keys(playerMap);
+          for (var i = 0; i < keys.length; i += 1) {
+            var candidate = normalizeEditablePlayerName(keys[i]).toLowerCase();
+            if (candidate === wanted) {
+              return playerMap[keys[i]];
+            }
+          }
+          return null;
+        }
+        function buildSnapshotFromEntry(entry) {
+          if (!entry || typeof entry !== "object") {
+            return {};
+          }
+          return {
+            power: normalizeEditablePlayerPower(entry.power),
+            thp: normalizeEditablePlayerThp(entry.thp),
+            troops: normalizeEditablePlayerTroops(entry.troops)
+          };
+        }
+        function resolveTokenCurrentSnapshot(contextType, playerName, gameId) {
+          var resolvedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+          var primaryMap = {};
+          var fallbackMap = {};
+          if (contextType === "alliance") {
+            if (allianceData && typeof allianceData === "object" && allianceData.playerDatabase && typeof allianceData.playerDatabase === "object") {
+              primaryMap = normalizePlayerDatabaseMap(allianceData.playerDatabase);
+            } else {
+              primaryMap = getAlliancePlayerDatabase({ gameId: resolvedGameId });
+            }
+            fallbackMap = getPlayerDatabase({ gameId: resolvedGameId });
+          } else {
+            primaryMap = getPlayerDatabase({ gameId: resolvedGameId });
+            fallbackMap = getAlliancePlayerDatabase({ gameId: resolvedGameId });
+          }
+          var entry = getPlayerEntryByName(primaryMap, playerName) || getPlayerEntryByName(fallbackMap, playerName);
+          var snapshot = buildSnapshotFromEntry(entry);
+          return hasTokenSnapshotValues(snapshot) ? snapshot : {};
         }
         async function saveTokenBatch(allianceIdParam, tokenDocs) {
           try {
@@ -5926,22 +6032,25 @@
               return { success: false, error: "Not available" };
             }
             var opts = options && typeof options === "object" ? options : {};
+            var tokenGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || null;
             var expiryHours = typeof opts.expiryHours === "number" ? opts.expiryHours : 48;
             var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1e3);
+            var currentSnapshot = resolveTokenCurrentSnapshot("alliance", playerName, tokenGameId || DEFAULT_GAME_ID);
             var tokenDoc = {
               contextType: "alliance",
               allianceId: allianceIdParam,
               ownerUid: currentUser ? currentUser.uid : null,
-              gameId: opts.gameId || null,
+              gameId: tokenGameId,
               playerName,
               expiryHours,
               expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
               used: false,
+              currentSnapshot,
               createdBy: currentUser ? currentUser.uid : null,
               createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             var docRef = await db.collection("alliances").doc(allianceIdParam).collection("update_tokens").add(tokenDoc);
-            var resolvedGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var resolvedGameId = normalizeGameId(tokenGameId || activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
               try {
                 var newTokensCollection = getGameAllianceUpdateTokensCollectionRef(resolvedGameId, allianceIdParam);
@@ -5998,22 +6107,25 @@
               return { success: false, error: "Not available" };
             }
             var opts = options && typeof options === "object" ? options : {};
+            var tokenGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || null;
             var expiryHours = typeof opts.expiryHours === "number" ? opts.expiryHours : 48;
             var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1e3);
+            var currentSnapshot = resolveTokenCurrentSnapshot("personal", playerName, tokenGameId || DEFAULT_GAME_ID);
             var tokenDoc = {
               contextType: "personal",
               ownerUid: uid,
-              gameId: opts.gameId || null,
+              gameId: tokenGameId,
               allianceId: null,
               playerName,
               expiryHours,
               expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
               used: false,
+              currentSnapshot,
               createdBy: currentUser ? currentUser.uid : null,
               createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             var docRef = await db.collection("users").doc(uid).collection("update_tokens").add(tokenDoc);
-            var resolvedGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var resolvedGameId = normalizeGameId(tokenGameId || activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
               try {
                 var newTokensCollection = getGameSoloUpdateTokensCollectionRef(resolvedGameId, uid);
@@ -6273,6 +6385,14 @@
             const gameContext = resolveGameplayContext("removePlayerEntry", context);
             return removePlayerEntry(source, playerName, gameContext);
           },
+          clearPersonalPlayerDatabase: function clearPersonalPlayerDatabaseGameAware(context) {
+            const gameContext = resolveGameplayContext("clearPersonalPlayerDatabase", context);
+            return clearPersonalPlayerDatabase(gameContext);
+          },
+          fillPersonalPlayerDatabase: function fillPersonalPlayerDatabaseGameAware(players, context) {
+            const gameContext = resolveGameplayContext("fillPersonalPlayerDatabase", context);
+            return fillPersonalPlayerDatabase(players, gameContext);
+          },
           getAllEventData: function getAllEventDataGameAware(context) {
             const gameContext = resolveGameplayContext("getAllEventData", context);
             return getAllEventData(gameContext);
@@ -6489,7 +6609,7 @@
           getGameAlliancePendingUpdatesCollectionRef,
           GAME_CENTRIC_MIGRATION_VERSION
         };
-      })();
+      }();
       if (typeof window !== "undefined") {
         window.FirebaseManager = FirebaseManager;
       }
@@ -6578,6 +6698,12 @@
           close_button: "Close",
           players_list_saved: "Player updated.",
           players_list_deleted: "Player deleted.",
+          players_fill_sample_button: "Fill with Sample Players",
+          players_fill_sample_processing: "Adding sample players...",
+          players_fill_sample_success: "{count} sample players added.",
+          players_clear_all_button: "Clear All Players",
+          players_clear_all_processing: "Clearing all players...",
+          players_clear_all_success: "All players removed.",
           players_list_delete_confirm: 'Delete player "{name}"?',
           players_mgmt_confirm_delete: "Confirm?",
           players_list_error_invalid_source: "Invalid player source.",
@@ -6745,6 +6871,8 @@
           onboarding_step3_desc: "Download the Excel template and fill in your player names, power, and troop type.",
           onboarding_step4_title: "Upload Template",
           onboarding_step4_desc: "Upload the completed file to your database, alliance database, or both.",
+          onboarding_fill_sample_title: "Quick-fill Your Roster",
+          onboarding_fill_sample_desc: "No players yet? Click here to instantly add 40 sample players \u2014 great for exploring team generation before your real roster is ready.",
           onboarding_step5_title: "Add Player Manually",
           onboarding_step5_desc: "In Players Management, use Add New Player to enter Name, Power, and Troop type manually.",
           onboarding_step6_title: "Events Manager",
@@ -6759,6 +6887,12 @@
           onboarding_step10_desc: "Open Alliance from the menu to access alliance features and invitations.",
           onboarding_step11_title: "Alliance Invites",
           onboarding_step11_desc: "On the Alliance page, create or join an alliance and send/accept platform invites.",
+          onboarding_step12_title: "Event History",
+          onboarding_step12_desc: "Open Event History to review past team assignments for every event.",
+          onboarding_step13_title: "Mark & Finalize Attendance",
+          onboarding_step13_desc: "Use the attendance panel to mark each player as Attended, No Show, or Excused. Finalize the record to lock it and update player reliability scores.",
+          onboarding_step14_title: "Player Updates",
+          onboarding_step14_desc: "Open Player Updates to review and apply power or troop changes submitted by players via their secure update links.",
           alliance_button: "Alliance",
           alliance_panel_title: "Alliance",
           alliance_create_title: "Create or Join Alliance",
@@ -6935,6 +7069,8 @@
           event_history_auto_saved: "Team saved to history",
           event_history_delete: "Remove",
           event_history_delete_confirm: "Remove this event from history?",
+          event_history_source_personal: "Personal",
+          event_history_source_alliance: "Alliance",
           attendance_panel_title: "Mark Attendance",
           attendance_finalize_btn: "Finalize Attendance",
           attendance_finalize_confirm: "This will lock the attendance record. Continue?",
@@ -6966,6 +7102,10 @@
           player_update_thp_label: "THP",
           player_update_thp_note: "Note: THP (Total Hero Power - available in Rankings)",
           player_update_troops_label: "Troop Type",
+          player_update_current_value_label: "Current value",
+          player_update_power_placeholder: "e.g. 350",
+          player_update_thp_placeholder: "e.g. 12000",
+          player_update_troops_placeholder: "Select troop type",
           player_update_submit_btn: "Submit Update",
           player_update_submitting: "Submitting...",
           player_update_success: "Your stats have been submitted for review. Thank you!",
@@ -7088,6 +7228,12 @@
           close_button: "Fermer",
           players_list_saved: "Joueur mis \xE0 jour.",
           players_list_deleted: "Joueur supprim\xE9.",
+          players_fill_sample_button: "Remplir avec des joueurs exemples",
+          players_fill_sample_processing: "Ajout des joueurs exemples...",
+          players_fill_sample_success: "{count} joueurs exemples ajout\xE9s.",
+          players_clear_all_button: "Effacer tous les joueurs",
+          players_clear_all_processing: "Suppression de tous les joueurs...",
+          players_clear_all_success: "Tous les joueurs ont \xE9t\xE9 supprim\xE9s.",
           players_list_delete_confirm: 'Supprimer le joueur "{name}" ?',
           players_mgmt_confirm_delete: "Confirmer ?",
           players_list_error_invalid_source: "Source de joueurs invalide.",
@@ -7255,6 +7401,8 @@
           onboarding_step3_desc: "Telechargez le modele Excel et completez noms, puissance et type de troupe.",
           onboarding_step4_title: "Importer la base joueurs",
           onboarding_step4_desc: "Importez le fichier dans la base personnelle, alliance, ou les deux.",
+          onboarding_fill_sample_title: "Remplissage rapide du roster",
+          onboarding_fill_sample_desc: "Pas encore de joueurs ? Cliquez ici pour ajouter instantan\xE9ment 40 joueurs exemples \u2014 id\xE9al pour explorer la g\xE9n\xE9ration d'\xE9quipes avant d'avoir votre vrai effectif.",
           onboarding_step5_title: "Ajouter un joueur manuellement",
           onboarding_step5_desc: "Dans Gestion des joueurs, utilisez Ajouter un joueur pour saisir Nom, Puissance et Type de troupe.",
           onboarding_step6_title: "Gestion des evenements",
@@ -7269,6 +7417,12 @@
           onboarding_step10_desc: "Ouvrez Alliance depuis le menu pour acceder aux fonctions d'alliance et aux invitations.",
           onboarding_step11_title: "Invitations alliance",
           onboarding_step11_desc: "Depuis la page Alliance, creez/rejoignez une alliance et envoyez/acceptez les invitations plateforme.",
+          onboarding_step12_title: "Historique des \xE9v\xE9nements",
+          onboarding_step12_desc: "Ouvrez Historique des \xE9v\xE9nements pour consulter les affectations pass\xE9es de chaque \xE9v\xE9nement.",
+          onboarding_step13_title: "Marquer et finaliser la pr\xE9sence",
+          onboarding_step13_desc: "Utilisez le panneau de pr\xE9sence pour marquer chaque joueur : Pr\xE9sent, Absent ou Excus\xE9. Finalisez pour verrouiller le dossier et mettre \xE0 jour les scores de fiabilit\xE9.",
+          onboarding_step14_title: "Mises \xE0 jour joueurs",
+          onboarding_step14_desc: "Ouvrez Mises \xE0 jour joueurs pour examiner et appliquer les changements de puissance ou de troupes soumis via les liens s\xE9curis\xE9s.",
           alliance_button: "Alliance",
           alliance_panel_title: "Alliance",
           alliance_create_title: "Cr\xE9er ou rejoindre une alliance",
@@ -7445,6 +7599,8 @@
           event_history_auto_saved: "Equipe sauvegardee dans l'historique",
           event_history_delete: "Supprimer",
           event_history_delete_confirm: "Supprimer cet evenement de l'historique?",
+          event_history_source_personal: "Personnel",
+          event_history_source_alliance: "Alliance",
           attendance_panel_title: "Marquer la presence",
           attendance_finalize_btn: "Finaliser la presence",
           attendance_finalize_confirm: "Cela verrouillera le releve de presence. Continuer ?",
@@ -7476,6 +7632,10 @@
           player_update_thp_label: "THP",
           player_update_thp_note: "Note : THP (Total Hero Power - disponible dans le Classement)",
           player_update_troops_label: "Type de troupe",
+          player_update_current_value_label: "Valeur actuelle",
+          player_update_power_placeholder: "ex. 350",
+          player_update_thp_placeholder: "ex. 12000",
+          player_update_troops_placeholder: "Selectionnez un type de troupe",
           player_update_submit_btn: "Envoyer la mise a jour",
           player_update_submitting: "Envoi en cours...",
           player_update_success: "Vos stats ont ete soumises pour examen. Merci !",
@@ -7598,6 +7758,12 @@
           close_button: "Schlie\xDFen",
           players_list_saved: "Spieler aktualisiert.",
           players_list_deleted: "Spieler gel\xF6scht.",
+          players_fill_sample_button: "Mit Beispielspielern f\xFCllen",
+          players_fill_sample_processing: "Beispielspieler werden hinzugef\xFCgt...",
+          players_fill_sample_success: "{count} Beispielspieler hinzugef\xFCgt.",
+          players_clear_all_button: "Alle Spieler l\xF6schen",
+          players_clear_all_processing: "Alle Spieler werden gel\xF6scht...",
+          players_clear_all_success: "Alle Spieler wurden entfernt.",
           players_list_delete_confirm: 'Spieler "{name}" l\xF6schen?',
           players_mgmt_confirm_delete: "Best\xE4tigen?",
           players_list_error_invalid_source: "Ung\xFCltige Spielerquelle.",
@@ -7765,6 +7931,8 @@
           onboarding_step3_desc: "Laden Sie die Excel-Vorlage herunter und fuellen Sie Namen, Power und Truppentyp aus.",
           onboarding_step4_title: "Spielerdatenbank hochladen",
           onboarding_step4_desc: "Laden Sie die Datei in persoenliche Datenbank, Allianz-Datenbank oder beide hoch.",
+          onboarding_fill_sample_title: "Roster schnell befuellen",
+          onboarding_fill_sample_desc: "Noch keine Spieler? Klicken Sie hier, um sofort 40 Beispielspieler hinzuzufuegen \u2014 ideal um die Teamgenerierung zu erkunden, bevor Ihr echtes Kader bereit ist.",
           onboarding_step5_title: "Spieler manuell hinzufuegen",
           onboarding_step5_desc: 'Nutzen Sie in der Spielerverwaltung "Neuen Spieler hinzufuegen" fuer Name, Power und Truppentyp.',
           onboarding_step6_title: "Events Manager",
@@ -7779,6 +7947,12 @@
           onboarding_step10_desc: "Oeffnen Sie Allianz ueber das Menue fuer Allianz-Funktionen und Einladungen.",
           onboarding_step11_title: "Allianz-Einladungen",
           onboarding_step11_desc: "Auf der Allianz-Seite koennen Sie eine Allianz erstellen/beitreten und Einladungen senden/annehmen.",
+          onboarding_step12_title: "Ereignisverlauf",
+          onboarding_step12_desc: "\xD6ffnen Sie den Ereignisverlauf, um vergangene Team-Zuteilungen f\xFCr jedes Event zu \xFCberpr\xFCfen.",
+          onboarding_step13_title: "Anwesenheit markieren und abschlie\xDFen",
+          onboarding_step13_desc: "Markieren Sie jeden Spieler im Anwesenheitspanel als Anwesend, Abwesend oder Entschuldigt. Schlie\xDFen Sie den Eintrag ab, um ihn zu sperren und die Zuverl\xE4ssigkeitswerte zu aktualisieren.",
+          onboarding_step14_title: "Spieler-Updates",
+          onboarding_step14_desc: "\xD6ffnen Sie Spieler-Updates, um Macht- oder Truppen\xE4nderungen zu pr\xFCfen und anzuwenden, die Spieler \xFCber ihre sicheren Links eingereicht haben.",
           alliance_button: "Allianz",
           alliance_panel_title: "Allianz",
           alliance_create_title: "Allianz erstellen oder beitreten",
@@ -7955,6 +8129,8 @@
           event_history_auto_saved: "Team im Verlauf gespeichert",
           event_history_delete: "Entfernen",
           event_history_delete_confirm: "Dieses Ereignis aus dem Verlauf entfernen?",
+          event_history_source_personal: "Pers\xF6nlich",
+          event_history_source_alliance: "Allianz",
           attendance_panel_title: "Anwesenheit markieren",
           attendance_finalize_btn: "Anwesenheit abschliessen",
           attendance_finalize_confirm: "Dadurch wird die Anwesenheitsliste gesperrt. Fortfahren?",
@@ -7986,6 +8162,10 @@
           player_update_thp_label: "THP",
           player_update_thp_note: "Hinweis: THP (Total Hero Power - verf\xFCgbar in der Rangliste)",
           player_update_troops_label: "Truppentyp",
+          player_update_current_value_label: "Aktueller Wert",
+          player_update_power_placeholder: "z. B. 350",
+          player_update_thp_placeholder: "z. B. 12000",
+          player_update_troops_placeholder: "Truppentyp waehlen",
           player_update_submit_btn: "Aktualisierung senden",
           player_update_submitting: "Wird gesendet...",
           player_update_success: "Ihre Statistiken wurden zur Ueberpruefung eingereicht. Danke!",
@@ -8108,6 +8288,12 @@
           close_button: "Chiudi",
           players_list_saved: "Giocatore aggiornato.",
           players_list_deleted: "Giocatore eliminato.",
+          players_fill_sample_button: "Riempi con giocatori di esempio",
+          players_fill_sample_processing: "Aggiunta giocatori di esempio...",
+          players_fill_sample_success: "{count} giocatori di esempio aggiunti.",
+          players_clear_all_button: "Elimina tutti i giocatori",
+          players_clear_all_processing: "Eliminazione di tutti i giocatori...",
+          players_clear_all_success: "Tutti i giocatori sono stati rimossi.",
           players_list_delete_confirm: 'Eliminare il giocatore "{name}"?',
           players_mgmt_confirm_delete: "Conferma?",
           players_list_error_invalid_source: "Fonte giocatori non valida.",
@@ -8275,6 +8461,8 @@
           onboarding_step3_desc: "Scarica il modello Excel e completa nomi, potenza e tipo truppe.",
           onboarding_step4_title: "Carica database giocatori",
           onboarding_step4_desc: "Carica il file nel database personale, alleanza, o in entrambi.",
+          onboarding_fill_sample_title: "Riempi rapidamente il roster",
+          onboarding_fill_sample_desc: "Nessun giocatore ancora? Clicca qui per aggiungere immediatamente 40 giocatori di esempio \u2014 ottimo per esplorare la generazione di squadre prima che il tuo roster sia pronto.",
           onboarding_step5_title: "Aggiungi giocatore manualmente",
           onboarding_step5_desc: "In Gestione giocatori usa Aggiungi nuovo giocatore per Nome, Potenza e Tipo truppe.",
           onboarding_step6_title: "Events Manager",
@@ -8289,6 +8477,12 @@
           onboarding_step10_desc: "Apri Alleanza dal menu per funzioni alleanza e inviti.",
           onboarding_step11_title: "Inviti alleanza",
           onboarding_step11_desc: "Nella pagina Alleanza puoi creare/entrare in un'alleanza e inviare/accettare inviti.",
+          onboarding_step12_title: "Storico eventi",
+          onboarding_step12_desc: "Apri Storico eventi per rivedere le assegnazioni passate di ogni evento.",
+          onboarding_step13_title: "Segna e finalizza presenze",
+          onboarding_step13_desc: "Usa il pannello presenze per segnare ogni giocatore come Presente, Assente o Giustificato. Finalizza per bloccare il record e aggiornare i punteggi di affidabilit\xE0.",
+          onboarding_step14_title: "Aggiornamenti giocatori",
+          onboarding_step14_desc: "Apri Aggiornamenti giocatori per esaminare e applicare le modifiche di potenza o truppe inviate dai giocatori tramite i loro link sicuri.",
           alliance_button: "Alleanza",
           alliance_panel_title: "Alleanza",
           alliance_create_title: "Crea o unisciti a un'alleanza",
@@ -8465,6 +8659,8 @@
           event_history_auto_saved: "Squadra salvata nella cronologia",
           event_history_delete: "Rimuovi",
           event_history_delete_confirm: "Rimuovere questo evento dalla cronologia?",
+          event_history_source_personal: "Personale",
+          event_history_source_alliance: "Alleanza",
           attendance_panel_title: "Segna presenze",
           attendance_finalize_btn: "Finalizza presenze",
           attendance_finalize_confirm: "Questo blocchera il registro delle presenze. Continuare?",
@@ -8496,6 +8692,10 @@
           player_update_thp_label: "THP",
           player_update_thp_note: "Nota: THP (Total Hero Power - disponibile in Classifica)",
           player_update_troops_label: "Tipo di truppa",
+          player_update_current_value_label: "Valore attuale",
+          player_update_power_placeholder: "es. 350",
+          player_update_thp_placeholder: "es. 12000",
+          player_update_troops_placeholder: "Seleziona tipo di truppa",
           player_update_submit_btn: "Invia aggiornamento",
           player_update_submitting: "Invio in corso...",
           player_update_success: "Le tue statistiche sono state inviate per la revisione. Grazie!",
@@ -8619,6 +8819,12 @@
           players_list_saved: "\uD50C\uB808\uC774\uC5B4\uAC00 \uC5C5\uB370\uC774\uD2B8\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
           players_list_deleted: "\uD50C\uB808\uC774\uC5B4\uAC00 \uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
           players_list_delete_confirm: '"{name}" \uD50C\uB808\uC774\uC5B4\uB97C \uC0AD\uC81C\uD560\uAE4C\uC694?',
+          players_fill_sample_button: "\uC0D8\uD50C \uD50C\uB808\uC774\uC5B4\uB85C \uCC44\uC6B0\uAE30",
+          players_fill_sample_processing: "\uC0D8\uD50C \uD50C\uB808\uC774\uC5B4\uB97C \uCD94\uAC00\uD558\uB294 \uC911...",
+          players_fill_sample_success: "\uC0D8\uD50C \uD50C\uB808\uC774\uC5B4 {count}\uBA85\uC774 \uCD94\uAC00\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
+          players_clear_all_button: "\uBAA8\uB4E0 \uD50C\uB808\uC774\uC5B4 \uC0AD\uC81C",
+          players_clear_all_processing: "\uBAA8\uB4E0 \uD50C\uB808\uC774\uC5B4\uB97C \uC0AD\uC81C\uD558\uB294 \uC911...",
+          players_clear_all_success: "\uBAA8\uB4E0 \uD50C\uB808\uC774\uC5B4\uAC00 \uC0AD\uC81C\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
           players_mgmt_confirm_delete: "\uD655\uC778?",
           players_list_error_invalid_source: "\uC798\uBABB\uB41C \uD50C\uB808\uC774\uC5B4 \uC18C\uC2A4\uC785\uB2C8\uB2E4.",
           players_list_error_no_alliance: "\uB3D9\uB9F9 \uD50C\uB808\uC774\uC5B4\uB97C \uC218\uC815\uD558\uB824\uBA74 \uB3D9\uB9F9\uC5D0 \uAC00\uC785\uD574\uC57C \uD569\uB2C8\uB2E4.",
@@ -8785,6 +8991,8 @@
           onboarding_step3_desc: "Excel \uD15C\uD50C\uB9BF\uC744 \uB2E4\uC6B4\uB85C\uB4DC\uD558\uACE0 \uC774\uB984, \uC804\uD22C\uB825, \uBD80\uB300 \uD0C0\uC785\uC744 \uC785\uB825\uD558\uC138\uC694.",
           onboarding_step4_title: "\uD50C\uB808\uC774\uC5B4 DB \uC5C5\uB85C\uB4DC",
           onboarding_step4_desc: "\uC791\uC131\uD55C \uD30C\uC77C\uC744 \uAC1C\uC778 DB, \uB3D9\uB9F9 DB, \uB610\uB294 \uB458 \uB2E4 \uC5C5\uB85C\uB4DC\uD558\uC138\uC694.",
+          onboarding_fill_sample_title: "\uB85C\uC2A4\uD130 \uBE60\uB974\uAC8C \uCC44\uC6B0\uAE30",
+          onboarding_fill_sample_desc: "\uC544\uC9C1 \uD50C\uB808\uC774\uC5B4\uAC00 \uC5C6\uB098\uC694? \uC5EC\uAE30\uB97C \uD074\uB9AD\uD558\uBA74 \uC0D8\uD50C \uD50C\uB808\uC774\uC5B4 40\uBA85\uC744 \uC989\uC2DC \uCD94\uAC00\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4 \u2014 \uC2E4\uC81C \uB85C\uC2A4\uD130\uAC00 \uC900\uBE44\uB418\uAE30 \uC804\uC5D0 \uD300 \uC0DD\uC131\uC744 \uD0D0\uC0C9\uD558\uAE30\uC5D0 \uC88B\uC2B5\uB2C8\uB2E4.",
           onboarding_step5_title: "Add Player Manually",
           onboarding_step5_desc: "In Players Management, use Add New Player to enter Name, Power, and Troop type manually.",
           onboarding_step6_title: "\uC774\uBCA4\uD2B8 \uB9E4\uB2C8\uC800",
@@ -8799,6 +9007,12 @@
           onboarding_step10_desc: "Open Alliance from the menu to access alliance features and invitations.",
           onboarding_step11_title: "Alliance Invites",
           onboarding_step11_desc: "On the Alliance page, create or join an alliance and send/accept platform invites.",
+          onboarding_step12_title: "\uC774\uBCA4\uD2B8 \uAE30\uB85D",
+          onboarding_step12_desc: "\uC774\uBCA4\uD2B8 \uAE30\uB85D\uC744 \uC5F4\uC5B4 \uAC01 \uC774\uBCA4\uD2B8\uC758 \uACFC\uAC70 \uD300 \uBC30\uC815\uC744 \uD655\uC778\uD558\uC138\uC694.",
+          onboarding_step13_title: "\uCD9C\uC11D \uD45C\uC2DC \uBC0F \uD655\uC815",
+          onboarding_step13_desc: "\uCD9C\uC11D \uD328\uB110\uC744 \uC0AC\uC6A9\uD574 \uAC01 \uD50C\uB808\uC774\uC5B4\uB97C \uCD9C\uC11D, \uBD88\uCC38 \uB610\uB294 \uC0AC\uC720 \uC788\uC74C\uC73C\uB85C \uD45C\uC2DC\uD558\uC138\uC694. \uD655\uC815\uD558\uBA74 \uAE30\uB85D\uC774 \uC7A0\uAE30\uACE0 \uC2E0\uB8B0\uB3C4 \uC810\uC218\uAC00 \uC5C5\uB370\uC774\uD2B8\uB429\uB2C8\uB2E4.",
+          onboarding_step14_title: "\uD50C\uB808\uC774\uC5B4 \uC5C5\uB370\uC774\uD2B8",
+          onboarding_step14_desc: "\uD50C\uB808\uC774\uC5B4 \uC5C5\uB370\uC774\uD2B8\uB97C \uC5F4\uC5B4 \uD50C\uB808\uC774\uC5B4\uAC00 \uBCF4\uC548 \uB9C1\uD06C\uB85C \uC81C\uCD9C\uD55C \uC804\uD22C\uB825 \uB610\uB294 \uBCD1\uB825 \uBCC0\uACBD \uC0AC\uD56D\uC744 \uAC80\uD1A0\uD558\uACE0 \uC801\uC6A9\uD558\uC138\uC694.",
           alliance_button: "\uB3D9\uB9F9",
           alliance_panel_title: "\uB3D9\uB9F9",
           alliance_create_title: "\uB3D9\uB9F9 \uC0DD\uC131 \uB610\uB294 \uAC00\uC785",
@@ -8975,6 +9189,8 @@
           event_history_auto_saved: "\uD300\uC774 \uAE30\uB85D\uC5D0 \uC800\uC7A5\uB428",
           event_history_delete: "\uC0AD\uC81C",
           event_history_delete_confirm: "\uC774 \uC774\uBCA4\uD2B8\uB97C \uAE30\uB85D\uC5D0\uC11C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
+          event_history_source_personal: "\uAC1C\uC778",
+          event_history_source_alliance: "\uB3D9\uB9F9",
           attendance_panel_title: "\uCD9C\uC11D \uD45C\uC2DC",
           attendance_finalize_btn: "\uCD9C\uC11D \uD655\uC815",
           attendance_finalize_confirm: "\uCD9C\uC11D \uAE30\uB85D\uC774 \uC7A0\uAE41\uB2C8\uB2E4. \uACC4\uC18D\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
@@ -9006,6 +9222,10 @@
           player_update_thp_label: "THP",
           player_update_thp_note: "\uCC38\uACE0: THP (Total Hero Power - \uB7AD\uD0B9\uC5D0\uC11C \uD655\uC778 \uAC00\uB2A5)",
           player_update_troops_label: "\uBCD1\uC885",
+          player_update_current_value_label: "\uD604\uC7AC \uAC12",
+          player_update_power_placeholder: "\uC608: 350",
+          player_update_thp_placeholder: "\uC608: 12000",
+          player_update_troops_placeholder: "\uBCD1\uC885\uC744 \uC120\uD0DD\uD558\uC138\uC694",
           player_update_submit_btn: "\uC5C5\uB370\uC774\uD2B8 \uC81C\uCD9C",
           player_update_submitting: "\uC81C\uCD9C \uC911...",
           player_update_success: "\uD1B5\uACC4\uAC00 \uAC80\uD1A0\uB97C \uC704\uD574 \uC81C\uCD9C\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uAC10\uC0AC\uD569\uB2C8\uB2E4!",
@@ -9128,6 +9348,12 @@
           close_button: "\xCEnchide",
           players_list_saved: "Juc\u0103tor actualizat.",
           players_list_deleted: "Juc\u0103tor \u0219ters.",
+          players_fill_sample_button: "Completeaz\u0103 cu juc\u0103tori exemplu",
+          players_fill_sample_processing: "Se adaug\u0103 juc\u0103tori exemplu...",
+          players_fill_sample_success: "{count} juc\u0103tori exemplu ad\u0103uga\u021Bi.",
+          players_clear_all_button: "\u0218terge to\u021Bi juc\u0103torii",
+          players_clear_all_processing: "Se \u0219terg to\u021Bi juc\u0103torii...",
+          players_clear_all_success: "To\u021Bi juc\u0103torii au fost elimina\u021Bi.",
           players_list_delete_confirm: '\u0218tergi juc\u0103torul "{name}"?',
           players_mgmt_confirm_delete: "Confirm\u0103?",
           players_list_error_invalid_source: "Surs\u0103 de juc\u0103tori invalid\u0103.",
@@ -9295,6 +9521,8 @@
           onboarding_step3_desc: "Descarca sablonul Excel si completeaza nume, putere si tip trupe.",
           onboarding_step4_title: "Incarca baza jucatori",
           onboarding_step4_desc: "Incarca fisierul in baza personala, baza aliantei, sau in ambele.",
+          onboarding_fill_sample_title: "Completare rapida a rosterului",
+          onboarding_fill_sample_desc: "Nu ai jucatori inca? Apasa aici pentru a adauga instant 40 de jucatori exemplu \u2014 perfect pentru a explora generarea echipelor inainte ca echipa ta reala sa fie gata.",
           onboarding_step5_title: "Adauga jucator manual",
           onboarding_step5_desc: "In Management jucatori foloseste Adauga jucator pentru Nume, Putere si tip trupe.",
           onboarding_step6_title: "Events Manager",
@@ -9309,6 +9537,12 @@
           onboarding_step10_desc: "Deschide Alianta din meniu pentru functii de alianta si invitatii.",
           onboarding_step11_title: "Invitatii alianta",
           onboarding_step11_desc: "In pagina Alianta poti crea/intra intr-o alianta si trimite/accepta invitatii.",
+          onboarding_step12_title: "Istoric evenimente",
+          onboarding_step12_desc: "Deschide Istoricul evenimentelor pentru a revizui atribuirile de echip\u0103 din trecut pentru fiecare eveniment.",
+          onboarding_step13_title: "Marcheaz\u0103 \u0219i finalizeaz\u0103 prezen\u021Ba",
+          onboarding_step13_desc: "Folose\u0219te panoul de prezen\u021B\u0103 pentru a marca fiecare juc\u0103tor ca Prezent, Absent sau Scuzat. Finalizeaz\u0103 pentru a bloca \xEEnregistrarea \u0219i a actualiza scorurile de fiabilitate.",
+          onboarding_step14_title: "Actualiz\u0103ri juc\u0103tori",
+          onboarding_step14_desc: "Deschide Actualiz\u0103ri juc\u0103tori pentru a revizui \u0219i aplica modific\u0103rile de putere sau trupe trimise de juc\u0103tori prin linkurile lor securizate.",
           alliance_button: "Alian\u021B\u0103",
           alliance_panel_title: "Alian\u021B\u0103",
           alliance_create_title: "Creeaz\u0103 sau intr\u0103 \xEEntr-o alian\u021B\u0103",
@@ -9485,6 +9719,8 @@
           event_history_auto_saved: "Echipa salvata in istoric",
           event_history_delete: "Sterge",
           event_history_delete_confirm: "Stergi acest eveniment din istoric?",
+          event_history_source_personal: "Personal",
+          event_history_source_alliance: "Alian\u021B\u0103",
           attendance_panel_title: "Marcheaza prezenta",
           attendance_finalize_btn: "Finalizeaza prezenta",
           attendance_finalize_confirm: "Aceasta va bloca registrul de prezenta. Continui?",
@@ -9516,6 +9752,10 @@
           player_update_thp_label: "THP",
           player_update_thp_note: "Not\u0103: THP (Total Hero Power - disponibil \xEEn Clasament)",
           player_update_troops_label: "Tip de trup\u0103",
+          player_update_current_value_label: "Valoare curenta",
+          player_update_power_placeholder: "ex. 350",
+          player_update_thp_placeholder: "ex. 12000",
+          player_update_troops_placeholder: "Selecteaza tipul de trupa",
           player_update_submit_btn: "Trimite actualizarea",
           player_update_submitting: "Se trimite...",
           player_update_success: "Statisticile tale au fost trimise pentru revizuire. Multumim!",
@@ -11216,11 +11456,11 @@
             eventHistorySaveBtn.classList.remove("hidden");
             eventHistorySaveBtn.onclick = function() {
               var assignments = isA ? deps.getAssignmentsA() : deps.getAssignmentsB();
-              var gameplayContext = deps.getGameplayContext();
+              var gameplayContext2 = deps.getGameplayContext();
               var currentAssignment = {
                 eventTypeId: deps.getCurrentEvent() || "",
                 eventName: deps.getCurrentEvent() || "",
-                gameId: gameplayContext && gameplayContext.gameId || "",
+                gameId: gameplayContext2 && gameplayContext2.gameId || "",
                 scheduledAt: /* @__PURE__ */ new Date(),
                 teamA: isA ? assignments : [],
                 teamB: !isA ? assignments : []
@@ -11646,9 +11886,9 @@
             var teamSecondary = _teamColors.light || (team === "A" ? "#1E90FF" : "#FF6347");
             var _teamRgb = _teamColors.rgb || (team === "A" ? "65,105,225" : "220,20,60");
             var teamSoft = "rgba(" + _teamRgb + ", 0.25)";
-            var gameplayContext = deps.getGameplayContext();
+            var gameplayContext2 = deps.getGameplayContext();
             var FS = deps.FirebaseService || typeof window !== "undefined" && window.FirebaseService;
-            var activePlayerDB = FS && FS.getActivePlayerDatabase && gameplayContext ? FS.getActivePlayerDatabase(gameplayContext) : {};
+            var activePlayerDB = FS && FS.getActivePlayerDatabase && gameplayContext2 ? FS.getActivePlayerDatabase(gameplayContext2) : {};
             var mappedAssignments = {};
             var unmappedAssignments = {};
             var effectivePositions = deps.getEffectiveBuildingPositions();
@@ -12291,18 +12531,18 @@
           }
           return String(resultOrError || "unknown");
         }
-        function hasAllianceUploadAccess(gameplayContext, FirebaseService2) {
+        function hasAllianceUploadAccess(gameplayContext2, FirebaseService2) {
           if (typeof FirebaseService2 === "undefined" || !FirebaseService2 || typeof FirebaseService2.getAllianceId !== "function") {
             return false;
           }
-          var allianceId = FirebaseService2.getAllianceId(gameplayContext || void 0);
+          var allianceId = FirebaseService2.getAllianceId(gameplayContext2 || void 0);
           if (!allianceId) {
             return false;
           }
           if (typeof FirebaseService2.getAllianceData !== "function") {
             return true;
           }
-          var allianceState = FirebaseService2.getAllianceData(gameplayContext || void 0);
+          var allianceState = FirebaseService2.getAllianceData(gameplayContext2 || void 0);
           if (!allianceState || typeof allianceState !== "object") {
             return false;
           }
@@ -12317,8 +12557,8 @@
           var members = allianceState.members && typeof allianceState.members === "object" ? allianceState.members : null;
           return !!(members && members[uid]);
         }
-        async function resolveAllianceUploadAccess(gameplayContext, deps) {
-          var context = gameplayContext || deps.getGameplayContext();
+        async function resolveAllianceUploadAccess(gameplayContext2, deps) {
+          var context = gameplayContext2 || deps.getGameplayContext();
           var FirebaseService2 = deps.FirebaseService;
           if (!context || !FirebaseService2) {
             return false;
@@ -12346,8 +12586,8 @@
             return;
           }
           showMessage("uploadMessage", t2("message_upload_processing"), "processing");
-          var gameplayContext = getGameplayContext("uploadMessage");
-          if (!gameplayContext) {
+          var gameplayContext2 = getGameplayContext("uploadMessage");
+          if (!gameplayContext2) {
             return;
           }
           var normalizedTarget = typeof target === "string" ? target.trim().toLowerCase() : "";
@@ -12355,7 +12595,7 @@
             showMessage("uploadMessage", t2("message_upload_failed", { error: t2("players_list_error_invalid_source") }), "error");
             return;
           }
-          var hasAlliance = hasAllianceUploadAccess(gameplayContext, FirebaseService2);
+          var hasAlliance = hasAllianceUploadAccess(gameplayContext2, FirebaseService2);
           if ((normalizedTarget === "alliance" || normalizedTarget === "both") && !hasAlliance) {
             showMessage("uploadMessage", t2("players_list_error_no_alliance"), "error");
             return;
@@ -12367,12 +12607,12 @@
               var personalError = "";
               var allianceError = "";
               try {
-                personalResult = await FirebaseService2.uploadPlayerDatabase(file, gameplayContext);
+                personalResult = await FirebaseService2.uploadPlayerDatabase(file, gameplayContext2);
               } catch (error) {
                 personalError = getUploadErrorMessage(error, t2);
               }
               try {
-                allianceResult = await FirebaseService2.uploadAlliancePlayerDatabase(file, gameplayContext);
+                allianceResult = await FirebaseService2.uploadAlliancePlayerDatabase(file, gameplayContext2);
               } catch (error) {
                 allianceError = getUploadErrorMessage(error, t2);
               }
@@ -12394,7 +12634,7 @@
               showMessage("uploadMessage", t2("message_upload_failed", { error: mergedError || "unknown" }), "error");
               return;
             }
-            var result = normalizedTarget === "alliance" ? await FirebaseService2.uploadAlliancePlayerDatabase(file, gameplayContext) : await FirebaseService2.uploadPlayerDatabase(file, gameplayContext);
+            var result = normalizedTarget === "alliance" ? await FirebaseService2.uploadAlliancePlayerDatabase(file, gameplayContext2) : await FirebaseService2.uploadPlayerDatabase(file, gameplayContext2);
             if (!result || !result.success) {
               showMessage("uploadMessage", t2("message_upload_failed", { error: getUploadErrorMessage(result, t2) }), "error");
               return;
@@ -12411,8 +12651,8 @@
             return;
           }
           var config = options && typeof options === "object" ? options : {};
-          var gameplayContext = config.gameplayContext || deps.getGameplayContext();
-          var hasAlliance = config.hasAlliance === true ? true : hasAllianceUploadAccess(gameplayContext, deps.FirebaseService);
+          var gameplayContext2 = config.gameplayContext || deps.getGameplayContext();
+          var hasAlliance = config.hasAlliance === true ? true : hasAllianceUploadAccess(gameplayContext2, deps.FirebaseService);
           var personalBtn = deps.document.getElementById("uploadPersonalBtn");
           var allianceBtn = deps.document.getElementById("uploadAllianceBtn");
           var bothBtn = deps.document.getElementById("uploadBothBtn");
@@ -12429,14 +12669,14 @@
           if (!controls || !personalBtn || !allianceBtn || !FirebaseService2) {
             return;
           }
-          var gameplayContext = deps.getGameplayContext();
-          var hasAlliance = !!(FirebaseService2.getAllianceId && FirebaseService2.getAllianceId(gameplayContext || void 0));
+          var gameplayContext2 = deps.getGameplayContext();
+          var hasAlliance = !!(FirebaseService2.getAllianceId && FirebaseService2.getAllianceId(gameplayContext2 || void 0));
           if (!hasAlliance) {
             controls.classList.add("hidden");
             return;
           }
           controls.classList.remove("hidden");
-          var source = FirebaseService2.getPlayerSource ? FirebaseService2.getPlayerSource(gameplayContext || void 0) : "personal";
+          var source = FirebaseService2.getPlayerSource ? FirebaseService2.getPlayerSource(gameplayContext2 || void 0) : "personal";
           var personalActive = source !== "alliance";
           var allianceActive = source === "alliance";
           personalBtn.classList.toggle("secondary", !personalActive);
@@ -12450,12 +12690,12 @@
             return;
           }
           var config = options && typeof options === "object" ? options : {};
-          var gameplayContext = deps.getGameplayContext();
-          if (!gameplayContext) {
+          var gameplayContext2 = deps.getGameplayContext();
+          if (!gameplayContext2) {
             return;
           }
-          var playerDB = FirebaseService2.getActivePlayerDatabase(gameplayContext);
-          var source = FirebaseService2.getPlayerSource(gameplayContext);
+          var playerDB = FirebaseService2.getActivePlayerDatabase(gameplayContext2);
+          var source = FirebaseService2.getPlayerSource(gameplayContext2);
           var t2 = deps.t;
           var sourceLabel = source === "alliance" ? t2("player_source_alliance") : t2("player_source_personal");
           var count = playerDB && typeof playerDB === "object" ? Object.keys(playerDB).length : 0;
@@ -12757,15 +12997,15 @@
             deps.showMessage("buildingsStatus", deps.t("buildings_changes_not_saved"), "error");
             return;
           }
-          var gameplayContext = deps.getGameplayContext("buildingsStatus");
-          if (!gameplayContext) {
+          var gameplayContext2 = deps.getGameplayContext("buildingsStatus");
+          if (!gameplayContext2) {
             return;
           }
-          var eventContext = { gameId: gameplayContext.gameId, eventId: deps.normalizeEventId(deps.currentEvent) };
+          var eventContext = { gameId: gameplayContext2.gameId, eventId: deps.normalizeEventId(deps.currentEvent) };
           var targetVersion = getTargetBuildingConfigVersion(deps.BUILDING_CONFIG_VERSION, FirebaseService2);
           FirebaseService2.setBuildingConfig(deps.currentEvent, deps.getBuildingConfig(), eventContext);
           FirebaseService2.setBuildingConfigVersion(deps.currentEvent, targetVersion, eventContext);
-          var saveResult = await FirebaseService2.saveUserData(void 0, gameplayContext);
+          var saveResult = await FirebaseService2.saveUserData(void 0, gameplayContext2);
           if (saveResult.success) {
             deps.showMessage("buildingsStatus", deps.t("buildings_saved"), "success");
           } else {
@@ -12798,15 +13038,15 @@
             deps.showMessage("coordStatus", deps.t("coord_changes_not_saved"), "error");
             return;
           }
-          var gameplayContext = deps.getGameplayContext("coordStatus");
-          if (!gameplayContext) {
+          var gameplayContext2 = deps.getGameplayContext("coordStatus");
+          if (!gameplayContext2) {
             return;
           }
           var targetVersion = getTargetBuildingPositionsVersion(deps.BUILDING_POSITIONS_VERSION, FirebaseService2);
-          var eventContext = { gameId: gameplayContext.gameId, eventId: deps.normalizeEventId(deps.currentEvent) };
+          var eventContext = { gameId: gameplayContext2.gameId, eventId: deps.normalizeEventId(deps.currentEvent) };
           FirebaseService2.setBuildingPositions(deps.currentEvent, deps.getBuildingPositions(), eventContext);
           FirebaseService2.setBuildingPositionsVersion(deps.currentEvent, targetVersion, eventContext);
-          var saveResult = await FirebaseService2.saveUserData(void 0, gameplayContext);
+          var saveResult = await FirebaseService2.saveUserData(void 0, gameplayContext2);
           if (saveResult.success) {
             deps.showMessage("coordStatus", deps.t("coord_saved"), "success");
           } else {
@@ -13989,21 +14229,21 @@
           Object.keys(legacyRegistry).forEach(function(eventId) {
             nextRegistry[eventId] = Object.assign({}, legacyRegistry[eventId]);
           });
-          var storedEvents = (function() {
+          var storedEvents = function() {
             var FirebaseService2 = deps.getFirebaseService();
             if (!FirebaseService2 || !FirebaseService2.getAllEventData) {
               return {};
             }
-            var gameplayContext = deps.getGameplayContext();
-            if (!gameplayContext) {
+            var gameplayContext2 = deps.getGameplayContext();
+            if (!gameplayContext2) {
               return {};
             }
-            return normalizeStoredEventsData(FirebaseService2.getAllEventData(gameplayContext));
-          })();
+            return normalizeStoredEventsData(FirebaseService2.getAllEventData(gameplayContext2));
+          }();
           Object.keys(storedEvents).forEach(function(eventId) {
             var stored = storedEvents[eventId];
             var base = nextRegistry[eventId] || {};
-            var gameplayContext = deps.getGameplayContext();
+            var gameplayContext2 = deps.getGameplayContext();
             var baseBuildings = Array.isArray(base.buildings) ? base.buildings : [];
             var storedBuildings = Array.isArray(stored.buildingConfig) ? deps.normalizeBuildingConfig(stored.buildingConfig, stored.buildingConfig) : null;
             var buildings = Array.isArray(storedBuildings) && storedBuildings.length > 0 ? storedBuildings : baseBuildings;
@@ -14013,7 +14253,7 @@
             var defaultPositions = stored.buildingPositions ? global2.DSCoreBuildings.normalizeBuildingPositions(stored.buildingPositions, validNames) : base.defaultPositions || {};
             var mapDataUrl = stored.mapDataUrl || "";
             var nextName = stored.name || base.name || eventId;
-            var nextAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(stored.assignmentAlgorithmId) || normalizeAssignmentAlgorithmId(base.assignmentAlgorithmId) || resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : "");
+            var nextAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(stored.assignmentAlgorithmId) || normalizeAssignmentAlgorithmId(base.assignmentAlgorithmId) || resolveDefaultAssignmentAlgorithmId(gameplayContext2 ? gameplayContext2.gameId : "");
             var preserveTitleKey = !stored.name || !base.name || stored.name === base.name;
             nextRegistry[eventId] = Object.assign({}, base, {
               id: eventId,
@@ -14409,8 +14649,8 @@
           return document.getElementById("eventAssignmentAlgorithmInput");
         }
         function listSelectableAssignmentAlgorithmsForActiveGame() {
-          var gameplayContext = deps.getGameplayContext();
-          var gameId = gameplayContext ? gameplayContext.gameId : "";
+          var gameplayContext2 = deps.getGameplayContext();
+          var gameId = gameplayContext2 ? gameplayContext2.gameId : "";
           if (global2.DSAssignmentRegistry && typeof global2.DSAssignmentRegistry.listAlgorithmsForGame === "function") {
             var algorithms = global2.DSAssignmentRegistry.listAlgorithmsForGame(gameId);
             if (Array.isArray(algorithms) && algorithms.length > 0) {
@@ -14516,8 +14756,8 @@
           deps.setEventEditorCurrentId("");
           deps.setEventEditorIsEditMode(true);
           setEditorName("");
-          var gameplayContext = deps.getGameplayContext();
-          renderEventAssignmentAlgorithmOptions(resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : ""));
+          var gameplayContext2 = deps.getGameplayContext();
+          renderEventAssignmentAlgorithmOptions(resolveDefaultAssignmentAlgorithmId(gameplayContext2 ? gameplayContext2.gameId : ""));
           deps.setEventDraftLogoDataUrl("");
           deps.setEventDraftMapDataUrl("");
           deps.setEventDraftMapRemoved(false);
@@ -14643,8 +14883,8 @@
           var existing = global2.DSCoreEvents.getEvent(eventId) || {};
           var mapDataUrl = deps.getEventDraftMapDataUrl() || "";
           var logoDataUrl = deps.getEventDraftLogoDataUrl() || generateEventAvatarDataUrl(name, eventId);
-          var gameplayContext = deps.getGameplayContext();
-          var normalizedAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(assignmentAlgorithmId) || normalizeAssignmentAlgorithmId(existing.assignmentAlgorithmId) || resolveDefaultAssignmentAlgorithmId(gameplayContext ? gameplayContext.gameId : "");
+          var gameplayContext2 = deps.getGameplayContext();
+          var normalizedAssignmentAlgorithmId = normalizeAssignmentAlgorithmId(assignmentAlgorithmId) || normalizeAssignmentAlgorithmId(existing.assignmentAlgorithmId) || resolveDefaultAssignmentAlgorithmId(gameplayContext2 ? gameplayContext2.gameId : "");
           var validNames = new Set(buildings.map(function(item) {
             return item.name;
           }));
@@ -14668,8 +14908,8 @@
           };
         }
         async function saveEventDefinition() {
-          var gameplayContext = deps.getGameplayContext("eventsStatus");
-          if (!gameplayContext) {
+          var gameplayContext2 = deps.getGameplayContext("eventsStatus");
+          if (!gameplayContext2) {
             return;
           }
           if (!deps.getEventEditorIsEditMode()) {
@@ -14692,7 +14932,7 @@
           var existingIds = getEventIds();
           var eventEditorCurrentId = deps.getEventEditorCurrentId();
           var eventId = eventEditorCurrentId || global2.DSCoreEvents.slugifyEventId(eventName, existingIds);
-          var eventContext = { gameId: gameplayContext.gameId, eventId };
+          var eventContext = { gameId: gameplayContext2.gameId, eventId };
           var assignmentAlgorithmId = getSelectedEventAssignmentAlgorithmId();
           var definition = buildEventDefinition(eventId, eventName, buildings, assignmentAlgorithmId);
           var isNewEvent = !eventEditorCurrentId;
@@ -14724,7 +14964,7 @@
             FirebaseService2.setBuildingConfigVersion(eventId, deps.getTargetBuildingConfigVersion(), eventContext);
             FirebaseService2.setBuildingPositions(eventId, buildingPositionsMap[eventId], eventContext);
             FirebaseService2.setBuildingPositionsVersion(eventId, deps.getTargetBuildingPositionsVersion(), eventContext);
-            var saveResult = await FirebaseService2.saveUserData(void 0, gameplayContext);
+            var saveResult = await FirebaseService2.saveUserData(void 0, gameplayContext2);
             if (!saveResult || !saveResult.success) {
               deps.showMessage("eventsStatus", deps.t("events_manager_save_failed", { error: saveResult && saveResult.error || "unknown" }), "error");
               return;
@@ -14748,8 +14988,8 @@
           }
         }
         async function deleteSelectedEvent() {
-          var gameplayContext = deps.getGameplayContext("eventsStatus");
-          if (!gameplayContext) {
+          var gameplayContext2 = deps.getGameplayContext("eventsStatus");
+          if (!gameplayContext2) {
             return;
           }
           if (!deps.getEventEditorIsEditMode()) {
@@ -14769,7 +15009,7 @@
             return;
           }
           var eventId = eventEditorCurrentId;
-          var eventContext = { gameId: gameplayContext.gameId, eventId };
+          var eventContext = { gameId: gameplayContext2.gameId, eventId };
           var removed = global2.DSCoreEvents.removeEvent(eventId);
           if (!removed) {
             deps.showMessage("eventsStatus", deps.t("events_manager_delete_failed"), "error");
@@ -14782,7 +15022,7 @@
           var FirebaseService2 = deps.getFirebaseService();
           if (FirebaseService2 && FirebaseService2.removeEvent) {
             FirebaseService2.removeEvent(eventId, eventContext);
-            var result = await FirebaseService2.saveUserData(void 0, gameplayContext);
+            var result = await FirebaseService2.saveUserData(void 0, gameplayContext2);
             if (!result || !result.success) {
               deps.showMessage("eventsStatus", deps.t("events_manager_delete_failed"), "error");
               return;
@@ -15152,6 +15392,7 @@
             players,
             active: true,
             finalized: false,
+            playerSource: assignment.playerSource || "personal",
             createdByUid: createdByUid || null,
             createdAt: now
           };
@@ -15213,19 +15454,7 @@
   var require_event_history_actions = __commonJS({
     "js/features/event-history/event-history-actions.js"() {
       (function initEventHistoryActions(global2) {
-        function readHistoryFilterState() {
-          var eventContainer = document.getElementById("eventHistoryEventSelector");
-          var teamContainer = document.getElementById("eventHistoryTeamSelector");
-          var activeEvent = eventContainer ? eventContainer.querySelector(".event-btn.active") : null;
-          var activeTeam = teamContainer ? teamContainer.querySelector(".event-btn.active") : null;
-          return {
-            eventTypeId: activeEvent ? activeEvent.dataset.event || "" : "",
-            team: activeTeam ? activeTeam.dataset.team || "" : ""
-          };
-        }
-        global2.DSFeatureEventHistoryActions = {
-          readHistoryFilterState
-        };
+        global2.DSFeatureEventHistoryActions = {};
       })(window);
     }
   });
@@ -15268,6 +15497,10 @@
             var name = document.createElement("span");
             name.className = "event-history-item-name";
             name.textContent = record.eventName || "";
+            var source = record.playerSource || (record.allianceId ? "alliance" : "personal");
+            var sourceBadge = document.createElement("span");
+            sourceBadge.className = "event-history-source-badge event-history-source-badge--" + source;
+            sourceBadge.textContent = source === "alliance" ? t2("event_history_source_alliance") : t2("event_history_source_personal");
             var date = document.createElement("span");
             date.className = "event-history-item-date";
             var createdAt = record.createdAt;
@@ -15290,6 +15523,7 @@
             var count = Array.isArray(record.players) ? record.players.length : 0;
             playerCount.textContent = count + " " + t2("event_history_players_label");
             info.appendChild(name);
+            info.appendChild(sourceBadge);
             info.appendChild(date);
             info.appendChild(playerCount);
             var actions = document.createElement("div");
@@ -15311,15 +15545,18 @@
             openBtn.setAttribute("aria-label", btnTitle);
             openBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>';
             actions.appendChild(openBtn);
-            var deleteBtn = document.createElement("button");
-            deleteBtn.type = "button";
-            deleteBtn.className = "event-history-icon-btn event-history-delete-btn";
-            deleteBtn.setAttribute("data-history-id", record.id || "");
-            deleteBtn.setAttribute("data-action", "delete-history");
-            deleteBtn.setAttribute("title", t2("event_history_delete"));
-            deleteBtn.setAttribute("aria-label", t2("event_history_delete"));
-            deleteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
-            actions.appendChild(deleteBtn);
+            var isOwn = !opts.currentUserUid || record.createdByUid === opts.currentUserUid;
+            if (isOwn) {
+              var deleteBtn = document.createElement("button");
+              deleteBtn.type = "button";
+              deleteBtn.className = "event-history-icon-btn event-history-delete-btn";
+              deleteBtn.setAttribute("data-history-id", record.id || "");
+              deleteBtn.setAttribute("data-action", "delete-history");
+              deleteBtn.setAttribute("title", t2("event_history_delete"));
+              deleteBtn.setAttribute("aria-label", t2("event_history_delete"));
+              deleteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+              actions.appendChild(deleteBtn);
+            }
             item.appendChild(teamBadge);
             item.appendChild(info);
             item.appendChild(actions);
@@ -15560,7 +15797,6 @@
           allBtn.textContent = t2("event_history_filter_all");
           allBtn.addEventListener("click", function() {
             _activeEventFilter = "";
-            populateEventTypeFilter();
             showEventHistoryView();
           });
           container.appendChild(allBtn);
@@ -15575,7 +15811,6 @@
             btn.textContent = registry.getEventDisplayName ? registry.getEventDisplayName(eventId) : eventId;
             btn.addEventListener("click", function() {
               _activeEventFilter = eventId;
-              populateEventTypeFilter();
               showEventHistoryView();
             });
             container.appendChild(btn);
@@ -15599,7 +15834,6 @@
             btn.textContent = t2(team.labelKey);
             btn.addEventListener("click", function() {
               _activeTeamFilter = team.value;
-              populateTeamFilter();
               showEventHistoryView();
             });
             container.appendChild(btn);
@@ -15632,7 +15866,8 @@
             if (container && global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderHistoryList === "function") {
               global2.DSFeatureEventHistoryView.renderHistoryList(container, records, {
                 translate: getTranslate(),
-                onOpenAttendance: openAttendancePanel
+                onOpenAttendance: openAttendancePanel,
+                currentUserUid: getCurrentUser() && getCurrentUser().uid || null
               });
             }
           }).catch(function(err) {
@@ -15679,7 +15914,8 @@
               players,
               eventTypeId: context.eventTypeId,
               eventDisplayName: context.eventDisplayName,
-              gameId: context.gameId
+              gameId: context.gameId,
+              playerSource: context.playerSource || "personal"
             }, createdByUid);
             var allianceId = getAllianceId();
             var saveResult = await _gateway.saveHistoryRecord(allianceId, record);
@@ -15784,10 +16020,16 @@
                 var newEntry = {
                   historyId,
                   status: doc.status,
-                  eventName: _currentHistoryDoc && _currentHistoryDoc.eventName || null
+                  eventName: _currentHistoryDoc && _currentHistoryDoc.eventName || null,
+                  playerSource: _currentHistoryDoc && _currentHistoryDoc.playerSource || "alliance"
                 };
                 var updatedHistory = [newEntry].concat(recentHistory);
-                var newStats = reliability.recalculatePlayerStats(updatedHistory, existing);
+                var sourceFilter = allianceId ? "alliance" : "personal";
+                var scoringHistory = updatedHistory.filter(function(e) {
+                  return (e.playerSource || "alliance") === sourceFilter;
+                });
+                var newStats = reliability.recalculatePlayerStats(scoringHistory, existing);
+                newStats.recentHistory = updatedHistory.slice(0, 10);
                 playerStatsUpdates.push({ docId, stats: newStats });
               });
             }
@@ -16008,6 +16250,41 @@
     "js/features/player-updates/player-updates-view.js"() {
       (function initFeaturePlayerUpdatesView(global2) {
         var FRESHNESS_THRESHOLD_DAYS = 30;
+        var REVIEW_STATUS_ID = "playerUpdatesReviewStatus";
+        function _resolveResultErrorMessage(result) {
+          var fallback = global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_apply_failed") : "Failed to apply update. Please try again.";
+          if (!result || !result.error) {
+            return fallback;
+          }
+          if (global2.DSI18N && typeof global2.DSI18N.t === "function") {
+            var translated = global2.DSI18N.t(result.error);
+            if (translated && translated !== result.error) {
+              return translated;
+            }
+          }
+          return fallback;
+        }
+        function _showReviewStatus(message, type) {
+          var container = document.getElementById("playerUpdatesReviewContainer");
+          if (!container) {
+            return;
+          }
+          var status = document.getElementById(REVIEW_STATUS_ID);
+          if (!status) {
+            status = document.createElement("div");
+            status.id = REVIEW_STATUS_ID;
+            status.className = "message";
+            status.setAttribute("role", "status");
+            status.setAttribute("aria-live", "polite");
+            if (container.firstChild) {
+              container.insertBefore(status, container.firstChild);
+            } else {
+              container.appendChild(status);
+            }
+          }
+          status.className = "message " + (type || "error");
+          status.textContent = String(message || "");
+        }
         function renderTokenModal(container, tokens) {
           if (!container) return;
           container.innerHTML = "";
@@ -16050,6 +16327,12 @@
         function renderReviewPanel(container, updates) {
           if (!container) return;
           container.innerHTML = "";
+          var status = document.createElement("div");
+          status.id = REVIEW_STATUS_ID;
+          status.className = "hidden";
+          status.setAttribute("role", "status");
+          status.setAttribute("aria-live", "polite");
+          container.appendChild(status);
           var refreshBtn = document.createElement("button");
           refreshBtn.className = "btn btn-secondary btn-sm";
           refreshBtn.setAttribute("data-i18n", "player_updates_refresh");
@@ -16189,6 +16472,7 @@
                   row.classList.add("review-decision-applied");
                   row.setAttribute("aria-disabled", "true");
                 } else {
+                  _showReviewStatus(_resolveResultErrorMessage(result), "error");
                   approveBtn.disabled = false;
                   rejectBtn.disabled = false;
                 }
@@ -16205,6 +16489,7 @@
                   row.classList.add("review-decision-applied");
                   row.setAttribute("aria-disabled", "true");
                 } else {
+                  _showReviewStatus(_resolveResultErrorMessage(result), "error");
                   rejectBtn.disabled = false;
                   approveBtn.disabled = false;
                 }
@@ -16427,6 +16712,77 @@
             }
           });
         }
+        function _normalizeNameForLookup(name) {
+          return typeof name === "string" ? name.trim().toLowerCase() : "";
+        }
+        function _findCanonicalName(playerMap, requestedName) {
+          if (!playerMap || typeof playerMap !== "object") {
+            return "";
+          }
+          if (typeof requestedName !== "string") {
+            return "";
+          }
+          var raw = requestedName.trim();
+          if (!raw) {
+            return "";
+          }
+          if (Object.prototype.hasOwnProperty.call(playerMap, raw)) {
+            return raw;
+          }
+          var wanted = _normalizeNameForLookup(raw);
+          var keys = Object.keys(playerMap);
+          for (var i = 0; i < keys.length; i += 1) {
+            if (_normalizeNameForLookup(keys[i]) === wanted) {
+              return keys[i];
+            }
+          }
+          return "";
+        }
+        function _isPlayerNotFoundResult(result) {
+          if (!result || result.ok) {
+            return false;
+          }
+          return result.error === "players_list_error_not_found";
+        }
+        function _safeCallPromise(fn) {
+          return Promise.resolve().then(fn).catch(function(err) {
+            return { ok: false, error: err && err.message };
+          });
+        }
+        function _applyWithNameFallback(source, playerName, proposed, gameId) {
+          if (!_gateway) {
+            return Promise.resolve({ ok: false, error: "not initialized" });
+          }
+          var applyFn = source === "alliance" ? _gateway.applyPlayerUpdateToAlliance : _gateway.applyPlayerUpdateToPersonal;
+          if (typeof applyFn !== "function") {
+            return Promise.resolve({ ok: false, error: "apply_not_available" });
+          }
+          var context = gameId ? { gameId } : void 0;
+          return _safeCallPromise(function() {
+            return applyFn(playerName, proposed, gameId);
+          }).then(function(result) {
+            if (!_isPlayerNotFoundResult(result)) {
+              return result;
+            }
+            var dbGetter = source === "alliance" ? _gateway.getAlliancePlayerDatabase : _gateway.getPlayerDatabase;
+            if (typeof dbGetter !== "function") {
+              return result;
+            }
+            var playerMap = {};
+            try {
+              playerMap = dbGetter(context) || {};
+            } catch (err) {
+              playerMap = {};
+            }
+            var canonicalName = _findCanonicalName(playerMap, playerName);
+            if (!canonicalName || canonicalName === playerName) {
+              return result;
+            }
+            return _safeCallPromise(function() {
+              return applyFn(canonicalName, proposed, gameId);
+            });
+          });
+        }
         function _doApprove(updateId, update, allianceId, target) {
           var currentUser = _gateway.getCurrentUser ? _gateway.getCurrentUser() : null;
           var reviewedBy = currentUser ? currentUser.uid : null;
@@ -16440,15 +16796,11 @@
             alliance: null
           };
           if (requestedPersonal) {
-            applyResults.personal = _gateway.applyPlayerUpdateToPersonal(playerName, proposed, update.gameId || null).catch(function(err) {
-              return { ok: false, error: err && err.message };
-            });
+            applyResults.personal = _applyWithNameFallback("personal", playerName, proposed, update.gameId || null);
           }
           if (requestedAlliance) {
             if (allianceId) {
-              applyResults.alliance = _gateway.applyPlayerUpdateToAlliance(playerName, proposed, update.gameId || null).catch(function(err) {
-                return { ok: false, error: err && err.message };
-              });
+              applyResults.alliance = _applyWithNameFallback("alliance", playerName, proposed, update.gameId || null);
             } else {
               applyResults.alliance = Promise.resolve({ ok: false, error: "missing_alliance_id" });
             }
@@ -17947,6 +18299,12 @@
             removePlayerEntry: async function removePlayerEntry(source, playerName) {
               return gatewayUtils.withManager((svc) => svc.removePlayerEntry(source, playerName), gatewayUtils.notLoadedResult());
             },
+            clearPersonalPlayerDatabase: async function clearPersonalPlayerDatabase() {
+              return gatewayUtils.withManager((svc) => svc.clearPersonalPlayerDatabase(), gatewayUtils.notLoadedResult());
+            },
+            fillPersonalPlayerDatabase: async function fillPersonalPlayerDatabase(players) {
+              return gatewayUtils.withManager((svc) => svc.fillPersonalPlayerDatabase(players), gatewayUtils.notLoadedResult());
+            },
             getPlayerSource: function getPlayerSource() {
               return gatewayUtils.withManager((svc) => svc.getPlayerSource(), "personal");
             },
@@ -18295,13 +18653,14 @@
     "js/services/firebase-service.js"() {
       (function initFirebaseService(global2) {
         function createUtils(runtime) {
-          const host = runtime || global2;
+          var host = runtime || global2;
+          function getManager() {
+            return typeof host.FirebaseManager !== "undefined" ? host.FirebaseManager : null;
+          }
           return {
-            manager: function manager2() {
-              return typeof host.FirebaseManager !== "undefined" ? host.FirebaseManager : null;
-            },
+            manager: getManager,
             withManager: function withManager2(fn, fallback) {
-              const svc = typeof host.FirebaseManager !== "undefined" ? host.FirebaseManager : null;
+              var svc = getManager();
               if (!svc) {
                 return typeof fallback === "function" ? fallback() : fallback;
               }
@@ -18945,11 +19304,11 @@
           const context = explicitEventId ? contextMaybe : typeof contextMaybe !== "undefined" ? contextMaybe : eventIdOrContext;
           const eventIdFromContext = context && typeof context === "object" ? normalizeEventId(context.eventId) : "";
           const eventId = explicitEventId || eventIdFromContext;
-          const gameplayContext = resolveGameplayContext(methodName, context);
+          const gameplayContext2 = resolveGameplayContext(methodName, context);
           return {
             eventId,
-            gameId: gameplayContext.gameId,
-            explicit: gameplayContext.explicit
+            gameId: gameplayContext2.gameId,
+            explicit: gameplayContext2.explicit
           };
         }
         const FirebaseService2 = {
@@ -19127,6 +19486,14 @@
           removePlayerEntry: async function removePlayerEntry(source, playerName, context) {
             const gameContext = resolveGameplayContext("removePlayerEntry", context);
             return withManager((svc) => svc.removePlayerEntry(source, playerName, gameContext), notLoadedResult());
+          },
+          clearPersonalPlayerDatabase: async function clearPersonalPlayerDatabase(context) {
+            const gameContext = resolveGameplayContext("clearPersonalPlayerDatabase", context);
+            return withManager((svc) => svc.clearPersonalPlayerDatabase(gameContext), notLoadedResult());
+          },
+          fillPersonalPlayerDatabase: async function fillPersonalPlayerDatabase(players, context) {
+            const gameContext = resolveGameplayContext("fillPersonalPlayerDatabase", context);
+            return withManager((svc) => svc.fillPersonalPlayerDatabase(players, gameContext), notLoadedResult());
           },
           getAllEventData: function getAllEventData(context) {
             const gameContext = resolveGameplayContext("getAllEventData", context);
@@ -19392,8 +19759,8 @@
           updatePersonalPendingUpdateStatus: function updatePersonalPendingUpdateStatus(uid, updateId, decision) {
             return playerUpdatesGateway.updatePersonalPendingUpdateStatus(uid, updateId, decision);
           },
-          createUpdateTokenForContext: async function createUpdateTokenForContext(source, gameplayContext, playerName, options) {
-            var ctx = gameplayContext && typeof gameplayContext === "object" ? gameplayContext : {};
+          createUpdateTokenForContext: async function createUpdateTokenForContext(source, gameplayContext2, playerName, options) {
+            var ctx = gameplayContext2 && typeof gameplayContext2 === "object" ? gameplayContext2 : {};
             var opts = options && typeof options === "object" ? options : {};
             if (source === "personal") {
               var uid = ctx.uid || "";
@@ -19636,13 +20003,17 @@
           { titleKey: "onboarding_step2_title", descKey: "onboarding_step2_desc", targetSelector: "#navPlayersBtn", position: "bottom" },
           { titleKey: "onboarding_step3_title", descKey: "onboarding_step3_desc", targetSelector: "#downloadTemplateBtn", position: "bottom" },
           { titleKey: "onboarding_step4_title", descKey: "onboarding_step4_desc", targetSelector: "#uploadPlayerBtn", position: "bottom" },
+          { titleKey: "onboarding_fill_sample_title", descKey: "onboarding_fill_sample_desc", targetSelector: "#fillSamplePlayersBtn", position: "bottom", skipIfAbsent: true },
           { titleKey: "onboarding_step5_title", descKey: "onboarding_step5_desc", targetSelector: "#playersMgmtAddPanelHeader", position: "bottom" },
           { titleKey: "onboarding_step6_title", descKey: "onboarding_step6_desc", targetSelector: "#navConfigBtn", position: "bottom" },
           { titleKey: "onboarding_step7_title", descKey: "onboarding_step7_desc", targetSelector: "#eventsList", position: "top" },
           { titleKey: "onboarding_step8_title", descKey: "onboarding_step8_desc", targetSelector: "#mapCoordinatesBtn", position: "top" },
           { titleKey: "onboarding_step9_title", descKey: "onboarding_step9_desc", targetSelector: "#navGeneratorBtn", position: "bottom" },
           { titleKey: "onboarding_step10_title", descKey: "onboarding_step10_desc", targetSelector: "#navAllianceBtn", position: "bottom" },
-          { titleKey: "onboarding_step11_title", descKey: "onboarding_step11_desc", targetSelector: "#alliancePage", position: "top" }
+          { titleKey: "onboarding_step11_title", descKey: "onboarding_step11_desc", targetSelector: "#alliancePage", position: "top" },
+          { titleKey: "onboarding_step12_title", descKey: "onboarding_step12_desc", targetSelector: "#navEventHistoryBtn", position: "bottom" },
+          { titleKey: "onboarding_step13_title", descKey: "onboarding_step13_desc", targetSelector: "#eventHistoryView", position: "top" },
+          { titleKey: "onboarding_step14_title", descKey: "onboarding_step14_desc", targetSelector: "#navPlayerUpdatesBtn", position: "bottom" }
         ];
         var onboardingActive = false;
         var currentOnboardingStep = 0;
@@ -19668,13 +20039,17 @@
             return;
           }
           var step = ONBOARDING_STEPS[index];
-          if (step.targetSelector === "#navPlayersBtn" || step.targetSelector === "#navConfigBtn" || step.targetSelector === "#navGeneratorBtn" || step.targetSelector === "#navAllianceBtn") {
+          if (step.targetSelector === "#navPlayersBtn" || step.targetSelector === "#navConfigBtn" || step.targetSelector === "#navGeneratorBtn" || step.targetSelector === "#navAllianceBtn" || step.targetSelector === "#navEventHistoryBtn" || step.targetSelector === "#navPlayerUpdatesBtn") {
             if (deps && typeof deps.openNavigationMenu === "function") {
               deps.openNavigationMenu();
             }
           }
           var target = document.querySelector(step.targetSelector);
           if (!target || target.closest(".hidden") || getComputedStyle(target).display === "none") {
+            if (step.skipIfAbsent) {
+              showOnboardingStep(index + 1);
+              return;
+            }
             pendingOnboardingStep = index;
             return;
           }
@@ -20127,8 +20502,8 @@
             deps.showMessage("settingsStatus", t2("error_firebase_not_loaded"), "error");
             return;
           }
-          var gameplayContext = deps.getGameplayContext("settingsStatus");
-          if (!gameplayContext) {
+          var gameplayContext2 = deps.getGameplayContext("settingsStatus");
+          if (!gameplayContext2) {
             return;
           }
           var displayInput = document.getElementById("settingsDisplayNameInput");
@@ -20145,9 +20520,9 @@
               nickname,
               avatarDataUrl: settingsDraftAvatarDataUrl || "",
               theme: selectedTheme
-            }, gameplayContext);
+            }, gameplayContext2);
           }
-          var result = await FirebaseService2.saveUserData(void 0, gameplayContext);
+          var result = await FirebaseService2.saveUserData(void 0, gameplayContext2);
           if (result && result.success) {
             settingsDraftTheme = selectedTheme;
             deps.applyPlatformTheme(selectedTheme);
@@ -20881,16 +21256,16 @@
           return { gameId };
         }
         function getEventGameplayContext(eventId, statusElementId) {
-          var gameplayContext = getGameplayContext(statusElementId);
-          if (!gameplayContext) {
+          var gameplayContext2 = getGameplayContext(statusElementId);
+          if (!gameplayContext2) {
             return null;
           }
           var normalizedEventId = normalizeEventId(eventId || getCurrentEvent());
           if (!normalizedEventId) {
-            return gameplayContext;
+            return gameplayContext2;
           }
           return {
-            gameId: gameplayContext.gameId,
+            gameId: gameplayContext2.gameId,
             eventId: normalizedEventId
           };
         }
@@ -21216,8 +21591,8 @@
         const playerCountEl = document.getElementById("playerCount");
         if (playerCountEl && typeof allPlayers !== "undefined") {
           if (typeof FirebaseService !== "undefined") {
-            const gameplayContext = getGameplayContext();
-            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource(gameplayContext || void 0);
+            const gameplayContext2 = getGameplayContext();
+            const source = FirebaseService.getPlayerSource && FirebaseService.getPlayerSource(gameplayContext2 || void 0);
             const sourceLabel = source === "alliance" ? t2("player_source_alliance") : t2("player_source_personal");
             playerCountEl.textContent = t2("player_count_with_source", { count: allPlayers.length, source: sourceLabel });
           } else {
@@ -21297,6 +21672,13 @@
         }
         delete element.dataset.motionTimerId;
       }
+      function scheduleFrame(callback) {
+        if (typeof requestAnimationFrame === "function") {
+          requestAnimationFrame(callback);
+        } else {
+          setTimeout(callback, 0);
+        }
+      }
       function setPanelVisibility(element, shouldOpen) {
         if (!element) {
           return;
@@ -21305,8 +21687,7 @@
         element.style.setProperty("--panel-motion-ms", `${UI_MOTION_MS.panel}ms`);
         if (shouldOpen) {
           element.classList.remove("hidden");
-          const schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-          schedule(() => {
+          scheduleFrame(() => {
             element.classList.add("ui-open");
           });
           return;
@@ -21323,19 +21704,18 @@
         if (!(overlay instanceof HTMLElement)) {
           return;
         }
+        const focusSelector = options && typeof options.initialFocusSelector === "string" ? options.initialFocusSelector : null;
         if (window.DSShellModalController && typeof window.DSShellModalController.open === "function") {
           window.DSShellModalController.open({
             overlay,
-            initialFocusSelector: options && typeof options.initialFocusSelector === "string" ? options.initialFocusSelector : null
+            initialFocusSelector: focusSelector
           });
           return;
         }
         overlay.classList.remove("hidden");
-        const focusSelector = options && typeof options.initialFocusSelector === "string" ? options.initialFocusSelector : "";
         const focusTarget = focusSelector ? overlay.querySelector(focusSelector) : null;
         if (focusTarget instanceof HTMLElement) {
-          const schedule = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (cb) => setTimeout(cb, 0);
-          schedule(() => focusTarget.focus());
+          scheduleFrame(() => focusTarget.focus());
         }
       }
       function closeModalOverlay(overlay) {
@@ -21641,6 +22021,109 @@
           const allianceId = fs.getAllianceId ? fs.getAllianceId() : null;
           const currentUser = fs.getCurrentUser ? fs.getCurrentUser() : null;
           const uid = currentUser ? currentUser.uid : null;
+          function hasUsableSnapshot(snapshot) {
+            if (!snapshot || typeof snapshot !== "object") {
+              return false;
+            }
+            const hasPower = snapshot.power !== null && snapshot.power !== void 0 && snapshot.power !== "";
+            const hasThp = snapshot.thp !== null && snapshot.thp !== void 0 && snapshot.thp !== "";
+            const hasTroops = typeof snapshot.troops === "string" && snapshot.troops.trim() !== "";
+            return hasPower || hasThp || hasTroops;
+          }
+          function normalizeLookupName(name) {
+            return typeof name === "string" ? name.trim().toLowerCase() : "";
+          }
+          function findPlayerSnapshotByName(playerMap, playerName) {
+            if (!playerMap || typeof playerMap !== "object") {
+              return null;
+            }
+            const trimmedName = typeof playerName === "string" ? playerName.trim() : "";
+            if (!trimmedName) {
+              return null;
+            }
+            var entry = playerMap[trimmedName];
+            if (!entry) {
+              const wanted = normalizeLookupName(trimmedName);
+              const keys = Object.keys(playerMap);
+              for (let i = 0; i < keys.length; i += 1) {
+                if (normalizeLookupName(keys[i]) === wanted) {
+                  entry = playerMap[keys[i]];
+                  break;
+                }
+              }
+            }
+            if (!entry || typeof entry !== "object") {
+              return null;
+            }
+            const snapshot = {
+              power: entry.power,
+              thp: entry.thp,
+              troops: entry.troops
+            };
+            return hasUsableSnapshot(snapshot) ? snapshot : null;
+          }
+          function findSnapshotInLoadedPlayers(playerName) {
+            const players = Array.isArray(window.allPlayers) ? window.allPlayers : [];
+            if (!players.length) {
+              return null;
+            }
+            const wanted = normalizeLookupName(playerName);
+            if (!wanted) {
+              return null;
+            }
+            let match = players.find(function(player) {
+              return normalizeLookupName(player && player.name) === wanted;
+            });
+            if (!match || typeof match !== "object") {
+              return null;
+            }
+            const snapshot = {
+              power: match.power,
+              thp: match.thp,
+              troops: match.troops
+            };
+            return hasUsableSnapshot(snapshot) ? snapshot : null;
+          }
+          function hydrateMissingSnapshots(updates) {
+            if (!Array.isArray(updates) || updates.length === 0) {
+              return Array.isArray(updates) ? updates : [];
+            }
+            let alliancePlayerMap = {};
+            let personalPlayerMap = {};
+            try {
+              if (allianceId && typeof fs.getAlliancePlayerDatabase === "function") {
+                alliancePlayerMap = fs.getAlliancePlayerDatabase(gameplayContext || void 0) || {};
+              }
+            } catch (e) {
+              alliancePlayerMap = {};
+            }
+            try {
+              if (uid && typeof fs.getPlayerDatabase === "function") {
+                personalPlayerMap = fs.getPlayerDatabase(gameplayContext || void 0) || {};
+              }
+            } catch (e) {
+              personalPlayerMap = {};
+            }
+            return updates.map(function(update) {
+              if (!update || typeof update !== "object" || hasUsableSnapshot(update.currentSnapshot)) {
+                return update;
+              }
+              const sourcePrefersAlliance = update.contextType === "alliance";
+              let snapshot = sourcePrefersAlliance ? findPlayerSnapshotByName(alliancePlayerMap, update.playerName) : findPlayerSnapshotByName(personalPlayerMap, update.playerName);
+              if (!snapshot) {
+                snapshot = sourcePrefersAlliance ? findPlayerSnapshotByName(personalPlayerMap, update.playerName) : findPlayerSnapshotByName(alliancePlayerMap, update.playerName);
+              }
+              if (!snapshot) {
+                snapshot = findSnapshotInLoadedPlayers(update.playerName);
+              }
+              if (!snapshot) {
+                return update;
+              }
+              return Object.assign({}, update, {
+                currentSnapshot: snapshot
+              });
+            });
+          }
           var alliancePromise = allianceId && fs.loadPendingUpdates ? fs.loadPendingUpdates(allianceId, "pending").catch(function() {
             return [];
           }) : Promise.resolve([]);
@@ -21649,6 +22132,7 @@
           }) : Promise.resolve([]);
           Promise.all([alliancePromise, personalPromise]).then(function(results) {
             var combined = (results[0] || []).concat(results[1] || []);
+            combined = hydrateMissingSnapshots(combined);
             if (window._playerUpdatesController && typeof window._playerUpdatesController.setPendingUpdateDocs === "function") {
               window._playerUpdatesController.setPendingUpdateDocs(combined);
             }
@@ -21673,6 +22157,7 @@
           if (eventHistoryView) {
             eventHistoryView.classList.remove("hidden");
           }
+          resumePendingOnboardingStep();
           closeNavigationMenu();
         });
         on("navPlayerUpdatesBtn", "click", function() {
@@ -21876,6 +22361,9 @@
           if (input) input.click();
         });
         on("playerFileInput", "change", uploadPlayerData);
+        on("clearAllPlayersBtn", "click", function() {
+          handleClearAllPlayers(document.getElementById("clearAllPlayersBtn"));
+        });
         on("eventsPanelHeader", "click", () => {
           const controller = getEventsManagerFeatureController();
           if (controller && typeof controller.toggleEventsPanel === "function") {
@@ -22669,8 +23157,8 @@
         setPageView("alliance");
         Promise.resolve().then(async () => {
           if (typeof FirebaseService !== "undefined" && FirebaseService.isSignedIn()) {
-            const gameplayContext = getGameplayContext();
-            await FirebaseService.loadAllianceData(gameplayContext || void 0);
+            const gameplayContext2 = getGameplayContext();
+            await FirebaseService.loadAllianceData(gameplayContext2 || void 0);
           }
           await checkAndDisplayNotifications2();
         }).then(() => {
@@ -23356,20 +23844,20 @@
         if (typeof FirebaseService === "undefined" || typeof FirebaseService.getPlayerSource !== "function") {
           return "personal";
         }
-        const gameplayContext = getGameplayContext();
-        return FirebaseService.getPlayerSource(gameplayContext || void 0) === "alliance" ? "alliance" : "personal";
+        const gameplayContext2 = getGameplayContext();
+        return FirebaseService.getPlayerSource(gameplayContext2 || void 0) === "alliance" ? "alliance" : "personal";
       }
       async function refreshPlayersDataAfterMutation(source) {
         if (typeof FirebaseService === "undefined") {
           return;
         }
-        const gameplayContext = getGameplayContext();
+        const gameplayContext2 = getGameplayContext();
         if (source === "alliance" && typeof FirebaseService.loadAllianceData === "function") {
-          await FirebaseService.loadAllianceData(gameplayContext || void 0);
+          await FirebaseService.loadAllianceData(gameplayContext2 || void 0);
         } else if (source === "personal" && typeof FirebaseService.getCurrentUser === "function" && typeof FirebaseService.loadUserData === "function") {
           const user = FirebaseService.getCurrentUser();
           if (user && user.uid) {
-            await FirebaseService.loadUserData(user, gameplayContext || void 0);
+            await FirebaseService.loadUserData(user, gameplayContext2 || void 0);
           }
         }
         loadPlayerData2();
@@ -23378,19 +23866,19 @@
         if (typeof FirebaseService === "undefined") {
           return {};
         }
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return {};
         }
         if (source === "alliance") {
           if (typeof FirebaseService.getAlliancePlayerDatabase === "function") {
-            const allianceDb = FirebaseService.getAlliancePlayerDatabase(gameplayContext);
+            const allianceDb = FirebaseService.getAlliancePlayerDatabase(gameplayContext2);
             return allianceDb && typeof allianceDb === "object" ? allianceDb : {};
           }
           return {};
         }
         if (typeof FirebaseService.getPlayerDatabase === "function") {
-          const personalDb = FirebaseService.getPlayerDatabase(gameplayContext);
+          const personalDb = FirebaseService.getPlayerDatabase(gameplayContext2);
           return personalDb && typeof personalDb === "object" ? personalDb : {};
         }
         return {};
@@ -23539,8 +24027,8 @@
         if (!controls || !personalBtn || !allianceBtn || typeof FirebaseService === "undefined") {
           return;
         }
-        const gameplayContext = getGameplayContext();
-        const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext || void 0));
+        const gameplayContext2 = getGameplayContext();
+        const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext2 || void 0));
         if (!hasAlliance) {
           controls.classList.add("hidden");
           return;
@@ -23575,7 +24063,12 @@
         if (rows.length === 0) {
           const emptyRow = document.createElement("tr");
           emptyRow.classList.add("players-mgmt-empty-row");
-          emptyRow.innerHTML = `<td colspan="5" style="opacity: 0.7;">${escapeHtml(t2("players_list_empty"))}</td>`;
+          let emptyHtml = `<td colspan="5"><span style="opacity: 0.7;">${escapeHtml(t2("players_list_empty"))}</span>`;
+          if (source === "personal" && allRows.length === 0) {
+            emptyHtml += ` <button id="fillSamplePlayersBtn" data-pm-action="fill-sample" class="secondary" type="button" style="margin-left: 8px;">${escapeHtml(t2("players_fill_sample_button"))}</button>`;
+          }
+          emptyHtml += "</td>";
+          emptyRow.innerHTML = emptyHtml;
           tbody.appendChild(emptyRow);
           return;
         }
@@ -23655,6 +24148,12 @@
         if (hintEl) {
           hintEl.textContent = t2("players_list_hint");
         }
+        const clearBtn = document.getElementById("clearAllPlayersBtn");
+        if (clearBtn) {
+          const isPersonal = getPlayersManagementActiveSource() === "personal";
+          const hasPlayers = buildPlayersManagementRows("personal").length > 0;
+          clearBtn.classList.toggle("hidden", !(isPersonal && hasPlayers));
+        }
       }
       async function switchPlayersManagementSource(source) {
         const returnToPlayersPage = getCurrentPageViewState() === "players";
@@ -23682,6 +24181,115 @@
           troopsSelect.value = "Tank";
         }
       }
+      function generateSamplePlayers(count) {
+        var names = [
+          "Shadow_Phoenix",
+          "IronFist_X",
+          "WarPath42",
+          "DragonSlayer",
+          "ThunderBolt99",
+          "NightHawk_Z",
+          "StormBreaker",
+          "VoidWalker",
+          "CrimsonBlade",
+          "FrostGiant",
+          "DarkMatter77",
+          "SwiftStrike",
+          "TigerClaw88",
+          "SilentArrow",
+          "BlitzKrieg",
+          "ChaosLord",
+          "EagleEye_X",
+          "MightyQuinn",
+          "ViperFang",
+          "GhostRider66",
+          "LightningFist",
+          "BerserkerKing",
+          "QuantumLeap",
+          "ShadowBane",
+          "WarlordX",
+          "HyperDrive",
+          "SteelTitan",
+          "NovaBurst",
+          "PhantomKnight",
+          "IceDragon",
+          "BloodMoon",
+          "CyberWolf",
+          "DoomBringer",
+          "TurboForce",
+          "AcidRain",
+          "ZeroHour",
+          "NeonSaber",
+          "OmegaForce",
+          "TerrorByte",
+          "SkyHammer"
+        ];
+        var troops = ["Tank", "Aero", "Missile", "Unknown"];
+        return names.slice(0, count).map(function(name, i) {
+          return {
+            name,
+            power: Math.round((1e4 + Math.random() * 14e4) * 10) / 10,
+            thp: Math.round(Math.random() * 650 * 10) / 10,
+            troops: troops[i % troops.length]
+          };
+        });
+      }
+      async function handleFillWithSamplePlayers() {
+        if (typeof FirebaseService === "undefined") {
+          showMessage("playersMgmtStatus", t2("error_firebase_not_loaded"), "error");
+          return;
+        }
+        const source = getPlayersManagementActiveSource();
+        if (source !== "personal") return;
+        const gameplayContext2 = getGameplayContext("playersMgmtStatus");
+        if (!gameplayContext2) return;
+        showMessage("playersMgmtStatus", t2("players_fill_sample_processing"), "processing");
+        const players = generateSamplePlayers(40);
+        const result = await FirebaseService.fillPersonalPlayerDatabase(players, gameplayContext2);
+        if (result && result.success) {
+          await refreshPlayersDataAfterMutation("personal");
+          renderPlayersManagementPanel();
+          showMessage("playersMgmtStatus", t2("players_fill_sample_success", { count: result.playerCount }), "success");
+        } else {
+          showMessage("playersMgmtStatus", t2("error_generic") || "Error adding sample players.", "error");
+        }
+      }
+      async function handleClearAllPlayers(button) {
+        if (!button) return;
+        if (typeof FirebaseService === "undefined") {
+          showMessage("playersMgmtStatus", t2("error_firebase_not_loaded"), "error");
+          return;
+        }
+        const source = getPlayersManagementActiveSource();
+        if (source !== "personal") return;
+        if (button.getAttribute("data-confirm") !== "pending") {
+          const originalHtml = button.innerHTML;
+          button.setAttribute("data-confirm", "pending");
+          button.innerHTML = '<span class="action-btn-text">' + escapeHtml(t2("players_mgmt_confirm_delete")) + "</span>";
+          button.classList.add("btn-confirm-pending");
+          const timerId = setTimeout(function() {
+            button.removeAttribute("data-confirm");
+            button.innerHTML = originalHtml;
+            button.classList.remove("btn-confirm-pending");
+          }, 3e3);
+          button.dataset.confirmTimer = timerId;
+          return;
+        }
+        clearTimeout(parseInt(button.dataset.confirmTimer, 10));
+        button.removeAttribute("data-confirm");
+        button.classList.remove("btn-confirm-pending");
+        const gameplayContext2 = getGameplayContext("playersMgmtStatus");
+        if (!gameplayContext2) return;
+        showMessage("playersMgmtStatus", t2("players_clear_all_processing"), "processing");
+        const result = await FirebaseService.clearPersonalPlayerDatabase(gameplayContext2);
+        if (result && result.success) {
+          await refreshPlayersDataAfterMutation("personal");
+          renderPlayersManagementPanel();
+          showMessage("playersMgmtStatus", t2("players_clear_all_success"), "success");
+        } else {
+          showMessage("playersMgmtStatus", t2("error_generic") || "Error clearing players.", "error");
+        }
+      }
       async function handlePlayersManagementAddPlayer() {
         if (typeof FirebaseService === "undefined") {
           showMessage("playersMgmtStatus", t2("error_firebase_not_loaded"), "error");
@@ -23692,8 +24300,8 @@
         const thpInput = document.getElementById("playersMgmtNewThp");
         const troopsSelect = document.getElementById("playersMgmtNewTroops");
         const source = getPlayersManagementActiveSource();
-        const gameplayContext = getGameplayContext("playersMgmtStatus");
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext("playersMgmtStatus");
+        if (!gameplayContext2) {
           return;
         }
         const payload = {
@@ -23702,7 +24310,7 @@
           thp: thpInput ? thpInput.value : 0,
           troops: troopsSelect ? troopsSelect.value : "Unknown"
         };
-        const result = await FirebaseService.upsertPlayerEntry(source, "", payload, gameplayContext);
+        const result = await FirebaseService.upsertPlayerEntry(source, "", payload, gameplayContext2);
         if (result && result.success) {
           playersManagementEditingName = "";
           showMessage("playersMgmtStatus", t2("players_list_added"), "success");
@@ -23738,8 +24346,12 @@
         const action = button.getAttribute("data-pm-action");
         const originalName = button.getAttribute("data-player") || "";
         const source = getPlayersManagementActiveSource();
-        const gameplayContext = getGameplayContext("playersMgmtStatus");
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext("playersMgmtStatus");
+        if (!gameplayContext2) {
+          return;
+        }
+        if (action === "fill-sample") {
+          handleFillWithSamplePlayers();
           return;
         }
         if (!action || !originalName) {
@@ -23774,7 +24386,7 @@
             thp: thpInput ? thpInput.value : 0,
             troops: troopsSelect ? troopsSelect.value : "Unknown"
           };
-          const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload, gameplayContext);
+          const result = await FirebaseService.upsertPlayerEntry(source, originalName, payload, gameplayContext2);
           if (result && result.success) {
             playersManagementEditingName = "";
             showMessage("playersMgmtStatus", t2("players_list_saved"), "success");
@@ -23792,14 +24404,13 @@
         if (action === "delete") {
           if (button.getAttribute("data-confirm") !== "pending") {
             const originalText = button.textContent;
-            const originalBg = button.style.backgroundColor;
             button.setAttribute("data-confirm", "pending");
             button.textContent = t2("players_mgmt_confirm_delete");
-            button.style.backgroundColor = "#c0392b";
+            button.classList.add("btn-confirm-pending");
             const revert = () => {
               button.removeAttribute("data-confirm");
               button.textContent = originalText;
-              button.style.backgroundColor = originalBg;
+              button.classList.remove("btn-confirm-pending");
             };
             const timerId = setTimeout(revert, 3e3);
             button.dataset.confirmTimer = timerId;
@@ -23807,7 +24418,7 @@
           }
           clearTimeout(parseInt(button.dataset.confirmTimer, 10));
           button.removeAttribute("data-confirm");
-          const result = await FirebaseService.removePlayerEntry(source, originalName, gameplayContext);
+          const result = await FirebaseService.removePlayerEntry(source, originalName, gameplayContext2);
           if (result && result.success) {
             playersManagementEditingName = "";
             const returnToPlayersPage = getCurrentPageViewState() === "players";
@@ -23831,13 +24442,13 @@
             const currentUser = FirebaseService.getCurrentUser ? FirebaseService.getCurrentUser() : null;
             const uid = currentUser ? currentUser.uid : null;
             if (!uid) {
-              console.warn("Invite: no uid for personal invite", gameplayContext);
+              console.warn("Invite: no uid for personal invite", gameplayContext2);
               button.disabled = false;
               button.innerHTML = originalButtonContent;
               showMessage("playersMgmtStatus", t2("invite_error"), "error");
               return;
             }
-            const gameId = gameplayContext.gameId || "";
+            const gameId = gameplayContext2.gameId || "";
             result = await FirebaseService.createPersonalUpdateToken(uid, originalName, { expiryHours: 48, gameId });
             button.disabled = false;
             button.innerHTML = originalButtonContent;
@@ -23848,15 +24459,19 @@
             }
             inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?token=" + encodeURIComponent(result.tokenId) + "&uid=" + encodeURIComponent(uid);
           } else {
-            const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+            const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext2) : null;
             if (!allianceId) {
-              console.warn("Invite: no allianceId for gameplayContext", gameplayContext);
+              console.warn("Invite: no allianceId for gameplayContext", gameplayContext2);
               button.disabled = false;
               button.innerHTML = originalButtonContent;
               showMessage("playersMgmtStatus", t2("invite_error"), "error");
               return;
             }
-            result = await FirebaseService.createUpdateToken(allianceId, originalName, { expiryHours: 48 });
+            const allianceGameId = gameplayContext2 && gameplayContext2.gameId ? gameplayContext2.gameId : "";
+            result = await FirebaseService.createUpdateToken(allianceId, originalName, {
+              expiryHours: 48,
+              gameId: allianceGameId
+            });
             button.disabled = false;
             button.innerHTML = originalButtonContent;
             if (!result || !result.success) {
@@ -23953,8 +24568,8 @@
             { key: "troops", header: "E1 Troops", required: true }
           ]
         };
-        const gameplayContext = getGameplayContext();
-        const gameId = gameplayContext ? gameplayContext.gameId : "";
+        const gameplayContext2 = getGameplayContext();
+        const gameId = gameplayContext2 ? gameplayContext2.gameId : "";
         if (window.DSCoreGames && typeof window.DSCoreGames.getGame === "function") {
           const game = window.DSCoreGames.getGame(gameId);
           if (game && game.playerImportSchema && typeof game.playerImportSchema === "object") {
@@ -24042,8 +24657,8 @@
         if (!content) {
           return;
         }
-        const gameplayContext = getGameplayContext();
-        const hasAllianceMembership = !!(typeof FirebaseService !== "undefined" && FirebaseService.getAllianceId && gameplayContext && FirebaseService.getAllianceId(gameplayContext));
+        const gameplayContext2 = getGameplayContext();
+        const hasAllianceMembership = !!(typeof FirebaseService !== "undefined" && FirebaseService.getAllianceId && gameplayContext2 && FirebaseService.getAllianceId(gameplayContext2));
         if (window.DSAlliancePanelUI && typeof window.DSAlliancePanelUI.renderAlliancePanel === "function") {
           window.DSAlliancePanelUI.renderAlliancePanel({
             contentElement: content,
@@ -24130,22 +24745,22 @@
         if (typeof FirebaseService === "undefined" || !FirebaseService.getPendingInvitations) {
           return [];
         }
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return [];
         }
-        const invitations = FirebaseService.getPendingInvitations(gameplayContext);
+        const invitations = FirebaseService.getPendingInvitations(gameplayContext2);
         return Array.isArray(invitations) ? invitations : [];
       }
       function getSentInvitationsList() {
         if (typeof FirebaseService === "undefined" || !FirebaseService.getSentInvitations) {
           return [];
         }
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return [];
         }
-        const invitations = FirebaseService.getSentInvitations(gameplayContext);
+        const invitations = FirebaseService.getSentInvitations(gameplayContext2);
         return Array.isArray(invitations) ? invitations : [];
       }
       function getInvitationSenderDisplay(invitation) {
@@ -24203,11 +24818,11 @@
           return;
         }
         showMessage("allianceCreateStatus", t2("message_upload_processing"), "processing");
-        const gameplayContext = getGameplayContext("allianceCreateStatus");
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext("allianceCreateStatus");
+        if (!gameplayContext2) {
           return;
         }
-        const result = await FirebaseService.createAlliance(name, gameplayContext);
+        const result = await FirebaseService.createAlliance(name, gameplayContext2);
         if (result.success) {
           showMessage("allianceCreateStatus", t2("alliance_created"), "success");
           renderAlliancePanel();
@@ -24222,11 +24837,11 @@
           showMessage("inviteStatus", t2("alliance_error_invalid_name"), "error");
           return;
         }
-        const gameplayContext = getGameplayContext("inviteStatus");
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext("inviteStatus");
+        if (!gameplayContext2) {
           return;
         }
-        const result = await FirebaseService.sendInvitation(email, gameplayContext);
+        const result = await FirebaseService.sendInvitation(email, gameplayContext2);
         if (result.success) {
           showMessage("inviteStatus", t2("alliance_invite_sent_in_app"), "success");
           document.getElementById("inviteEmail").value = "";
@@ -24239,11 +24854,11 @@
       }
       async function handleLeaveAlliance() {
         if (!confirm(t2("alliance_confirm_leave"))) return;
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return;
         }
-        const result = await FirebaseService.leaveAlliance(gameplayContext);
+        const result = await FirebaseService.leaveAlliance(gameplayContext2);
         if (result.success) {
           renderAlliancePanel();
           updateAllianceHeaderDisplay2();
@@ -24251,14 +24866,14 @@
         }
       }
       async function switchPlayerSource(source, statusElementId) {
-        const gameplayContext = getGameplayContext(statusElementId);
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext(statusElementId);
+        if (!gameplayContext2) {
           return;
         }
         if (typeof FirebaseService === "undefined") {
           return;
         }
-        const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext));
+        const hasAlliance = !!(FirebaseService.getAllianceId && FirebaseService.getAllianceId(gameplayContext2));
         if (source === "alliance" && !hasAlliance) {
           showMessage(statusElementId || "playerSourceStatus", t2("players_list_error_no_alliance"), "error");
           return;
@@ -24266,9 +24881,9 @@
         let switchResult = null;
         try {
           if (source === "alliance" && typeof FirebaseService.loadAllianceData === "function") {
-            await FirebaseService.loadAllianceData(gameplayContext);
+            await FirebaseService.loadAllianceData(gameplayContext2);
           }
-          switchResult = await FirebaseService.setPlayerSource(source, gameplayContext);
+          switchResult = await FirebaseService.setPlayerSource(source, gameplayContext2);
         } catch (error) {
           switchResult = { success: false, error: error && error.message ? error.message : "unknown" };
         }
@@ -24292,9 +24907,9 @@
       }
       function updateAllianceHeaderDisplay2() {
         if (typeof FirebaseService === "undefined") return;
-        const gameplayContext = getGameplayContext();
-        const aid = gameplayContext ? FirebaseService.getAllianceId(gameplayContext) : null;
-        const aName = gameplayContext ? FirebaseService.getAllianceName(gameplayContext) : null;
+        const gameplayContext2 = getGameplayContext();
+        const aid = gameplayContext2 ? FirebaseService.getAllianceId(gameplayContext2) : null;
+        const aName = gameplayContext2 ? FirebaseService.getAllianceName(gameplayContext2) : null;
         const display = document.getElementById("allianceDisplay");
         const createBtn = document.getElementById("allianceCreateBtn");
         if (aid) {
@@ -24311,15 +24926,18 @@
       var notificationPollInterval = null;
       async function checkAndDisplayNotifications2() {
         if (typeof FirebaseService === "undefined" || !FirebaseService.isSignedIn()) return;
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return;
         }
-        const notifications = await FirebaseService.checkInvitations(gameplayContext);
-        const badgeState = window.DSFeatureNotificationsCore && typeof window.DSFeatureNotificationsCore.getNotificationBadgeState === "function" ? window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications) : {
-          count: Array.isArray(notifications) ? notifications.length : 0,
-          hasNotifications: Array.isArray(notifications) && notifications.length > 0
-        };
+        const notifications = await FirebaseService.checkInvitations(gameplayContext2);
+        var badgeState;
+        if (window.DSFeatureNotificationsCore && typeof window.DSFeatureNotificationsCore.getNotificationBadgeState === "function") {
+          badgeState = window.DSFeatureNotificationsCore.getNotificationBadgeState(notifications);
+        } else {
+          const count = Array.isArray(notifications) ? notifications.length : 0;
+          badgeState = { count, hasNotifications: count > 0 };
+        }
         const badge = document.getElementById("notificationBadge");
         const notificationBtn = document.getElementById("notificationBtn");
         if (badge) {
@@ -24397,15 +25015,15 @@
         if (typeof FirebaseService === "undefined") {
           return [];
         }
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return [];
         }
         if (FirebaseService.getInvitationNotifications) {
-          const items = FirebaseService.getInvitationNotifications(gameplayContext);
+          const items = FirebaseService.getInvitationNotifications(gameplayContext2);
           return Array.isArray(items) ? items : [];
         }
-        const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations(gameplayContext) : [];
+        const invitations = FirebaseService.getPendingInvitations ? FirebaseService.getPendingInvitations(gameplayContext2) : [];
         if (!Array.isArray(invitations)) {
           return [];
         }
@@ -24479,12 +25097,12 @@
         openAlliancePanel();
       }
       async function handleAcceptInvitation(invitationId, statusElementId) {
-        const gameplayContext = getGameplayContext(statusElementId);
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext(statusElementId);
+        if (!gameplayContext2) {
           return;
         }
         const invitation = getPendingInvitationsList().find((item) => item && item.id === invitationId);
-        const currentAllianceId = typeof FirebaseService !== "undefined" && FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+        const currentAllianceId = typeof FirebaseService !== "undefined" && FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext2) : null;
         if (currentAllianceId && invitation && invitation.allianceId && currentAllianceId !== invitation.allianceId) {
           showMessage(statusElementId || "allianceInvitesStatus", t2("alliance_error_already_in_alliance"), "error");
           return;
@@ -24493,7 +25111,7 @@
         if (!confirm(t2("alliance_confirm_join_invite", { alliance: allianceName || "-" }))) {
           return;
         }
-        const result = await FirebaseService.acceptInvitation(invitationId, gameplayContext);
+        const result = await FirebaseService.acceptInvitation(invitationId, gameplayContext2);
         if (result.success) {
           await checkAndDisplayNotifications2();
           renderNotifications();
@@ -24505,11 +25123,11 @@
         }
       }
       async function handleRejectInvitation(invitationId, statusElementId) {
-        const gameplayContext = getGameplayContext(statusElementId);
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext(statusElementId);
+        if (!gameplayContext2) {
           return;
         }
-        const result = await FirebaseService.rejectInvitation(invitationId, gameplayContext);
+        const result = await FirebaseService.rejectInvitation(invitationId, gameplayContext2);
         if (result.success) {
           await checkAndDisplayNotifications2();
           renderNotifications();
@@ -24520,11 +25138,11 @@
         }
       }
       async function handleRevokeInvitation(invitationId, statusElementId) {
-        const gameplayContext = getGameplayContext(statusElementId);
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext(statusElementId);
+        if (!gameplayContext2) {
           return;
         }
-        const result = await FirebaseService.revokeInvitation(invitationId, gameplayContext);
+        const result = await FirebaseService.revokeInvitation(invitationId, gameplayContext2);
         if (result.success) {
           await checkAndDisplayNotifications2();
           renderNotifications();
@@ -24535,11 +25153,11 @@
         }
       }
       async function handleResendInvitation(invitationId, statusElementId) {
-        const gameplayContext = getGameplayContext(statusElementId);
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext(statusElementId);
+        if (!gameplayContext2) {
           return;
         }
-        const result = await FirebaseService.resendInvitation(invitationId, gameplayContext);
+        const result = await FirebaseService.resendInvitation(invitationId, gameplayContext2);
         if (result.success) {
           await checkAndDisplayNotifications2();
           renderNotifications();
@@ -24618,8 +25236,8 @@
       function refreshCoordinatesPickerForCurrentEvent() {
         return window.DSCoordinatePickerController.refreshCoordinatesPickerForCurrentEvent(_coordState, _getCoordDeps());
       }
-      async function resolveAllianceUploadAccess(gameplayContext) {
-        return window.DSPlayerDataUpload.resolveAllianceUploadAccess(gameplayContext, _getUploadDeps());
+      async function resolveAllianceUploadAccess(gameplayContext2) {
+        return window.DSPlayerDataUpload.resolveAllianceUploadAccess(gameplayContext2, _getUploadDeps());
       }
       async function uploadPlayerData() {
         const activeGameId = enforceGameplayContext("uploadMessage");
@@ -24639,11 +25257,11 @@
           fileInput.value = "";
           return;
         }
-        const gameplayContext = getGameplayContext("uploadMessage");
-        const hasAlliance = await resolveAllianceUploadAccess(gameplayContext);
+        const gameplayContext2 = getGameplayContext("uploadMessage");
+        const hasAlliance = await resolveAllianceUploadAccess(gameplayContext2);
         if (hasAlliance) {
           pendingUploadFile = file;
-          openUploadTargetModal({ hasAlliance: true, gameplayContext });
+          openUploadTargetModal({ hasAlliance: true, gameplayContext: gameplayContext2 });
         } else {
           await performUpload(file, "personal");
         }
@@ -24681,8 +25299,8 @@
       function handleAllianceDataRealtimeUpdate2() {
         if (typeof FirebaseService === "undefined") return;
         if (getCurrentPageViewState() === "alliance") renderAlliancePanel();
-        const gameplayContext = getGameplayContext();
-        const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext || void 0) : "personal";
+        const gameplayContext2 = getGameplayContext();
+        const source = FirebaseService.getPlayerSource ? FirebaseService.getPlayerSource(gameplayContext2 || void 0) : "personal";
         if (source === "alliance") {
           syncPlayersFromActiveDatabase({ renderGeneratorViews: true });
         } else {
@@ -24692,8 +25310,8 @@
         updateFloatingButtonsVisibility();
       }
       function loadPlayerData2() {
-        const gameplayContext = getGameplayContext("uploadMessage");
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext("uploadMessage");
+        if (!gameplayContext2) {
           console.error("missing-active-game");
           return;
         }
@@ -24710,9 +25328,9 @@
           applySelectedEventToEditor();
         }
         updateEventEditorState();
-        const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
+        const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext2);
         const count = Object.keys(playerDB).length;
-        const source = FirebaseService.getPlayerSource(gameplayContext);
+        const source = FirebaseService.getPlayerSource(gameplayContext2);
         const sourceLabel = source === "alliance" ? t2("player_source_alliance") : t2("player_source_personal");
         renderSelectionSourceControls();
         document.getElementById("playerCount").textContent = t2("player_count_with_source", { count, source: sourceLabel });
@@ -24744,9 +25362,9 @@
       }
       function loadPlayerReliabilityStats() {
         if (typeof FirebaseService === "undefined" || !allPlayers.length) return;
-        var gameplayContext = getGameplayContext();
-        if (!gameplayContext) return;
-        var allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
+        var gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) return;
+        var allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext2) : null;
         if (!allianceId) return;
         var utils = window.DSFirestoreUtils;
         var docIds = allPlayers.map(function(p) {
@@ -25334,11 +25952,11 @@
           alert(t2("alert_max_starters", { count: starters.length }));
           return;
         }
-        const gameplayContext = getGameplayContext();
-        if (!gameplayContext) {
+        const gameplayContext2 = getGameplayContext();
+        if (!gameplayContext2) {
           return;
         }
-        const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext);
+        const playerDB = FirebaseService.getActivePlayerDatabase(gameplayContext2);
         const assignmentCore = window.DSCoreGeneratorAssignment;
         const prepared = assignmentCore && typeof assignmentCore.preparePlayersForAssignment === "function" ? assignmentCore.preparePlayersForAssignment(selections, playerDB) : {
           starters: starters.map((selection) => ({
@@ -25394,7 +26012,8 @@
           window._eventHistoryController.autoSave(team, assignments, substitutePlayers, {
             eventTypeId: currentEvent,
             eventDisplayName: getEventDisplayName(currentEvent),
-            gameId: activeGameId
+            gameId: activeGameId,
+            playerSource: FirebaseService.getPlayerSource(gameplayContext2)
           }).catch(function(err) {
             console.error("Event history auto-save failed (non-blocking):", err);
           });

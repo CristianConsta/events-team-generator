@@ -28,18 +28,22 @@
             <p id="updatePlayerName" class="update-player-name"></p>
             <form id="updateStatsForm" novalidate>
                 <label for="updatePower" data-i18n="player_update_power_label">1st Team Power (M)</label>
-                <input type="number" id="updatePower" min="0" max="9999" step="0.01" required placeholder="e.g. 350">
+                <p id="currentPowerValue" class="current-stat-value">Current value: &mdash;</p>
+                <input type="number" id="updatePower" min="0" max="9999" step="0.01" required data-i18n-placeholder="player_update_power_placeholder" placeholder="e.g. 350">
                 <span class="field-error" id="errorPower"></span>
                 <label for="updateThp" data-i18n="player_update_thp_label">THP</label>
                 <small class="field-note" data-i18n="player_update_thp_note">Note: THP (Total Hero Power - available in Rankings)</small>
-                <input type="number" id="updateThp" min="0" max="99999" required placeholder="e.g. 12000">
+                <p id="currentThpValue" class="current-stat-value">Current value: &mdash;</p>
+                <input type="number" id="updateThp" min="0" max="99999" required data-i18n-placeholder="player_update_thp_placeholder" placeholder="e.g. 12000">
                 <span class="field-error" id="errorThp"></span>
                 <label for="updateTroops" data-i18n="player_update_troops_label">Troop Type</label>
                 <select id="updateTroops" required>
-                    <option value="Tank">Tank</option>
-                    <option value="Aero">Aero</option>
-                    <option value="Missile">Missile</option>
+                    <option value="" selected data-i18n="player_update_troops_placeholder">Select troop type</option>
+                    <option value="Tank" data-i18n="troops_filter_tank">Tank</option>
+                    <option value="Aero" data-i18n="troops_filter_aero">Aero</option>
+                    <option value="Missile" data-i18n="troops_filter_missile">Missile</option>
                 </select>
+                <p id="currentTroopsValue" class="current-stat-value">Current value: &mdash;</p>
                 <span class="field-error" id="errorTroops"></span>
                 <button type="submit" data-i18n="player_update_submit_btn">Submit Update</button>
             </form>

@@ -185,6 +185,88 @@
         });
     }
 
+    function _normalizeNameForLookup(name) {
+        return typeof name === 'string' ? name.trim().toLowerCase() : '';
+    }
+
+    function _findCanonicalName(playerMap, requestedName) {
+        if (!playerMap || typeof playerMap !== 'object') {
+            return '';
+        }
+        if (typeof requestedName !== 'string') {
+            return '';
+        }
+        var raw = requestedName.trim();
+        if (!raw) {
+            return '';
+        }
+        if (Object.prototype.hasOwnProperty.call(playerMap, raw)) {
+            return raw;
+        }
+        var wanted = _normalizeNameForLookup(raw);
+        var keys = Object.keys(playerMap);
+        for (var i = 0; i < keys.length; i += 1) {
+            if (_normalizeNameForLookup(keys[i]) === wanted) {
+                return keys[i];
+            }
+        }
+        return '';
+    }
+
+    function _isPlayerNotFoundResult(result) {
+        if (!result || result.ok) {
+            return false;
+        }
+        return result.error === 'players_list_error_not_found';
+    }
+
+    function _safeCallPromise(fn) {
+        return Promise.resolve().then(fn).catch(function(err) {
+            return { ok: false, error: err && err.message };
+        });
+    }
+
+    function _applyWithNameFallback(source, playerName, proposed, gameId) {
+        if (!_gateway) {
+            return Promise.resolve({ ok: false, error: 'not initialized' });
+        }
+        var applyFn = source === 'alliance'
+            ? _gateway.applyPlayerUpdateToAlliance
+            : _gateway.applyPlayerUpdateToPersonal;
+        if (typeof applyFn !== 'function') {
+            return Promise.resolve({ ok: false, error: 'apply_not_available' });
+        }
+        var context = gameId ? { gameId: gameId } : undefined;
+        return _safeCallPromise(function() {
+            return applyFn(playerName, proposed, gameId);
+        }).then(function(result) {
+            if (!_isPlayerNotFoundResult(result)) {
+                return result;
+            }
+
+            var dbGetter = source === 'alliance'
+                ? _gateway.getAlliancePlayerDatabase
+                : _gateway.getPlayerDatabase;
+            if (typeof dbGetter !== 'function') {
+                return result;
+            }
+
+            var playerMap = {};
+            try {
+                playerMap = dbGetter(context) || {};
+            } catch (err) {
+                playerMap = {};
+            }
+            var canonicalName = _findCanonicalName(playerMap, playerName);
+            if (!canonicalName || canonicalName === playerName) {
+                return result;
+            }
+            return _safeCallPromise(function() {
+                return applyFn(canonicalName, proposed, gameId);
+            });
+        });
+    }
+
     // Internal: apply proposed values to target database(s) and mark status.
     // "personal" target = approver's own player database (users/{approverUid}/...)
     // "alliance" target = shared alliance database (alliances/{allianceId}/...)
@@ -203,13 +285,11 @@
         };
 
         if (requestedPersonal) {
-            applyResults.personal = _gateway.applyPlayerUpdateToPersonal(playerName, proposed, update.gameId || null)
-                .catch(function(err) { return { ok: false, error: err && err.message }; });
+            applyResults.personal = _applyWithNameFallback('personal', playerName, proposed, update.gameId || null);
         }
         if (requestedAlliance) {
             if (allianceId) {
-                applyResults.alliance = _gateway.applyPlayerUpdateToAlliance(playerName, proposed, update.gameId || null)
-                    .catch(function(err) { return { ok: false, error: err && err.message }; });
+                applyResults.alliance = _applyWithNameFallback('alliance', playerName, proposed, update.gameId || null);
             } else {
                 applyResults.alliance = Promise.resolve({ ok: false, error: 'missing_alliance_id' });
             }

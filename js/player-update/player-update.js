@@ -60,6 +60,28 @@
             ? (global.DSI18N.t(key) || key) : key;
     }
 
+    function currentValueLabel() {
+        var translated = tLocal('player_update_current_value_label');
+        if (!translated || translated === 'player_update_current_value_label') {
+            translated = tLocal('player_updates_old_value');
+        }
+        if (!translated || translated === 'player_updates_old_value') {
+            return 'Current value';
+        }
+        return translated;
+    }
+
+    function setCurrentStatValue(elementId, value) {
+        var el = getEl(elementId);
+        if (!el) {
+            return;
+        }
+        var suffix = (value === null || value === undefined || value === '')
+            ? '\u2014'
+            : String(value);
+        el.textContent = currentValueLabel() + ': ' + suffix;
+    }
+
     function setFieldError(inputEl, errorSpanId, message) {
         var span = getEl(errorSpanId);
         if (span) {
@@ -123,20 +145,23 @@
         if (nameEl) {
             nameEl.textContent = playerName || '';
         }
-        if (!snapshot) {
-            return;
-        }
+
+        var current = snapshot || {};
+        setCurrentStatValue('currentPowerValue', current.power);
+        setCurrentStatValue('currentThpValue', current.thp);
+        setCurrentStatValue('currentTroopsValue', current.troops);
+
         var powerEl = getEl('updatePower');
-        if (powerEl && snapshot.power !== undefined) {
-            powerEl.value = snapshot.power;
+        if (powerEl) {
+            powerEl.value = '';
         }
         var thpEl = getEl('updateThp');
-        if (thpEl && snapshot.thp !== undefined) {
-            thpEl.value = snapshot.thp;
+        if (thpEl) {
+            thpEl.value = '';
         }
         var troopsEl = getEl('updateTroops');
-        if (troopsEl && snapshot.troops) {
-            troopsEl.value = snapshot.troops;
+        if (troopsEl) {
+            troopsEl.value = '';
         }
     }
 
@@ -156,6 +181,9 @@
             if (typeof global.DSI18N.applyTranslations === 'function') {
                 global.DSI18N.applyTranslations();
             }
+        }
+        if (global.document && global.document.title !== undefined) {
+            global.document.title = tLocal('player_update_page_title');
         }
 
         // Step 3: show loading state

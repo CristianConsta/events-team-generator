@@ -366,3 +366,49 @@ test('approveUpdate for alliance context with target both: fails when alliance a
     assert.equal(result.error, 'apply_failed');
     assert.equal(statusUpdated, false);
 });
+
+test('approveUpdate for alliance context: case-insensitive fallback updates player "Lord" when DB key is "LORD"', async function () {
+    setupGlobals();
+    var statusUpdated = false;
+    var allianceApplyNames = [];
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        getAlliancePlayerDatabase: function () {
+            return {
+                LORD: { power: 10, thp: 20, troops: 'Tank' },
+            };
+        },
+        applyPlayerUpdateToPersonal: function () {
+            return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+        },
+        applyPlayerUpdateToAlliance: function (name) {
+            allianceApplyNames.push(name);
+            if (name === 'Lord') {
+                return Promise.resolve({ ok: false, error: 'players_list_error_not_found' });
+            }
+            if (name === 'LORD') {
+                return Promise.resolve({ ok: true });
+            }
+            return Promise.resolve({ ok: false, error: 'unexpected_name' });
+        },
+        updatePendingUpdateStatus: function () {
+            statusUpdated = true;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-lord-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'Lord',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    // No modal in test env -> defaults to "both"
+    var result = await ctrl.approveUpdate('update-lord-1');
+    assert.equal(result.ok, true);
+    assert.equal(statusUpdated, true);
+    assert.deepEqual(allianceApplyNames, ['Lord', 'LORD']);
+});

@@ -459,9 +459,12 @@ test('@regression @invite player-update page shows form when token is valid', as
 
     await expect(page.locator('#updateForm')).toBeVisible({ timeout: 3000 });
     await expect(page.locator('#updatePlayerName')).toContainText('TestHero', { timeout: 2000 });
-    await expect(page.locator('#updatePower')).toHaveValue('1234');
-    await expect(page.locator('#updateThp')).toHaveValue('5678');
-    await expect(page.locator('#updateTroops')).toHaveValue('Aero');
+    await expect(page.locator('#updatePower')).toHaveValue('');
+    await expect(page.locator('#updateThp')).toHaveValue('');
+    await expect(page.locator('#updateTroops')).toHaveValue('');
+    await expect(page.locator('#currentPowerValue')).toContainText('1234');
+    await expect(page.locator('#currentThpValue')).toContainText('5678');
+    await expect(page.locator('#currentTroopsValue')).toContainText('Aero');
 });
 
 // ---------------------------------------------------------------------------

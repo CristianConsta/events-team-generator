@@ -46,7 +46,7 @@ function createMockGlobal(options) {
 
     ['updateLoading', 'updateForm', 'updateSuccess', 'updateError',
      'updateErrorMessage', 'updatePlayerName', 'updatePower', 'updateThp',
-     'updateTroops', 'updateStatsForm'].forEach(function (id) {
+     'updateTroops', 'updateStatsForm', 'currentPowerValue', 'currentThpValue', 'currentTroopsValue'].forEach(function (id) {
         elements[id] = makeEl(id);
     });
 
@@ -378,8 +378,12 @@ describe('player-update.js', function () {
 
             assert.equal(g._elements.updateForm.classList.contains('hidden'), false);
             assert.equal(g._elements.updatePlayerName.textContent, 'HeroPlayer');
-            assert.equal(String(g._elements.updatePower.value), '5000');
-            assert.equal(g._elements.updateTroops.value, 'Tank');
+            assert.equal(String(g._elements.updatePower.value), '');
+            assert.equal(String(g._elements.updateThp.value), '');
+            assert.equal(g._elements.updateTroops.value, '');
+            assert.equal(g._elements.currentPowerValue.textContent, 'Current value: 5000');
+            assert.equal(g._elements.currentThpValue.textContent, 'Current value: 200');
+            assert.equal(g._elements.currentTroopsValue.textContent, 'Current value: Tank');
         });
     });
 

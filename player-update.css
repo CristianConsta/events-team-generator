@@ -97,6 +97,13 @@ body {
     display: block;
 }
 
+.current-stat-value {
+    font-size: 0.78rem;
+    color: var(--ds-text-muted);
+    margin-top: -8px;
+    margin-bottom: -4px;
+}
+
 #updateStatsForm input,
 #updateStatsForm select {
     width: 100%;
