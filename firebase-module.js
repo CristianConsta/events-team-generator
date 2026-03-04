@@ -5624,6 +5624,72 @@ const FirebaseManager = (function() {
     // PLAYER UPDATES (TOKENS & PENDING UPDATES)
     // ============================================================
 
+    function hasTokenSnapshotValues(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') {
+            return false;
+        }
+        var hasPower = snapshot.power !== null && snapshot.power !== undefined && snapshot.power !== '';
+        var hasThp = snapshot.thp !== null && snapshot.thp !== undefined && snapshot.thp !== '';
+        var hasTroops = typeof snapshot.troops === 'string' && snapshot.troops.trim() !== '';
+        return hasPower || hasThp || hasTroops;
+    }
+
+    function getPlayerEntryByName(playerMap, playerName) {
+        if (!playerMap || typeof playerMap !== 'object') {
+            return null;
+        }
+        var normalizedName = normalizeEditablePlayerName(playerName);
+        if (!normalizedName) {
+            return null;
+        }
+        if (Object.prototype.hasOwnProperty.call(playerMap, normalizedName)) {
+            return playerMap[normalizedName];
+        }
+
+        var wanted = normalizedName.toLowerCase();
+        var keys = Object.keys(playerMap);
+        for (var i = 0; i < keys.length; i += 1) {
+            var candidate = normalizeEditablePlayerName(keys[i]).toLowerCase();
+            if (candidate === wanted) {
+                return playerMap[keys[i]];
+            }
+        }
+        return null;
+    }
+
+    function buildSnapshotFromEntry(entry) {
+        if (!entry || typeof entry !== 'object') {
+            return {};
+        }
+        return {
+            power: normalizeEditablePlayerPower(entry.power),
+            thp: normalizeEditablePlayerThp(entry.thp),
+            troops: normalizeEditablePlayerTroops(entry.troops),
+        };
+    }
+
+    function resolveTokenCurrentSnapshot(contextType, playerName, gameId) {
+        var resolvedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+        var primaryMap = {};
+        var fallbackMap = {};
+
+        if (contextType === 'alliance') {
+            if (allianceData && typeof allianceData === 'object' && allianceData.playerDatabase && typeof allianceData.playerDatabase === 'object') {
+                primaryMap = normalizePlayerDatabaseMap(allianceData.playerDatabase);
+            } else {
+                primaryMap = getAlliancePlayerDatabase({ gameId: resolvedGameId });
+            }
+            fallbackMap = getPlayerDatabase({ gameId: resolvedGameId });
+        } else {
+            primaryMap = getPlayerDatabase({ gameId: resolvedGameId });
+            fallbackMap = getAlliancePlayerDatabase({ gameId: resolvedGameId });
+        }
+
+        var entry = getPlayerEntryByName(primaryMap, playerName) || getPlayerEntryByName(fallbackMap, playerName);
+        var snapshot = buildSnapshotFromEntry(entry);
+        return hasTokenSnapshotValues(snapshot) ? snapshot : {};
+    }
+
     async function saveTokenBatch(allianceIdParam, tokenDocs) {
         try {
             if (!db || !allianceIdParam || !Array.isArray(tokenDocs)) {
@@ -5779,17 +5845,20 @@ const FirebaseManager = (function() {
                 return { success: false, error: 'Not available' };
             }
             var opts = options && typeof options === 'object' ? options : {};
+            var tokenGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || null;
             var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
             var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+            var currentSnapshot = resolveTokenCurrentSnapshot('alliance', playerName, tokenGameId || DEFAULT_GAME_ID);
             var tokenDoc = {
                 contextType: 'alliance',
                 allianceId: allianceIdParam,
                 ownerUid: currentUser ? currentUser.uid : null,
-                gameId: opts.gameId || null,
+                gameId: tokenGameId,
                 playerName: playerName,
                 expiryHours: expiryHours,
                 expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
                 used: false,
+                currentSnapshot: currentSnapshot,
                 createdBy: currentUser ? currentUser.uid : null,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             };
@@ -5797,7 +5866,7 @@ const FirebaseManager = (function() {
                 .collection('update_tokens')
                 .add(tokenDoc);
             // Dual-write to game-scoped alliance update_tokens
-            var resolvedGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var resolvedGameId = normalizeGameId(tokenGameId || activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
                 try {
                     var newTokensCollection = getGameAllianceUpdateTokensCollectionRef(resolvedGameId, allianceIdParam);
@@ -5861,17 +5930,20 @@ const FirebaseManager = (function() {
                 return { success: false, error: 'Not available' };
             }
             var opts = options && typeof options === 'object' ? options : {};
+            var tokenGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || null;
             var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
             var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+            var currentSnapshot = resolveTokenCurrentSnapshot('personal', playerName, tokenGameId || DEFAULT_GAME_ID);
             var tokenDoc = {
                 contextType: 'personal',
                 ownerUid: uid,
-                gameId: opts.gameId || null,
+                gameId: tokenGameId,
                 allianceId: null,
                 playerName: playerName,
                 expiryHours: expiryHours,
                 expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
                 used: false,
+                currentSnapshot: currentSnapshot,
                 createdBy: currentUser ? currentUser.uid : null,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             };
@@ -5879,7 +5951,7 @@ const FirebaseManager = (function() {
                 .collection('update_tokens')
                 .add(tokenDoc);
             // Dual-write to game-scoped solo update_tokens
-            var resolvedGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var resolvedGameId = normalizeGameId(tokenGameId || activeGameplayGameId) || DEFAULT_GAME_ID;
             if (resolvedGameId) {
                 try {
                     var newTokensCollection = getGameSoloUpdateTokensCollectionRef(resolvedGameId, uid);

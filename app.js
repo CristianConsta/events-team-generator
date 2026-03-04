@@ -430,6 +430,125 @@ function bindStaticUiActions() {
         const currentUser = fs.getCurrentUser ? fs.getCurrentUser() : null;
         const uid = currentUser ? currentUser.uid : null;
 
+        function hasUsableSnapshot(snapshot) {
+            if (!snapshot || typeof snapshot !== 'object') {
+                return false;
+            }
+            const hasPower = snapshot.power !== null && snapshot.power !== undefined && snapshot.power !== '';
+            const hasThp = snapshot.thp !== null && snapshot.thp !== undefined && snapshot.thp !== '';
+            const hasTroops = typeof snapshot.troops === 'string' && snapshot.troops.trim() !== '';
+            return hasPower || hasThp || hasTroops;
+        }
+
+        function normalizeLookupName(name) {
+            return typeof name === 'string' ? name.trim().toLowerCase() : '';
+        }
+
+        function findPlayerSnapshotByName(playerMap, playerName) {
+            if (!playerMap || typeof playerMap !== 'object') {
+                return null;
+            }
+            const trimmedName = typeof playerName === 'string' ? playerName.trim() : '';
+            if (!trimmedName) {
+                return null;
+            }
+
+            var entry = playerMap[trimmedName];
+            if (!entry) {
+                const wanted = normalizeLookupName(trimmedName);
+                const keys = Object.keys(playerMap);
+                for (let i = 0; i < keys.length; i += 1) {
+                    if (normalizeLookupName(keys[i]) === wanted) {
+                        entry = playerMap[keys[i]];
+                        break;
+                    }
+                }
+            }
+
+            if (!entry || typeof entry !== 'object') {
+                return null;
+            }
+            const snapshot = {
+                power: entry.power,
+                thp: entry.thp,
+                troops: entry.troops,
+            };
+            return hasUsableSnapshot(snapshot) ? snapshot : null;
+        }
+
+        function findSnapshotInLoadedPlayers(playerName) {
+            const players = Array.isArray(window.allPlayers) ? window.allPlayers : [];
+            if (!players.length) {
+                return null;
+            }
+            const wanted = normalizeLookupName(playerName);
+            if (!wanted) {
+                return null;
+            }
+            let match = players.find(function(player) {
+                return normalizeLookupName(player && player.name) === wanted;
+            });
+            if (!match || typeof match !== 'object') {
+                return null;
+            }
+            const snapshot = {
+                power: match.power,
+                thp: match.thp,
+                troops: match.troops,
+            };
+            return hasUsableSnapshot(snapshot) ? snapshot : null;
+        }
+
+        function hydrateMissingSnapshots(updates) {
+            if (!Array.isArray(updates) || updates.length === 0) {
+                return Array.isArray(updates) ? updates : [];
+            }
+
+            let alliancePlayerMap = {};
+            let personalPlayerMap = {};
+            try {
+                if (allianceId && typeof fs.getAlliancePlayerDatabase === 'function') {
+                    alliancePlayerMap = fs.getAlliancePlayerDatabase(gameplayContext || undefined) || {};
+                }
+            } catch {
+                alliancePlayerMap = {};
+            }
+            try {
+                if (uid && typeof fs.getPlayerDatabase === 'function') {
+                    personalPlayerMap = fs.getPlayerDatabase(gameplayContext || undefined) || {};
+                }
+            } catch {
+                personalPlayerMap = {};
+            }
+
+            return updates.map(function(update) {
+                if (!update || typeof update !== 'object' || hasUsableSnapshot(update.currentSnapshot)) {
+                    return update;
+                }
+
+                const sourcePrefersAlliance = update.contextType === 'alliance';
+                let snapshot = sourcePrefersAlliance
+                    ? findPlayerSnapshotByName(alliancePlayerMap, update.playerName)
+                    : findPlayerSnapshotByName(personalPlayerMap, update.playerName);
+
+                if (!snapshot) {
+                    snapshot = sourcePrefersAlliance
+                        ? findPlayerSnapshotByName(personalPlayerMap, update.playerName)
+                        : findPlayerSnapshotByName(alliancePlayerMap, update.playerName);
+                }
+                if (!snapshot) {
+                    snapshot = findSnapshotInLoadedPlayers(update.playerName);
+                }
+                if (!snapshot) {
+                    return update;
+                }
+
+                return Object.assign({}, update, {
+                    currentSnapshot: snapshot,
+                });
+            });
+        }
+
         var alliancePromise = (allianceId && fs.loadPendingUpdates)
             ? fs.loadPendingUpdates(allianceId, 'pending').catch(function() { return []; })
             : Promise.resolve([]);
@@ -439,6 +558,7 @@ function bindStaticUiActions() {
 
         Promise.all([alliancePromise, personalPromise]).then(function(results) {
             var combined = (results[0] || []).concat(results[1] || []);
+            combined = hydrateMissingSnapshots(combined);
             // Register docs with controller so approveUpdate/rejectUpdate can look up metadata
             if (window._playerUpdatesController
                 && typeof window._playerUpdatesController.setPendingUpdateDocs === 'function') {
@@ -2729,7 +2849,11 @@ async function handlePlayersManagementTableAction(event) {
                 showMessage('playersMgmtStatus', t('invite_error'), 'error');
                 return;
             }
-            result = await FirebaseService.createUpdateToken(allianceId, originalName, { expiryHours: 48 });
+            const allianceGameId = (gameplayContext && gameplayContext.gameId) ? gameplayContext.gameId : '';
+            result = await FirebaseService.createUpdateToken(allianceId, originalName, {
+                expiryHours: 48,
+                gameId: allianceGameId,
+            });
             button.disabled = false;
             button.innerHTML = originalButtonContent;
             if (!result || !result.success) {
