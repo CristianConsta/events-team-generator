@@ -102,24 +102,24 @@ test('race condition: first approveUpdate succeeds, second fails with PERMISSION
 });
 
 // ---------------------------------------------------------------------------
-// Race condition: two concurrent saveTokenBatch calls
-// First resolves ok, second fails — controller should not crash
+// Legacy invite generation path is blocked even under concurrent calls
 // ---------------------------------------------------------------------------
 
-test('race condition: two concurrent openTokenGenerationModal calls — gateway error on second does not crash', async () => {
+test('race condition: two concurrent openTokenGenerationModal calls stay blocked and skip gateway writes', async () => {
     loadModules();
 
     var callCount = 0;
-    var errors = [];
+    var warnings = [];
+    var alertCount = 0;
+    global.alert = function () { alertCount++; };
     global.console = Object.assign({}, console, {
-        error: function () { errors.push([].slice.call(arguments).join(' ')); },
+        warn: function () { warnings.push([].slice.call(arguments).join(' ')); },
     });
 
     var gateway = {
         saveTokenBatch: async function () {
             callCount++;
-            if (callCount === 1) return { ok: true, tokenIds: ['tok_1'] };
-            throw makePermissionDeniedError();
+            return { ok: true, tokenIds: ['tok_1'] };
         },
         updatePendingUpdateStatus: async function () { return { ok: true }; },
         revokeToken: async function () { return { ok: true }; },
@@ -128,14 +128,17 @@ test('race condition: two concurrent openTokenGenerationModal calls — gateway 
     global.DSFeaturePlayerUpdatesController.init(gateway);
 
     // Fire both concurrently
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
+    const result1 = global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
+    const result2 = global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
 
-    // Allow promises to settle
-    await new Promise(function (resolve) { setTimeout(resolve, 100); });
+    // Allow microtasks to settle
+    await new Promise(function (resolve) { setTimeout(resolve, 20); });
 
-    // Neither call should have thrown (they use .catch internally)
-    assert.equal(callCount, 2, 'Both saveTokenBatch calls should have been attempted');
+    assert.equal(result1 && result1.error, 'invite_generation_restricted');
+    assert.equal(result2 && result2.error, 'invite_generation_restricted');
+    assert.equal(callCount, 0, 'Legacy path must never call saveTokenBatch');
+    assert.ok(warnings.length >= 1, 'Controller should log warning for blocked legacy path');
+    assert.equal(alertCount, 2, 'User guidance alert should be shown on blocked calls');
 });
 
 // ---------------------------------------------------------------------------
@@ -238,3 +241,5 @@ test('phase1b regression: DSFeaturePlayerUpdatesCore exposes all required method
     assert.equal(typeof core.validateProposedValues, 'function');
     assert.equal(typeof core.calculateDeltas, 'function');
 });
+
+

@@ -1334,7 +1334,19 @@ test('loadUserData reads legacy alliance doc when game-scoped alliance is denied
       limit() {
         return this;
       },
-      get: async () => createSnapshot([]),
+      get: async () => {
+        const joined = pathParts.join('/');
+        if (joined === 'games/desert_ops/alliances/alliance-x/alliance_players') {
+          return createSnapshot([
+            {
+              id: 'legacy_member',
+              data: () => ({ name: 'LegacyMember', power: 25, troops: 'Tank', thp: 11 }),
+              ref: { path: `${joined}/legacy_member` },
+            },
+          ]);
+        }
+        return createSnapshot([]);
+      },
       add: async () => ({ id: 'mock-id' }),
     };
   }
@@ -1413,6 +1425,7 @@ test('loadUserData reads legacy alliance doc when game-scoped alliance is denied
   assert.equal(global.FirebaseManager.getPlayerSource(context), 'alliance');
   assert.ok(global.FirebaseManager.getAllianceMembers(context)['qa-user']);
   assert.ok(global.FirebaseManager.getAlliancePlayerDatabase(context).LegacyMember);
+  assert.ok(global.FirebaseManager.getActivePlayerDatabase(context).LegacyMember);
 });
 
 test('loadUserData falls back to personal source when alliance read is permission-denied', async () => {
@@ -1857,7 +1870,9 @@ async function setupUploadScopeHarness(options) {
   let authStateChanged = null;
   const gamePlayersCollectionPath = 'users/qa-user/games/desert_ops/players';
   const gameAllianceDocPath = 'games/desert_ops/alliances/alliance-x';
+  const gameAlliancePlayersCollectionPath = 'games/desert_ops/alliances/alliance-x/alliance_players';
   const playersSubcollectionState = new Map();
+  const alliancePlayersSubcollectionState = new Map();
   let allianceDocState = {
     id: 'alliance-x',
     gameId: 'desert_ops',
@@ -1868,10 +1883,17 @@ async function setupUploadScopeHarness(options) {
         role: 'owner',
       },
     },
-    playerDatabase: {},
   };
   if (config.initialAlliancePlayerDatabase && typeof config.initialAlliancePlayerDatabase === 'object') {
-    allianceDocState.playerDatabase = { ...config.initialAlliancePlayerDatabase };
+    Object.keys(config.initialAlliancePlayerDatabase).forEach((playerName) => {
+      const entry = config.initialAlliancePlayerDatabase[playerName] || {};
+      alliancePlayersSubcollectionState.set(playerName.toLowerCase(), {
+        name: playerName,
+        power: entry.power,
+        troops: entry.troops,
+        thp: entry.thp,
+      });
+    });
   }
   const uploadRowsSequence = Array.isArray(config.uploadRowsSequence) && config.uploadRowsSequence.length > 0
     ? config.uploadRowsSequence
@@ -1937,6 +1959,16 @@ async function setupUploadScopeHarness(options) {
       }));
       return createSnapshot(docs);
     }
+    if (joined === gameAlliancePlayersCollectionPath) {
+      const docs = Array.from(alliancePlayersSubcollectionState.entries()).map(([docId, payload]) => ({
+        id: docId,
+        data: () => ({ ...payload }),
+        ref: {
+          path: `${gameAlliancePlayersCollectionPath}/${docId}`,
+        },
+      }));
+      return createSnapshot(docs);
+    }
     if (
       joined === 'users/qa-user/games/desert_ops/events'
       || joined === 'users/qa-user/games/desert_ops/event_media'
@@ -1978,11 +2010,6 @@ async function setupUploadScopeHarness(options) {
         const joined = pathParts.join('/');
         if (joined === gameAllianceDocPath) {
           const mergeFields = options && Array.isArray(options.mergeFields) ? options.mergeFields : null;
-          if (mergeFields && mergeFields.includes('playerDatabase')) {
-            allianceDocState.playerDatabase = payload && payload.playerDatabase && typeof payload.playerDatabase === 'object'
-              ? { ...payload.playerDatabase }
-              : {};
-          }
           if (mergeFields && mergeFields.includes('metadata')) {
             allianceDocState.metadata = payload && payload.metadata && typeof payload.metadata === 'object'
               ? { ...payload.metadata }
@@ -2064,6 +2091,17 @@ async function setupUploadScopeHarness(options) {
               }
               if (operation.type === 'batch.set') {
                 playersSubcollectionState.set(docId, operation.payload || {});
+              }
+              return;
+            }
+            if (operation.path.startsWith(`${gameAlliancePlayersCollectionPath}/`)) {
+              const docId = operation.path.substring(gameAlliancePlayersCollectionPath.length + 1);
+              if (operation.type === 'batch.delete') {
+                alliancePlayersSubcollectionState.delete(docId);
+                return;
+              }
+              if (operation.type === 'batch.set') {
+                alliancePlayersSubcollectionState.set(docId, operation.payload || {});
               }
             }
           });
@@ -2150,9 +2188,15 @@ async function setupUploadScopeHarness(options) {
       return byName;
     },
     getAlliancePlayerDatabaseState() {
-      return allianceDocState && allianceDocState.playerDatabase && typeof allianceDocState.playerDatabase === 'object'
-        ? JSON.parse(JSON.stringify(allianceDocState.playerDatabase))
-        : {};
+      const byName = {};
+      alliancePlayersSubcollectionState.forEach((payload) => {
+        const playerName = payload && typeof payload.name === 'string' ? payload.name : '';
+        if (!playerName) {
+          return;
+        }
+        byName[playerName] = { ...(payload || {}) };
+      });
+      return byName;
     },
   };
 }
