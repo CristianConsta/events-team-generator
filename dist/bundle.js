@@ -16746,8 +16746,12 @@
                   return;
                 }
                 if (result && result.ok) {
-                  row.classList.add("review-decision-applied");
-                  row.setAttribute("aria-disabled", "true");
+                  if (typeof global2.refreshPlayerUpdatesPanel === "function") {
+                    global2.refreshPlayerUpdatesPanel();
+                  } else {
+                    row.classList.add("review-decision-applied");
+                    row.setAttribute("aria-disabled", "true");
+                  }
                 } else {
                   _showReviewStatus(_resolveResultErrorMessage(result), "error");
                   approveBtn.disabled = false;
@@ -16763,8 +16767,12 @@
               approveBtn.disabled = true;
               global2.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
                 if (result && result.ok) {
-                  row.classList.add("review-decision-applied");
-                  row.setAttribute("aria-disabled", "true");
+                  if (typeof global2.refreshPlayerUpdatesPanel === "function") {
+                    global2.refreshPlayerUpdatesPanel();
+                  } else {
+                    row.classList.add("review-decision-applied");
+                    row.setAttribute("aria-disabled", "true");
+                  }
                 } else {
                   _showReviewStatus(_resolveResultErrorMessage(result), "error");
                   rejectBtn.disabled = false;

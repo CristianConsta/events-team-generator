@@ -525,6 +525,64 @@ test('renderComparisonRow: approve button click calls controller approveUpdate',
     assert.equal(capturedUpdateId, 'upd_click_1');
 });
 
+test('renderComparisonRow: approve success triggers refreshPlayerUpdatesPanel', async () => {
+    loadView();
+    var refreshCalled = false;
+    global.refreshPlayerUpdatesPanel = function () {
+        refreshCalled = true;
+    };
+    global.DSFeaturePlayerUpdatesController = {
+        approveUpdate: async function () {
+            return { ok: true };
+        },
+    };
+
+    var row = global.DSFeaturePlayerUpdatesView.renderComparisonRow({
+        id: 'upd_refresh_approve_1',
+        playerName: 'Lord',
+        contextType: 'alliance',
+        currentSnapshot: { power: 66, thp: 196.5, troops: 'Tank' },
+        proposedValues: { power: 66.3, thp: 197.5, troops: 'Tank' },
+    });
+
+    var decisionGroup = row && row.children && row.children[2];
+    var approveBtn = decisionGroup && decisionGroup.children && decisionGroup.children[0];
+    assert.ok(approveBtn && approveBtn._listeners && typeof approveBtn._listeners.click === 'function');
+
+    approveBtn._listeners.click();
+    await new Promise(function (resolve) { setTimeout(resolve, 0); });
+    assert.equal(refreshCalled, true);
+});
+
+test('renderComparisonRow: reject success triggers refreshPlayerUpdatesPanel', async () => {
+    loadView();
+    var refreshCalled = false;
+    global.refreshPlayerUpdatesPanel = function () {
+        refreshCalled = true;
+    };
+    global.DSFeaturePlayerUpdatesController = {
+        rejectUpdate: async function () {
+            return { ok: true };
+        },
+    };
+
+    var row = global.DSFeaturePlayerUpdatesView.renderComparisonRow({
+        id: 'upd_refresh_reject_1',
+        playerName: 'Lord',
+        contextType: 'alliance',
+        currentSnapshot: { power: 66, thp: 196.5, troops: 'Tank' },
+        proposedValues: { power: 66.3, thp: 197.5, troops: 'Tank' },
+    });
+
+    var decisionGroup = row && row.children && row.children[2];
+    var rejectBtn = decisionGroup && decisionGroup.children && decisionGroup.children[1];
+    assert.ok(rejectBtn && rejectBtn._listeners && typeof rejectBtn._listeners.click === 'function');
+
+    rejectBtn._listeners.click();
+    await new Promise(function (resolve) { setTimeout(resolve, 0); });
+    assert.equal(refreshCalled, true);
+});
+
 // ---------------------------------------------------------------------------
 // 10. Controller allianceId resolution — uses _gateway.getAllianceId()
 // ---------------------------------------------------------------------------
