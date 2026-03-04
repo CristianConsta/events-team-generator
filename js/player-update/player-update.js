@@ -76,6 +76,14 @@
             ? (global.DSI18N.t(key) || key) : key;
     }
 
+    function tOrFallback(key, fallback) {
+        var translated = tLocal(key);
+        if (!translated || translated === key) {
+            return fallback;
+        }
+        return translated;
+    }
+
     function currentValueLabel() {
         var translated = tLocal('player_update_current_value_label');
         if (!translated || translated === 'player_update_current_value_label') {
@@ -270,9 +278,7 @@
                     closeMsg.style.marginTop = '12px';
                     closeMsg.style.fontSize = '0.875rem';
                     closeMsg.style.color = 'var(--ds-text-muted)';
-                    closeMsg.textContent = global.DSI18N && typeof global.DSI18N.t === 'function'
-                        ? global.DSI18N.t('player_update_close_tab') || 'You can now close this tab.'
-                        : 'You can now close this tab.';
+                    closeMsg.textContent = tOrFallback('player_update_close_tab', 'You can now close this tab.');
                     doneBtn.replaceWith(closeMsg);
                 }
             });
@@ -459,9 +465,7 @@
                             var originalBtnText = submitBtn ? submitBtn.textContent : '';
                             if (submitBtn) {
                                 submitBtn.disabled = true;
-                                var submittingLabel = global.DSI18N && typeof global.DSI18N.t === 'function'
-                                    ? (global.DSI18N.t('player_update_submitting') || 'Submitting...')
-                                    : 'Submitting...';
+                                var submittingLabel = tOrFallback('player_update_submitting', 'Submitting...');
                                 submitBtn.textContent = submittingLabel;
                             }
 
