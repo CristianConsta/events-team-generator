@@ -61,80 +61,19 @@
         });
     }
 
-    // Open token generation modal for selected players.
-    // playerNames: Array<string>
-    function openTokenGenerationModal(playerNames) {
-        if (!_gateway) return;
-        if (!Array.isArray(playerNames) || playerNames.length === 0) {
-            var msg = (global.DSI18N && global.DSI18N.t)
-                ? global.DSI18N.t('request_updates_select_players')
-                : 'Select players to request updates from.';
-            alert(msg);
-            return;
+    // Deprecated on purpose:
+    // Invite generation is allowed only from Players Management invite button flow.
+    function openTokenGenerationModal() {
+        var message = (global.DSI18N && global.DSI18N.t)
+            ? global.DSI18N.t('player_updates_invite_from_players_page_only')
+            : 'Player update invites can only be generated from Players Management.';
+        if (global.console && typeof global.console.warn === 'function') {
+            global.console.warn('[PlayerUpdatesController] Blocked legacy invite generation path. Use Players Management invite button.');
         }
-
-        var options = (global.DSFeaturePlayerUpdatesActions && global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions)
-            ? global.DSFeaturePlayerUpdatesActions.readTokenGenerationOptions()
-            : { expiryHours: 48, linkedEventId: null };
-
-        var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId() : null;
-        var gameId = global.currentGameId || null;
-        var createdByUid = global.currentAuthUser && global.currentAuthUser.uid;
-        var lang = (global.DSI18N && global.DSI18N.getCurrentLanguage) ? global.DSI18N.getCurrentLanguage() : 'en';
-
-        var tokenDocs = playerNames.map(function (playerName) {
-            var snapshot = {};
-            var allPlayers = global.allPlayers || [];
-            var found = allPlayers.find(function (p) { return p.name === playerName; });
-            if (found) {
-                snapshot = { power: found.power, thp: found.thp, troops: found.troops };
-            }
-            var doc = global.DSFeaturePlayerUpdatesCore
-                ? global.DSFeaturePlayerUpdatesCore.buildTokenDoc(playerName, allianceId, gameId, createdByUid, {
-                    expiryHours: options.expiryHours,
-                    linkedEventId: options.linkedEventId,
-                    currentSnapshot: snapshot,
-                })
-                : null;
-            return { playerName: playerName, doc: doc };
-        }).filter(function (t) { return t.doc !== null; });
-
-        _gateway.saveTokenBatch(allianceId, tokenDocs).then(function (result) {
-            if (!result || !result.ok) return;
-            var tokens = tokenDocs.map(function (t, i) {
-                var tokenHex = t.doc ? t.doc.token : '';
-                var link = global.DSFeaturePlayerUpdatesCore
-                    ? global.DSFeaturePlayerUpdatesCore.buildUpdateLink(tokenHex, allianceId, lang, gameId)
-                    : '';
-                return { playerName: t.playerName, link: link };
-            });
-
-            var modal = document.getElementById('tokenGenerationModal');
-            var body = document.getElementById('tokenModalBody');
-            if (modal && body && global.DSFeaturePlayerUpdatesView) {
-                global.DSFeaturePlayerUpdatesView.renderTokenModal(body, tokens);
-                modal.classList.remove('hidden');
-
-                var closeBtn = document.getElementById('tokenModalCloseBtn');
-                if (closeBtn) {
-                    closeBtn.onclick = function () { modal.classList.add('hidden'); };
-                }
-
-                var copyAllBtn = document.getElementById('tokenCopyAllBtn');
-                if (copyAllBtn) {
-                    copyAllBtn.onclick = function () {
-                        var formatted = global.DSFeaturePlayerUpdatesCore
-                            ? global.DSFeaturePlayerUpdatesCore.formatLinksForMessaging(tokens)
-                            : tokens.map(function (t) { return t.playerName + ': ' + t.link; }).join('\n');
-                        if (navigator.clipboard) {
-                            navigator.clipboard.writeText(formatted).catch(function () {});
-                        }
-                    };
-                }
-            }
-        }).catch(function (err) {
-            console.error('[PlayerUpdatesController] saveTokenBatch failed:', err);
-        });
+        if (typeof global.alert === 'function') {
+            global.alert(message);
+        }
+        return { ok: false, error: 'invite_generation_restricted' };
     }
 
     // Show alliance target selection modal. Returns Promise<'personal'|'alliance'|'both'|null>.
@@ -233,7 +172,7 @@
         });
     }
 
-    function _retryWithCanonicalName(source, playerName, proposed, gameId, initialResult) {
+    function _retryWithCanonicalName(source, playerName, proposed, gameId, identifiers, initialResult) {
         if (!_isPlayerNotFoundResult(initialResult)) {
             return Promise.resolve(initialResult);
         }
@@ -261,11 +200,11 @@
             ? _gateway.applyPlayerUpdateToAlliance
             : _gateway.applyPlayerUpdateToPersonal;
         return _safeCallPromise(function() {
-            return applyFn(canonicalName, proposed, gameId);
+            return applyFn(canonicalName, proposed, gameId, identifiers);
         });
     }
 
-    function _applyWithNameFallback(source, playerName, proposed, gameId) {
+    function _applyWithNameFallback(source, playerName, proposed, gameId, identifiers) {
         if (!_gateway) {
             return Promise.resolve({ ok: false, error: 'not initialized' });
         }
@@ -277,7 +216,7 @@
         }
         var context = gameId ? { gameId: gameId } : undefined;
         return _safeCallPromise(function() {
-            return applyFn(playerName, proposed, gameId);
+            return applyFn(playerName, proposed, gameId, identifiers);
         }).then(function(result) {
             if (source === 'alliance'
                 && _isAllianceDataMissingResult(result)
@@ -290,14 +229,14 @@
                         return result;
                     }
                     return _safeCallPromise(function() {
-                        return applyFn(playerName, proposed, gameId);
+                        return applyFn(playerName, proposed, gameId, identifiers);
                     }).then(function(retryResult) {
-                        return _retryWithCanonicalName(source, playerName, proposed, gameId, retryResult);
+                        return _retryWithCanonicalName(source, playerName, proposed, gameId, identifiers, retryResult);
                     });
                 });
             }
 
-            return _retryWithCanonicalName(source, playerName, proposed, gameId, result);
+            return _retryWithCanonicalName(source, playerName, proposed, gameId, identifiers, result);
         });
     }
 
@@ -309,6 +248,9 @@
         var reviewedBy = currentUser ? currentUser.uid : null;
         var proposed = update.proposedValues || {};
         var playerName = update.playerName;
+        var identifiers = {
+            playerKey: update.playerKey || '',
+        };
         var contextType = update.contextType;
 
         var requestedPersonal = target === 'personal' || target === 'both';
@@ -319,11 +261,11 @@
         };
 
         if (requestedPersonal) {
-            applyResults.personal = _applyWithNameFallback('personal', playerName, proposed, update.gameId || null);
+            applyResults.personal = _applyWithNameFallback('personal', playerName, proposed, update.gameId || null, identifiers);
         }
         if (requestedAlliance) {
             if (allianceId) {
-                applyResults.alliance = _applyWithNameFallback('alliance', playerName, proposed, update.gameId || null);
+                applyResults.alliance = _applyWithNameFallback('alliance', playerName, proposed, update.gameId || null, identifiers);
             } else {
                 applyResults.alliance = Promise.resolve({ ok: false, error: 'missing_alliance_id' });
             }

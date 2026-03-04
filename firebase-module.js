@@ -2385,17 +2385,72 @@ const FirebaseManager = (function() {
 
             allianceData = {
                 ...data,
-                playerDatabase: normalizePlayerDatabaseMap(
-                    data.playerDatabase && typeof data.playerDatabase === 'object'
-                        ? data.playerDatabase
-                        : {}
-                ),
+                playerDatabase: {},
             };
             activeAllianceDocScope = requestedScope;
             if (typeof data.name === 'string' && data.name.trim()) {
                 allianceName = data.name.trim();
             }
             emitAllianceDataUpdate();
+
+            // Keep alliance roster sourced strictly from alliance_players subcollection.
+            try {
+                const alliancePlayersRef = getAlliancePlayersCollectionRef(normalizedGameId, currentAllianceId);
+                if (alliancePlayersRef) {
+                    alliancePlayersRef.get().then((apSnapshot) => {
+                        if (
+                            !currentUser
+                            || allianceId !== currentAllianceId
+                            || activeAllianceGameId !== normalizedGameId
+                            || activeAllianceDocScope !== requestedScope
+                            || !allianceData
+                        ) {
+                            return;
+                        }
+                        const subcollectionPlayers = {};
+                        if (apSnapshot && Array.isArray(apSnapshot.docs)) {
+                            apSnapshot.docs.forEach((playerDoc) => {
+                                const playerData = playerDoc.data() || {};
+                                const playerName = normalizeEditablePlayerName(playerData.name || '');
+                                if (!playerName) {
+                                    return;
+                                }
+                                subcollectionPlayers[playerName] = {
+                                    power: normalizeEditablePlayerPower(playerData.power),
+                                    troops: normalizeEditablePlayerTroops(playerData.troops),
+                                    thp: normalizeEditablePlayerThp(playerData.thp),
+                                    lastUpdated: typeof playerData.lastUpdated === 'string'
+                                        ? playerData.lastUpdated
+                                        : new Date().toISOString(),
+                                };
+                            });
+                        }
+                        allianceData = {
+                            ...allianceData,
+                            playerDatabase: normalizePlayerDatabaseMap(subcollectionPlayers),
+                        };
+                        emitAllianceDataUpdate();
+                    }).catch((apError) => {
+                        console.warn('⚠️ Alliance players subcollection listener refresh failed:', apError.message);
+                        if (
+                            !currentUser
+                            || allianceId !== currentAllianceId
+                            || activeAllianceGameId !== normalizedGameId
+                            || activeAllianceDocScope !== requestedScope
+                            || !allianceData
+                        ) {
+                            return;
+                        }
+                        allianceData = {
+                            ...allianceData,
+                            playerDatabase: {},
+                        };
+                        emitAllianceDataUpdate();
+                    });
+                }
+            } catch (apRefError) {
+                console.warn('⚠️ Alliance players subcollection ref build failed:', apRefError.message);
+            }
         }, (error) => {
             console.warn('Alliance listener error:', error);
         });
@@ -3665,36 +3720,43 @@ const FirebaseManager = (function() {
             if (!allianceRef) {
                 return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
             }
-            await allianceRef.set({
-                playerDatabase: nextDatabase,
-                metadata: {
-                    totalPlayers: Object.keys(nextDatabase).length,
-                    lastModified: firebase.firestore.FieldValue.serverTimestamp(),
-                },
-            }, { mergeFields: ['playerDatabase', 'metadata'] });
-
-            // Dual-write to alliance_players subcollection
+            const playersCollectionRef = getAlliancePlayersCollectionRef(gameId, allianceId);
+            if (!playersCollectionRef) {
+                return { success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' };
+            }
             try {
-                const playersCollectionRef = getAlliancePlayersCollectionRef(gameId, allianceId);
-                if (playersCollectionRef) {
-                    const apSnapshot = await playersCollectionRef.get();
-                    const desiredDocs = new Map();
-                    Object.keys(nextDatabase).forEach((playerName) => {
-                        const payload = createPlayerDocPayload(playerName, nextDatabase[playerName]);
-                        if (!payload) { return; }
-                        desiredDocs.set(getPlayerDocId(playerName), payload);
-                    });
-                    const apBatch = db.batch();
-                    desiredDocs.forEach((payload, docId) => {
-                        apBatch.set(playersCollectionRef.doc(docId), payload, { merge: true });
-                    });
-                    apSnapshot.docs.forEach((doc) => {
-                        if (!desiredDocs.has(doc.id)) { apBatch.delete(doc.ref); }
-                    });
-                    await apBatch.commit();
-                }
-            } catch (dualWriteErr) {
-                console.warn('⚠️ Dual-write to alliance_players subcollection failed:', dualWriteErr.message);
+                const apSnapshot = await playersCollectionRef.get();
+                const desiredDocs = new Map();
+                Object.keys(nextDatabase).forEach((playerName) => {
+                    const payload = createPlayerDocPayload(playerName, nextDatabase[playerName]);
+                    if (!payload) { return; }
+                    desiredDocs.set(getPlayerDocId(playerName), payload);
+                });
+                const apBatch = db.batch();
+                desiredDocs.forEach((payload, docId) => {
+                    apBatch.set(playersCollectionRef.doc(docId), payload, { merge: true });
+                });
+                apSnapshot.docs.forEach((doc) => {
+                    if (!desiredDocs.has(doc.id)) { apBatch.delete(doc.ref); }
+                });
+                await apBatch.commit();
+            } catch (subcollectionWriteErr) {
+                return {
+                    success: false,
+                    error: subcollectionWriteErr && subcollectionWriteErr.message ? subcollectionWriteErr.message : 'alliance_players_write_failed',
+                };
+            }
+
+            // Keep alliance doc metadata fresh, without persisting legacy playerDatabase map field.
+            try {
+                await allianceRef.set({
+                    metadata: {
+                        totalPlayers: Object.keys(nextDatabase).length,
+                        lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+                    },
+                }, { mergeFields: ['metadata'] });
+            } catch (metadataWriteErr) {
+                console.warn('⚠️ Failed to update alliance metadata after alliance_players write:', metadataWriteErr.message);
             }
 
             if (!allianceData || typeof allianceData !== 'object') {
@@ -3981,19 +4043,15 @@ const FirebaseManager = (function() {
                 } else {
                     allianceData = {
                         ...allianceData,
-                        playerDatabase: normalizePlayerDatabaseMap(
-                            allianceData.playerDatabase && typeof allianceData.playerDatabase === 'object'
-                                ? allianceData.playerDatabase
-                                : {}
-                        ),
+                        playerDatabase: {},
                     };
-                    // Try loading from alliance_players subcollection (new path)
+                    // Alliance players source of truth: alliance_players subcollection.
                     try {
                         const alliancePlayersRef = getAlliancePlayersCollectionRef(gameId, allianceId);
                         if (alliancePlayersRef) {
                             const apSnapshot = await alliancePlayersRef.get();
-                            if (apSnapshot && !apSnapshot.empty) {
-                                const subcollectionPlayers = {};
+                            const subcollectionPlayers = {};
+                            if (apSnapshot && Array.isArray(apSnapshot.docs)) {
                                 apSnapshot.docs.forEach((doc) => {
                                     const data = doc.data() || {};
                                     const playerName = normalizeEditablePlayerName(data.name || '');
@@ -4005,13 +4063,12 @@ const FirebaseManager = (function() {
                                         lastUpdated: typeof data.lastUpdated === 'string' ? data.lastUpdated : new Date().toISOString(),
                                     };
                                 });
-                                if (Object.keys(subcollectionPlayers).length > 0) {
-                                    allianceData.playerDatabase = normalizePlayerDatabaseMap(subcollectionPlayers);
-                                }
                             }
+                            allianceData.playerDatabase = normalizePlayerDatabaseMap(subcollectionPlayers);
                         }
                     } catch (apError) {
-                        console.warn('⚠️ Alliance players subcollection read failed, using map field:', apError.message);
+                        console.warn('⚠️ Alliance players subcollection read failed; alliance roster unavailable:', apError.message);
+                        allianceData.playerDatabase = {};
                     }
                     if (typeof allianceData.name === 'string' && allianceData.name.trim()) {
                         allianceName = allianceData.name.trim();
@@ -4722,37 +4779,43 @@ const FirebaseManager = (function() {
                         reject({ success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' });
                         return;
                     }
-                    await allianceRef.set({
-                        playerDatabase: alliancePlayerDB,
-                        metadata: {
-                            totalPlayers: addedCount,
-                            lastUpload: new Date().toISOString(),
-                            lastModified: firebase.firestore.FieldValue.serverTimestamp()
-                        }
-                    }, { mergeFields: ['playerDatabase', 'metadata'] });
-
-                    // Dual-write to alliance_players subcollection
+                    const uploadPlayersCollectionRef = getAlliancePlayersCollectionRef(gameId, allianceId);
+                    if (!uploadPlayersCollectionRef) {
+                        reject({ success: false, error: 'invalid-alliance-context', errorKey: 'invalid-alliance-context' });
+                        return;
+                    }
                     try {
-                        const uploadPlayersCollectionRef = getAlliancePlayersCollectionRef(gameId, allianceId);
-                        if (uploadPlayersCollectionRef) {
-                            const uploadApSnapshot = await uploadPlayersCollectionRef.get();
-                            const uploadDesiredDocs = new Map();
-                            Object.keys(alliancePlayerDB).forEach((playerName) => {
-                                const payload = createPlayerDocPayload(playerName, alliancePlayerDB[playerName]);
-                                if (!payload) { return; }
-                                uploadDesiredDocs.set(getPlayerDocId(playerName), payload);
-                            });
-                            const uploadApBatch = db.batch();
-                            uploadDesiredDocs.forEach((payload, docId) => {
-                                uploadApBatch.set(uploadPlayersCollectionRef.doc(docId), payload, { merge: true });
-                            });
-                            uploadApSnapshot.docs.forEach((doc) => {
-                                if (!uploadDesiredDocs.has(doc.id)) { uploadApBatch.delete(doc.ref); }
-                            });
-                            await uploadApBatch.commit();
-                        }
-                    } catch (dualWriteErr) {
-                        console.warn('⚠️ Dual-write (upload) to alliance_players subcollection failed:', dualWriteErr.message);
+                        const uploadApSnapshot = await uploadPlayersCollectionRef.get();
+                        const uploadDesiredDocs = new Map();
+                        Object.keys(alliancePlayerDB).forEach((playerName) => {
+                            const payload = createPlayerDocPayload(playerName, alliancePlayerDB[playerName]);
+                            if (!payload) { return; }
+                            uploadDesiredDocs.set(getPlayerDocId(playerName), payload);
+                        });
+                        const uploadApBatch = db.batch();
+                        uploadDesiredDocs.forEach((payload, docId) => {
+                            uploadApBatch.set(uploadPlayersCollectionRef.doc(docId), payload, { merge: true });
+                        });
+                        uploadApSnapshot.docs.forEach((doc) => {
+                            if (!uploadDesiredDocs.has(doc.id)) { uploadApBatch.delete(doc.ref); }
+                        });
+                        await uploadApBatch.commit();
+                    } catch (subcollectionWriteErr) {
+                        reject({ success: false, error: subcollectionWriteErr.message || 'alliance_players_write_failed' });
+                        return;
+                    }
+
+                    // Keep alliance doc metadata fresh, without persisting legacy playerDatabase map field.
+                    try {
+                        await allianceRef.set({
+                            metadata: {
+                                totalPlayers: addedCount,
+                                lastUpload: new Date().toISOString(),
+                                lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+                            },
+                        }, { mergeFields: ['metadata'] });
+                    } catch (metadataWriteErr) {
+                        console.warn('⚠️ Failed to update alliance metadata after alliance upload:', metadataWriteErr.message);
                     }
 
                     if (allianceData) {
@@ -5634,6 +5697,32 @@ const FirebaseManager = (function() {
         return hasPower || hasThp || hasTroops;
     }
 
+    function getTokenMaxSubmissions(tokenDoc) {
+        var parsed = tokenDoc && tokenDoc.maxSubmissions != null ? Number(tokenDoc.maxSubmissions) : NaN;
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return 1;
+        }
+        return Math.floor(parsed);
+    }
+
+    function getTokenSubmissionCount(tokenDoc) {
+        var parsed = tokenDoc && tokenDoc.submissionCount != null ? Number(tokenDoc.submissionCount) : 0;
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+        }
+        return Math.floor(parsed);
+    }
+
+    function isTokenAvailable(tokenDoc) {
+        if (!tokenDoc || typeof tokenDoc !== 'object') {
+            return false;
+        }
+        if (tokenDoc.used === true) {
+            return false;
+        }
+        return getTokenSubmissionCount(tokenDoc) < getTokenMaxSubmissions(tokenDoc);
+    }
+
     function getPlayerEntryByName(playerMap, playerName) {
         if (!playerMap || typeof playerMap !== 'object') {
             return null;
@@ -5657,6 +5746,30 @@ const FirebaseManager = (function() {
         return null;
     }
 
+    function getPlayerEntryByKey(playerMap, playerKey) {
+        if (!playerMap || typeof playerMap !== 'object') {
+            return null;
+        }
+        var normalizedKey = typeof playerKey === 'string' ? playerKey.trim() : '';
+        if (!normalizedKey) {
+            return null;
+        }
+        var keys = Object.keys(playerMap);
+        for (var i = 0; i < keys.length; i += 1) {
+            var candidateName = normalizeEditablePlayerName(keys[i]);
+            if (!candidateName) {
+                continue;
+            }
+            if (getPlayerDocId(candidateName) === normalizedKey) {
+                return {
+                    name: candidateName,
+                    entry: playerMap[keys[i]],
+                };
+            }
+        }
+        return null;
+    }
+
     function buildSnapshotFromEntry(entry) {
         if (!entry || typeof entry !== 'object') {
             return {};
@@ -5668,7 +5781,7 @@ const FirebaseManager = (function() {
         };
     }
 
-    function resolveTokenCurrentSnapshot(contextType, playerName, gameId) {
+    function resolveTokenPlayerContext(contextType, playerName, playerKey, gameId) {
         var resolvedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
         var primaryMap = {};
         var fallbackMap = {};
@@ -5685,9 +5798,27 @@ const FirebaseManager = (function() {
             fallbackMap = getAlliancePlayerDatabase({ gameId: resolvedGameId });
         }
 
-        var entry = getPlayerEntryByName(primaryMap, playerName) || getPlayerEntryByName(fallbackMap, playerName);
+        var fromKey = getPlayerEntryByKey(primaryMap, playerKey) || getPlayerEntryByKey(fallbackMap, playerKey);
+        var resolvedName = fromKey && fromKey.name ? fromKey.name : '';
+        var entry = fromKey && fromKey.entry ? fromKey.entry : null;
+
+        if (!entry) {
+            entry = getPlayerEntryByName(primaryMap, playerName) || getPlayerEntryByName(fallbackMap, playerName);
+        }
+        if (!resolvedName) {
+            resolvedName = normalizeEditablePlayerName(playerName);
+        }
+
         var snapshot = buildSnapshotFromEntry(entry);
-        return hasTokenSnapshotValues(snapshot) ? snapshot : {};
+        return {
+            playerName: resolvedName || normalizeEditablePlayerName(playerName) || '',
+            playerKey: (resolvedName ? getPlayerDocId(resolvedName) : (typeof playerKey === 'string' ? playerKey.trim() : '')) || '',
+            currentSnapshot: hasTokenSnapshotValues(snapshot) ? snapshot : {},
+        };
+    }
+
+    function resolveTokenCurrentSnapshot(contextType, playerName, gameId) {
+        return resolveTokenPlayerContext(contextType, playerName, '', gameId).currentSnapshot;
     }
 
     async function saveTokenBatch(allianceIdParam, tokenDocs) {
@@ -5748,7 +5879,10 @@ const FirebaseManager = (function() {
                     if (newSnapshot && !newSnapshot.empty) {
                         var newResults = [];
                         newSnapshot.forEach(function(doc) {
-                            newResults.push(Object.assign({ id: doc.id }, doc.data()));
+                            var tokenData = Object.assign({ id: doc.id }, doc.data());
+                            if (isTokenAvailable(tokenData)) {
+                                newResults.push(tokenData);
+                            }
                         });
                         return newResults;
                     }
@@ -5880,17 +6014,35 @@ const FirebaseManager = (function() {
             var opts = options && typeof options === 'object' ? options : {};
             var tokenGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || null;
             var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
+            var maxSubmissions = Number.isFinite(Number(opts.maxSubmissions)) && Number(opts.maxSubmissions) > 0
+                ? Math.floor(Number(opts.maxSubmissions))
+                : 3;
             var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
-            var currentSnapshot = resolveTokenCurrentSnapshot('alliance', playerName, tokenGameId || DEFAULT_GAME_ID);
+            var resolvedTokenPlayer = resolveTokenPlayerContext(
+                'alliance',
+                playerName,
+                typeof opts.playerKey === 'string' ? opts.playerKey : '',
+                tokenGameId || DEFAULT_GAME_ID
+            );
+            var tokenPlayerName = resolvedTokenPlayer.playerName || normalizeEditablePlayerName(playerName) || playerName;
+            var tokenPlayerKey = resolvedTokenPlayer.playerKey || getPlayerDocId(tokenPlayerName);
+            var currentSnapshot = (opts.currentSnapshot && typeof opts.currentSnapshot === 'object')
+                ? buildSnapshotFromEntry(opts.currentSnapshot)
+                : (resolvedTokenPlayer.currentSnapshot || {});
             var tokenDoc = {
                 contextType: 'alliance',
                 allianceId: allianceIdParam,
                 ownerUid: currentUser ? currentUser.uid : null,
                 gameId: tokenGameId,
-                playerName: playerName,
+                playerName: tokenPlayerName,
+                playerKey: tokenPlayerKey,
                 expiryHours: expiryHours,
                 expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+                maxSubmissions: maxSubmissions,
+                submissionCount: 0,
                 used: false,
+                lastSubmittedAt: null,
+                lastSubmittedByAnonUid: null,
                 currentSnapshot: currentSnapshot,
                 createdBy: currentUser ? currentUser.uid : null,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -5948,7 +6100,10 @@ const FirebaseManager = (function() {
                 .get();
             var results = [];
             snapshot.forEach(function(doc) {
-                results.push(Object.assign({ id: doc.id }, doc.data()));
+                var tokenData = Object.assign({ id: doc.id }, doc.data());
+                if (isTokenAvailable(tokenData)) {
+                    results.push(tokenData);
+                }
             });
             return results;
         } catch (err) {
@@ -5965,17 +6120,35 @@ const FirebaseManager = (function() {
             var opts = options && typeof options === 'object' ? options : {};
             var tokenGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || null;
             var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
+            var maxSubmissions = Number.isFinite(Number(opts.maxSubmissions)) && Number(opts.maxSubmissions) > 0
+                ? Math.floor(Number(opts.maxSubmissions))
+                : 3;
             var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
-            var currentSnapshot = resolveTokenCurrentSnapshot('personal', playerName, tokenGameId || DEFAULT_GAME_ID);
+            var resolvedTokenPlayer = resolveTokenPlayerContext(
+                'personal',
+                playerName,
+                typeof opts.playerKey === 'string' ? opts.playerKey : '',
+                tokenGameId || DEFAULT_GAME_ID
+            );
+            var tokenPlayerName = resolvedTokenPlayer.playerName || normalizeEditablePlayerName(playerName) || playerName;
+            var tokenPlayerKey = resolvedTokenPlayer.playerKey || getPlayerDocId(tokenPlayerName);
+            var currentSnapshot = (opts.currentSnapshot && typeof opts.currentSnapshot === 'object')
+                ? buildSnapshotFromEntry(opts.currentSnapshot)
+                : (resolvedTokenPlayer.currentSnapshot || {});
             var tokenDoc = {
                 contextType: 'personal',
                 ownerUid: uid,
                 gameId: tokenGameId,
                 allianceId: null,
-                playerName: playerName,
+                playerName: tokenPlayerName,
+                playerKey: tokenPlayerKey,
                 expiryHours: expiryHours,
                 expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+                maxSubmissions: maxSubmissions,
+                submissionCount: 0,
                 used: false,
+                lastSubmittedAt: null,
+                lastSubmittedByAnonUid: null,
                 currentSnapshot: currentSnapshot,
                 createdBy: currentUser ? currentUser.uid : null,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -6202,39 +6375,68 @@ const FirebaseManager = (function() {
         };
     }
 
-    async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId) {
+    function resolvePlayerNameByKey(source, playerKey, gameId) {
+        var normalizedKey = typeof playerKey === 'string' ? playerKey.trim() : '';
+        if (!normalizedKey) {
+            return '';
+        }
+        var gameContext = resolveGameplayContext('resolvePlayerNameByKey', gameId || null);
+        var playerMap = source === 'alliance'
+            ? getAlliancePlayerDatabase(gameContext)
+            : getPlayerDatabase(gameContext);
+        if (!playerMap || typeof playerMap !== 'object') {
+            return '';
+        }
+        var names = Object.keys(playerMap);
+        for (var i = 0; i < names.length; i += 1) {
+            var candidateName = normalizeEditablePlayerName(names[i]);
+            if (!candidateName) {
+                continue;
+            }
+            if (getPlayerDocId(candidateName) === normalizedKey) {
+                return candidateName;
+            }
+        }
+        return '';
+    }
+
+    async function applyPlayerUpdateToPersonal(playerName, proposedValues, gameId, identifiers) {
         if (!currentUser) {
             return { ok: false, error: 'Not signed in' };
         }
         if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
             return { ok: false, error: 'snapshot_integrity_error' };
         }
+        var identifiersBag = identifiers && typeof identifiers === 'object' ? identifiers : {};
+        var resolvedPlayerName = resolvePlayerNameByKey('personal', identifiersBag.playerKey, gameId) || playerName;
         var nextPlayer = {
-            name: playerName,
+            name: resolvedPlayerName,
             power: proposedValues.power,
             thp: proposedValues.thp,
             troops: proposedValues.troops,
         };
         var gameContext = resolveGameplayContext('applyPlayerUpdateToPersonal', gameId || null);
-        var result = await upsertPlayerEntry('personal', playerName, nextPlayer, gameContext);
+        var result = await upsertPlayerEntry('personal', resolvedPlayerName, nextPlayer, gameContext);
         return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
     }
 
-    async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId) {
+    async function applyPlayerUpdateToAlliance(playerName, proposedValues, gameId, identifiers) {
         if (!currentUser || !allianceId) {
             return { ok: false, error: 'Not in alliance' };
         }
         if (!proposedValues || proposedValues.power == null || proposedValues.thp == null || proposedValues.troops == null) {
             return { ok: false, error: 'snapshot_integrity_error' };
         }
+        var identifiersBag = identifiers && typeof identifiers === 'object' ? identifiers : {};
+        var resolvedPlayerName = resolvePlayerNameByKey('alliance', identifiersBag.playerKey, gameId) || playerName;
         var nextPlayer = {
-            name: playerName,
+            name: resolvedPlayerName,
             power: proposedValues.power,
             thp: proposedValues.thp,
             troops: proposedValues.troops,
         };
         var gameContext = resolveGameplayContext('applyPlayerUpdateToAlliance', gameId || null);
-        var result = await upsertPlayerEntry('alliance', playerName, nextPlayer, gameContext);
+        var result = await upsertPlayerEntry('alliance', resolvedPlayerName, nextPlayer, gameContext);
         return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
     }
 

@@ -71,6 +71,26 @@
         return translated;
     }
 
+    function getTokenMaxSubmissions(tokenDoc) {
+        var parsed = tokenDoc && tokenDoc.maxSubmissions != null ? Number(tokenDoc.maxSubmissions) : NaN;
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return 1;
+        }
+        return Math.floor(parsed);
+    }
+
+    function getTokenSubmissionCount(tokenDoc) {
+        var parsed = tokenDoc && tokenDoc.submissionCount != null ? Number(tokenDoc.submissionCount) : 0;
+        if (!Number.isFinite(parsed) || parsed < 0) {
+            return 0;
+        }
+        return Math.floor(parsed);
+    }
+
+    function isTokenSubmissionLimitReached(tokenDoc) {
+        return getTokenSubmissionCount(tokenDoc) >= getTokenMaxSubmissions(tokenDoc);
+    }
+
     function setCurrentStatValue(elementId, value) {
         var el = getEl(elementId);
         if (!el) {
@@ -171,6 +191,7 @@
         var aid = params.alliance || params.aid || '';
         var uidParam = params.uid || '';
         var gameIdParam = params.gid || params.gameId || '';
+        var playerKeyParam = params.pk || params.playerKey || '';
         var lang = params.lang || 'EN';
 
         // Step 2: set i18n language
@@ -311,9 +332,10 @@
 
                         var tokenDoc = snapshot.data();
                         tokenRef = snapshot.ref;
+                        var tokenPlayerKey = tokenDoc.playerKey || playerKeyParam || '';
 
                         // Step 7: token already used
-                        if (tokenDoc.used === true) {
+                        if (tokenDoc.used === true || isTokenSubmissionLimitReached(tokenDoc)) {
                             showError(ERROR_CODES.TOKEN_USED);
                             return;
                         }
@@ -375,6 +397,12 @@
                                 thp: thpEl ? Number(thpEl.value) : null,
                                 troops: troopsEl ? troopsEl.value : null,
                             };
+                            var currentSubmissionCount = getTokenSubmissionCount(tokenDoc);
+                            var tokenMaxSubmissions = getTokenMaxSubmissions(tokenDoc);
+                            if (currentSubmissionCount >= tokenMaxSubmissions) {
+                                showError(ERROR_CODES.TOKEN_USED);
+                                return;
+                            }
 
                             // disable submit button while writing
                             var submitBtn = form.querySelector('button[type="submit"]');
@@ -396,6 +424,7 @@
                                 gameId: tokenDoc.gameId || null,
                                 proposedValues: proposed,
                                 currentSnapshot: tokenDoc.currentSnapshot || {},
+                                playerKey: tokenPlayerKey,
                                 submittedAt: firebase.firestore.Timestamp.now(),
                                 submittedByAnonUid: anonUid,
                                 status: 'pending',
@@ -457,11 +486,22 @@
 
                             writePendingUpdateWithFallback()
                                 .then(function () {
-                                    // update token as used
-                                    return tokenRef.update({
-                                        used: true,
-                                        usedAt: firebase.firestore.Timestamp.now(),
+                                    var nextSubmissionCount = currentSubmissionCount + 1;
+                                    var reachedLimit = nextSubmissionCount >= tokenMaxSubmissions;
+                                    var nowTs = firebase.firestore.Timestamp.now();
+                                    var tokenUpdate = {
+                                        submissionCount: nextSubmissionCount,
+                                        lastSubmittedAt: nowTs,
+                                        lastSubmittedByAnonUid: anonUid,
                                         usedByAnonUid: anonUid,
+                                    };
+                                    if (reachedLimit) {
+                                        tokenUpdate.used = true;
+                                        tokenUpdate.usedAt = nowTs;
+                                    }
+                                    return tokenRef.update(tokenUpdate).then(function() {
+                                        tokenDoc.submissionCount = nextSubmissionCount;
+                                        tokenDoc.used = reachedLimit;
                                     });
                                 })
                                 .then(function () {

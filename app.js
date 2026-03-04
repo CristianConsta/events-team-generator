@@ -476,6 +476,36 @@ function bindStaticUiActions() {
             return hasUsableSnapshot(snapshot) ? snapshot : null;
         }
 
+        function findPlayerSnapshotByKey(playerMap, playerKey) {
+            if (!playerMap || typeof playerMap !== 'object') {
+                return null;
+            }
+            const normalizedKey = typeof playerKey === 'string' ? playerKey.trim() : '';
+            if (!normalizedKey) {
+                return null;
+            }
+            const docIdResolver = window.DSFirebaseInfra && typeof window.DSFirebaseInfra.getPlayerDocId === 'function'
+                ? window.DSFirebaseInfra.getPlayerDocId
+                : null;
+            if (!docIdResolver) {
+                return null;
+            }
+            const keys = Object.keys(playerMap);
+            const matchedName = keys.find(function(name) {
+                return docIdResolver(name) === normalizedKey;
+            });
+            if (!matchedName || !playerMap[matchedName] || typeof playerMap[matchedName] !== 'object') {
+                return null;
+            }
+            const entry = playerMap[matchedName];
+            const snapshot = {
+                power: entry.power,
+                thp: entry.thp,
+                troops: entry.troops,
+            };
+            return hasUsableSnapshot(snapshot) ? snapshot : null;
+        }
+
         function findSnapshotInLoadedPlayers(playerName) {
             const players = Array.isArray(window.allPlayers) ? window.allPlayers : [];
             if (!players.length) {
@@ -528,8 +558,20 @@ function bindStaticUiActions() {
 
                 const sourcePrefersAlliance = update.contextType === 'alliance';
                 let snapshot = sourcePrefersAlliance
-                    ? findPlayerSnapshotByName(alliancePlayerMap, update.playerName)
-                    : findPlayerSnapshotByName(personalPlayerMap, update.playerName);
+                    ? findPlayerSnapshotByKey(alliancePlayerMap, update.playerKey)
+                    : findPlayerSnapshotByKey(personalPlayerMap, update.playerKey);
+
+                if (!snapshot) {
+                    snapshot = sourcePrefersAlliance
+                        ? findPlayerSnapshotByName(alliancePlayerMap, update.playerName)
+                        : findPlayerSnapshotByName(personalPlayerMap, update.playerName);
+                }
+
+                if (!snapshot) {
+                    snapshot = sourcePrefersAlliance
+                        ? findPlayerSnapshotByKey(personalPlayerMap, update.playerKey)
+                        : findPlayerSnapshotByKey(alliancePlayerMap, update.playerKey);
+                }
 
                 if (!snapshot) {
                     snapshot = sourcePrefersAlliance
@@ -2820,6 +2862,27 @@ async function handlePlayersManagementTableAction(event) {
         button.innerHTML = '<span class="invite-btn-text">' + escapeHtml(t('invite_generating')) + '</span>';
         let result;
         let inviteUrl;
+        const sourceDb = getPlayersDatabaseBySource(source);
+        const dbKeys = sourceDb && typeof sourceDb === 'object' ? Object.keys(sourceDb) : [];
+        const wantedName = typeof originalName === 'string' ? originalName.trim().toLowerCase() : '';
+        const canonicalPlayerName = dbKeys.find(function(name) {
+            return typeof name === 'string' && name.trim().toLowerCase() === wantedName;
+        }) || originalName;
+        const sourceEntry = sourceDb && typeof sourceDb === 'object'
+            ? sourceDb[canonicalPlayerName]
+            : null;
+        const currentSnapshot = sourceEntry && typeof sourceEntry === 'object'
+            ? {
+                power: Number.isFinite(Number(sourceEntry.power)) ? Number(sourceEntry.power) : 0,
+                thp: Number.isFinite(Number(sourceEntry.thp)) ? Number(sourceEntry.thp) : 0,
+                troops: typeof sourceEntry.troops === 'string' && sourceEntry.troops.trim()
+                    ? sourceEntry.troops.trim()
+                    : 'Unknown',
+            }
+            : {};
+        const playerKey = (window.DSFirebaseInfra && typeof window.DSFirebaseInfra.getPlayerDocId === 'function')
+            ? window.DSFirebaseInfra.getPlayerDocId(canonicalPlayerName)
+            : '';
         const currentLang = (window.DSI18N && typeof window.DSI18N.getCurrentLanguage === 'function')
             ? window.DSI18N.getCurrentLanguage()
             : 'en';
@@ -2834,7 +2897,13 @@ async function handlePlayersManagementTableAction(event) {
                 return;
             }
             const gameId = gameplayContext.gameId || '';
-            result = await FirebaseService.createPersonalUpdateToken(uid, originalName, { expiryHours: 48, gameId: gameId });
+            result = await FirebaseService.createPersonalUpdateToken(uid, canonicalPlayerName, {
+                expiryHours: 48,
+                gameId: gameId,
+                maxSubmissions: 3,
+                playerKey: playerKey,
+                currentSnapshot: currentSnapshot,
+            });
             button.disabled = false;
             button.innerHTML = originalButtonContent;
             if (!result || !result.success) {
@@ -2846,7 +2915,8 @@ async function handlePlayersManagementTableAction(event) {
                 + '?token=' + encodeURIComponent(result.tokenId)
                 + '&uid=' + encodeURIComponent(uid)
                 + '&lang=' + encodeURIComponent(currentLang)
-                + (gameId ? '&gid=' + encodeURIComponent(gameId) : '');
+                + (gameId ? '&gid=' + encodeURIComponent(gameId) : '')
+                + (playerKey ? '&pk=' + encodeURIComponent(playerKey) : '');
         } else {
             const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext) : null;
             if (!allianceId) {
@@ -2857,9 +2927,12 @@ async function handlePlayersManagementTableAction(event) {
                 return;
             }
             const allianceGameId = (gameplayContext && gameplayContext.gameId) ? gameplayContext.gameId : '';
-            result = await FirebaseService.createUpdateToken(allianceId, originalName, {
+            result = await FirebaseService.createUpdateToken(allianceId, canonicalPlayerName, {
                 expiryHours: 48,
                 gameId: allianceGameId,
+                maxSubmissions: 3,
+                playerKey: playerKey,
+                currentSnapshot: currentSnapshot,
             });
             button.disabled = false;
             button.innerHTML = originalButtonContent;
@@ -2872,7 +2945,8 @@ async function handlePlayersManagementTableAction(event) {
                 + '?token=' + encodeURIComponent(result.tokenId)
                 + '&alliance=' + encodeURIComponent(allianceId)
                 + '&lang=' + encodeURIComponent(currentLang)
-                + (allianceGameId ? '&gid=' + encodeURIComponent(allianceGameId) : '');
+                + (allianceGameId ? '&gid=' + encodeURIComponent(allianceGameId) : '')
+                + (playerKey ? '&pk=' + encodeURIComponent(playerKey) : '');
         }
         showInviteLinkPopover(button, inviteUrl);
     }

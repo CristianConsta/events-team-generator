@@ -67,112 +67,39 @@ function makeMockGateway(overrides) {
 }
 
 // ---------------------------------------------------------------------------
-// openTokenGenerationModal → saveTokenBatch
+// openTokenGenerationModal (legacy path) is intentionally blocked
 // ---------------------------------------------------------------------------
 
-test('openTokenGenerationModal: calls saveTokenBatch with one doc per player', async () => {
-    loadModules();
-
-    var batchArgs = null;
-    var gateway = makeMockGateway({
-        saveTokenBatch: async function (allianceId, tokenDocs) {
-            batchArgs = { allianceId, tokenDocs };
-            return { ok: true, tokenIds: tokenDocs.map(function (_, i) { return 'tok_' + i; }) };
-        },
-    });
-
-    global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice', 'Bob']);
-
-    // saveTokenBatch is async — give it a tick
-    await new Promise(function (resolve) { setTimeout(resolve, 50); });
-
-    assert.ok(batchArgs, 'saveTokenBatch should have been called');
-    assert.equal(batchArgs.allianceId, 'alliance_pu_integ_1');
-    assert.equal(batchArgs.tokenDocs.length, 2, 'Should create one token doc per player');
-});
-
-test('openTokenGenerationModal: token docs have correct playerName', async () => {
-    loadModules();
-
-    var capturedDocs = null;
-    var gateway = makeMockGateway({
-        saveTokenBatch: async function (allianceId, tokenDocs) {
-            capturedDocs = tokenDocs;
-            return { ok: true, tokenIds: [] };
-        },
-    });
-
-    global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice', 'Bob']);
-    await new Promise(function (resolve) { setTimeout(resolve, 50); });
-
-    assert.ok(capturedDocs, 'Docs should be captured');
-    const playerNames = capturedDocs.map(function (d) { return d.playerName; }).sort();
-    assert.deepEqual(playerNames, ['Alice', 'Bob']);
-});
-
-test('openTokenGenerationModal: token docs include currentSnapshot from allPlayers', async () => {
-    loadModules();
-
-    var capturedDocs = null;
-    var gateway = makeMockGateway({
-        saveTokenBatch: async function (allianceId, tokenDocs) {
-            capturedDocs = tokenDocs;
-            return { ok: true, tokenIds: [] };
-        },
-    });
-
-    global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
-    await new Promise(function (resolve) { setTimeout(resolve, 50); });
-
-    const aliceDoc = capturedDocs && capturedDocs.find(function (d) { return d.playerName === 'Alice'; });
-    assert.ok(aliceDoc, 'Should have a doc for Alice');
-    assert.equal(aliceDoc.doc.currentSnapshot.power, 1000);
-    assert.equal(aliceDoc.doc.currentSnapshot.troops, 'Tank');
-});
-
-test('openTokenGenerationModal: empty playerNames shows alert, does not call saveTokenBatch', async () => {
+test('openTokenGenerationModal: blocks legacy path and does not call saveTokenBatch', async () => {
     loadModules();
 
     var batchCalled = false;
-    var alertCalled = false;
-    global.alert = function () { alertCalled = true; };
+    var alertMessage = '';
+    global.alert = function (msg) { alertMessage = String(msg || ''); };
 
     var gateway = makeMockGateway({
         saveTokenBatch: async function () { batchCalled = true; return { ok: true, tokenIds: [] }; },
     });
 
     global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal([]);
-    await new Promise(function (resolve) { setTimeout(resolve, 50); });
+    const result = global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice', 'Bob']);
+    await new Promise(function (resolve) { setTimeout(resolve, 20); });
 
-    assert.equal(alertCalled, true, 'alert should be shown for empty selection');
-    assert.equal(batchCalled, false, 'saveTokenBatch should NOT be called');
+    assert.equal(result && result.ok, false);
+    assert.equal(result && result.error, 'invite_generation_restricted');
+    assert.equal(batchCalled, false, 'saveTokenBatch must not be called from legacy path');
+    assert.ok(alertMessage.includes('Players Management'), 'alert should route user to Players Management flow');
 });
 
-test('openTokenGenerationModal: null playerNames shows alert, does not call saveTokenBatch', async () => {
+test('openTokenGenerationModal: remains blocked even if controller is not initialized', () => {
     loadModules();
-
-    var batchCalled = false;
-    var alertCalled = false;
-    global.alert = function () { alertCalled = true; };
-
-    var gateway = makeMockGateway({
-        saveTokenBatch: async function () { batchCalled = true; return { ok: true, tokenIds: [] }; },
-    });
-
-    global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(null);
-    await new Promise(function (resolve) { setTimeout(resolve, 50); });
-
-    assert.equal(alertCalled, true);
-    assert.equal(batchCalled, false);
+    const result = global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
+    assert.equal(result && result.ok, false);
+    assert.equal(result && result.error, 'invite_generation_restricted');
 });
 
 // ---------------------------------------------------------------------------
-// approveUpdate → updatePendingUpdateStatus with status='approved'
+// approveUpdate -> updatePendingUpdateStatus with status='approved'
 // ---------------------------------------------------------------------------
 
 test('approveUpdate: calls updatePendingUpdateStatus with status approved', async () => {
@@ -431,19 +358,22 @@ test('invite flow personal: URL uses ?token=...&uid=... (no alliance param)', ()
     const tokenId = 'tok-personal-xyz';
     const uid = 'uid_leader_pu';
     const gameId = 'last_war';
+    const playerKey = 'alice_abc123';
     const origin = global.location.origin;
 
     // Reproduce the URL construction from app.js personal branch
     const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
         + '&uid=' + encodeURIComponent(uid)
         + '&lang=' + encodeURIComponent('en')
-        + '&gid=' + encodeURIComponent(gameId);
+        + '&gid=' + encodeURIComponent(gameId)
+        + '&pk=' + encodeURIComponent(playerKey);
 
     assert.ok(inviteUrl.includes('uid='), 'Personal invite URL should contain uid= param');
     assert.ok(!inviteUrl.includes('alliance='), 'Personal invite URL should NOT contain alliance= param');
     assert.ok(inviteUrl.includes('token=' + tokenId));
     assert.ok(inviteUrl.includes('uid=' + uid));
     assert.ok(inviteUrl.includes('gid=' + gameId), 'Personal invite URL should include gid= param');
+    assert.ok(inviteUrl.includes('pk=' + playerKey), 'Personal invite URL should include pk= player key');
 });
 
 test('invite flow alliance: URL uses ?token=...&alliance=... (no uid param)', () => {
@@ -451,39 +381,33 @@ test('invite flow alliance: URL uses ?token=...&alliance=... (no uid param)', ()
     const tokenId = 'tok-alliance-xyz';
     const allianceId = 'alliance_pu_integ_1';
     const gameId = 'last_war';
+    const playerKey = 'lord_def456';
     const origin = global.location.origin;
 
     // Reproduce the URL construction from app.js alliance branch
     const inviteUrl = origin + '/player-update.html?token=' + encodeURIComponent(tokenId)
         + '&alliance=' + encodeURIComponent(allianceId)
         + '&lang=' + encodeURIComponent('en')
-        + '&gid=' + encodeURIComponent(gameId);
+        + '&gid=' + encodeURIComponent(gameId)
+        + '&pk=' + encodeURIComponent(playerKey);
 
     assert.ok(inviteUrl.includes('alliance='), 'Alliance invite URL should contain alliance= param');
     assert.ok(!inviteUrl.includes('&uid='), 'Alliance invite URL should NOT contain uid= param');
     assert.ok(inviteUrl.includes('token=' + tokenId));
     assert.ok(inviteUrl.includes('alliance=' + allianceId));
     assert.ok(inviteUrl.includes('gid=' + gameId), 'Alliance invite URL should include gid= param');
+    assert.ok(inviteUrl.includes('pk=' + playerKey), 'Alliance invite URL should include pk= player key');
 });
 
-test('invite flow: createUpdateToken stores playerName in token doc shape', async () => {
-    // Verifies the token document passed to the gateway includes playerName field.
-    // Regression for: token lookup would fail if playerName was absent.
+test('buildTokenDoc: includes playerName in token doc shape', () => {
+    // Regression for token scope enforcement in Firestore rules.
     loadModules();
-
-    var storedDoc = null;
-    const gateway = makeMockGateway({
-        saveTokenBatch: async function (allianceId, tokenDocs) {
-            storedDoc = tokenDocs[0];
-            return { ok: true, tokenIds: ['tok_stored'] };
-        },
-    });
-
-    global.DSFeaturePlayerUpdatesController.init(gateway);
-    global.DSFeaturePlayerUpdatesController.openTokenGenerationModal(['Alice']);
-    await new Promise(function (resolve) { setTimeout(resolve, 50); });
-
-    assert.ok(storedDoc, 'Token doc should have been stored');
-    assert.ok('playerName' in storedDoc.doc, 'Token doc.doc must have playerName field');
-    assert.equal(storedDoc.doc.playerName, 'Alice', 'Token doc.doc.playerName must match the invited player');
+    const doc = global.DSFeaturePlayerUpdatesCore.buildTokenDoc(
+        'Alice',
+        'alliance_pu_integ_1',
+        'last_war',
+        'uid_leader_pu',
+        { expiryHours: 48 }
+    );
+    assert.equal(doc.playerName, 'Alice', 'Token doc must preserve invited playerName');
 });

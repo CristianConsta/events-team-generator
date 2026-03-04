@@ -310,6 +310,37 @@ test('approveUpdate threads gameId to pending status update gateway call', async
     assert.equal(capturedStatusGameId, 'canyon_storm');
 });
 
+test('approveUpdate threads playerKey to apply gateway call', async function () {
+    setupGlobals();
+    var capturedIdentifiers = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        applyPlayerUpdateToAlliance: function (name, values, gameId, identifiers) {
+            capturedIdentifiers = identifiers;
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function () {
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-player-key-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'Lord',
+        playerKey: 'lord_abc123',
+        gameId: 'canyon_storm',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-player-key-1');
+    assert.equal(result.ok, true);
+    assert.ok(capturedIdentifiers);
+    assert.equal(capturedIdentifiers.playerKey, 'lord_abc123');
+});
+
 test('rejectUpdate threads gameId to pending status update gateway call', async function () {
     setupGlobals();
     var capturedStatusGameId = null;

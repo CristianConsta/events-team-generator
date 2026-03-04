@@ -59,6 +59,37 @@ service cloud.firestore {
         && data.gameId == gameId;
     }
 
+    function tokenSubmissionCount(data) {
+      return data != null
+        && data.submissionCount is int
+        && data.submissionCount >= 0
+        ? data.submissionCount
+        : 0;
+    }
+
+    function tokenMaxSubmissions(data) {
+      return data != null
+        && data.maxSubmissions is int
+        && data.maxSubmissions > 0
+        ? data.maxSubmissions
+        : 1;
+    }
+
+    function tokenHasRemainingSubmissions(data) {
+      return tokenSubmissionCount(data) < tokenMaxSubmissions(data);
+    }
+
+    function tokenPlayerKeyMatches(tokenData, pendingData) {
+      return tokenData != null
+        && (
+          !('playerKey' in tokenData)
+          || (
+            pendingData.playerKey is string
+            && pendingData.playerKey == tokenData.playerKey
+          )
+        );
+    }
+
     match /users/{uid} {
       allow read, write: if isSelf(uid);
 
@@ -73,14 +104,19 @@ service cloud.firestore {
         allow read: if isSelf(uid)
                     || (isAnonymous()
                         && resource.data.used == false
-                        && resource.data.expiresAt > request.time);
+                        && resource.data.expiresAt > request.time
+                        && tokenHasRemainingSubmissions(resource.data));
         allow update: if isSelf(uid)
                       || (isAnonymous()
                           && resource.data.used == false
-                          && request.resource.data.used == true
+                          && resource.data.expiresAt > request.time
+                          && tokenHasRemainingSubmissions(resource.data)
                           && request.resource.data.diff(resource.data)
                                  .affectedKeys()
-                                 .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+                                 .hasOnly(['submissionCount', 'lastSubmittedAt', 'lastSubmittedByAnonUid', 'used', 'usedAt', 'usedByAnonUid'])
+                          && request.resource.data.submissionCount is int
+                          && request.resource.data.submissionCount == tokenSubmissionCount(resource.data) + 1
+                          && request.resource.data.used == (request.resource.data.submissionCount >= tokenMaxSubmissions(resource.data)));
         allow delete: if isSelf(uid);
       }
 
@@ -95,6 +131,11 @@ service cloud.firestore {
                       && request.resource.data.playerName.size() <= 50
                       && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
                       && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                      && tokenHasRemainingSubmissions(get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data)
+                      && tokenPlayerKeyMatches(
+                        get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data,
+                        request.resource.data
+                      )
                       && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
                       && request.resource.data.status == 'pending'
                       && (request.resource.data.gameId is string || request.resource.data.gameId == null)
@@ -173,16 +214,21 @@ service cloud.firestore {
                         )
                         || (isAnonymous()
                             && resource.data.used == false
-                            && resource.data.expiresAt > request.time);
+                            && resource.data.expiresAt > request.time
+                            && tokenHasRemainingSubmissions(resource.data));
           allow update: if isAllianceActor(
                             get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
                           )
                           || (isAnonymous()
                               && resource.data.used == false
-                              && request.resource.data.used == true
+                              && resource.data.expiresAt > request.time
+                              && tokenHasRemainingSubmissions(resource.data)
                               && request.resource.data.diff(resource.data)
                                      .affectedKeys()
-                                     .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+                                     .hasOnly(['submissionCount', 'lastSubmittedAt', 'lastSubmittedByAnonUid', 'used', 'usedAt', 'usedByAnonUid'])
+                              && request.resource.data.submissionCount is int
+                              && request.resource.data.submissionCount == tokenSubmissionCount(resource.data) + 1
+                              && request.resource.data.used == (request.resource.data.submissionCount >= tokenMaxSubmissions(resource.data)));
           allow delete: if isAllianceActor(
             get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
           );
@@ -198,6 +244,13 @@ service cloud.firestore {
                         && request.resource.data.playerName.size() <= 50
                         && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
                         && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                        && tokenHasRemainingSubmissions(
+                          get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data
+                        )
+                        && tokenPlayerKeyMatches(
+                          get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data,
+                          request.resource.data
+                        )
                         && request.resource.data.status == 'pending'
                         && request.resource.data.proposedValues.power is number
                         && request.resource.data.proposedValues.power >= 0
@@ -257,14 +310,19 @@ service cloud.firestore {
           allow read: if isSelf(uid)
                       || (isAnonymous()
                           && resource.data.used == false
-                          && resource.data.expiresAt > request.time);
+                          && resource.data.expiresAt > request.time
+                          && tokenHasRemainingSubmissions(resource.data));
           allow update: if isSelf(uid)
                         || (isAnonymous()
                             && resource.data.used == false
-                            && request.resource.data.used == true
+                            && resource.data.expiresAt > request.time
+                            && tokenHasRemainingSubmissions(resource.data)
                             && request.resource.data.diff(resource.data)
                                    .affectedKeys()
-                                   .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+                                   .hasOnly(['submissionCount', 'lastSubmittedAt', 'lastSubmittedByAnonUid', 'used', 'usedAt', 'usedByAnonUid'])
+                            && request.resource.data.submissionCount is int
+                            && request.resource.data.submissionCount == tokenSubmissionCount(resource.data) + 1
+                            && request.resource.data.used == (request.resource.data.submissionCount >= tokenMaxSubmissions(resource.data)));
           allow delete: if isSelf(uid);
         }
 
@@ -279,6 +337,13 @@ service cloud.firestore {
                         && request.resource.data.playerName.size() <= 50
                         && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
                         && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                        && tokenHasRemainingSubmissions(
+                          get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data
+                        )
+                        && tokenPlayerKeyMatches(
+                          get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data,
+                          request.resource.data
+                        )
                         && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
                         && request.resource.data.status == 'pending'
                         && (request.resource.data.gameId is string || request.resource.data.gameId == null)
@@ -377,14 +442,19 @@ service cloud.firestore {
         allow read: if isAllianceMember(allianceId)
                     || (isAnonymous()
                         && resource.data.used == false
-                        && resource.data.expiresAt > request.time);
+                        && resource.data.expiresAt > request.time
+                        && tokenHasRemainingSubmissions(resource.data));
         allow update: if isAllianceMember(allianceId)
                       || (isAnonymous()
                           && resource.data.used == false
-                          && request.resource.data.used == true
+                          && resource.data.expiresAt > request.time
+                          && tokenHasRemainingSubmissions(resource.data)
                           && request.resource.data.diff(resource.data)
                                  .affectedKeys()
-                                 .hasOnly(['used', 'usedAt', 'usedByAnonUid']));
+                                 .hasOnly(['submissionCount', 'lastSubmittedAt', 'lastSubmittedByAnonUid', 'used', 'usedAt', 'usedByAnonUid'])
+                          && request.resource.data.submissionCount is int
+                          && request.resource.data.submissionCount == tokenSubmissionCount(resource.data) + 1
+                          && request.resource.data.used == (request.resource.data.submissionCount >= tokenMaxSubmissions(resource.data)));
         allow delete: if isAllianceMember(allianceId);
       }
 
@@ -398,6 +468,13 @@ service cloud.firestore {
                       && request.resource.data.playerName.size() <= 50
                       && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
                       && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                      && tokenHasRemainingSubmissions(
+                        get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data
+                      )
+                      && tokenPlayerKeyMatches(
+                        get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data,
+                        request.resource.data
+                      )
                       && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
                       && request.resource.data.status == 'pending'
                       && (request.resource.data.gameId is string || request.resource.data.gameId == null)
