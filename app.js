@@ -4926,7 +4926,17 @@ function attachSubstituteCoverage(starters, substitutes) {
         substitute.replacementStarterSummary = substitute.replacementStarterNames.join(', ');
     });
 
-    return orderedSubs;
+    return orderedSubs.sort((a, b) => {
+        const powerDiff = (Number(b.power) || 0) - (Number(a.power) || 0);
+        if (powerDiff !== 0) {
+            return powerDiff;
+        }
+        const thpDiff = (Number(b.thp) || 0) - (Number(a.thp) || 0);
+        if (thpDiff !== 0) {
+            return thpDiff;
+        }
+        return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 }
 
 function assignTeamToBuildings(players, algorithm) {

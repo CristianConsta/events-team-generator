@@ -89,3 +89,22 @@ test('assignSubstitutesToStarters gives each reserve up to two nearby starters b
   assert.deepEqual(assigned[1].replacementStarterNames, ['Starter3', 'Starter4']);
   assert.equal(assigned[0].replacementStarterSummary, 'Starter1, Starter2');
 });
+
+test('assignSubstitutesToStarters orders reserves by reserve power then reserve thp', () => {
+  loadModule();
+  const assigned = global.DSCoreGeneratorAssignment.assignSubstitutesToStarters(
+    [
+      { name: 'StarterA', power: 20000000, thp: 900, troops: 'Tank' },
+      { name: 'StarterB', power: 20000000, thp: 800, troops: 'Aero' },
+      { name: 'StarterC', power: 20000000, thp: 100, troops: 'Missile' },
+      { name: 'StarterD', power: 18000000, thp: 300, troops: 'Tank' },
+    ],
+    [
+      { name: 'SubLowReserveTHP', power: 99999999, thp: 100, troops: 'Aero' },
+      { name: 'SubHighReserveTHP', power: 100, thp: 900, troops: 'Tank' },
+    ]
+  );
+
+  assert.deepEqual(assigned.map((x) => x.name), ['SubLowReserveTHP', 'SubHighReserveTHP']);
+  assert.deepEqual(assigned.map((x) => x.replacementStarterNames[0]), ['StarterA', 'StarterC']);
+});

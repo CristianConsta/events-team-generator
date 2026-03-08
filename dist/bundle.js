@@ -11208,7 +11208,7 @@
             substitute.replacementStarterNames = substitute.replacementStarters.map((starter) => starter.name);
             substitute.replacementStarterSummary = substitute.replacementStarterNames.join(", ");
           });
-          return sortedSubstitutes;
+          return sortedSubstitutes.sort(comparePlayersForAssignment);
         }
         global2.DSCoreGeneratorAssignment = {
           normalizeAssignmentAlgorithm,
@@ -27445,7 +27445,17 @@
           substitute.replacementStarterNames = substitute.replacementStarters.map((starter) => starter.name);
           substitute.replacementStarterSummary = substitute.replacementStarterNames.join(", ");
         });
-        return orderedSubs;
+        return orderedSubs.sort((a, b) => {
+          const powerDiff = (Number(b.power) || 0) - (Number(a.power) || 0);
+          if (powerDiff !== 0) {
+            return powerDiff;
+          }
+          const thpDiff = (Number(b.thp) || 0) - (Number(a.thp) || 0);
+          if (thpDiff !== 0) {
+            return thpDiff;
+          }
+          return String(a.name || "").localeCompare(String(b.name || ""));
+        });
       }
       function assignTeamToBuildings(players, algorithm) {
         const algorithmId = normalizeAssignmentAlgorithmId(algorithm && algorithm.id) || DEFAULT_ASSIGNMENT_ALGORITHM_ID;

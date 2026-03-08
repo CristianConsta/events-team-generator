@@ -117,7 +117,7 @@
             substitute.replacementStarterSummary = substitute.replacementStarterNames.join(', ');
         });
 
-        return sortedSubstitutes;
+        return sortedSubstitutes.sort(comparePlayersForAssignment);
     }
 
     global.DSCoreGeneratorAssignment = {
