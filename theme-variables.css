@@ -102,6 +102,15 @@
     --ds-event-active-start: rgba(240, 192, 64, 0.95);
     --ds-event-active-end: rgba(200, 150, 30, 0.95);
     --ds-event-active-text: #1a1f32;
+    --ds-shared-invite-btn-text: #3F82D3;
+    --ds-shared-invite-btn-border: rgba(100, 180, 255, 0.48);
+    --ds-shared-invite-btn-bg-start: rgba(100, 180, 255, 0.20);
+    --ds-shared-invite-btn-bg-end: rgba(54, 127, 214, 0.08);
+    --ds-shared-invite-btn-disabled-text: #56667A;
+    --ds-shared-invite-btn-disabled-border: rgba(146, 169, 194, 0.92);
+    --ds-shared-invite-btn-disabled-bg-start: rgba(222, 233, 244, 0.92);
+    --ds-shared-invite-btn-disabled-bg-end: rgba(204, 220, 237, 0.80);
+    --ds-shared-invite-status-text: #6E604A;
     color-scheme: dark;
 }
 
@@ -169,6 +178,15 @@
     --ds-event-active-start: rgba(232, 168, 48, 0.95);
     --ds-event-active-end: rgba(180, 130, 20, 0.95);
     --ds-event-active-text: #0A0800;
+    --ds-shared-invite-btn-text: #6CB8DD;
+    --ds-shared-invite-btn-border: rgba(108, 184, 221, 0.52);
+    --ds-shared-invite-btn-bg-start: rgba(108, 184, 221, 0.18);
+    --ds-shared-invite-btn-bg-end: rgba(36, 80, 104, 0.12);
+    --ds-shared-invite-btn-disabled-text: #A7B29C;
+    --ds-shared-invite-btn-disabled-border: rgba(149, 162, 129, 0.62);
+    --ds-shared-invite-btn-disabled-bg-start: rgba(48, 60, 44, 0.92);
+    --ds-shared-invite-btn-disabled-bg-end: rgba(28, 37, 26, 0.94);
+    --ds-shared-invite-status-text: #B6AA8E;
     color-scheme: dark;
 }
 
@@ -261,6 +279,15 @@
     --ds-event-active-start: rgba(154, 114, 9, 0.95);
     --ds-event-active-end: rgba(122, 90, 0, 0.95);
     --ds-event-active-text: #FFFDF8;
+    --ds-shared-invite-btn-text: #3F82D3;
+    --ds-shared-invite-btn-border: rgba(100, 180, 255, 0.48);
+    --ds-shared-invite-btn-bg-start: rgba(100, 180, 255, 0.20);
+    --ds-shared-invite-btn-bg-end: rgba(54, 127, 214, 0.08);
+    --ds-shared-invite-btn-disabled-text: #56667A;
+    --ds-shared-invite-btn-disabled-border: rgba(146, 169, 194, 0.92);
+    --ds-shared-invite-btn-disabled-bg-start: rgba(222, 233, 244, 0.92);
+    --ds-shared-invite-btn-disabled-bg-end: rgba(204, 220, 237, 0.80);
+    --ds-shared-invite-status-text: #6E604A;
     color-scheme: light;
 }
 

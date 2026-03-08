@@ -122,6 +122,42 @@ body {
     gap: 12px;
 }
 
+.update-shared-search label,
+.update-shared-verify-field label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--ds-text-primary);
+}
+
+.update-shared-search input,
+.update-shared-verify-field select {
+    width: 100%;
+    padding: 14px 12px;
+    background: rgba(18, 20, 24, 0.92);
+    border: 1px solid rgba(201, 175, 120, 0.28);
+    border-radius: 8px;
+    color: rgba(255, 248, 232, 0.96);
+    font-size: 1rem;
+    line-height: 1.35;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    -webkit-appearance: none;
+    appearance: none;
+    caret-color: rgba(255, 248, 232, 0.96);
+}
+
+.update-shared-search input::placeholder,
+.update-shared-verify-field select:invalid {
+    color: rgba(228, 212, 181, 0.62);
+}
+
+.update-shared-search input:focus,
+.update-shared-verify-field select:focus {
+    outline: 2px solid rgba(201, 175, 120, 0.7);
+    outline-offset: 1px;
+    border-color: rgba(201, 175, 120, 0.85);
+    box-shadow: 0 0 0 4px rgba(201, 175, 120, 0.12);
+}
+
 .update-shared-results {
     display: grid;
     gap: 10px;
