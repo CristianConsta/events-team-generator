@@ -76,10 +76,48 @@
 
     function preparePlayersForAssignment(selections, playerDatabase) {
         const mapped = mapSelectionsToPlayers(selections, playerDatabase);
+        const starters = mapped.starters.slice().sort(comparePlayersForAssignment);
+        const substitutes = assignSubstitutesToStarters(starters, mapped.substitutes);
         return {
-            starters: mapped.starters.slice().sort(comparePlayersForAssignment),
-            substitutes: mapped.substitutes.slice().sort(comparePlayersForAssignment),
+            starters: starters,
+            substitutes: substitutes,
         };
+    }
+
+    function assignSubstitutesToStarters(starters, substitutes) {
+        const sortedStarters = Array.isArray(starters) ? starters.slice().sort(comparePlayersForAssignment) : [];
+        const sortedSubstitutes = (Array.isArray(substitutes) ? substitutes : [])
+            .slice()
+            .sort(comparePlayersForAssignment)
+            .map((substitute) => ({
+                name: substitute.name,
+                power: toNumeric(substitute.power),
+                troops: substitute.troops,
+                thp: toNumeric(substitute.thp),
+                replacementStarters: [],
+                replacementStarterNames: [],
+                replacementStarterSummary: '',
+            }));
+
+        sortedStarters.forEach((starter, starterIndex) => {
+            const substituteIndex = Math.floor(starterIndex / 2);
+            if (!sortedSubstitutes[substituteIndex]) {
+                return;
+            }
+            sortedSubstitutes[substituteIndex].replacementStarters.push({
+                name: starter.name,
+                power: toNumeric(starter.power),
+                troops: starter.troops,
+                thp: toNumeric(starter.thp),
+            });
+        });
+
+        sortedSubstitutes.forEach((substitute) => {
+            substitute.replacementStarterNames = substitute.replacementStarters.map((starter) => starter.name);
+            substitute.replacementStarterSummary = substitute.replacementStarterNames.join(', ');
+        });
+
+        return sortedSubstitutes;
     }
 
     global.DSCoreGeneratorAssignment = {
@@ -87,5 +125,6 @@
         comparePlayersForAssignment: comparePlayersForAssignment,
         mapSelectionsToPlayers: mapSelectionsToPlayers,
         preparePlayersForAssignment: preparePlayersForAssignment,
+        assignSubstitutesToStarters: assignSubstitutesToStarters,
     };
 })(window);

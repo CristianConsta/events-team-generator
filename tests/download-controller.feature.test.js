@@ -33,15 +33,31 @@ global.document = {
 global.Image = class { set src(v) { if (this.onerror) this.onerror(); } };
 global.alert = () => {};
 global.FirebaseService = { getActivePlayerDatabase: () => ({}) };
+let lastSheetData = null;
+let lastWriteFileArgs = null;
 global.XLSX = {
-    utils: { book_new: () => ({}), json_to_sheet: () => ({}), book_append_sheet: () => {} },
-    writeFile: () => {},
+    utils: {
+        book_new: () => ({}),
+        json_to_sheet: (data) => {
+            lastSheetData = data;
+            return {};
+        },
+        book_append_sheet: () => {},
+    },
+    writeFile: (workbook, fileName) => {
+        lastWriteFileArgs = { workbook, fileName };
+    },
 };
 
 // Load the module
 require('../js/features/generator/download-controller.js');
 
 describe('DSDownloadController', () => {
+    beforeEach(() => {
+        lastSheetData = null;
+        lastWriteFileArgs = null;
+    });
+
     it('exports all expected methods', () => {
         const ctrl = global.DSDownloadController;
         assert.ok(ctrl, 'DSDownloadController should be defined');
@@ -162,6 +178,41 @@ describe('DSDownloadController', () => {
         };
         await global.DSDownloadController.downloadTeamMap('B', deps);
         assert.ok(alertCalled);
+    });
+
+    it('downloadTeamExcel appends substitutes with replaced starters column', async () => {
+        const deps = {
+            ensureXLSXLoaded: async () => {},
+            t: (key) => key,
+            showMessage: () => {},
+            getAssignmentsA: () => [
+                { building: 'HQ', priority: 1, player: 'Alice' },
+            ],
+            getAssignmentsB: () => [],
+            getSubstitutesA: () => [
+                { name: 'ReserveOne', replacementStarterNames: ['Alice', 'Bob'] },
+            ],
+            getSubstitutesB: () => [],
+            getActiveEvent: () => ({ excelPrefix: 'desert_storm' }),
+        };
+
+        await global.DSDownloadController.downloadTeamExcel('A', deps);
+
+        assert.ok(Array.isArray(lastSheetData), 'Excel sheet data should be captured');
+        assert.equal(lastSheetData.length, 2);
+        assert.deepEqual(lastSheetData[0], {
+            excel_header_building: 'HQ',
+            excel_header_priority: 1,
+            excel_header_player: 'Alice',
+            excel_header_replaces: '',
+        });
+        assert.deepEqual(lastSheetData[1], {
+            excel_header_building: 'excel_substitute_building',
+            excel_header_priority: '',
+            excel_header_player: 'ReserveOne',
+            excel_header_replaces: 'Alice, Bob',
+        });
+        assert.equal(lastWriteFileArgs.fileName, 'desert_storm_team_A_assignments.xlsx');
     });
 
     it('fitCanvasHeaderText returns original text when maxWidth is non-finite', () => {

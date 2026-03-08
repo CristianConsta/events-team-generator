@@ -4833,7 +4833,7 @@ function generateTeamAssignments(team) {
                 .sort((a, b) => Number(b.power || 0) - Number(a.power || 0)),
         };
     const starterPlayers = prepared.starters;
-    const substitutePlayers = prepared.substitutes;
+    const substitutePlayers = attachSubstituteCoverage(starterPlayers, prepared.substitutes);
 
     const algorithmSelection = resolveCurrentEventAssignmentSelection(activeGameId);
     if (!algorithmSelection || !algorithmSelection.success) {
@@ -4888,6 +4888,45 @@ function generateTeamAssignments(team) {
     openDownloadModal(team);
 
     console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes using ${algorithmSelection.algorithmId}`);
+}
+
+function attachSubstituteCoverage(starters, substitutes) {
+    const assignmentCore = window.DSCoreGeneratorAssignment;
+    if (assignmentCore && typeof assignmentCore.assignSubstitutesToStarters === 'function') {
+        return assignmentCore.assignSubstitutesToStarters(starters, substitutes);
+    }
+
+    const orderedSubs = Array.isArray(substitutes)
+        ? substitutes.map((substitute) => ({
+            name: substitute.name,
+            power: Number(substitute.power) || 0,
+            troops: substitute.troops,
+            thp: Number(substitute.thp) || 0,
+            replacementStarters: [],
+            replacementStarterNames: [],
+            replacementStarterSummary: '',
+        }))
+        : [];
+
+    (Array.isArray(starters) ? starters : []).forEach((starter, starterIndex) => {
+        const substituteIndex = Math.floor(starterIndex / 2);
+        if (!orderedSubs[substituteIndex]) {
+            return;
+        }
+        orderedSubs[substituteIndex].replacementStarters.push({
+            name: starter.name,
+            power: Number(starter.power) || 0,
+            troops: starter.troops,
+            thp: Number(starter.thp) || 0,
+        });
+    });
+
+    orderedSubs.forEach((substitute) => {
+        substitute.replacementStarterNames = substitute.replacementStarters.map((starter) => starter.name);
+        substitute.replacementStarterSummary = substitute.replacementStarterNames.join(', ');
+    });
+
+    return orderedSubs;
 }
 
 function assignTeamToBuildings(players, algorithm) {

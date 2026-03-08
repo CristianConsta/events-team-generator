@@ -1,6 +1,13 @@
 (function initDownloadController(global) {
     'use strict';
 
+    function getTeamSubstitutes(team, deps) {
+        if (team === 'A') {
+            return deps && typeof deps.getSubstitutesA === 'function' ? deps.getSubstitutesA() : [];
+        }
+        return deps && typeof deps.getSubstitutesB === 'function' ? deps.getSubstitutesB() : [];
+    }
+
     // ============================================================
     // DOWNLOAD MODAL
     // ============================================================
@@ -73,18 +80,33 @@
 
         var wb = XLSX.utils.book_new();
         var assignments = team === 'A' ? deps.getAssignmentsA() : deps.getAssignmentsB();
+        var substitutes = getTeamSubstitutes(team, deps);
 
         if (assignments.length === 0) {
             alert(deps.t('alert_no_assignments', { team: team }));
             return;
         }
 
+        var buildingHeader = deps.t('excel_header_building');
+        var priorityHeader = deps.t('excel_header_priority');
+        var playerHeader = deps.t('excel_header_player');
+        var replacesHeader = deps.t('excel_header_replaces');
         var data = assignments.map(function (a) {
             var row = {};
-            row[deps.t('excel_header_building')] = a.building;
-            row[deps.t('excel_header_priority')] = a.priority;
-            row[deps.t('excel_header_player')] = a.player;
+            row[buildingHeader] = a.building;
+            row[priorityHeader] = a.priority;
+            row[playerHeader] = a.player;
+            row[replacesHeader] = '';
             return row;
+        });
+
+        substitutes.forEach(function (substitute) {
+            var row = {};
+            row[buildingHeader] = deps.t('excel_substitute_building');
+            row[priorityHeader] = '';
+            row[playerHeader] = substitute && substitute.name ? substitute.name : '';
+            row[replacesHeader] = formatSubstituteReplacementSummary(substitute);
+            data.push(row);
         });
 
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), deps.t('excel_sheet_name', { team: team }));
@@ -180,6 +202,30 @@
         return output + '...';
     }
 
+    function getSubstituteReplacementNames(substitute) {
+        if (!substitute || typeof substitute !== 'object') {
+            return [];
+        }
+
+        if (Array.isArray(substitute.replacementStarterNames)) {
+            return substitute.replacementStarterNames.filter(Boolean);
+        }
+
+        if (Array.isArray(substitute.replacementStarters)) {
+            return substitute.replacementStarters
+                .map(function (starter) {
+                    return starter && starter.name ? starter.name : '';
+                })
+                .filter(Boolean);
+        }
+
+        return [];
+    }
+
+    function formatSubstituteReplacementSummary(substitute) {
+        return getSubstituteReplacementNames(substitute).join(', ');
+    }
+
     function drawGeneratedMapHeader(ctx, options) {
         var cfg = options && typeof options === 'object' ? options : {};
         var totalWidth = Number(cfg.totalWidth) || DEFAULT_MAP_CANVAS_WIDTH;
@@ -250,6 +296,7 @@
 
     async function generateMapWithoutBackground(team, assignments, statusId, deps) {
         var MAP_CANVAS_WIDTH = deps.MAP_CANVAS_WIDTH;
+        var substitutes = getTeamSubstitutes(team, deps);
         deps.showMessage(statusId, deps.t('message_generating_map_no_bg', { team: team }), 'processing');
 
         try {
@@ -295,7 +342,7 @@
 
             var canvas = document.createElement('canvas');
             canvas.width = MAP_CANVAS_WIDTH;
-            canvas.height = 800;
+            canvas.height = Math.max(800, 190 + (assignments.length * 30) + (substitutes.length > 0 ? 50 + (substitutes.length * 26) : 0));
             var ctx = canvas.getContext('2d');
 
             ctx.fillStyle = team === 'A' ? '#E8F4FF' : '#FFE8E8';
@@ -322,6 +369,22 @@
                     y += 30;
                 }
             });
+
+            if (substitutes.length > 0) {
+                y += 20;
+                ctx.font = 'bold 18px Arial';
+                ctx.fillStyle = '#1F2937';
+                ctx.fillText(deps.t('map_substitutes_title'), 50, y);
+                y += 28;
+                ctx.font = '14px Arial';
+                ctx.fillStyle = '#374151';
+                substitutes.forEach(function (substitute, index) {
+                    var replacementSummary = formatSubstituteReplacementSummary(substitute);
+                    var suffix = replacementSummary ? ' \u2192 ' + replacementSummary : '';
+                    ctx.fillText('R' + String(index + 1) + '. ' + substitute.name + suffix, 50, y);
+                    y += 26;
+                });
+            }
 
             var dataURL = canvas.toDataURL('image/png');
             var anchor = document.createElement('a');
@@ -396,7 +459,7 @@
                 .filter(Boolean);
             var unmappedPlayers = unmappedGroups.flatMap(function (group) { return group.players; });
 
-            var substitutes = team === 'A' ? deps.getSubstitutesA() : deps.getSubstitutesB();
+            var substitutes = getTeamSubstitutes(team, deps);
 
             var titleHeight = 100;
             var unmappedHeight = 280;
@@ -408,7 +471,7 @@
             var mapHeight = Math.max(1, Math.floor(activeMapImage.height * (MAP_CANVAS_WIDTH / activeMapImage.width)));
             var totalHeight = titleHeight + mapHeight + unmappedHeight;
 
-            var subsPanelWidth = substitutes.length > 0 ? 260 : 0;
+            var subsPanelWidth = substitutes.length > 0 ? 360 : 0;
             var totalWidth = MAP_CANVAS_WIDTH + subsPanelWidth;
 
             var canvas = document.createElement('canvas');
@@ -878,8 +941,8 @@
                 ctx.fillText('\u265E ' + deps.t('map_substitutes_subtitle'), spX + 42, spY + 50);
 
                 var rowStartY = spY + subsHeaderH + 14;
-                var rowHeight = 28;
-                var rowGap = 8;
+                var rowHeight = 60;
+                var rowGap = 10;
                 var availableRowsHeight = spHeight - (rowStartY - spY) - 18;
                 var rowsPerColumn = Math.max(1, Math.floor(availableRowsHeight / (rowHeight + rowGap)));
                 var useTwoCols = substitutes.length > rowsPerColumn;
@@ -898,7 +961,14 @@
                     var reserveTag = 'R' + String(index + 1);
                     var troopValue = sub.troops || (activePlayerDB[sub.name] && activePlayerDB[sub.name].troops);
                     var troopKind = getTroopKind(troopValue);
-                    var subName = fitText(sub.name, rowWidth - 70, 'bold 12px Arial');
+                    var subName = fitText(sub.name, rowWidth - 78, 'bold 12px Arial');
+                    var replacementNames = getSubstituteReplacementNames(sub);
+                    var replacementLineOne = replacementNames[0]
+                        ? fitText('1. ' + replacementNames[0], rowWidth - 54, 'bold 10px Arial')
+                        : '-';
+                    var replacementLineTwo = replacementNames[1]
+                        ? fitText('2. ' + replacementNames[1], rowWidth - 54, 'bold 10px Arial')
+                        : '';
 
                     ctx.fillStyle = 'rgba(255,255,255,0.92)';
                     ctx.beginPath();
@@ -922,12 +992,24 @@
                     ctx.font = 'bold 12px Arial';
                     ctx.fillStyle = '#1B2230';
                     ctx.textAlign = 'left';
-                    ctx.fillText(subName, rowX + 36, rowY + rowHeight / 2 + 0.5);
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(subName, rowX + 36, rowY + 14);
+
+                    ctx.font = '10px Arial';
+                    ctx.fillStyle = 'rgba(27,34,48,0.72)';
+                    ctx.fillText(deps.t('map_substitutes_replaces_label'), rowX + 36, rowY + 29);
+
+                    ctx.font = 'bold 10px Arial';
+                    ctx.fillStyle = '#1B2230';
+                    ctx.fillText(replacementLineOne, rowX + 36, rowY + 42);
+                    if (replacementLineTwo) {
+                        ctx.fillText(replacementLineTwo, rowX + 36, rowY + 53);
+                    }
 
                     var bW = 18;
                     var bH = 16;
                     var bX = rowX + rowWidth - bW - 6;
-                    var bY = rowY + ((rowHeight - bH) / 2);
+                    var bY = rowY + 8;
                     var iColor = troopKind === 'unknown' ? '#8A6400' : teamPrimary;
                     var iCx = bX + (bW / 2);
                     var iCy = bY + (bH / 2) + 0.3;
@@ -955,7 +1037,7 @@
             ctx.font = '12px Arial';
             ctx.fillStyle = 'rgba(90,90,90,0.95)';
             ctx.textAlign = 'center';
-            ctx.fillText(deps.t('map_footer_text'), 540, totalHeight - 14);
+            ctx.fillText(deps.t('map_footer_text'), totalWidth / 2, totalHeight - 14);
 
             var dataURL = canvas.toDataURL('image/png');
             var anchor = document.createElement('a');
@@ -981,6 +1063,8 @@
         getActiveEventAvatarDataUrl: getActiveEventAvatarDataUrl,
         loadActiveEventAvatarForHeader: loadActiveEventAvatarForHeader,
         fitCanvasHeaderText: fitCanvasHeaderText,
+        getSubstituteReplacementNames: getSubstituteReplacementNames,
+        formatSubstituteReplacementSummary: formatSubstituteReplacementSummary,
         drawGeneratedMapHeader: drawGeneratedMapHeader,
         generateMapWithoutBackground: generateMapWithoutBackground,
         generateMap: generateMap,

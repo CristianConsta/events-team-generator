@@ -7224,6 +7224,8 @@
           excel_header_building: "Building",
           excel_header_priority: "Priority",
           excel_header_player: "Player",
+          excel_header_replaces: "Replaces",
+          excel_substitute_building: "Substitute",
           excel_sheet_name: "Team {team}",
           select_teams_title: "Select Teams",
           assignment_algorithm_label: "Assignment Algorithm",
@@ -7325,6 +7327,7 @@
           alert_max_starters: "Maximum 20 starters per team! Currently: {count}",
           map_substitutes_title: "BACKUP FORCE",
           map_substitutes_subtitle: "(Bench)",
+          map_substitutes_replaces_label: "Replaces",
           map_unmapped_title: "UNMAPPED BUILDINGS",
           map_unmapped_count_suffix: "PLAYERS",
           onboarding_step: "Step {current} of {total}",
@@ -7789,6 +7792,8 @@
           excel_header_building: "B\xE2timent",
           excel_header_priority: "Priorit\xE9",
           excel_header_player: "Joueur",
+          excel_header_replaces: "Remplace",
+          excel_substitute_building: "Rempla\xE7ant",
           excel_sheet_name: "\xC9quipe {team}",
           select_teams_title: "S\xE9lectionner les \xE9quipes",
           assignment_algorithm_label: "Algorithme d'assignation",
@@ -7890,6 +7895,7 @@
           alert_max_starters: "Maximum 20 titulaires par \xE9quipe ! Actuellement : {count}",
           map_substitutes_title: "REMPLA\xC7ANTS",
           map_substitutes_subtitle: "(Banc)",
+          map_substitutes_replaces_label: "Remplace",
           map_unmapped_title: "BATIMENTS HORS CARTE",
           map_unmapped_count_suffix: "JOUEURS",
           onboarding_step: "\xC9tape {current} sur {total}",
@@ -8354,6 +8360,8 @@
           excel_header_building: "Geb\xE4ude",
           excel_header_priority: "Priorit\xE4t",
           excel_header_player: "Spieler",
+          excel_header_replaces: "Ersetzt",
+          excel_substitute_building: "Ersatz",
           excel_sheet_name: "Team {team}",
           select_teams_title: "Teams ausw\xE4hlen",
           assignment_algorithm_label: "Zuweisungsalgorithmus",
@@ -8455,6 +8463,7 @@
           alert_max_starters: "Maximum 20 Stammspieler pro Team! Aktuell: {count}",
           map_substitutes_title: "ERSATZSPIELER",
           map_substitutes_subtitle: "(Bank)",
+          map_substitutes_replaces_label: "Ersetzt",
           map_unmapped_title: "GEBAEUDE OHNE KARTE",
           map_unmapped_count_suffix: "SPIELER",
           onboarding_step: "Schritt {current} von {total}",
@@ -8919,6 +8928,8 @@
           excel_header_building: "Edificio",
           excel_header_priority: "Priorit\xE0",
           excel_header_player: "Giocatore",
+          excel_header_replaces: "Sostituisce",
+          excel_substitute_building: "Riserva",
           excel_sheet_name: "Squadra {team}",
           select_teams_title: "Seleziona squadre",
           assignment_algorithm_label: "Algoritmo di assegnazione",
@@ -9020,6 +9031,7 @@
           alert_max_starters: "Massimo 20 titolari per team! Attualmente: {count}",
           map_substitutes_title: "RISERVE",
           map_substitutes_subtitle: "(Panchina)",
+          map_substitutes_replaces_label: "Sostituisce",
           map_unmapped_title: "EDIFICI SENZA MAPPA",
           map_unmapped_count_suffix: "GIOCATORI",
           onboarding_step: "Passo {current} di {total}",
@@ -9484,6 +9496,8 @@
           excel_header_building: "\uAC74\uBB3C",
           excel_header_priority: "\uC6B0\uC120\uC21C\uC704",
           excel_header_player: "\uD50C\uB808\uC774\uC5B4",
+          excel_header_replaces: "\uAD50\uCCB4 \uB300\uC0C1",
+          excel_substitute_building: "\uAD50\uCCB4",
           excel_sheet_name: "\uD300 {team}",
           select_teams_title: "\uD300 \uC120\uD0DD",
           assignment_algorithm_label: "\uBC30\uCE58 \uC54C\uACE0\uB9AC\uC998",
@@ -9585,6 +9599,7 @@
           alert_max_starters: "\uD300\uB2F9 \uCD5C\uB300 20\uBA85\uC758 \uC8FC\uC804! \uD604\uC7AC: {count}",
           map_substitutes_title: "\uAD50\uCCB4 \uC120\uC218",
           map_substitutes_subtitle: "(\uBCA4\uCE58)",
+          map_substitutes_replaces_label: "\uAD50\uCCB4 \uB300\uC0C1",
           map_unmapped_title: "\uC9C0\uB3C4 \uBC16 \uAC74\uBB3C",
           map_unmapped_count_suffix: "\uD50C\uB808\uC774\uC5B4",
           onboarding_step: "{current}\uB2E8\uACC4 / {total}\uB2E8\uACC4",
@@ -10049,6 +10064,8 @@
           excel_header_building: "Cl\u0103dire",
           excel_header_priority: "Prioritate",
           excel_header_player: "Juc\u0103tor",
+          excel_header_replaces: "\xCEnlocuie\u0219te",
+          excel_substitute_building: "Rezerv\u0103",
           excel_sheet_name: "Echipa {team}",
           select_teams_title: "Selecteaz\u0103 echipele",
           assignment_algorithm_label: "Algoritm de alocare",
@@ -10150,6 +10167,7 @@
           alert_max_starters: "Maxim 20 de titulari per echip\u0103! \xCEn prezent: {count}",
           map_substitutes_title: "REZERVE",
           map_substitutes_subtitle: "(Banc\u0103)",
+          map_substitutes_replaces_label: "\xCEnlocuie\u0219te",
           map_unmapped_title: "CLADIRI FARA HARTA",
           map_unmapped_count_suffix: "JUCATORI",
           onboarding_step: "Pasul {current} din {total}",
@@ -11156,16 +11174,48 @@
         }
         function preparePlayersForAssignment(selections, playerDatabase) {
           const mapped = mapSelectionsToPlayers(selections, playerDatabase);
+          const starters = mapped.starters.slice().sort(comparePlayersForAssignment);
+          const substitutes = assignSubstitutesToStarters(starters, mapped.substitutes);
           return {
-            starters: mapped.starters.slice().sort(comparePlayersForAssignment),
-            substitutes: mapped.substitutes.slice().sort(comparePlayersForAssignment)
+            starters,
+            substitutes
           };
+        }
+        function assignSubstitutesToStarters(starters, substitutes) {
+          const sortedStarters = Array.isArray(starters) ? starters.slice().sort(comparePlayersForAssignment) : [];
+          const sortedSubstitutes = (Array.isArray(substitutes) ? substitutes : []).slice().sort(comparePlayersForAssignment).map((substitute) => ({
+            name: substitute.name,
+            power: toNumeric(substitute.power),
+            troops: substitute.troops,
+            thp: toNumeric(substitute.thp),
+            replacementStarters: [],
+            replacementStarterNames: [],
+            replacementStarterSummary: ""
+          }));
+          sortedStarters.forEach((starter, starterIndex) => {
+            const substituteIndex = Math.floor(starterIndex / 2);
+            if (!sortedSubstitutes[substituteIndex]) {
+              return;
+            }
+            sortedSubstitutes[substituteIndex].replacementStarters.push({
+              name: starter.name,
+              power: toNumeric(starter.power),
+              troops: starter.troops,
+              thp: toNumeric(starter.thp)
+            });
+          });
+          sortedSubstitutes.forEach((substitute) => {
+            substitute.replacementStarterNames = substitute.replacementStarters.map((starter) => starter.name);
+            substitute.replacementStarterSummary = substitute.replacementStarterNames.join(", ");
+          });
+          return sortedSubstitutes;
         }
         global2.DSCoreGeneratorAssignment = {
           normalizeAssignmentAlgorithm,
           comparePlayersForAssignment,
           mapSelectionsToPlayers,
-          preparePlayersForAssignment
+          preparePlayersForAssignment,
+          assignSubstitutesToStarters
         };
       })(window);
     }
@@ -12104,6 +12154,12 @@
     "js/features/generator/download-controller.js"() {
       (function initDownloadController(global2) {
         "use strict";
+        function getTeamSubstitutes(team, deps) {
+          if (team === "A") {
+            return deps && typeof deps.getSubstitutesA === "function" ? deps.getSubstitutesA() : [];
+          }
+          return deps && typeof deps.getSubstitutesB === "function" ? deps.getSubstitutesB() : [];
+        }
         function openDownloadModal(team, deps) {
           var isA = team === "A";
           deps.setActiveDownloadTeam(team);
@@ -12167,16 +12223,30 @@
           }
           var wb = XLSX.utils.book_new();
           var assignments = team === "A" ? deps.getAssignmentsA() : deps.getAssignmentsB();
+          var substitutes = getTeamSubstitutes(team, deps);
           if (assignments.length === 0) {
             alert(deps.t("alert_no_assignments", { team }));
             return;
           }
+          var buildingHeader = deps.t("excel_header_building");
+          var priorityHeader = deps.t("excel_header_priority");
+          var playerHeader = deps.t("excel_header_player");
+          var replacesHeader = deps.t("excel_header_replaces");
           var data = assignments.map(function(a) {
             var row = {};
-            row[deps.t("excel_header_building")] = a.building;
-            row[deps.t("excel_header_priority")] = a.priority;
-            row[deps.t("excel_header_player")] = a.player;
+            row[buildingHeader] = a.building;
+            row[priorityHeader] = a.priority;
+            row[playerHeader] = a.player;
+            row[replacesHeader] = "";
             return row;
+          });
+          substitutes.forEach(function(substitute) {
+            var row = {};
+            row[buildingHeader] = deps.t("excel_substitute_building");
+            row[priorityHeader] = "";
+            row[playerHeader] = substitute && substitute.name ? substitute.name : "";
+            row[replacesHeader] = formatSubstituteReplacementSummary(substitute);
+            data.push(row);
           });
           XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), deps.t("excel_sheet_name", { team }));
           XLSX.writeFile(wb, deps.getActiveEvent().excelPrefix + "_team_" + team + "_assignments.xlsx");
@@ -12265,6 +12335,23 @@
           ctx.restore();
           return output + "...";
         }
+        function getSubstituteReplacementNames(substitute) {
+          if (!substitute || typeof substitute !== "object") {
+            return [];
+          }
+          if (Array.isArray(substitute.replacementStarterNames)) {
+            return substitute.replacementStarterNames.filter(Boolean);
+          }
+          if (Array.isArray(substitute.replacementStarters)) {
+            return substitute.replacementStarters.map(function(starter) {
+              return starter && starter.name ? starter.name : "";
+            }).filter(Boolean);
+          }
+          return [];
+        }
+        function formatSubstituteReplacementSummary(substitute) {
+          return getSubstituteReplacementNames(substitute).join(", ");
+        }
         function drawGeneratedMapHeader(ctx, options) {
           var cfg = options && typeof options === "object" ? options : {};
           var totalWidth = Number(cfg.totalWidth) || DEFAULT_MAP_CANVAS_WIDTH;
@@ -12324,6 +12411,7 @@
         var DEFAULT_MAP_CANVAS_WIDTH = 1080;
         async function generateMapWithoutBackground(team, assignments, statusId, deps) {
           var MAP_CANVAS_WIDTH = deps.MAP_CANVAS_WIDTH;
+          var substitutes = getTeamSubstitutes(team, deps);
           deps.showMessage(statusId, deps.t("message_generating_map_no_bg", { team }), "processing");
           try {
             var headerAvatar = await loadActiveEventAvatarForHeader(deps);
@@ -12367,7 +12455,7 @@
             }).filter(Boolean);
             var canvas = document.createElement("canvas");
             canvas.width = MAP_CANVAS_WIDTH;
-            canvas.height = 800;
+            canvas.height = Math.max(800, 190 + assignments.length * 30 + (substitutes.length > 0 ? 50 + substitutes.length * 26 : 0));
             var ctx = canvas.getContext("2d");
             ctx.fillStyle = team === "A" ? "#E8F4FF" : "#FFE8E8";
             ctx.fillRect(0, 0, MAP_CANVAS_WIDTH, 800);
@@ -12390,6 +12478,21 @@
                 y += 30;
               }
             });
+            if (substitutes.length > 0) {
+              y += 20;
+              ctx.font = "bold 18px Arial";
+              ctx.fillStyle = "#1F2937";
+              ctx.fillText(deps.t("map_substitutes_title"), 50, y);
+              y += 28;
+              ctx.font = "14px Arial";
+              ctx.fillStyle = "#374151";
+              substitutes.forEach(function(substitute, index) {
+                var replacementSummary = formatSubstituteReplacementSummary(substitute);
+                var suffix = replacementSummary ? " \u2192 " + replacementSummary : "";
+                ctx.fillText("R" + String(index + 1) + ". " + substitute.name + suffix, 50, y);
+                y += 26;
+              });
+            }
             var dataURL = canvas.toDataURL("image/png");
             var anchor = document.createElement("a");
             anchor.href = dataURL;
@@ -12599,7 +12702,7 @@
             var unmappedPlayers = unmappedGroups.flatMap(function(group) {
               return group.players;
             });
-            var substitutes = team === "A" ? deps.getSubstitutesA() : deps.getSubstitutesB();
+            var substitutes = getTeamSubstitutes(team, deps);
             var titleHeight = 100;
             var unmappedHeight = 280;
             var exportMapState = deps.getMapRuntimeState(currentEvent, deps.MAP_EXPORT);
@@ -12609,7 +12712,7 @@
             }
             var mapHeight = Math.max(1, Math.floor(activeMapImage.height * (MAP_CANVAS_WIDTH / activeMapImage.width)));
             var totalHeight = titleHeight + mapHeight + unmappedHeight;
-            var subsPanelWidth = substitutes.length > 0 ? 260 : 0;
+            var subsPanelWidth = substitutes.length > 0 ? 360 : 0;
             var totalWidth = MAP_CANVAS_WIDTH + subsPanelWidth;
             var canvas = document.createElement("canvas");
             canvas.width = totalWidth;
@@ -12879,8 +12982,8 @@
               ctx.fillStyle = "rgba(255,255,255,0.72)";
               ctx.fillText("\u265E " + deps.t("map_substitutes_subtitle"), spX + 42, spY + 50);
               var rowStartY = spY + subsHeaderH + 14;
-              var rowHeight = 28;
-              var rowGap = 8;
+              var rowHeight = 60;
+              var rowGap = 10;
               var availableRowsHeight = spHeight - (rowStartY - spY) - 18;
               var rowsPerColumn = Math.max(1, Math.floor(availableRowsHeight / (rowHeight + rowGap)));
               var useTwoCols = substitutes.length > rowsPerColumn;
@@ -12898,7 +13001,10 @@
                 var reserveTag = "R" + String(index + 1);
                 var troopValue = sub.troops || activePlayerDB[sub.name] && activePlayerDB[sub.name].troops;
                 var troopKind = getTroopKind(troopValue);
-                var subName = fitText(sub.name, rowWidth - 70, "bold 12px Arial");
+                var subName = fitText(sub.name, rowWidth - 78, "bold 12px Arial");
+                var replacementNames = getSubstituteReplacementNames(sub);
+                var replacementLineOne = replacementNames[0] ? fitText("1. " + replacementNames[0], rowWidth - 54, "bold 10px Arial") : "-";
+                var replacementLineTwo = replacementNames[1] ? fitText("2. " + replacementNames[1], rowWidth - 54, "bold 10px Arial") : "";
                 ctx.fillStyle = "rgba(255,255,255,0.92)";
                 ctx.beginPath();
                 ctx.roundRect(rowX, rowY, rowWidth, rowHeight, 7);
@@ -12918,11 +13024,21 @@
                 ctx.font = "bold 12px Arial";
                 ctx.fillStyle = "#1B2230";
                 ctx.textAlign = "left";
-                ctx.fillText(subName, rowX + 36, rowY + rowHeight / 2 + 0.5);
+                ctx.textBaseline = "middle";
+                ctx.fillText(subName, rowX + 36, rowY + 14);
+                ctx.font = "10px Arial";
+                ctx.fillStyle = "rgba(27,34,48,0.72)";
+                ctx.fillText(deps.t("map_substitutes_replaces_label"), rowX + 36, rowY + 29);
+                ctx.font = "bold 10px Arial";
+                ctx.fillStyle = "#1B2230";
+                ctx.fillText(replacementLineOne, rowX + 36, rowY + 42);
+                if (replacementLineTwo) {
+                  ctx.fillText(replacementLineTwo, rowX + 36, rowY + 53);
+                }
                 var bW = 18;
                 var bH = 16;
                 var bX = rowX + rowWidth - bW - 6;
-                var bY = rowY + (rowHeight - bH) / 2;
+                var bY = rowY + 8;
                 var iColor = troopKind === "unknown" ? "#8A6400" : teamPrimary;
                 var iCx = bX + bW / 2;
                 var iCy = bY + bH / 2 + 0.3;
@@ -12947,7 +13063,7 @@
             ctx.font = "12px Arial";
             ctx.fillStyle = "rgba(90,90,90,0.95)";
             ctx.textAlign = "center";
-            ctx.fillText(deps.t("map_footer_text"), 540, totalHeight - 14);
+            ctx.fillText(deps.t("map_footer_text"), totalWidth / 2, totalHeight - 14);
             var dataURL = canvas.toDataURL("image/png");
             var anchor = document.createElement("a");
             anchor.href = dataURL;
@@ -12970,6 +13086,8 @@
           getActiveEventAvatarDataUrl,
           loadActiveEventAvatarForHeader,
           fitCanvasHeaderText,
+          getSubstituteReplacementNames,
+          formatSubstituteReplacementSummary,
           drawGeneratedMapHeader,
           generateMapWithoutBackground,
           generateMap
@@ -27249,7 +27367,7 @@
           })).sort((a, b) => Number(b.power || 0) - Number(a.power || 0))
         };
         const starterPlayers = prepared.starters;
-        const substitutePlayers = prepared.substitutes;
+        const substitutePlayers = attachSubstituteCoverage(starterPlayers, prepared.substitutes);
         const algorithmSelection = resolveCurrentEventAssignmentSelection(activeGameId);
         if (!algorithmSelection || !algorithmSelection.success) {
           const errorCode = algorithmSelection && algorithmSelection.error ? algorithmSelection.error : "unknown-assignment-algorithm";
@@ -27296,6 +27414,38 @@
         }
         openDownloadModal(team);
         console.log(`Team ${team} assignments generated for ${starters.length} starters, ${substitutes.length} substitutes using ${algorithmSelection.algorithmId}`);
+      }
+      function attachSubstituteCoverage(starters, substitutes) {
+        const assignmentCore = window.DSCoreGeneratorAssignment;
+        if (assignmentCore && typeof assignmentCore.assignSubstitutesToStarters === "function") {
+          return assignmentCore.assignSubstitutesToStarters(starters, substitutes);
+        }
+        const orderedSubs = Array.isArray(substitutes) ? substitutes.map((substitute) => ({
+          name: substitute.name,
+          power: Number(substitute.power) || 0,
+          troops: substitute.troops,
+          thp: Number(substitute.thp) || 0,
+          replacementStarters: [],
+          replacementStarterNames: [],
+          replacementStarterSummary: ""
+        })) : [];
+        (Array.isArray(starters) ? starters : []).forEach((starter, starterIndex) => {
+          const substituteIndex = Math.floor(starterIndex / 2);
+          if (!orderedSubs[substituteIndex]) {
+            return;
+          }
+          orderedSubs[substituteIndex].replacementStarters.push({
+            name: starter.name,
+            power: Number(starter.power) || 0,
+            troops: starter.troops,
+            thp: Number(starter.thp) || 0
+          });
+        });
+        orderedSubs.forEach((substitute) => {
+          substitute.replacementStarterNames = substitute.replacementStarters.map((starter) => starter.name);
+          substitute.replacementStarterSummary = substitute.replacementStarterNames.join(", ");
+        });
+        return orderedSubs;
       }
       function assignTeamToBuildings(players, algorithm) {
         const algorithmId = normalizeAssignmentAlgorithmId(algorithm && algorithm.id) || DEFAULT_ASSIGNMENT_ALGORITHM_ID;
