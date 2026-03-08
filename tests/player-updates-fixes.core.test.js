@@ -557,10 +557,15 @@ test('renderComparisonRow: approve success triggers refreshPlayerUpdatesPanel', 
     assert.equal(refreshCalled, true);
 });
 
-test('renderComparisonRow: edited proposed value is passed to approveUpdate', async () => {
+test('renderComparisonRow: edited proposed value is persisted before approveUpdate', async () => {
     loadView();
+    var capturedSavedValues = null;
     var capturedReviewedValues = null;
     global.DSFeaturePlayerUpdatesController = {
+        saveReviewedProposedValues: async function (updateId, reviewedValues) {
+            capturedSavedValues = reviewedValues;
+            return { ok: true, reviewedProposedValues: reviewedValues };
+        },
         approveUpdate: async function (updateId, reviewedValues) {
             capturedReviewedValues = reviewedValues;
             return { ok: true };
@@ -594,12 +599,14 @@ test('renderComparisonRow: edited proposed value is passed to approveUpdate', as
     assert.ok(editor, 'Power editor should be rendered after clicking edit');
     editor.value = '70';
     saveBtn._listeners.click();
+    await new Promise(function (resolve) { setTimeout(resolve, 0); });
 
     var decisionGroup = row && row.children && row.children[2];
     var approveBtn = decisionGroup && decisionGroup.children && decisionGroup.children[0];
     approveBtn._listeners.click();
     await new Promise(function (resolve) { setTimeout(resolve, 0); });
 
+    assert.deepEqual(capturedSavedValues, { power: 70, thp: 197.5, troops: 'Tank' });
     assert.deepEqual(capturedReviewedValues, { power: 70, thp: 197.5, troops: 'Tank' });
 });
 

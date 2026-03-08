@@ -18,6 +18,7 @@
             destroy: destroy,
             subscribeBadge: subscribeBadge,
             setPendingUpdateDocs: setPendingUpdateDocs,
+            saveReviewedProposedValues: saveReviewedProposedValues,
             approveUpdate: approveUpdate,
             rejectUpdate: rejectUpdate,
             revokeToken: revokeToken,
@@ -483,6 +484,47 @@
         return _doApprove(updateId, update, allianceId, target, reviewedValues);
     }
 
+    function saveReviewedProposedValues(updateId, reviewedValues) {
+        if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
+
+        var update = _pendingUpdateDocs[updateId];
+        if (!update) return Promise.resolve({ ok: false, error: 'update not found' });
+
+        var proposedResolution = _resolveReviewedProposedValues(update, reviewedValues);
+        if (!proposedResolution.ok) {
+            return Promise.resolve({ ok: false, error: proposedResolution.error, details: proposedResolution.details });
+        }
+
+        var allianceId = _gateway.getAllianceId
+            ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : undefined)
+            : null;
+        if (!allianceId && update && update.contextType === 'alliance') {
+            allianceId = update.allianceId || null;
+        }
+
+        var decision = {
+            reviewedProposedValues: proposedResolution.effective,
+        };
+        var persistPromise = update.contextType === 'personal'
+            ? _gateway.updatePersonalPendingUpdateStatus(update.ownerUid, updateId, decision, update.gameId || null)
+            : _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null);
+
+        return Promise.resolve(persistPromise)
+            .then(function(result) {
+                if (result && (result.ok === false || result.success === false)) {
+                    return result;
+                }
+                update.reviewedProposedValues = proposedResolution.effective;
+                return Object.assign({}, result || {}, {
+                    ok: true,
+                    reviewedProposedValues: proposedResolution.effective,
+                });
+            })
+            .catch(function(err) {
+                return { ok: false, error: err && err.message };
+            });
+    }
+
     // Reject a pending update — only updates status, no data changes.
     function rejectUpdate(updateId, reviewedValues) {
         if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: 'not initialized' });
@@ -541,6 +583,7 @@
         init: init,
         subscribeBadge: subscribeBadge,
         openTokenGenerationModal: openTokenGenerationModal,
+        saveReviewedProposedValues: saveReviewedProposedValues,
         approveUpdate: approveUpdate,
         rejectUpdate: rejectUpdate,
         revokeToken: revokeToken,

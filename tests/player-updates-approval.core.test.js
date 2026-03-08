@@ -242,6 +242,113 @@ test('approveUpdate rejects invalid reviewed values before applying update', asy
     assert.equal(applyCalled, false);
 });
 
+test('saveReviewedProposedValues persists edited values for personal pending updates', async function () {
+    setupGlobals();
+    var capturedDecision = null;
+
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        updatePersonalPendingUpdateStatus: function (uid, updateId, decision, gameId) {
+            capturedDecision = { uid: uid, updateId: updateId, decision: decision, gameId: gameId };
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-save-reviewed-personal-1',
+        contextType: 'personal',
+        ownerUid: 'owner-uid',
+        playerName: 'TestPlayer',
+        gameId: 'last_war',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.saveReviewedProposedValues('update-save-reviewed-personal-1', {
+        power: 101,
+        thp: 510,
+        troops: 'Aero',
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.reviewedProposedValues, { power: 101, thp: 510, troops: 'Aero' });
+    assert.deepEqual(capturedDecision, {
+        uid: 'owner-uid',
+        updateId: 'update-save-reviewed-personal-1',
+        decision: { reviewedProposedValues: { power: 101, thp: 510, troops: 'Aero' } },
+        gameId: 'last_war',
+    });
+});
+
+test('saveReviewedProposedValues persists edited values for alliance pending updates', async function () {
+    setupGlobals();
+    var capturedDecision = null;
+
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision, gameId) {
+            capturedDecision = { allianceId: allianceId, updateId: updateId, decision: decision, gameId: gameId };
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-save-reviewed-alliance-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'TestPlayer',
+        gameId: 'canyon_storm',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.saveReviewedProposedValues('update-save-reviewed-alliance-1', {
+        power: 102,
+        thp: 520,
+        troops: 'Missile',
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.reviewedProposedValues, { power: 102, thp: 520, troops: 'Missile' });
+    assert.deepEqual(capturedDecision, {
+        allianceId: 'alliance-123',
+        updateId: 'update-save-reviewed-alliance-1',
+        decision: { reviewedProposedValues: { power: 102, thp: 520, troops: 'Missile' } },
+        gameId: 'canyon_storm',
+    });
+});
+
+test('saveReviewedProposedValues rejects invalid reviewed values', async function () {
+    setupGlobals();
+    var persistCalled = false;
+
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        updatePersonalPendingUpdateStatus: function () {
+            persistCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-save-reviewed-invalid-1',
+        contextType: 'personal',
+        ownerUid: 'owner-uid',
+        playerName: 'TestPlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.saveReviewedProposedValues('update-save-reviewed-invalid-1', {
+        power: 'invalid',
+        thp: 520,
+        troops: 'Tank',
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'player_updates_review_invalid_values');
+    assert.equal(persistCalled, false);
+});
+
 test('rejectUpdate for personal context uses updatePersonalPendingUpdateStatus', async function () {
     setupGlobals();
     var personalStatusCalled = false;

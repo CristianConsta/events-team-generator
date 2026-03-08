@@ -17102,6 +17102,7 @@
           row.setAttribute("data-update-id", update.id || "");
           var draftProposed = _cloneProposedValues(update.reviewedProposedValues || update.proposedValues || {});
           var editingField = null;
+          var savingField = null;
           var header = document.createElement("div");
           header.className = "review-player-header";
           var nameEl = document.createElement("span");
@@ -17174,6 +17175,9 @@
             td.appendChild(wrapper);
             if (editingField === field) {
               let commitEdit2 = function() {
+                if (savingField !== null) {
+                  return;
+                }
                 var nextDraft = _cloneProposedValues(draftProposed);
                 var rawValue = field === "troops" ? editor.value : editor.value;
                 nextDraft[field] = rawValue;
@@ -17185,10 +17189,40 @@
                   showInlineError(_t("player_updates_review_invalid_values", "Enter a valid power, THP, and troop type before reviewing."));
                   return;
                 }
-                draftProposed = nextDraft;
-                editingField = null;
+                var controller = global2.DSFeaturePlayerUpdatesController;
+                if (!controller || typeof controller.saveReviewedProposedValues !== "function") {
+                  draftProposed = nextDraft;
+                  update.reviewedProposedValues = _cloneProposedValues(nextDraft);
+                  editingField = null;
+                  clearInlineError();
+                  renderBody();
+                  return;
+                }
+                savingField = field;
+                editor.disabled = true;
+                saveBtn.disabled = true;
+                cancelBtn.disabled = true;
                 clearInlineError();
                 renderBody();
+                controller.saveReviewedProposedValues(update.id, nextDraft).then(function(result) {
+                  if (result && result.ok) {
+                    draftProposed = _cloneProposedValues(
+                      result.reviewedProposedValues || nextDraft
+                    );
+                    update.reviewedProposedValues = _cloneProposedValues(draftProposed);
+                    editingField = null;
+                    savingField = null;
+                    clearInlineError();
+                    renderBody();
+                    return;
+                  }
+                  savingField = null;
+                  editor.disabled = false;
+                  saveBtn.disabled = false;
+                  cancelBtn.disabled = false;
+                  showInlineError(_resolveResultErrorMessage(result));
+                  renderBody();
+                });
               };
               var commitEdit = commitEdit2;
               var editor = document.createElement(field === "troops" ? "select" : "input");
@@ -17229,13 +17263,24 @@
               actionWrap.appendChild(saveBtn);
               actionWrap.appendChild(cancelBtn);
               wrapper.appendChild(actionWrap);
+              if (savingField === field) {
+                editor.disabled = true;
+                saveBtn.disabled = true;
+                cancelBtn.disabled = true;
+              }
               saveBtn.addEventListener("click", commitEdit2);
               cancelBtn.addEventListener("click", function() {
+                if (savingField !== null) {
+                  return;
+                }
                 editingField = null;
                 clearInlineError();
                 renderBody();
               });
               editor.addEventListener("keydown", function(event) {
+                if (savingField !== null) {
+                  return;
+                }
                 if (event && event.key === "Enter") {
                   commitEdit2();
                 } else if (event && event.key === "Escape") {
@@ -17254,7 +17299,11 @@
             valueEl.textContent = field === "troops" ? String(proposedValue || "\u2014") : fmtVal(proposedValue);
             wrapper.appendChild(valueEl);
             var editBtn = buildEditIconButton("player_updates_edit_value", "Edit proposed value");
+            editBtn.disabled = savingField !== null || editingField !== null;
             editBtn.addEventListener("click", function() {
+              if (savingField !== null) {
+                return;
+              }
               editingField = field;
               clearInlineError();
               renderBody();
@@ -17318,10 +17367,10 @@
               tbody.appendChild(buildTroopsRow(deltas.troops));
             }
             if (approveBtn) {
-              approveBtn.disabled = editingField !== null;
+              approveBtn.disabled = editingField !== null || savingField !== null;
             }
             if (rejectBtn) {
-              rejectBtn.disabled = editingField !== null;
+              rejectBtn.disabled = editingField !== null || savingField !== null;
             }
           }
           renderBody();
@@ -17455,6 +17504,7 @@
             destroy,
             subscribeBadge,
             setPendingUpdateDocs,
+            saveReviewedProposedValues,
             approveUpdate,
             rejectUpdate,
             revokeToken
@@ -17850,6 +17900,35 @@
           var target = update.contextType === "alliance" ? "alliance" : "personal";
           return _doApprove(updateId, update, allianceId, target, reviewedValues);
         }
+        function saveReviewedProposedValues(updateId, reviewedValues) {
+          if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
+          var update = _pendingUpdateDocs[updateId];
+          if (!update) return Promise.resolve({ ok: false, error: "update not found" });
+          var proposedResolution = _resolveReviewedProposedValues(update, reviewedValues);
+          if (!proposedResolution.ok) {
+            return Promise.resolve({ ok: false, error: proposedResolution.error, details: proposedResolution.details });
+          }
+          var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : void 0) : null;
+          if (!allianceId && update && update.contextType === "alliance") {
+            allianceId = update.allianceId || null;
+          }
+          var decision = {
+            reviewedProposedValues: proposedResolution.effective
+          };
+          var persistPromise = update.contextType === "personal" ? _gateway.updatePersonalPendingUpdateStatus(update.ownerUid, updateId, decision, update.gameId || null) : _gateway.updatePendingUpdateStatus(allianceId, updateId, decision, update.gameId || null);
+          return Promise.resolve(persistPromise).then(function(result) {
+            if (result && (result.ok === false || result.success === false)) {
+              return result;
+            }
+            update.reviewedProposedValues = proposedResolution.effective;
+            return Object.assign({}, result || {}, {
+              ok: true,
+              reviewedProposedValues: proposedResolution.effective
+            });
+          }).catch(function(err) {
+            return { ok: false, error: err && err.message };
+          });
+        }
         function rejectUpdate(updateId, reviewedValues) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
           var update = _pendingUpdateDocs[updateId];
@@ -17896,6 +17975,7 @@
           init,
           subscribeBadge,
           openTokenGenerationModal,
+          saveReviewedProposedValues,
           approveUpdate,
           rejectUpdate,
           revokeToken,

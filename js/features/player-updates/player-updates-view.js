@@ -178,6 +178,7 @@
         row.setAttribute('data-update-id', update.id || '');
         var draftProposed = _cloneProposedValues(update.reviewedProposedValues || update.proposedValues || {});
         var editingField = null;
+        var savingField = null;
 
         var header = document.createElement('div');
         header.className = 'review-player-header';
@@ -308,8 +309,16 @@
                 actionWrap.appendChild(saveBtn);
                 actionWrap.appendChild(cancelBtn);
                 wrapper.appendChild(actionWrap);
+                if (savingField === field) {
+                    editor.disabled = true;
+                    saveBtn.disabled = true;
+                    cancelBtn.disabled = true;
+                }
 
                 function commitEdit() {
+                    if (savingField !== null) {
+                        return;
+                    }
                     var nextDraft = _cloneProposedValues(draftProposed);
                     var rawValue = field === 'troops' ? editor.value : editor.value;
                     nextDraft[field] = rawValue;
@@ -325,19 +334,58 @@
                         showInlineError(_t('player_updates_review_invalid_values', 'Enter a valid power, THP, and troop type before reviewing.'));
                         return;
                     }
-                    draftProposed = nextDraft;
-                    editingField = null;
+                    var controller = global.DSFeaturePlayerUpdatesController;
+                    if (!controller || typeof controller.saveReviewedProposedValues !== 'function') {
+                        draftProposed = nextDraft;
+                        update.reviewedProposedValues = _cloneProposedValues(nextDraft);
+                        editingField = null;
+                        clearInlineError();
+                        renderBody();
+                        return;
+                    }
+
+                    savingField = field;
+                    editor.disabled = true;
+                    saveBtn.disabled = true;
+                    cancelBtn.disabled = true;
                     clearInlineError();
                     renderBody();
+
+                    controller.saveReviewedProposedValues(update.id, nextDraft).then(function(result) {
+                        if (result && result.ok) {
+                            draftProposed = _cloneProposedValues(
+                                result.reviewedProposedValues || nextDraft
+                            );
+                            update.reviewedProposedValues = _cloneProposedValues(draftProposed);
+                            editingField = null;
+                            savingField = null;
+                            clearInlineError();
+                            renderBody();
+                            return;
+                        }
+
+                        savingField = null;
+                        editor.disabled = false;
+                        saveBtn.disabled = false;
+                        cancelBtn.disabled = false;
+                        showInlineError(_resolveResultErrorMessage(result));
+                        renderBody();
+                    });
                 }
 
                 saveBtn.addEventListener('click', commitEdit);
                 cancelBtn.addEventListener('click', function() {
+                    if (savingField !== null) {
+                        return;
+                    }
                     editingField = null;
                     clearInlineError();
                     renderBody();
                 });
                 editor.addEventListener('keydown', function(event) {
+                    if (savingField !== null) {
+                        return;
+                    }
                     if (event && event.key === 'Enter') {
                         commitEdit();
                     } else if (event && event.key === 'Escape') {
@@ -360,7 +408,11 @@
             wrapper.appendChild(valueEl);
 
             var editBtn = buildEditIconButton('player_updates_edit_value', 'Edit proposed value');
+            editBtn.disabled = savingField !== null || editingField !== null;
             editBtn.addEventListener('click', function() {
+                if (savingField !== null) {
+                    return;
+                }
                 editingField = field;
                 clearInlineError();
                 renderBody();
@@ -428,10 +480,10 @@
                 tbody.appendChild(buildTroopsRow(deltas.troops));
             }
             if (approveBtn) {
-                approveBtn.disabled = editingField !== null;
+                approveBtn.disabled = editingField !== null || savingField !== null;
             }
             if (rejectBtn) {
-                rejectBtn.disabled = editingField !== null;
+                rejectBtn.disabled = editingField !== null || savingField !== null;
             }
         }
 
