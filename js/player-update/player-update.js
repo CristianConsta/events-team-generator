@@ -8,6 +8,7 @@
         TOO_MANY_ATTEMPTS: 'player_update_shared_error_too_many_attempts',
     };
     var SUPPORTED_LANGUAGES = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+    var NUMERIC_STAT_PATTERN = /^\d{1,3}(?:\.\d{1,2})?$/;
     var lastRenderedSnapshot = null;
 
     function normalizeLanguageCode(rawLang) {
@@ -270,11 +271,13 @@
         var troopsInput = getEl('updateTroops');
         if (powerInput) {
             powerInput.oninput = function () {
+                powerInput.value = sanitizeNumericStatInput(powerInput.value);
                 clearFieldError(powerInput, 'errorPower');
             };
         }
         if (thpInput) {
             thpInput.oninput = function () {
+                thpInput.value = sanitizeNumericStatInput(thpInput.value);
                 clearFieldError(thpInput, 'errorThp');
             };
         }
@@ -621,31 +624,55 @@
         setFieldError(inputEl, errorSpanId, '');
     }
 
+    function sanitizeNumericStatInput(rawValue) {
+        var value = typeof rawValue === 'string' ? rawValue : String(rawValue || '');
+        var normalized = value.replace(/,/g, '.').replace(/[^\d.]/g, '');
+        var firstDotIndex = normalized.indexOf('.');
+        if (firstDotIndex !== -1) {
+            normalized = normalized.slice(0, firstDotIndex + 1)
+                + normalized.slice(firstDotIndex + 1).replace(/\./g, '');
+        }
+
+        var parts = normalized.split('.');
+        var integerPart = (parts[0] || '').slice(0, 3);
+        if (parts.length === 1) {
+            return integerPart;
+        }
+
+        var decimalPart = (parts[1] || '').slice(0, 2);
+        return integerPart + '.' + decimalPart;
+    }
+
+    function isValidNumericStatInput(rawValue) {
+        return NUMERIC_STAT_PATTERN.test(String(rawValue || '').trim());
+    }
+
     function validateFormFields(powerEl, thpEl, troopsEl) {
         var valid = true;
 
         // Power validation
-        var powerVal = powerEl ? Number(powerEl.value) : NaN;
-        if (!powerEl || powerEl.value === '' || isNaN(powerVal) || powerVal <= 0) {
+        var powerRaw = powerEl ? String(powerEl.value || '').trim() : '';
+        if (!powerEl || powerRaw === '') {
             setFieldError(powerEl, 'errorPower', tLocal('player_update_error_power_required'));
             valid = false;
-        } else if (powerVal > 9999) {
-            setFieldError(powerEl, 'errorPower', tLocal('player_update_error_power_range'));
+        } else if (!isValidNumericStatInput(powerRaw)) {
+            setFieldError(powerEl, 'errorPower', tLocal('player_update_error_numeric_format'));
             valid = false;
         } else {
+            powerEl.value = powerRaw;
             clearFieldError(powerEl, 'errorPower');
         }
 
         // THP validation
-        var thpVal = thpEl ? Number(thpEl.value) : NaN;
-        if (thpEl && thpEl.value !== '' && !isNaN(thpVal)) {
-            if (thpVal < 0 || thpVal > 99999) {
-                setFieldError(thpEl, 'errorThp', tLocal('player_update_error_thp_range'));
-                valid = false;
-            } else {
-                clearFieldError(thpEl, 'errorThp');
-            }
+        var thpRaw = thpEl ? String(thpEl.value || '').trim() : '';
+        if (!thpEl || thpRaw === '') {
+            setFieldError(thpEl, 'errorThp', tLocal('player_update_error_thp_required'));
+            valid = false;
+        } else if (!isValidNumericStatInput(thpRaw)) {
+            setFieldError(thpEl, 'errorThp', tLocal('player_update_error_numeric_format'));
+            valid = false;
         } else {
+            thpEl.value = thpRaw;
             clearFieldError(thpEl, 'errorThp');
         }
 
@@ -906,11 +933,13 @@
                         var troopsInput = getEl('updateTroops');
                         if (powerInput) {
                             powerInput.addEventListener('input', function () {
+                                powerInput.value = sanitizeNumericStatInput(powerInput.value);
                                 clearFieldError(powerInput, 'errorPower');
                             });
                         }
                         if (thpInput) {
                             thpInput.addEventListener('input', function () {
+                                thpInput.value = sanitizeNumericStatInput(thpInput.value);
                                 clearFieldError(thpInput, 'errorThp');
                             });
                         }
@@ -1073,5 +1102,7 @@
 
     global.DSPlayerUpdate = {
         init: init,
+        sanitizeNumericStatInput: sanitizeNumericStatInput,
+        isValidNumericStatInput: isValidNumericStatInput,
     };
 })(window);

@@ -26,6 +26,7 @@ function createMockGlobal(options) {
 
     const elements = {};
     const classLists = {};
+    const submitButton = { disabled: false, textContent: 'Submit Update' };
 
     function makeEl(id) {
         const cl = new Set(['hidden']);
@@ -36,17 +37,47 @@ function createMockGlobal(options) {
                 add: function (c) { cl.add(c); },
                 remove: function (c) { cl.delete(c); },
                 contains: function (c) { return cl.has(c); },
+                toggle: function (c, force) {
+                    if (force === true) {
+                        cl.add(c);
+                        return true;
+                    }
+                    if (force === false) {
+                        cl.delete(c);
+                        return false;
+                    }
+                    if (cl.has(c)) {
+                        cl.delete(c);
+                        return false;
+                    }
+                    cl.add(c);
+                    return true;
+                },
             },
             textContent: '',
             value: '',
             dataset: {},
-            addEventListener: function () {},
+            _listeners: {},
+            addEventListener: function (evt, fn) { this._listeners[evt] = fn; },
+            dispatchEvent: function (evt) {
+                var type = evt && evt.type ? evt.type : evt;
+                if (this._listeners[type]) {
+                    this._listeners[type](evt);
+                }
+            },
+            querySelector: function (selector) {
+                if (id === 'updateStatsForm' && selector === 'button[type="submit"]') {
+                    return submitButton;
+                }
+                return null;
+            },
         };
     }
 
     ['updateLoading', 'updateForm', 'updateSuccess', 'updateError',
      'updateErrorMessage', 'updatePlayerName', 'updatePower', 'updateThp',
-     'updateTroops', 'updateStatsForm', 'currentPowerValue', 'currentThpValue', 'currentTroopsValue', 'languageSelect'].forEach(function (id) {
+     'updateTroops', 'updateStatsForm', 'currentPowerValue', 'currentThpValue', 'currentTroopsValue', 'languageSelect',
+     'errorPower', 'errorThp', 'errorTroops'].forEach(function (id) {
         elements[id] = makeEl(id);
     });
 
@@ -133,6 +164,7 @@ function createMockGlobal(options) {
         _initCalls: initCalls,
         _signInCalls: signInCalls,
         _collectionPaths: collectionPaths,
+        _submitButton: submitButton,
     };
 
     return global;
@@ -456,6 +488,89 @@ describe('player-update.js', function () {
             assert.ok(g._collectionPaths.includes('alliances'));
             assert.ok(g._collectionPaths.includes('update_tokens'));
             assert.ok(!g._collectionPaths.includes('users'));
+        });
+    });
+
+    describe('numeric field validation', function () {
+        it('sanitizes numeric inputs to 3 integer digits and 2 decimals', function () {
+            const g = createMockGlobal({ search: '?token=tok1&uid=user1' });
+            loadPlayerUpdate(g);
+
+            assert.equal(g.DSPlayerUpdate.sanitizeNumericStatInput('1234.567abc'), '123.56');
+            assert.equal(g.DSPlayerUpdate.sanitizeNumericStatInput('98,765'), '98.76');
+            assert.equal(g.DSPlayerUpdate.sanitizeNumericStatInput('..1a2b3'), '.12');
+        });
+
+        it('blocks submit when power or thp do not match 999.99 format', async function () {
+            const futureDate = new Date(Date.now() + 86400000);
+            const g = createMockGlobal({
+                search: '?token=abc&uid=user1',
+                tokenSnapshot: {
+                    exists: true,
+                    data: function () {
+                        return {
+                            used: false,
+                            playerName: 'HeroPlayer',
+                            playerKey: 'hero_player_key',
+                            expiresAt: { toDate: function () { return futureDate; } },
+                            currentSnapshot: { power: 500, thp: 200, troops: 'Tank' },
+                        };
+                    },
+                    ref: { update: function () { return Promise.resolve(); } },
+                },
+            });
+            loadPlayerUpdate(g);
+            g.DSPlayerUpdate.init();
+            await new Promise(function (r) { setTimeout(r, 50); });
+
+            g._elements.updatePower.value = '1000';
+            g._elements.updateThp.value = '12.345';
+            g._elements.updateTroops.value = 'Tank';
+
+            g._elements.updateStatsForm._listeners.submit({
+                preventDefault: function () {},
+            });
+
+            assert.equal(g._elements.errorPower.textContent, 'player_update_error_numeric_format');
+            assert.equal(g._elements.errorThp.textContent, 'player_update_error_numeric_format');
+            assert.equal(g._elements.updateSuccess.classList.contains('hidden'), true);
+        });
+
+        it('accepts valid 999.99 values on submit', async function () {
+            const futureDate = new Date(Date.now() + 86400000);
+            const g = createMockGlobal({
+                search: '?token=abc&uid=user1',
+                tokenSnapshot: {
+                    exists: true,
+                    data: function () {
+                        return {
+                            used: false,
+                            playerName: 'HeroPlayer',
+                            playerKey: 'hero_player_key',
+                            expiresAt: { toDate: function () { return futureDate; } },
+                            currentSnapshot: { power: 500, thp: 200, troops: 'Tank' },
+                            gameId: 'last_war',
+                        };
+                    },
+                    ref: { update: function () { return Promise.resolve(); } },
+                },
+            });
+            loadPlayerUpdate(g);
+            g.DSPlayerUpdate.init();
+            await new Promise(function (r) { setTimeout(r, 50); });
+
+            g._elements.updatePower.value = '999.99';
+            g._elements.updateThp.value = '0.25';
+            g._elements.updateTroops.value = 'Aero';
+
+            g._elements.updateStatsForm._listeners.submit({
+                preventDefault: function () {},
+            });
+            await new Promise(function (r) { setTimeout(r, 50); });
+
+            assert.equal(g._elements.errorPower.textContent, '');
+            assert.equal(g._elements.errorThp.textContent, '');
+            assert.equal(g._elements.updateSuccess.classList.contains('hidden'), false);
         });
     });
 });
