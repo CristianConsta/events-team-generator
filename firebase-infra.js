@@ -330,6 +330,19 @@
         return soloRef.collection('pending_updates');
     }
 
+    function getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid) {
+        const soloRef = getSoloplayerDocRef(gameId, uid);
+        if (!soloRef) { return null; }
+        return soloRef.collection('shared_update_invites');
+    }
+
+    function getGameSoloSharedUpdateInviteCandidatesCollectionRef(gameId, uid, inviteId) {
+        const invitesRef = getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid);
+        const normalizedInviteId = typeof inviteId === 'string' ? inviteId.trim() : '';
+        if (!invitesRef || !normalizedInviteId) { return null; }
+        return invitesRef.doc(normalizedInviteId).collection('candidates');
+    }
+
     function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId) {
         const allianceRef = getGameAllianceDocRef(gameId, allianceId);
         if (!allianceRef) { return null; }
@@ -340,6 +353,19 @@
         const allianceRef = getGameAllianceDocRef(gameId, allianceId);
         if (!allianceRef) { return null; }
         return allianceRef.collection('pending_updates');
+    }
+
+    function getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId) {
+        const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+        if (!allianceRef) { return null; }
+        return allianceRef.collection('shared_update_invites');
+    }
+
+    function getGameAllianceSharedUpdateInviteCandidatesCollectionRef(gameId, allianceId, inviteId) {
+        const invitesRef = getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId);
+        const normalizedInviteId = typeof inviteId === 'string' ? inviteId.trim() : '';
+        if (!invitesRef || !normalizedInviteId) { return null; }
+        return invitesRef.doc(normalizedInviteId).collection('candidates');
     }
 
     // ── Game context resolvers ───────────────────────────────────────────────
@@ -618,8 +644,12 @@
         getGameEventHistoryCollectionRef: getGameEventHistoryCollectionRef,
         getGameSoloUpdateTokensCollectionRef: getGameSoloUpdateTokensCollectionRef,
         getGameSoloPendingUpdatesCollectionRef: getGameSoloPendingUpdatesCollectionRef,
+        getGameSoloSharedUpdateInvitesCollectionRef: getGameSoloSharedUpdateInvitesCollectionRef,
+        getGameSoloSharedUpdateInviteCandidatesCollectionRef: getGameSoloSharedUpdateInviteCandidatesCollectionRef,
         getGameAllianceUpdateTokensCollectionRef: getGameAllianceUpdateTokensCollectionRef,
         getGameAlliancePendingUpdatesCollectionRef: getGameAlliancePendingUpdatesCollectionRef,
+        getGameAllianceSharedUpdateInvitesCollectionRef: getGameAllianceSharedUpdateInvitesCollectionRef,
+        getGameAllianceSharedUpdateInviteCandidatesCollectionRef: getGameAllianceSharedUpdateInviteCandidatesCollectionRef,
         // game context resolvers
         resolveScopedActiveGameStorageKey: resolveScopedActiveGameStorageKey,
         resolveGameplayContext: resolveGameplayContext,

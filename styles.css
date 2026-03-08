@@ -1237,6 +1237,48 @@ select {
     color: var(--ds-text-muted);
     line-height: 1.4;
 }
+.players-mgmt-shared-invite-surface {
+    position: relative;
+    overflow: hidden;
+}
+.players-mgmt-shared-invite-surface::after {
+    content: '';
+    position: absolute;
+    inset: auto -18% -42% 42%;
+    height: 130px;
+    background:
+        radial-gradient(circle at center, rgba(100, 180, 255, 0.2), transparent 62%);
+    pointer-events: none;
+}
+.players-mgmt-shared-invite-head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+.players-mgmt-shared-invite-btn {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(100, 180, 255, 0.48);
+    background: linear-gradient(135deg, rgba(100, 180, 255, 0.2), rgba(54, 127, 214, 0.08));
+    color: rgba(170, 219, 255, 0.98);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.players-mgmt-shared-invite-btn:hover {
+    background: linear-gradient(135deg, rgba(100, 180, 255, 0.26), rgba(54, 127, 214, 0.14));
+    border-color: rgba(100, 180, 255, 0.72);
+}
+.players-mgmt-shared-invite-status {
+    position: relative;
+    z-index: 1;
+    margin-top: 10px;
+    min-height: 20px;
+    font-size: 12px;
+    color: var(--ds-text-muted);
+}
 .players-mgmt-inline-content {
     margin-top: 12px;
     max-height: 999px;
@@ -1316,6 +1358,9 @@ select {
     .players-mgmt-filters button {
         width: auto;
         justify-self: end;
+    }
+    .players-mgmt-shared-invite-head {
+        align-items: flex-start;
     }
 }
 .players-table .players-mgmt-actions {

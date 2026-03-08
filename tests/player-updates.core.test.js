@@ -384,3 +384,33 @@ test('player-update.js source: shows TOKEN_INVALID when neither uid nor alliance
         'player-update.js must guard against missing both uid and alliance params'
     );
 });
+
+test('player-update.js source: reads params.shared for shared invite flow', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes('params.shared') || source.includes('params.sharedInvite'),
+        'player-update.js must read the shared invite query parameter'
+    );
+});
+
+test('player-update.js source: uses shared_update_invites collection for shared flow', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes("collection('shared_update_invites')"),
+        'player-update.js must reference shared_update_invites for the shared invite flow'
+    );
+});
+
+test('player-update.js source: shared search is limited to 3 results', () => {
+    const fs = require('node:fs');
+    const playerUpdatePath = path.resolve(__dirname, '../js/player-update/player-update.js');
+    const source = fs.readFileSync(playerUpdatePath, 'utf8');
+    assert.ok(
+        source.includes('.limit(3)'),
+        'shared invite search must limit autocomplete results to 3'
+    );
+});

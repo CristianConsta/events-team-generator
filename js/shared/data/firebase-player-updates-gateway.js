@@ -38,6 +38,18 @@
                     []
                 );
             },
+            createPersonalSharedUpdateInvite: async function createPersonalSharedUpdateInvite(uid, players, options) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.createPersonalSharedUpdateInvite(uid, players, options),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
+            createAllianceSharedUpdateInvite: async function createAllianceSharedUpdateInvite(allianceId, players, options) {
+                return gatewayUtils.withManager(
+                    (svc) => svc.createAllianceSharedUpdateInvite(allianceId, players, options),
+                    gatewayUtils.notLoadedResult()
+                );
+            },
             subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
                 return gatewayUtils.withManager(
                     (svc) => svc.subscribePendingUpdatesCount(allianceId, uid, callback),

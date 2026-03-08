@@ -805,6 +805,9 @@ function bindStaticUiActions() {
         }
         clearPlayersManagementFilters();
     });
+    on('playersMgmtSharedInviteBtn', 'click', function () {
+        handlePlayersManagementSharedInvite(document.getElementById('playersMgmtSharedInviteBtn'));
+    });
     on('assignmentAlgorithmBalanced', 'change', (event) => {
         const controller = getGeneratorFeatureController();
         if (controller && typeof controller.changeAlgorithm === 'function') {
@@ -2260,6 +2263,26 @@ function getPlayersDatabaseBySource(source) {
     return {};
 }
 
+function buildSharedInvitePlayerPayload(source) {
+    const db = getPlayersDatabaseBySource(source);
+    if (!db || typeof db !== 'object') {
+        return [];
+    }
+    return Object.keys(db).map(function(name) {
+        const entry = db[name] && typeof db[name] === 'object' ? db[name] : {};
+        return {
+            name: name,
+            power: Number.isFinite(Number(entry.power)) ? Number(entry.power) : 0,
+            thp: Number.isFinite(Number(entry.thp)) ? Number(entry.thp) : 0,
+            troops: typeof entry.troops === 'string' && entry.troops.trim()
+                ? entry.troops.trim()
+                : 'Unknown',
+        };
+    }).filter(function(player) {
+        return typeof player.name === 'string' && player.name.trim().length > 0;
+    });
+}
+
 function normalizePlayerRecordForUi(name, entry) {
     if (
         window.DSFeaturePlayersManagementCore
@@ -2467,6 +2490,22 @@ function renderPlayersManagementSourceControls() {
     allianceBtn.disabled = allianceActive;
 }
 
+function renderPlayersManagementSharedInviteControls() {
+    const button = document.getElementById('playersMgmtSharedInviteBtn');
+    const status = document.getElementById('playersMgmtSharedInviteStatus');
+    if (!button) {
+        return;
+    }
+    const source = getPlayersManagementActiveSource();
+    const players = buildSharedInvitePlayerPayload(source);
+    button.disabled = players.length === 0;
+    if (status && !status.textContent.trim()) {
+        status.textContent = players.length > 0
+            ? t('players_shared_invite_ready', { count: players.length })
+            : t('players_shared_invite_empty');
+    }
+}
+
 function renderPlayersManagementTable() {
     const tbody = document.getElementById('playersMgmtTableBody');
     if (!tbody) {
@@ -2568,6 +2607,7 @@ function renderPlayersManagementPanel() {
 
     renderPlayersManagementSourceControls();
     renderPlayersManagementAddPanel();
+    renderPlayersManagementSharedInviteControls();
     renderPlayersManagementFilters();
     renderPlayersManagementTable();
 
@@ -2750,6 +2790,90 @@ async function handlePlayersManagementAddPlayer() {
     }
 
     showMessage('playersMgmtStatus', translatePlayersManagementError(result), 'error');
+}
+
+async function handlePlayersManagementSharedInvite(button) {
+    if (!button) {
+        return;
+    }
+    if (typeof FirebaseService === 'undefined') {
+        showMessage('playersMgmtSharedInviteStatus', t('error_firebase_not_loaded'), 'error');
+        return;
+    }
+
+    const source = getPlayersManagementActiveSource();
+    const gameplayContext = getGameplayContext('playersMgmtSharedInviteStatus');
+    const players = buildSharedInvitePlayerPayload(source);
+    if (!gameplayContext) {
+        return;
+    }
+    if (!players.length) {
+        showMessage('playersMgmtSharedInviteStatus', t('players_shared_invite_empty'), 'error');
+        return;
+    }
+
+    const originalButtonContent = button.innerHTML;
+    const currentLang = (window.DSI18N && typeof window.DSI18N.getCurrentLanguage === 'function')
+        ? window.DSI18N.getCurrentLanguage()
+        : 'en';
+    const gameId = gameplayContext.gameId || '';
+
+    button.disabled = true;
+    button.innerHTML = '<span class="action-btn-text">' + escapeHtml(t('invite_generating')) + '</span>';
+    showMessage('playersMgmtSharedInviteStatus', t('players_shared_invite_generating'), 'processing');
+
+    try {
+        let result;
+        let inviteUrl;
+        if (source === 'personal') {
+            const currentUser = FirebaseService.getCurrentUser ? FirebaseService.getCurrentUser() : null;
+            const uid = currentUser ? currentUser.uid : '';
+            if (!uid) {
+                showMessage('playersMgmtSharedInviteStatus', t('invite_error'), 'error');
+                return;
+            }
+            result = await FirebaseService.createPersonalSharedUpdateInvite(uid, players, {
+                gameId: gameId,
+                expiryHours: 48,
+                maxVerificationAttempts: 3,
+            });
+            if (!result || !result.success) {
+                showMessage('playersMgmtSharedInviteStatus', t('invite_error'), 'error');
+                return;
+            }
+            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0]
+                + '?shared=' + encodeURIComponent(result.inviteId)
+                + '&uid=' + encodeURIComponent(uid)
+                + '&lang=' + encodeURIComponent(currentLang)
+                + (gameId ? '&gid=' + encodeURIComponent(gameId) : '');
+        } else {
+            const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext || undefined) : '';
+            if (!allianceId) {
+                showMessage('playersMgmtSharedInviteStatus', t('invite_error'), 'error');
+                return;
+            }
+            result = await FirebaseService.createAllianceSharedUpdateInvite(allianceId, players, {
+                gameId: gameId,
+                expiryHours: 48,
+                maxVerificationAttempts: 3,
+            });
+            if (!result || !result.success) {
+                showMessage('playersMgmtSharedInviteStatus', t('invite_error'), 'error');
+                return;
+            }
+            inviteUrl = new URL('player-update.html', window.location.href).href.split('?')[0]
+                + '?shared=' + encodeURIComponent(result.inviteId)
+                + '&alliance=' + encodeURIComponent(allianceId)
+                + '&lang=' + encodeURIComponent(currentLang)
+                + (gameId ? '&gid=' + encodeURIComponent(gameId) : '');
+        }
+
+        showMessage('playersMgmtSharedInviteStatus', t('players_shared_invite_generated', { count: players.length }), 'success');
+        showInviteLinkPopover(button, inviteUrl);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalButtonContent;
+    }
 }
 
 async function handlePlayersManagementTableAction(event) {

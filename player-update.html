@@ -34,6 +34,52 @@
         <div id="updateLoading" class="update-state-loading">
             <span data-i18n="player_update_loading">Loading...</span>
         </div>
+        <div id="updateClaim" class="update-state-form hidden">
+            <h1 data-i18n="player_update_shared_title">Find Your Profile</h1>
+            <p class="update-shared-intro" data-i18n="player_update_shared_intro">Type at least 3 characters from your nickname. We will only show up to 3 matches.</p>
+            <div class="update-shared-search">
+                <label for="sharedPlayerSearch" data-i18n="player_update_shared_search_label">Nickname</label>
+                <input type="text" id="sharedPlayerSearch" minlength="3" maxlength="80" autocomplete="off" data-i18n-placeholder="player_update_shared_search_placeholder" placeholder="Start typing your nickname">
+                <p id="sharedSearchHint" class="update-shared-hint" data-i18n="player_update_shared_search_hint">Enter at least 3 characters to search.</p>
+                <div id="sharedSearchResults" class="update-shared-results" role="listbox" aria-label="Player matches"></div>
+            </div>
+            <div id="sharedVerification" class="update-shared-verification hidden">
+                <div class="update-shared-selected">
+                    <span class="update-shared-selected-label" data-i18n="player_update_shared_selected_label">Selected player</span>
+                    <strong id="sharedSelectedPlayerName"></strong>
+                </div>
+                <p class="update-shared-verify-intro" data-i18n="player_update_shared_verify_intro">Confirm one current detail before continuing.</p>
+                <div class="update-shared-verify-methods">
+                    <label class="update-shared-choice">
+                        <input type="radio" name="sharedVerifyMethod" id="sharedVerifyMethodTroops" value="troops" checked>
+                        <span data-i18n="player_update_shared_verify_method_troops">Confirm with troop type</span>
+                    </label>
+                    <label class="update-shared-choice">
+                        <input type="radio" name="sharedVerifyMethod" id="sharedVerifyMethodPower" value="power">
+                        <span data-i18n="player_update_shared_verify_method_power">Confirm with power range</span>
+                    </label>
+                </div>
+                <div id="sharedVerifyTroopsWrap" class="update-shared-verify-field">
+                    <label for="sharedVerifyTroops" data-i18n="player_update_shared_verify_troops_label">Current troop type</label>
+                    <select id="sharedVerifyTroops">
+                        <option value="" selected data-i18n="player_update_shared_verify_troops_placeholder">Select troop type</option>
+                        <option value="Tank" data-i18n="troops_filter_tank">Tank</option>
+                        <option value="Aero" data-i18n="troops_filter_aero">Aero</option>
+                        <option value="Missile" data-i18n="troops_filter_missile">Missile</option>
+                        <option value="Unknown">Unknown</option>
+                    </select>
+                </div>
+                <div id="sharedVerifyPowerWrap" class="update-shared-verify-field hidden">
+                    <label for="sharedVerifyPowerBand" data-i18n="player_update_shared_verify_power_label">Current 1st Team Power range</label>
+                    <select id="sharedVerifyPowerBand">
+                        <option value="" selected data-i18n="player_update_shared_verify_power_placeholder">Select your range</option>
+                    </select>
+                </div>
+                <p id="sharedAttemptsStatus" class="update-shared-hint"></p>
+                <p id="sharedVerificationStatus" class="field-error"></p>
+                <button id="sharedVerifyBtn" type="button" class="update-primary-btn" data-i18n="player_update_shared_verify_button">Continue</button>
+            </div>
+        </div>
         <div id="updateForm" class="update-state-form hidden">
             <h1 data-i18n="player_update_title">Update Your Stats</h1>
             <p id="updatePlayerName" class="update-player-name"></p>

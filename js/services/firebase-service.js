@@ -284,6 +284,12 @@
             loadActiveTokens: async function loadActiveTokens(allianceId) {
                 return gatewayUtils.withManager(function (svc) { return svc.loadActiveTokens(allianceId); }, []);
             },
+            createPersonalSharedUpdateInvite: async function createPersonalSharedUpdateInvite(uid, players, options) {
+                return gatewayUtils.withManager(function (svc) { return svc.createPersonalSharedUpdateInvite(uid, players, options); }, gatewayUtils.notLoadedResult());
+            },
+            createAllianceSharedUpdateInvite: async function createAllianceSharedUpdateInvite(allianceId, players, options) {
+                return gatewayUtils.withManager(function (svc) { return svc.createAllianceSharedUpdateInvite(allianceId, players, options); }, gatewayUtils.notLoadedResult());
+            },
             subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
                 return gatewayUtils.withManager(function (svc) { return svc.subscribePendingUpdatesCount(allianceId, uid, callback); }, function noop() {});
             },
@@ -1108,6 +1114,12 @@
         },
         loadActiveTokens: function loadActiveTokens(allianceId) {
             return playerUpdatesGateway.loadActiveTokens(allianceId);
+        },
+        createPersonalSharedUpdateInvite: function createPersonalSharedUpdateInvite(uid, players, options) {
+            return playerUpdatesGateway.createPersonalSharedUpdateInvite(uid, players, options);
+        },
+        createAllianceSharedUpdateInvite: function createAllianceSharedUpdateInvite(allianceId, players, options) {
+            return playerUpdatesGateway.createAllianceSharedUpdateInvite(allianceId, players, options);
         },
         subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
             return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);

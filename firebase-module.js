@@ -497,8 +497,12 @@ const FirebaseManager = (function() {
     function getGameEventHistoryCollectionRef(gameId) { return DSFirebaseInfra.getGameEventHistoryCollectionRef(gameId); }
     function getGameSoloUpdateTokensCollectionRef(gameId, uid) { return DSFirebaseInfra.getGameSoloUpdateTokensCollectionRef(gameId, uid); }
     function getGameSoloPendingUpdatesCollectionRef(gameId, uid) { return DSFirebaseInfra.getGameSoloPendingUpdatesCollectionRef(gameId, uid); }
+    function getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid) { return DSFirebaseInfra.getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid); }
+    function getGameSoloSharedUpdateInviteCandidatesCollectionRef(gameId, uid, inviteId) { return DSFirebaseInfra.getGameSoloSharedUpdateInviteCandidatesCollectionRef(gameId, uid, inviteId); }
     function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId) { return DSFirebaseInfra.getGameAllianceUpdateTokensCollectionRef(gameId, allianceId); }
     function getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId) { return DSFirebaseInfra.getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId); }
+    function getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId) { return DSFirebaseInfra.getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId); }
+    function getGameAllianceSharedUpdateInviteCandidatesCollectionRef(gameId, allianceId, inviteId) { return DSFirebaseInfra.getGameAllianceSharedUpdateInviteCandidatesCollectionRef(gameId, allianceId, inviteId); }
 
     function createStableDocId(rawValue, prefix) { return DSFirebaseInfra.createStableDocId(rawValue, prefix); }
     function getPlayerDocId(playerName) { return DSFirebaseInfra.getPlayerDocId(playerName); }
@@ -5781,6 +5785,49 @@ const FirebaseManager = (function() {
         };
     }
 
+    function buildSharedInviteSearchPrefixes(playerName) {
+        var normalized = normalizeEditablePlayerName(playerName).toLowerCase();
+        if (!normalized || normalized.length < 3) {
+            return [];
+        }
+        var prefixes = [];
+        for (var index = 3; index <= normalized.length; index += 1) {
+            prefixes.push(normalized.slice(0, index));
+        }
+        return prefixes;
+    }
+
+    function buildPowerBand(powerValue) {
+        var numericPower = normalizeEditablePlayerPower(powerValue);
+        var bandStart = Math.floor(numericPower / 50) * 50;
+        var bandEnd = bandStart + 49;
+        return {
+            code: String(bandStart) + '-' + String(bandEnd),
+            min: bandStart,
+            max: bandEnd,
+            label: String(bandStart) + '-' + String(bandEnd) + 'M',
+        };
+    }
+
+    function buildSharedInviteCandidateDoc(playerName, entry) {
+        var normalizedName = normalizeEditablePlayerName(playerName);
+        if (!normalizedName) {
+            return null;
+        }
+        var snapshot = buildSnapshotFromEntry(entry);
+        var powerBand = buildPowerBand(snapshot.power);
+        return {
+            playerName: normalizedName,
+            playerKey: getPlayerDocId(normalizedName),
+            searchName: normalizedName.toLowerCase(),
+            searchPrefixes: buildSharedInviteSearchPrefixes(normalizedName),
+            verifyTroops: normalizeEditablePlayerTroops(snapshot.troops),
+            verifyPowerBand: powerBand.code,
+            verifyPowerBandLabel: powerBand.label,
+            currentSnapshot: snapshot,
+        };
+    }
+
     function resolveTokenPlayerContext(contextType, playerName, playerKey, gameId) {
         var resolvedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
         var primaryMap = {};
@@ -6181,6 +6228,112 @@ const FirebaseManager = (function() {
         }
     }
 
+    async function createPersonalSharedUpdateInvite(uid, players, options) {
+        try {
+            if (!db || !uid || !Array.isArray(players) || players.length === 0) {
+                return { success: false, error: 'missing_players' };
+            }
+            var opts = options && typeof options === 'object' ? options : {};
+            var inviteGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
+            var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+            var maxVerificationAttempts = Number.isFinite(Number(opts.maxVerificationAttempts)) && Number(opts.maxVerificationAttempts) > 0
+                ? Math.floor(Number(opts.maxVerificationAttempts))
+                : 3;
+            var inviteCollection = getGameSoloSharedUpdateInvitesCollectionRef(inviteGameId, uid);
+            if (!inviteCollection) {
+                return { success: false, error: 'Not available' };
+            }
+            var candidateDocs = players.map(function(player) {
+                return buildSharedInviteCandidateDoc(player && player.name, player);
+            }).filter(function(candidate) {
+                return !!(candidate && candidate.playerKey);
+            });
+            if (candidateDocs.length === 0) {
+                return { success: false, error: 'missing_players' };
+            }
+            var inviteRef = inviteCollection.doc();
+            var batch = db.batch();
+            var inviteDoc = {
+                contextType: 'personal',
+                ownerUid: uid,
+                allianceId: null,
+                gameId: inviteGameId,
+                active: true,
+                expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+                searchMinLength: 3,
+                maxSearchResults: 3,
+                maxVerificationAttempts: maxVerificationAttempts,
+                playerCount: candidateDocs.length,
+                createdBy: currentUser ? currentUser.uid : uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            };
+            batch.set(inviteRef, inviteDoc);
+            candidateDocs.forEach(function(candidate) {
+                var candidateRef = getGameSoloSharedUpdateInviteCandidatesCollectionRef(inviteGameId, uid, inviteRef.id).doc(candidate.playerKey);
+                batch.set(candidateRef, candidate);
+            });
+            await batch.commit();
+            return { success: true, inviteId: inviteRef.id };
+        } catch (err) {
+            console.error('createPersonalSharedUpdateInvite error:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
+    async function createAllianceSharedUpdateInvite(allianceIdParam, players, options) {
+        try {
+            if (!db || !allianceIdParam || !Array.isArray(players) || players.length === 0) {
+                return { success: false, error: 'missing_players' };
+            }
+            var opts = options && typeof options === 'object' ? options : {};
+            var inviteGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var expiryHours = typeof opts.expiryHours === 'number' ? opts.expiryHours : 48;
+            var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+            var maxVerificationAttempts = Number.isFinite(Number(opts.maxVerificationAttempts)) && Number(opts.maxVerificationAttempts) > 0
+                ? Math.floor(Number(opts.maxVerificationAttempts))
+                : 3;
+            var inviteCollection = getGameAllianceSharedUpdateInvitesCollectionRef(inviteGameId, allianceIdParam);
+            if (!inviteCollection) {
+                return { success: false, error: 'Not available' };
+            }
+            var candidateDocs = players.map(function(player) {
+                return buildSharedInviteCandidateDoc(player && player.name, player);
+            }).filter(function(candidate) {
+                return !!(candidate && candidate.playerKey);
+            });
+            if (candidateDocs.length === 0) {
+                return { success: false, error: 'missing_players' };
+            }
+            var inviteRef = inviteCollection.doc();
+            var batch = db.batch();
+            var inviteDoc = {
+                contextType: 'alliance',
+                ownerUid: currentUser ? currentUser.uid : null,
+                allianceId: allianceIdParam,
+                gameId: inviteGameId,
+                active: true,
+                expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+                searchMinLength: 3,
+                maxSearchResults: 3,
+                maxVerificationAttempts: maxVerificationAttempts,
+                playerCount: candidateDocs.length,
+                createdBy: currentUser ? currentUser.uid : null,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            };
+            batch.set(inviteRef, inviteDoc);
+            candidateDocs.forEach(function(candidate) {
+                var candidateRef = getGameAllianceSharedUpdateInviteCandidatesCollectionRef(inviteGameId, allianceIdParam, inviteRef.id).doc(candidate.playerKey);
+                batch.set(candidateRef, candidate);
+            });
+            await batch.commit();
+            return { success: true, inviteId: inviteRef.id };
+        } catch (err) {
+            console.error('createAllianceSharedUpdateInvite error:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
     async function createPersonalPendingUpdate(uid, pendingUpdateDoc) {
         try {
             if (!db || !uid || !pendingUpdateDoc) {
@@ -6426,6 +6579,15 @@ const FirebaseManager = (function() {
         };
         var gameContext = resolveGameplayContext('applyPlayerUpdateToPersonal', gameId || null);
         var result = await upsertPlayerEntry('personal', resolvedPlayerName, nextPlayer, gameContext);
+        if (!result.success) {
+            console.error('[FirebaseManager] applyPlayerUpdateToPersonal failed', {
+                gameId: gameId || null,
+                playerName: playerName,
+                resolvedPlayerName: resolvedPlayerName,
+                playerKey: identifiersBag.playerKey || '',
+                error: result.errorKey || result.error || 'unknown',
+            });
+        }
         return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
     }
 
@@ -6461,6 +6623,18 @@ const FirebaseManager = (function() {
         };
         var gameContext = resolveGameplayContext('applyPlayerUpdateToAlliance', gameId || null);
         var result = await upsertPlayerEntry('alliance', resolvedPlayerName, nextPlayer, gameContext);
+        if (!result.success) {
+            console.error('[FirebaseManager] applyPlayerUpdateToAlliance failed', {
+                gameId: gameId || null,
+                requestedGameId: requestedGameId,
+                playerName: playerName,
+                resolvedPlayerName: resolvedPlayerName,
+                playerKey: identifiersBag.playerKey || '',
+                allianceId: allianceId || null,
+                requestedAllianceId: requestedAllianceId || null,
+                error: result.errorKey || result.error || 'unknown',
+            });
+        }
         return result.success ? { ok: true } : { ok: false, error: result.errorKey || result.error };
     }
 
@@ -6727,6 +6901,8 @@ const FirebaseManager = (function() {
         subscribePendingUpdatesCount: subscribePendingUpdatesCount,
         applyPlayerUpdateToPersonal: applyPlayerUpdateToPersonal,
         applyPlayerUpdateToAlliance: applyPlayerUpdateToAlliance,
+        createPersonalSharedUpdateInvite: createPersonalSharedUpdateInvite,
+        createAllianceSharedUpdateInvite: createAllianceSharedUpdateInvite,
         // Personal Player Updates
         createPersonalUpdateToken: createPersonalUpdateToken,
         createPersonalPendingUpdate: createPersonalPendingUpdate,
@@ -6741,8 +6917,12 @@ const FirebaseManager = (function() {
         getGameEventHistoryCollectionRef: getGameEventHistoryCollectionRef,
         getGameSoloUpdateTokensCollectionRef: getGameSoloUpdateTokensCollectionRef,
         getGameSoloPendingUpdatesCollectionRef: getGameSoloPendingUpdatesCollectionRef,
+        getGameSoloSharedUpdateInvitesCollectionRef: getGameSoloSharedUpdateInvitesCollectionRef,
+        getGameSoloSharedUpdateInviteCandidatesCollectionRef: getGameSoloSharedUpdateInviteCandidatesCollectionRef,
         getGameAllianceUpdateTokensCollectionRef: getGameAllianceUpdateTokensCollectionRef,
         getGameAlliancePendingUpdatesCollectionRef: getGameAlliancePendingUpdatesCollectionRef,
+        getGameAllianceSharedUpdateInvitesCollectionRef: getGameAllianceSharedUpdateInvitesCollectionRef,
+        getGameAllianceSharedUpdateInviteCandidatesCollectionRef: getGameAllianceSharedUpdateInviteCandidatesCollectionRef,
         GAME_CENTRIC_MIGRATION_VERSION: GAME_CENTRIC_MIGRATION_VERSION,
     };
     

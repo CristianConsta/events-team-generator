@@ -302,6 +302,21 @@
           }
           return soloRef.collection("pending_updates");
         }
+        function getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid) {
+          const soloRef = getSoloplayerDocRef(gameId, uid);
+          if (!soloRef) {
+            return null;
+          }
+          return soloRef.collection("shared_update_invites");
+        }
+        function getGameSoloSharedUpdateInviteCandidatesCollectionRef(gameId, uid, inviteId) {
+          const invitesRef = getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid);
+          const normalizedInviteId = typeof inviteId === "string" ? inviteId.trim() : "";
+          if (!invitesRef || !normalizedInviteId) {
+            return null;
+          }
+          return invitesRef.doc(normalizedInviteId).collection("candidates");
+        }
         function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId) {
           const allianceRef = getGameAllianceDocRef(gameId, allianceId);
           if (!allianceRef) {
@@ -315,6 +330,21 @@
             return null;
           }
           return allianceRef.collection("pending_updates");
+        }
+        function getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId) {
+          const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+          if (!allianceRef) {
+            return null;
+          }
+          return allianceRef.collection("shared_update_invites");
+        }
+        function getGameAllianceSharedUpdateInviteCandidatesCollectionRef(gameId, allianceId, inviteId) {
+          const invitesRef = getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId);
+          const normalizedInviteId = typeof inviteId === "string" ? inviteId.trim() : "";
+          if (!invitesRef || !normalizedInviteId) {
+            return null;
+          }
+          return invitesRef.doc(normalizedInviteId).collection("candidates");
         }
         function resolveScopedActiveGameStorageKey(userOrUid) {
           const userUid = normalizeUid(
@@ -558,8 +588,12 @@
           getGameEventHistoryCollectionRef,
           getGameSoloUpdateTokensCollectionRef,
           getGameSoloPendingUpdatesCollectionRef,
+          getGameSoloSharedUpdateInvitesCollectionRef,
+          getGameSoloSharedUpdateInviteCandidatesCollectionRef,
           getGameAllianceUpdateTokensCollectionRef,
           getGameAlliancePendingUpdatesCollectionRef,
+          getGameAllianceSharedUpdateInvitesCollectionRef,
+          getGameAllianceSharedUpdateInviteCandidatesCollectionRef,
           // game context resolvers
           resolveScopedActiveGameStorageKey,
           resolveGameplayContext,
@@ -1296,11 +1330,23 @@
         function getGameSoloPendingUpdatesCollectionRef(gameId, uid) {
           return DSFirebaseInfra.getGameSoloPendingUpdatesCollectionRef(gameId, uid);
         }
+        function getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid) {
+          return DSFirebaseInfra.getGameSoloSharedUpdateInvitesCollectionRef(gameId, uid);
+        }
+        function getGameSoloSharedUpdateInviteCandidatesCollectionRef(gameId, uid, inviteId) {
+          return DSFirebaseInfra.getGameSoloSharedUpdateInviteCandidatesCollectionRef(gameId, uid, inviteId);
+        }
         function getGameAllianceUpdateTokensCollectionRef(gameId, allianceId2) {
           return DSFirebaseInfra.getGameAllianceUpdateTokensCollectionRef(gameId, allianceId2);
         }
         function getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId2) {
           return DSFirebaseInfra.getGameAlliancePendingUpdatesCollectionRef(gameId, allianceId2);
+        }
+        function getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId2) {
+          return DSFirebaseInfra.getGameAllianceSharedUpdateInvitesCollectionRef(gameId, allianceId2);
+        }
+        function getGameAllianceSharedUpdateInviteCandidatesCollectionRef(gameId, allianceId2, inviteId) {
+          return DSFirebaseInfra.getGameAllianceSharedUpdateInviteCandidatesCollectionRef(gameId, allianceId2, inviteId);
         }
         function createStableDocId(rawValue, prefix) {
           return DSFirebaseInfra.createStableDocId(rawValue, prefix);
@@ -5968,6 +6014,46 @@
             troops: normalizeEditablePlayerTroops(entry.troops)
           };
         }
+        function buildSharedInviteSearchPrefixes(playerName) {
+          var normalized = normalizeEditablePlayerName(playerName).toLowerCase();
+          if (!normalized || normalized.length < 3) {
+            return [];
+          }
+          var prefixes = [];
+          for (var index = 3; index <= normalized.length; index += 1) {
+            prefixes.push(normalized.slice(0, index));
+          }
+          return prefixes;
+        }
+        function buildPowerBand(powerValue) {
+          var numericPower = normalizeEditablePlayerPower(powerValue);
+          var bandStart = Math.floor(numericPower / 50) * 50;
+          var bandEnd = bandStart + 49;
+          return {
+            code: String(bandStart) + "-" + String(bandEnd),
+            min: bandStart,
+            max: bandEnd,
+            label: String(bandStart) + "-" + String(bandEnd) + "M"
+          };
+        }
+        function buildSharedInviteCandidateDoc(playerName, entry) {
+          var normalizedName = normalizeEditablePlayerName(playerName);
+          if (!normalizedName) {
+            return null;
+          }
+          var snapshot = buildSnapshotFromEntry(entry);
+          var powerBand = buildPowerBand(snapshot.power);
+          return {
+            playerName: normalizedName,
+            playerKey: getPlayerDocId(normalizedName),
+            searchName: normalizedName.toLowerCase(),
+            searchPrefixes: buildSharedInviteSearchPrefixes(normalizedName),
+            verifyTroops: normalizeEditablePlayerTroops(snapshot.troops),
+            verifyPowerBand: powerBand.code,
+            verifyPowerBandLabel: powerBand.label,
+            currentSnapshot: snapshot
+          };
+        }
         function resolveTokenPlayerContext(contextType, playerName, playerKey, gameId) {
           var resolvedGameId = normalizeGameId(gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
           var primaryMap = {};
@@ -6323,6 +6409,106 @@
             return { success: true, tokenId: docRef.id };
           } catch (err) {
             console.error("createPersonalUpdateToken error:", err);
+            return { success: false, error: err.message };
+          }
+        }
+        async function createPersonalSharedUpdateInvite(uid, players, options) {
+          try {
+            if (!db || !uid || !Array.isArray(players) || players.length === 0) {
+              return { success: false, error: "missing_players" };
+            }
+            var opts = options && typeof options === "object" ? options : {};
+            var inviteGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var expiryHours = typeof opts.expiryHours === "number" ? opts.expiryHours : 48;
+            var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1e3);
+            var maxVerificationAttempts = Number.isFinite(Number(opts.maxVerificationAttempts)) && Number(opts.maxVerificationAttempts) > 0 ? Math.floor(Number(opts.maxVerificationAttempts)) : 3;
+            var inviteCollection = getGameSoloSharedUpdateInvitesCollectionRef(inviteGameId, uid);
+            if (!inviteCollection) {
+              return { success: false, error: "Not available" };
+            }
+            var candidateDocs = players.map(function(player) {
+              return buildSharedInviteCandidateDoc(player && player.name, player);
+            }).filter(function(candidate) {
+              return !!(candidate && candidate.playerKey);
+            });
+            if (candidateDocs.length === 0) {
+              return { success: false, error: "missing_players" };
+            }
+            var inviteRef = inviteCollection.doc();
+            var batch = db.batch();
+            var inviteDoc = {
+              contextType: "personal",
+              ownerUid: uid,
+              allianceId: null,
+              gameId: inviteGameId,
+              active: true,
+              expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+              searchMinLength: 3,
+              maxSearchResults: 3,
+              maxVerificationAttempts,
+              playerCount: candidateDocs.length,
+              createdBy: currentUser ? currentUser.uid : uid,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            batch.set(inviteRef, inviteDoc);
+            candidateDocs.forEach(function(candidate) {
+              var candidateRef = getGameSoloSharedUpdateInviteCandidatesCollectionRef(inviteGameId, uid, inviteRef.id).doc(candidate.playerKey);
+              batch.set(candidateRef, candidate);
+            });
+            await batch.commit();
+            return { success: true, inviteId: inviteRef.id };
+          } catch (err) {
+            console.error("createPersonalSharedUpdateInvite error:", err);
+            return { success: false, error: err.message };
+          }
+        }
+        async function createAllianceSharedUpdateInvite(allianceIdParam, players, options) {
+          try {
+            if (!db || !allianceIdParam || !Array.isArray(players) || players.length === 0) {
+              return { success: false, error: "missing_players" };
+            }
+            var opts = options && typeof options === "object" ? options : {};
+            var inviteGameId = normalizeGameId(opts.gameId || activeGameplayGameId) || DEFAULT_GAME_ID;
+            var expiryHours = typeof opts.expiryHours === "number" ? opts.expiryHours : 48;
+            var expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1e3);
+            var maxVerificationAttempts = Number.isFinite(Number(opts.maxVerificationAttempts)) && Number(opts.maxVerificationAttempts) > 0 ? Math.floor(Number(opts.maxVerificationAttempts)) : 3;
+            var inviteCollection = getGameAllianceSharedUpdateInvitesCollectionRef(inviteGameId, allianceIdParam);
+            if (!inviteCollection) {
+              return { success: false, error: "Not available" };
+            }
+            var candidateDocs = players.map(function(player) {
+              return buildSharedInviteCandidateDoc(player && player.name, player);
+            }).filter(function(candidate) {
+              return !!(candidate && candidate.playerKey);
+            });
+            if (candidateDocs.length === 0) {
+              return { success: false, error: "missing_players" };
+            }
+            var inviteRef = inviteCollection.doc();
+            var batch = db.batch();
+            var inviteDoc = {
+              contextType: "alliance",
+              ownerUid: currentUser ? currentUser.uid : null,
+              allianceId: allianceIdParam,
+              gameId: inviteGameId,
+              active: true,
+              expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+              searchMinLength: 3,
+              maxSearchResults: 3,
+              maxVerificationAttempts,
+              playerCount: candidateDocs.length,
+              createdBy: currentUser ? currentUser.uid : null,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            batch.set(inviteRef, inviteDoc);
+            candidateDocs.forEach(function(candidate) {
+              var candidateRef = getGameAllianceSharedUpdateInviteCandidatesCollectionRef(inviteGameId, allianceIdParam, inviteRef.id).doc(candidate.playerKey);
+              batch.set(candidateRef, candidate);
+            });
+            await batch.commit();
+            return { success: true, inviteId: inviteRef.id };
+          } catch (err) {
+            console.error("createAllianceSharedUpdateInvite error:", err);
             return { success: false, error: err.message };
           }
         }
@@ -6858,6 +7044,8 @@
           subscribePendingUpdatesCount,
           applyPlayerUpdateToPersonal,
           applyPlayerUpdateToAlliance,
+          createPersonalSharedUpdateInvite,
+          createAllianceSharedUpdateInvite,
           // Personal Player Updates
           createPersonalUpdateToken,
           createPersonalPendingUpdate,
@@ -6872,8 +7060,12 @@
           getGameEventHistoryCollectionRef,
           getGameSoloUpdateTokensCollectionRef,
           getGameSoloPendingUpdatesCollectionRef,
+          getGameSoloSharedUpdateInvitesCollectionRef,
+          getGameSoloSharedUpdateInviteCandidatesCollectionRef,
           getGameAllianceUpdateTokensCollectionRef,
           getGameAlliancePendingUpdatesCollectionRef,
+          getGameAllianceSharedUpdateInvitesCollectionRef,
+          getGameAllianceSharedUpdateInviteCandidatesCollectionRef,
           GAME_CENTRIC_MIGRATION_VERSION
         };
       }();
@@ -6947,6 +7139,13 @@
           players_list_edit_button: "Edit",
           players_list_delete_button: "Delete",
           players_list_invite_button: "Invite",
+          players_shared_invite_title: "Shared Update Link",
+          players_shared_invite_help: "Generate one public link that lets each player find their nickname, confirm identity, and submit stats for review.",
+          players_shared_invite_button: "Generate Shared Link",
+          players_shared_invite_ready: "{count} players available for the shared link.",
+          players_shared_invite_empty: "Add players to the active source before generating a shared link.",
+          players_shared_invite_generating: "Generating shared link...",
+          players_shared_invite_generated: "Shared link ready for {count} players.",
           invite_link_copied: "Link copied!",
           invite_generating: "Generating...",
           invite_copy_link: "Copy link",
@@ -7388,6 +7587,26 @@
           player_update_error_power_range: "Power must be between 0 and 9999.",
           player_update_error_thp_range: "THP must be between 0 and 99999.",
           player_update_error_troops_required: "Please select a troop type.",
+          player_update_shared_title: "Find Your Profile",
+          player_update_shared_intro: "Type at least 3 characters from your nickname. We will only show up to 3 matches.",
+          player_update_shared_search_label: "Nickname",
+          player_update_shared_search_placeholder: "Start typing your nickname",
+          player_update_shared_search_hint: "Enter at least 3 characters to search.",
+          player_update_shared_no_results: "No matching players found.",
+          player_update_shared_select_cta: "Select this player",
+          player_update_shared_selected_label: "Selected player",
+          player_update_shared_verify_intro: "Confirm one current detail before continuing.",
+          player_update_shared_verify_method_troops: "Confirm with troop type",
+          player_update_shared_verify_method_power: "Confirm with power range",
+          player_update_shared_verify_troops_label: "Current troop type",
+          player_update_shared_verify_troops_placeholder: "Select troop type",
+          player_update_shared_verify_power_label: "Current 1st Team Power range",
+          player_update_shared_verify_power_placeholder: "Select your range",
+          player_update_shared_verify_button: "Continue",
+          player_update_shared_attempts_remaining: "Attempts remaining: {remaining}/{max}",
+          player_update_shared_verify_failed: "That detail does not match our records. Try again carefully.",
+          player_update_shared_pick_player_first: "Select your player first.",
+          player_update_shared_error_too_many_attempts: "Too many failed verification attempts in this session. Ask your leader for a fresh link if needed.",
           token_modal_title: "Generate Update Links",
           token_modal_expiry_label: "Link Expiry",
           token_modal_expiry_24h: "24 hours",
@@ -7479,6 +7698,13 @@
           players_list_edit_button: "Modifier",
           players_list_delete_button: "Supprimer",
           players_list_invite_button: "Inviter",
+          players_shared_invite_title: "Shared Update Link",
+          players_shared_invite_help: "Generate one public link that lets each player find their nickname, confirm identity, and submit stats for review.",
+          players_shared_invite_button: "Generate Shared Link",
+          players_shared_invite_ready: "{count} players available for the shared link.",
+          players_shared_invite_empty: "Add players to the active source before generating a shared link.",
+          players_shared_invite_generating: "Generating shared link...",
+          players_shared_invite_generated: "Shared link ready for {count} players.",
           invite_link_copied: "Lien copi\xE9 !",
           invite_generating: "G\xE9n\xE9ration...",
           invite_copy_link: "Copier le lien",
@@ -7920,6 +8146,26 @@
           player_update_error_power_range: "La puissance doit etre entre 0 et 9999.",
           player_update_error_thp_range: "Le THP doit etre entre 0 et 99999.",
           player_update_error_troops_required: "Veuillez selectionner un type de troupe.",
+          player_update_shared_title: "Find Your Profile",
+          player_update_shared_intro: "Type at least 3 characters from your nickname. We will only show up to 3 matches.",
+          player_update_shared_search_label: "Nickname",
+          player_update_shared_search_placeholder: "Start typing your nickname",
+          player_update_shared_search_hint: "Enter at least 3 characters to search.",
+          player_update_shared_no_results: "No matching players found.",
+          player_update_shared_select_cta: "Select this player",
+          player_update_shared_selected_label: "Selected player",
+          player_update_shared_verify_intro: "Confirm one current detail before continuing.",
+          player_update_shared_verify_method_troops: "Confirm with troop type",
+          player_update_shared_verify_method_power: "Confirm with power range",
+          player_update_shared_verify_troops_label: "Current troop type",
+          player_update_shared_verify_troops_placeholder: "Select troop type",
+          player_update_shared_verify_power_label: "Current 1st Team Power range",
+          player_update_shared_verify_power_placeholder: "Select your range",
+          player_update_shared_verify_button: "Continue",
+          player_update_shared_attempts_remaining: "Attempts remaining: {remaining}/{max}",
+          player_update_shared_verify_failed: "That detail does not match our records. Try again carefully.",
+          player_update_shared_pick_player_first: "Select your player first.",
+          player_update_shared_error_too_many_attempts: "Too many failed verification attempts in this session. Ask your leader for a fresh link if needed.",
           token_modal_title: "Generer des liens de mise a jour",
           token_modal_expiry_label: "Expiration du lien",
           token_modal_expiry_24h: "24 heures",
@@ -8011,6 +8257,13 @@
           players_list_edit_button: "Bearbeiten",
           players_list_delete_button: "L\xF6schen",
           players_list_invite_button: "Einladen",
+          players_shared_invite_title: "Shared Update Link",
+          players_shared_invite_help: "Generate one public link that lets each player find their nickname, confirm identity, and submit stats for review.",
+          players_shared_invite_button: "Generate Shared Link",
+          players_shared_invite_ready: "{count} players available for the shared link.",
+          players_shared_invite_empty: "Add players to the active source before generating a shared link.",
+          players_shared_invite_generating: "Generating shared link...",
+          players_shared_invite_generated: "Shared link ready for {count} players.",
           invite_link_copied: "Link kopiert!",
           invite_generating: "Wird generiert...",
           invite_copy_link: "Link kopieren",
@@ -8452,6 +8705,26 @@
           player_update_error_power_range: "Die Staerke muss zwischen 0 und 9999 liegen.",
           player_update_error_thp_range: "THP muss zwischen 0 und 99999 liegen.",
           player_update_error_troops_required: "Bitte waehlen Sie einen Truppentyp.",
+          player_update_shared_title: "Find Your Profile",
+          player_update_shared_intro: "Type at least 3 characters from your nickname. We will only show up to 3 matches.",
+          player_update_shared_search_label: "Nickname",
+          player_update_shared_search_placeholder: "Start typing your nickname",
+          player_update_shared_search_hint: "Enter at least 3 characters to search.",
+          player_update_shared_no_results: "No matching players found.",
+          player_update_shared_select_cta: "Select this player",
+          player_update_shared_selected_label: "Selected player",
+          player_update_shared_verify_intro: "Confirm one current detail before continuing.",
+          player_update_shared_verify_method_troops: "Confirm with troop type",
+          player_update_shared_verify_method_power: "Confirm with power range",
+          player_update_shared_verify_troops_label: "Current troop type",
+          player_update_shared_verify_troops_placeholder: "Select troop type",
+          player_update_shared_verify_power_label: "Current 1st Team Power range",
+          player_update_shared_verify_power_placeholder: "Select your range",
+          player_update_shared_verify_button: "Continue",
+          player_update_shared_attempts_remaining: "Attempts remaining: {remaining}/{max}",
+          player_update_shared_verify_failed: "That detail does not match our records. Try again carefully.",
+          player_update_shared_pick_player_first: "Select your player first.",
+          player_update_shared_error_too_many_attempts: "Too many failed verification attempts in this session. Ask your leader for a fresh link if needed.",
           token_modal_title: "Update-Links generieren",
           token_modal_expiry_label: "Link-Ablauf",
           token_modal_expiry_24h: "24 Stunden",
@@ -8543,6 +8816,13 @@
           players_list_edit_button: "Modifica",
           players_list_delete_button: "Elimina",
           players_list_invite_button: "Invita",
+          players_shared_invite_title: "Shared Update Link",
+          players_shared_invite_help: "Generate one public link that lets each player find their nickname, confirm identity, and submit stats for review.",
+          players_shared_invite_button: "Generate Shared Link",
+          players_shared_invite_ready: "{count} players available for the shared link.",
+          players_shared_invite_empty: "Add players to the active source before generating a shared link.",
+          players_shared_invite_generating: "Generating shared link...",
+          players_shared_invite_generated: "Shared link ready for {count} players.",
           invite_link_copied: "Link copiato!",
           invite_generating: "Generazione...",
           invite_copy_link: "Copia link",
@@ -8984,6 +9264,26 @@
           player_update_error_power_range: "La potenza deve essere tra 0 e 9999.",
           player_update_error_thp_range: "Il THP deve essere tra 0 e 99999.",
           player_update_error_troops_required: "Seleziona un tipo di truppa.",
+          player_update_shared_title: "Find Your Profile",
+          player_update_shared_intro: "Type at least 3 characters from your nickname. We will only show up to 3 matches.",
+          player_update_shared_search_label: "Nickname",
+          player_update_shared_search_placeholder: "Start typing your nickname",
+          player_update_shared_search_hint: "Enter at least 3 characters to search.",
+          player_update_shared_no_results: "No matching players found.",
+          player_update_shared_select_cta: "Select this player",
+          player_update_shared_selected_label: "Selected player",
+          player_update_shared_verify_intro: "Confirm one current detail before continuing.",
+          player_update_shared_verify_method_troops: "Confirm with troop type",
+          player_update_shared_verify_method_power: "Confirm with power range",
+          player_update_shared_verify_troops_label: "Current troop type",
+          player_update_shared_verify_troops_placeholder: "Select troop type",
+          player_update_shared_verify_power_label: "Current 1st Team Power range",
+          player_update_shared_verify_power_placeholder: "Select your range",
+          player_update_shared_verify_button: "Continue",
+          player_update_shared_attempts_remaining: "Attempts remaining: {remaining}/{max}",
+          player_update_shared_verify_failed: "That detail does not match our records. Try again carefully.",
+          player_update_shared_pick_player_first: "Select your player first.",
+          player_update_shared_error_too_many_attempts: "Too many failed verification attempts in this session. Ask your leader for a fresh link if needed.",
           token_modal_title: "Genera link di aggiornamento",
           token_modal_expiry_label: "Scadenza link",
           token_modal_expiry_24h: "24 ore",
@@ -9075,6 +9375,13 @@
           players_list_edit_button: "\uC218\uC815",
           players_list_delete_button: "\uC0AD\uC81C",
           players_list_invite_button: "\uCD08\uB300",
+          players_shared_invite_title: "Shared Update Link",
+          players_shared_invite_help: "Generate one public link that lets each player find their nickname, confirm identity, and submit stats for review.",
+          players_shared_invite_button: "Generate Shared Link",
+          players_shared_invite_ready: "{count} players available for the shared link.",
+          players_shared_invite_empty: "Add players to the active source before generating a shared link.",
+          players_shared_invite_generating: "Generating shared link...",
+          players_shared_invite_generated: "Shared link ready for {count} players.",
           invite_link_copied: "\uB9C1\uD06C \uBCF5\uC0AC\uB428!",
           invite_generating: "\uC0DD\uC131 \uC911...",
           invite_copy_link: "\uB9C1\uD06C \uBCF5\uC0AC",
@@ -9516,6 +9823,26 @@
           player_update_error_power_range: "\uC804\uD22C\uB825\uC740 0\uC5D0\uC11C 9999 \uC0AC\uC774\uC5EC\uC57C \uD569\uB2C8\uB2E4.",
           player_update_error_thp_range: "THP\uB294 0\uC5D0\uC11C 99999 \uC0AC\uC774\uC5EC\uC57C \uD569\uB2C8\uB2E4.",
           player_update_error_troops_required: "\uBCD1\uC885\uC744 \uC120\uD0DD\uD558\uC138\uC694.",
+          player_update_shared_title: "Find Your Profile",
+          player_update_shared_intro: "Type at least 3 characters from your nickname. We will only show up to 3 matches.",
+          player_update_shared_search_label: "Nickname",
+          player_update_shared_search_placeholder: "Start typing your nickname",
+          player_update_shared_search_hint: "Enter at least 3 characters to search.",
+          player_update_shared_no_results: "No matching players found.",
+          player_update_shared_select_cta: "Select this player",
+          player_update_shared_selected_label: "Selected player",
+          player_update_shared_verify_intro: "Confirm one current detail before continuing.",
+          player_update_shared_verify_method_troops: "Confirm with troop type",
+          player_update_shared_verify_method_power: "Confirm with power range",
+          player_update_shared_verify_troops_label: "Current troop type",
+          player_update_shared_verify_troops_placeholder: "Select troop type",
+          player_update_shared_verify_power_label: "Current 1st Team Power range",
+          player_update_shared_verify_power_placeholder: "Select your range",
+          player_update_shared_verify_button: "Continue",
+          player_update_shared_attempts_remaining: "Attempts remaining: {remaining}/{max}",
+          player_update_shared_verify_failed: "That detail does not match our records. Try again carefully.",
+          player_update_shared_pick_player_first: "Select your player first.",
+          player_update_shared_error_too_many_attempts: "Too many failed verification attempts in this session. Ask your leader for a fresh link if needed.",
           token_modal_title: "\uC5C5\uB370\uC774\uD2B8 \uB9C1\uD06C \uC0DD\uC131",
           token_modal_expiry_label: "\uB9C1\uD06C \uB9CC\uB8CC",
           token_modal_expiry_24h: "24\uC2DC\uAC04",
@@ -9607,6 +9934,13 @@
           players_list_edit_button: "Editeaz\u0103",
           players_list_delete_button: "\u0218terge",
           players_list_invite_button: "Invit\u0103",
+          players_shared_invite_title: "Link comun de actualizare",
+          players_shared_invite_help: "Genereaza un singur link public prin care fiecare jucator isi poate cauta nickname-ul, confirma identitatea si trimite statisticile la aprobare.",
+          players_shared_invite_button: "Genereaza link comun",
+          players_shared_invite_ready: "{count} jucatori disponibili pentru linkul comun.",
+          players_shared_invite_empty: "Adauga jucatori in sursa activa inainte sa generezi un link comun.",
+          players_shared_invite_generating: "Se genereaza linkul comun...",
+          players_shared_invite_generated: "Linkul comun este gata pentru {count} jucatori.",
           invite_link_copied: "Link copiat!",
           invite_generating: "Se genereaz\u0103...",
           invite_copy_link: "Copiaz\u0103 link",
@@ -10048,6 +10382,26 @@
           player_update_error_power_range: "Puterea trebuie sa fie intre 0 si 9999.",
           player_update_error_thp_range: "THP trebuie sa fie intre 0 si 99999.",
           player_update_error_troops_required: "Selecteaza un tip de trupa.",
+          player_update_shared_title: "Gaseste-ti profilul",
+          player_update_shared_intro: "Tasteaza minimum 3 caractere din nickname-ul tau. Vom afisa maximum 3 rezultate.",
+          player_update_shared_search_label: "Nickname",
+          player_update_shared_search_placeholder: "Incepe sa tastezi nickname-ul",
+          player_update_shared_search_hint: "Introdu minimum 3 caractere pentru cautare.",
+          player_update_shared_no_results: "Nu am gasit jucatori care sa se potriveasca.",
+          player_update_shared_select_cta: "Selecteaza acest jucator",
+          player_update_shared_selected_label: "Jucator selectat",
+          player_update_shared_verify_intro: "Confirma un detaliu curent inainte sa continui.",
+          player_update_shared_verify_method_troops: "Confirma prin tipul de trupa",
+          player_update_shared_verify_method_power: "Confirma prin intervalul de putere",
+          player_update_shared_verify_troops_label: "Tipul de trupa curent",
+          player_update_shared_verify_troops_placeholder: "Selecteaza tipul de trupa",
+          player_update_shared_verify_power_label: "Intervalul curent pentru Putere Echipa 1",
+          player_update_shared_verify_power_placeholder: "Selecteaza intervalul tau",
+          player_update_shared_verify_button: "Continua",
+          player_update_shared_attempts_remaining: "Incercari ramase: {remaining}/{max}",
+          player_update_shared_verify_failed: "Detaliul selectat nu se potriveste cu datele noastre. Incearca din nou cu atentie.",
+          player_update_shared_pick_player_first: "Selecteaza mai intai jucatorul tau.",
+          player_update_shared_error_too_many_attempts: "Prea multe incercari esuate in aceasta sesiune. Daca este nevoie, cere liderului un link nou.",
           token_modal_title: "Genereaza linkuri de actualizare",
           token_modal_expiry_label: "Expirare link",
           token_modal_expiry_24h: "24 ore",
@@ -18910,6 +19264,18 @@
                 []
               );
             },
+            createPersonalSharedUpdateInvite: async function createPersonalSharedUpdateInvite(uid, players, options) {
+              return gatewayUtils.withManager(
+                (svc) => svc.createPersonalSharedUpdateInvite(uid, players, options),
+                gatewayUtils.notLoadedResult()
+              );
+            },
+            createAllianceSharedUpdateInvite: async function createAllianceSharedUpdateInvite(allianceId, players, options) {
+              return gatewayUtils.withManager(
+                (svc) => svc.createAllianceSharedUpdateInvite(allianceId, players, options),
+                gatewayUtils.notLoadedResult()
+              );
+            },
             subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
               return gatewayUtils.withManager(
                 (svc) => svc.subscribePendingUpdatesCount(allianceId, uid, callback),
@@ -19270,6 +19636,16 @@
               return gatewayUtils.withManager(function(svc) {
                 return svc.loadActiveTokens(allianceId);
               }, []);
+            },
+            createPersonalSharedUpdateInvite: async function createPersonalSharedUpdateInvite(uid, players, options) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.createPersonalSharedUpdateInvite(uid, players, options);
+              }, gatewayUtils.notLoadedResult());
+            },
+            createAllianceSharedUpdateInvite: async function createAllianceSharedUpdateInvite(allianceId, players, options) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.createAllianceSharedUpdateInvite(allianceId, players, options);
+              }, gatewayUtils.notLoadedResult());
             },
             subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
               return gatewayUtils.withManager(function(svc) {
@@ -20051,6 +20427,12 @@
           },
           loadActiveTokens: function loadActiveTokens(allianceId) {
             return playerUpdatesGateway.loadActiveTokens(allianceId);
+          },
+          createPersonalSharedUpdateInvite: function createPersonalSharedUpdateInvite(uid, players, options) {
+            return playerUpdatesGateway.createPersonalSharedUpdateInvite(uid, players, options);
+          },
+          createAllianceSharedUpdateInvite: function createAllianceSharedUpdateInvite(allianceId, players, options) {
+            return playerUpdatesGateway.createAllianceSharedUpdateInvite(allianceId, players, options);
           },
           subscribePendingUpdatesCount: function subscribePendingUpdatesCount(allianceId, uid, callback) {
             return playerUpdatesGateway.subscribePendingUpdatesCount(allianceId, uid, callback);
@@ -22679,6 +23061,9 @@
           }
           clearPlayersManagementFilters();
         });
+        on("playersMgmtSharedInviteBtn", "click", function() {
+          handlePlayersManagementSharedInvite(document.getElementById("playersMgmtSharedInviteBtn"));
+        });
         on("assignmentAlgorithmBalanced", "change", (event) => {
           const controller = getGeneratorFeatureController();
           if (controller && typeof controller.changeAlgorithm === "function") {
@@ -24231,6 +24616,23 @@
         }
         return {};
       }
+      function buildSharedInvitePlayerPayload(source) {
+        const db = getPlayersDatabaseBySource(source);
+        if (!db || typeof db !== "object") {
+          return [];
+        }
+        return Object.keys(db).map(function(name) {
+          const entry = db[name] && typeof db[name] === "object" ? db[name] : {};
+          return {
+            name,
+            power: Number.isFinite(Number(entry.power)) ? Number(entry.power) : 0,
+            thp: Number.isFinite(Number(entry.thp)) ? Number(entry.thp) : 0,
+            troops: typeof entry.troops === "string" && entry.troops.trim() ? entry.troops.trim() : "Unknown"
+          };
+        }).filter(function(player) {
+          return typeof player.name === "string" && player.name.trim().length > 0;
+        });
+      }
       function normalizePlayerRecordForUi(name, entry) {
         if (window.DSFeaturePlayersManagementCore && typeof window.DSFeaturePlayersManagementCore.normalizePlayerRecordForUi === "function") {
           return window.DSFeaturePlayersManagementCore.normalizePlayerRecordForUi(name, entry);
@@ -24390,6 +24792,19 @@
         personalBtn.disabled = personalActive;
         allianceBtn.disabled = allianceActive;
       }
+      function renderPlayersManagementSharedInviteControls() {
+        const button = document.getElementById("playersMgmtSharedInviteBtn");
+        const status = document.getElementById("playersMgmtSharedInviteStatus");
+        if (!button) {
+          return;
+        }
+        const source = getPlayersManagementActiveSource();
+        const players = buildSharedInvitePlayerPayload(source);
+        button.disabled = players.length === 0;
+        if (status && !status.textContent.trim()) {
+          status.textContent = players.length > 0 ? t2("players_shared_invite_ready", { count: players.length }) : t2("players_shared_invite_empty");
+        }
+      }
       function renderPlayersManagementTable() {
         const tbody = document.getElementById("playersMgmtTableBody");
         if (!tbody) {
@@ -24483,6 +24898,7 @@
         }
         renderPlayersManagementSourceControls();
         renderPlayersManagementAddPanel();
+        renderPlayersManagementSharedInviteControls();
         renderPlayersManagementFilters();
         renderPlayersManagementTable();
         const source = getPlayersManagementActiveSource();
@@ -24681,6 +25097,74 @@
           return;
         }
         showMessage("playersMgmtStatus", translatePlayersManagementError(result), "error");
+      }
+      async function handlePlayersManagementSharedInvite(button) {
+        if (!button) {
+          return;
+        }
+        if (typeof FirebaseService === "undefined") {
+          showMessage("playersMgmtSharedInviteStatus", t2("error_firebase_not_loaded"), "error");
+          return;
+        }
+        const source = getPlayersManagementActiveSource();
+        const gameplayContext2 = getGameplayContext("playersMgmtSharedInviteStatus");
+        const players = buildSharedInvitePlayerPayload(source);
+        if (!gameplayContext2) {
+          return;
+        }
+        if (!players.length) {
+          showMessage("playersMgmtSharedInviteStatus", t2("players_shared_invite_empty"), "error");
+          return;
+        }
+        const originalButtonContent = button.innerHTML;
+        const currentLang = window.DSI18N && typeof window.DSI18N.getCurrentLanguage === "function" ? window.DSI18N.getCurrentLanguage() : "en";
+        const gameId = gameplayContext2.gameId || "";
+        button.disabled = true;
+        button.innerHTML = '<span class="action-btn-text">' + escapeHtml(t2("invite_generating")) + "</span>";
+        showMessage("playersMgmtSharedInviteStatus", t2("players_shared_invite_generating"), "processing");
+        try {
+          let result;
+          let inviteUrl;
+          if (source === "personal") {
+            const currentUser = FirebaseService.getCurrentUser ? FirebaseService.getCurrentUser() : null;
+            const uid = currentUser ? currentUser.uid : "";
+            if (!uid) {
+              showMessage("playersMgmtSharedInviteStatus", t2("invite_error"), "error");
+              return;
+            }
+            result = await FirebaseService.createPersonalSharedUpdateInvite(uid, players, {
+              gameId,
+              expiryHours: 48,
+              maxVerificationAttempts: 3
+            });
+            if (!result || !result.success) {
+              showMessage("playersMgmtSharedInviteStatus", t2("invite_error"), "error");
+              return;
+            }
+            inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?shared=" + encodeURIComponent(result.inviteId) + "&uid=" + encodeURIComponent(uid) + "&lang=" + encodeURIComponent(currentLang) + (gameId ? "&gid=" + encodeURIComponent(gameId) : "");
+          } else {
+            const allianceId = FirebaseService.getAllianceId ? FirebaseService.getAllianceId(gameplayContext2 || void 0) : "";
+            if (!allianceId) {
+              showMessage("playersMgmtSharedInviteStatus", t2("invite_error"), "error");
+              return;
+            }
+            result = await FirebaseService.createAllianceSharedUpdateInvite(allianceId, players, {
+              gameId,
+              expiryHours: 48,
+              maxVerificationAttempts: 3
+            });
+            if (!result || !result.success) {
+              showMessage("playersMgmtSharedInviteStatus", t2("invite_error"), "error");
+              return;
+            }
+            inviteUrl = new URL("player-update.html", window.location.href).href.split("?")[0] + "?shared=" + encodeURIComponent(result.inviteId) + "&alliance=" + encodeURIComponent(allianceId) + "&lang=" + encodeURIComponent(currentLang) + (gameId ? "&gid=" + encodeURIComponent(gameId) : "");
+          }
+          showMessage("playersMgmtSharedInviteStatus", t2("players_shared_invite_generated", { count: players.length }), "success");
+          showInviteLinkPopover(button, inviteUrl);
+        } finally {
+          button.disabled = false;
+          button.innerHTML = originalButtonContent;
+        }
       }
       async function handlePlayersManagementTableAction(event) {
         if (typeof FirebaseService === "undefined") {

@@ -88,6 +88,12 @@ service cloud.firestore {
         && pendingData.playerKey == tokenData.playerKey;
     }
 
+    function sharedInviteIsActive(data) {
+      return data != null
+        && data.active == true
+        && data.expiresAt > request.time;
+    }
+
     match /users/{uid} {
       allow read, write: if isSelf(uid);
 
@@ -244,15 +250,31 @@ service cloud.firestore {
                         && request.resource.data.playerName is string
                         && request.resource.data.playerName.size() > 0
                         && request.resource.data.playerName.size() <= 50
-                        && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
-                        && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
-                        && tokenHasRemainingSubmissions(
-                          get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data
+                        && (
+                          (
+                            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                            && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                            && tokenHasRemainingSubmissions(
+                              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data
+                            )
+                            && tokenPlayerKeyMatches(
+                              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data,
+                              request.resource.data
+                            )
+                          )
+                          || (
+                            request.resource.data.sharedInviteId is string
+                            && request.resource.data.sharedInviteId.size() > 0
+                            && request.resource.data.tokenId.matches('^shared:.*$')
+                            && sharedInviteIsActive(
+                              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
+                            )
+                            && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(request.resource.data.sharedInviteId)/candidates/$(request.resource.data.playerKey)).data.playerName == request.resource.data.playerName
+                          )
                         )
-                        && tokenPlayerKeyMatches(
-                          get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data,
-                          request.resource.data
-                        )
+                        && request.resource.data.playerKey is string
+                        && request.resource.data.playerKey.size() > 0
+                        && request.resource.data.gameId == gameId
                         && request.resource.data.status == 'pending'
                         && request.resource.data.proposedValues.power is number
                         && request.resource.data.proposedValues.power >= 0
@@ -270,6 +292,43 @@ service cloud.firestore {
                           && request.resource.data.diff(resource.data)
                                  .affectedKeys()
                                  .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+        }
+
+        match /shared_update_invites/{inviteId} {
+          allow create: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+          allow get: if isAllianceActor(
+                        get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                      )
+                      || (isAnonymous() && sharedInviteIsActive(resource.data));
+          allow list: if isAllianceActor(
+                         get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                       );
+          allow update, delete: if isAllianceActor(
+            get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+          );
+
+          match /candidates/{playerKey} {
+            allow create, update, delete: if isAllianceActor(
+              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+            );
+            allow get: if isAllianceActor(
+                          get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                        )
+                        || (isAnonymous()
+                            && sharedInviteIsActive(
+                              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(inviteId)).data
+                            ));
+            allow list: if isAllianceActor(
+                           get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
+                         )
+                         || (isAnonymous()
+                             && request.query.limit <= 3
+                             && sharedInviteIsActive(
+                               get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(inviteId)).data
+                             ));
+          }
         }
 
         // Alliance invitations (moved from game-level to alliance-level)
@@ -339,16 +398,31 @@ service cloud.firestore {
                         && request.resource.data.playerName is string
                         && request.resource.data.playerName.size() > 0
                         && request.resource.data.playerName.size() <= 50
-                        && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
-                        && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
-                        && tokenHasRemainingSubmissions(
-                          get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data
+                        && (
+                          (
+                            get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.playerName == request.resource.data.playerName
+                            && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.used == false
+                            && tokenHasRemainingSubmissions(
+                              get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data
+                            )
+                            && tokenPlayerKeyMatches(
+                              get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data,
+                              request.resource.data
+                            )
+                            && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                          )
+                          || (
+                            request.resource.data.sharedInviteId is string
+                            && request.resource.data.sharedInviteId.size() > 0
+                            && request.resource.data.tokenId.matches('^shared:.*$')
+                            && sharedInviteIsActive(
+                              get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
+                            )
+                            && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(request.resource.data.sharedInviteId)/candidates/$(request.resource.data.playerKey)).data.playerName == request.resource.data.playerName
+                          )
                         )
-                        && tokenPlayerKeyMatches(
-                          get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data,
-                          request.resource.data
-                        )
-                        && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
+                        && request.resource.data.playerKey is string
+                        && request.resource.data.playerKey.size() > 0
                         && request.resource.data.status == 'pending'
                         && (request.resource.data.gameId is string || request.resource.data.gameId == null)
                         && request.resource.data.proposedValues.power is number
@@ -363,6 +437,28 @@ service cloud.firestore {
                         && request.resource.data.diff(resource.data)
                                .affectedKeys()
                                .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+        }
+
+        match /shared_update_invites/{inviteId} {
+          allow create, update, delete: if isSelf(uid);
+          allow get: if isSelf(uid)
+                     || (isAnonymous() && sharedInviteIsActive(resource.data));
+          allow list: if isSelf(uid);
+
+          match /candidates/{playerKey} {
+            allow create, update, delete: if isSelf(uid);
+            allow get: if isSelf(uid)
+                       || (isAnonymous()
+                           && sharedInviteIsActive(
+                             get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(inviteId)).data
+                           ));
+            allow list: if isSelf(uid)
+                        || (isAnonymous()
+                            && request.query.limit <= 3
+                            && sharedInviteIsActive(
+                              get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(inviteId)).data
+                            ));
+          }
         }
       }
 
