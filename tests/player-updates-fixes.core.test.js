@@ -87,8 +87,11 @@ function loadView() {
     // Full createElement stub that supports appendChild chain
     global.document = makeDOMStub();
 
+    delete require.cache[require.resolve(corePath)];
     delete require.cache[require.resolve(viewPath)];
+    delete global.DSFeaturePlayerUpdatesCore;
     delete global.DSFeaturePlayerUpdatesView;
+    require(corePath);
     require(viewPath);
 }
 
@@ -554,6 +557,52 @@ test('renderComparisonRow: approve success triggers refreshPlayerUpdatesPanel', 
     assert.equal(refreshCalled, true);
 });
 
+test('renderComparisonRow: edited proposed value is passed to approveUpdate', async () => {
+    loadView();
+    var capturedReviewedValues = null;
+    global.DSFeaturePlayerUpdatesController = {
+        approveUpdate: async function (updateId, reviewedValues) {
+            capturedReviewedValues = reviewedValues;
+            return { ok: true };
+        },
+    };
+
+    var row = global.DSFeaturePlayerUpdatesView.renderComparisonRow({
+        id: 'upd_edit_approve_1',
+        playerName: 'Lord',
+        contextType: 'alliance',
+        currentSnapshot: { power: 66, thp: 196.5, troops: 'Tank' },
+        proposedValues: { power: 66.3, thp: 197.5, troops: 'Tank' },
+    });
+
+    var table = row && row.children && row.children[1];
+    var tbody = table && table.children && table.children[1];
+    var powerRow = tbody && tbody.children && tbody.children[0];
+    var proposedCell = powerRow && powerRow.children && powerRow.children[2];
+    var proposedWrap = proposedCell && proposedCell.children && proposedCell.children[0];
+    var editBtn = proposedWrap && proposedWrap.children && proposedWrap.children[1];
+    assert.ok(editBtn && editBtn._listeners && typeof editBtn._listeners.click === 'function');
+    editBtn._listeners.click();
+
+    tbody = table && table.children && table.children[1];
+    powerRow = tbody && tbody.children && tbody.children[0];
+    proposedCell = powerRow && powerRow.children && powerRow.children[2];
+    proposedWrap = proposedCell && proposedCell.children && proposedCell.children[0];
+    var editor = proposedWrap && proposedWrap.children && proposedWrap.children[0];
+    var actionWrap = proposedWrap && proposedWrap.children && proposedWrap.children[1];
+    var saveBtn = actionWrap && actionWrap.children && actionWrap.children[0];
+    assert.ok(editor, 'Power editor should be rendered after clicking edit');
+    editor.value = '70';
+    saveBtn._listeners.click();
+
+    var decisionGroup = row && row.children && row.children[2];
+    var approveBtn = decisionGroup && decisionGroup.children && decisionGroup.children[0];
+    approveBtn._listeners.click();
+    await new Promise(function (resolve) { setTimeout(resolve, 0); });
+
+    assert.deepEqual(capturedReviewedValues, { power: 70, thp: 197.5, troops: 'Tank' });
+});
+
 test('renderComparisonRow: reject success triggers refreshPlayerUpdatesPanel', async () => {
     loadView();
     var refreshCalled = false;
@@ -694,7 +743,7 @@ test('revokeToken: does not throw when gateway.getAllianceId returns null', asyn
 // 14. Translation keys — 8 new keys exist as non-empty strings in all 6 packs
 // ---------------------------------------------------------------------------
 
-test('translation keys: 8 new player_updates keys exist as non-empty strings in all 6 language packs', () => {
+test('translation keys: review panel keys exist as non-empty strings in all 6 language packs', () => {
     delete require.cache[require.resolve(translationsPath)];
     // translations.js declares `const translations = { ... }` then exports or uses it on window
     // We need to load it and access the translations object.
@@ -723,6 +772,12 @@ test('translation keys: 8 new player_updates keys exist as non-empty strings in 
         'player_updates_col_proposed',
         'player_updates_col_change',
         'player_updates_refresh',
+        'player_updates_edit_value',
+        'player_updates_edit_save',
+        'player_updates_edit_cancel',
+        'player_updates_changed',
+        'player_updates_unchanged',
+        'player_updates_review_invalid_values',
     ];
 
     const LANG_CODES = ['en', 'fr', 'de', 'it', 'ko', 'ro'];

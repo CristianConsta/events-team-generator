@@ -85,6 +85,40 @@
         return { valid: errors.length === 0, errors: errors };
     }
 
+    function normalizeProposedValues(proposed) {
+        if (!proposed || typeof proposed !== 'object') {
+            return null;
+        }
+        var normalized = {
+            power: proposed.power,
+            thp: proposed.thp,
+            troops: proposed.troops,
+        };
+
+        if (normalized.power !== null && normalized.power !== undefined && normalized.power !== '') {
+            normalized.power = Number(normalized.power);
+        }
+        if (normalized.thp !== null && normalized.thp !== undefined && normalized.thp !== '') {
+            normalized.thp = Number(normalized.thp);
+        }
+        if (typeof normalized.troops === 'string') {
+            normalized.troops = normalized.troops.trim();
+        }
+
+        return normalized;
+    }
+
+    function proposedValuesEqual(left, right) {
+        var a = normalizeProposedValues(left);
+        var b = normalizeProposedValues(right);
+        if (!a || !b) {
+            return false;
+        }
+        return a.power === b.power
+            && a.thp === b.thp
+            && a.troops === b.troops;
+    }
+
     function calculateDeltas(old, proposed) {
         var rawOldPower = (old && old.power != null) ? Number(old.power) : null;
         var oldPower = (rawOldPower !== null && Number.isFinite(rawOldPower)) ? rawOldPower : null;
@@ -141,6 +175,8 @@
         buildUpdateLink: buildUpdateLink,
         formatLinksForMessaging: formatLinksForMessaging,
         validateProposedValues: validateProposedValues,
+        normalizeProposedValues: normalizeProposedValues,
+        proposedValuesEqual: proposedValuesEqual,
         calculateDeltas: calculateDeltas,
     };
 })(window);

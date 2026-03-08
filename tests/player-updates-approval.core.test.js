@@ -142,6 +142,106 @@ test('approveUpdate for non-alliance user applies to personal without modal', as
     assert.equal(statusUpdate.appliedTo, 'personal');
 });
 
+test('approveUpdate uses reviewed values when reviewer edits proposed values', async function () {
+    setupGlobals();
+    var appliedValues = null;
+    var statusUpdate = null;
+
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        applyPlayerUpdateToPersonal: function (name, values) {
+            appliedValues = values;
+            return Promise.resolve({ ok: true });
+        },
+        updatePersonalPendingUpdateStatus: function (uid, id, decision) {
+            statusUpdate = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-reviewed-1',
+        contextType: 'personal',
+        ownerUid: 'owner-uid',
+        playerName: 'TestPlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-reviewed-1', {
+        power: 115,
+        thp: 540,
+        troops: 'Aero',
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(appliedValues, { power: 115, thp: 540, troops: 'Aero' });
+    assert.deepEqual(statusUpdate.reviewedProposedValues, { power: 115, thp: 540, troops: 'Aero' });
+});
+
+test('rejectUpdate stores reviewed values when reviewer edits before rejecting', async function () {
+    setupGlobals();
+    var statusUpdate = null;
+
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision) {
+            statusUpdate = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-reviewed-reject-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'TestPlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.rejectUpdate('update-reviewed-reject-1', {
+        power: 102,
+        thp: 510,
+        troops: 'Tank',
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(statusUpdate.reviewedProposedValues, { power: 102, thp: 510, troops: 'Tank' });
+});
+
+test('approveUpdate rejects invalid reviewed values before applying update', async function () {
+    setupGlobals();
+    var applyCalled = false;
+
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        applyPlayerUpdateToPersonal: function () {
+            applyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-invalid-reviewed-1',
+        contextType: 'personal',
+        ownerUid: 'owner-uid',
+        playerName: 'TestPlayer',
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-invalid-reviewed-1', {
+        power: 'oops',
+        thp: 510,
+        troops: 'Tank',
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'player_updates_review_invalid_values');
+    assert.equal(applyCalled, false);
+});
+
 test('rejectUpdate for personal context uses updatePersonalPendingUpdateStatus', async function () {
     setupGlobals();
     var personalStatusCalled = false;

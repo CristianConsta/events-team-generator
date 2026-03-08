@@ -7639,6 +7639,12 @@
           player_updates_apply_both: "Both (Default)",
           player_updates_source_personal: "Personal",
           player_updates_source_alliance: "Alliance",
+          player_updates_edit_value: "Edit proposed value",
+          player_updates_edit_save: "Save edited value",
+          player_updates_edit_cancel: "Cancel edit",
+          player_updates_changed: "Changed",
+          player_updates_unchanged: "Unchanged",
+          player_updates_review_invalid_values: "Enter valid power, THP, and troop type before reviewing.",
           player_updates_approve_success: "Update approved and applied.",
           player_updates_reject_success: "Update rejected.",
           player_updates_apply_failed: "Failed to apply update. Please try again.",
@@ -8198,6 +8204,12 @@
           player_updates_apply_both: "Les deux (par d\xE9faut)",
           player_updates_source_personal: "Personnel",
           player_updates_source_alliance: "Alliance",
+          player_updates_edit_value: "Modifier la valeur proposee",
+          player_updates_edit_save: "Enregistrer la valeur modifiee",
+          player_updates_edit_cancel: "Annuler la modification",
+          player_updates_changed: "Modifie",
+          player_updates_unchanged: "Inchange",
+          player_updates_review_invalid_values: "Saisissez une puissance, un THP et un type de troupe valides avant la revue.",
           player_updates_approve_success: "Mise \xE0 jour approuv\xE9e et appliqu\xE9e.",
           player_updates_reject_success: "Mise \xE0 jour refus\xE9e.",
           player_updates_apply_failed: "\xC9chec de l'application. Veuillez r\xE9essayer.",
@@ -8757,6 +8769,12 @@
           player_updates_apply_both: "Beide (Standard)",
           player_updates_source_personal: "Pers\xF6nlich",
           player_updates_source_alliance: "Allianz",
+          player_updates_edit_value: "Vorgeschlagenen Wert bearbeiten",
+          player_updates_edit_save: "Bearbeiteten Wert speichern",
+          player_updates_edit_cancel: "Bearbeitung abbrechen",
+          player_updates_changed: "Ge\xE4ndert",
+          player_updates_unchanged: "Unver\xE4ndert",
+          player_updates_review_invalid_values: "Vor der Pr\xFCfung g\xFCltige Werte f\xFCr Power, THP und Truppentyp eingeben.",
           player_updates_approve_success: "Update genehmigt und angewendet.",
           player_updates_reject_success: "Update abgelehnt.",
           player_updates_apply_failed: "Anwendung fehlgeschlagen. Bitte erneut versuchen.",
@@ -9316,6 +9334,12 @@
           player_updates_apply_both: "Entrambi (predefinito)",
           player_updates_source_personal: "Personale",
           player_updates_source_alliance: "Alleanza",
+          player_updates_edit_value: "Modifica il valore proposto",
+          player_updates_edit_save: "Salva il valore modificato",
+          player_updates_edit_cancel: "Annulla modifica",
+          player_updates_changed: "Modificato",
+          player_updates_unchanged: "Invariato",
+          player_updates_review_invalid_values: "Inserisci valori validi per potenza, THP e tipo di truppa prima della revisione.",
           player_updates_approve_success: "Aggiornamento approvato e applicato.",
           player_updates_reject_success: "Aggiornamento rifiutato.",
           player_updates_apply_failed: "Applicazione fallita. Riprova.",
@@ -9875,6 +9899,12 @@
           player_updates_apply_both: "\uB458 \uB2E4 (\uAE30\uBCF8\uAC12)",
           player_updates_source_personal: "\uAC1C\uC778",
           player_updates_source_alliance: "\uB3D9\uB9F9",
+          player_updates_edit_value: "\uC81C\uC548 \uAC12 \uC218\uC815",
+          player_updates_edit_save: "\uC218\uC815\uD55C \uAC12 \uC800\uC7A5",
+          player_updates_edit_cancel: "\uC218\uC815 \uCDE8\uC18C",
+          player_updates_changed: "\uBCC0\uACBD\uB428",
+          player_updates_unchanged: "\uBCC0\uACBD \uC5C6\uC74C",
+          player_updates_review_invalid_values: "\uAC80\uD1A0 \uC804\uC5D0 \uC62C\uBC14\uB978 \uC804\uD22C\uB825, THP, \uBCD1\uC885 \uAC12\uC744 \uC785\uB825\uD558\uC138\uC694.",
           player_updates_approve_success: "\uC5C5\uB370\uC774\uD2B8\uAC00 \uC2B9\uC778\uB418\uACE0 \uC801\uC6A9\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
           player_updates_reject_success: "\uC5C5\uB370\uC774\uD2B8\uAC00 \uAC70\uBD80\uB418\uC5C8\uC2B5\uB2C8\uB2E4.",
           player_updates_apply_failed: "\uC5C5\uB370\uC774\uD2B8 \uC801\uC6A9\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.",
@@ -10434,6 +10464,12 @@
           player_updates_apply_both: "Ambele (implicit)",
           player_updates_source_personal: "Personal",
           player_updates_source_alliance: "Alian\u021B\u0103",
+          player_updates_edit_value: "Editeaz\u0103 valoarea propus\u0103",
+          player_updates_edit_save: "Salveaz\u0103 valoarea editat\u0103",
+          player_updates_edit_cancel: "Anuleaz\u0103 editarea",
+          player_updates_changed: "Schimbat",
+          player_updates_unchanged: "Neschimbat",
+          player_updates_review_invalid_values: "Introdu valori valide pentru power, THP \u0219i tipul de trupe \xEEnainte de revizuire.",
           player_updates_approve_success: "Actualizare aprobat\u0103 \u0219i aplicat\u0103.",
           player_updates_reject_success: "Actualizare respins\u0103.",
           player_updates_apply_failed: "Aplicarea a e\u0219uat. \xCEncerca\u021Bi din nou.",
@@ -16768,6 +16804,34 @@
           }
           return { valid: errors.length === 0, errors };
         }
+        function normalizeProposedValues(proposed) {
+          if (!proposed || typeof proposed !== "object") {
+            return null;
+          }
+          var normalized = {
+            power: proposed.power,
+            thp: proposed.thp,
+            troops: proposed.troops
+          };
+          if (normalized.power !== null && normalized.power !== void 0 && normalized.power !== "") {
+            normalized.power = Number(normalized.power);
+          }
+          if (normalized.thp !== null && normalized.thp !== void 0 && normalized.thp !== "") {
+            normalized.thp = Number(normalized.thp);
+          }
+          if (typeof normalized.troops === "string") {
+            normalized.troops = normalized.troops.trim();
+          }
+          return normalized;
+        }
+        function proposedValuesEqual(left, right) {
+          var a = normalizeProposedValues(left);
+          var b = normalizeProposedValues(right);
+          if (!a || !b) {
+            return false;
+          }
+          return a.power === b.power && a.thp === b.thp && a.troops === b.troops;
+        }
         function calculateDeltas(old, proposed) {
           var rawOldPower = old && old.power != null ? Number(old.power) : null;
           var oldPower = rawOldPower !== null && Number.isFinite(rawOldPower) ? rawOldPower : null;
@@ -16820,6 +16884,8 @@
           buildUpdateLink,
           formatLinksForMessaging,
           validateProposedValues,
+          normalizeProposedValues,
+          proposedValuesEqual,
           calculateDeltas
         };
       })(window);
@@ -16922,6 +16988,41 @@
           status.className = "message " + (type || "error");
           status.textContent = String(message || "");
         }
+        function _t(key, fallback) {
+          if (!(global2.DSI18N && typeof global2.DSI18N.t === "function")) {
+            return fallback;
+          }
+          var translated = global2.DSI18N.t(key);
+          return translated && translated !== key ? translated : fallback;
+        }
+        function _clearChildren(el) {
+          if (!el) {
+            return;
+          }
+          if (typeof el.replaceChildren === "function") {
+            el.replaceChildren();
+            return;
+          }
+          if (typeof el.textContent === "string") {
+            el.textContent = "";
+          }
+          if (Array.isArray(el.children)) {
+            el.children.length = 0;
+          }
+          if ("innerHTML" in el) {
+            el.innerHTML = "";
+          }
+        }
+        function _cloneProposedValues(values) {
+          if (!values || typeof values !== "object") {
+            return { power: "", thp: "", troops: "" };
+          }
+          return {
+            power: values.power,
+            thp: values.thp,
+            troops: values.troops
+          };
+        }
         function renderTokenModal(container, tokens) {
           if (!container) return;
           container.innerHTML = "";
@@ -16973,7 +17074,7 @@
           var refreshBtn = document.createElement("button");
           refreshBtn.className = "btn btn-secondary btn-sm";
           refreshBtn.setAttribute("data-i18n", "player_updates_refresh");
-          refreshBtn.textContent = global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_refresh") : "Refresh";
+          refreshBtn.textContent = _t("player_updates_refresh", "Refresh");
           refreshBtn.addEventListener("click", function() {
             if (typeof global2.refreshPlayerUpdatesPanel === "function") {
               global2.refreshPlayerUpdatesPanel();
@@ -16996,16 +17097,11 @@
         }
         function renderComparisonRow(update) {
           if (!update) return null;
-          var deltas = null;
-          if (global2.DSFeaturePlayerUpdatesCore && typeof global2.DSFeaturePlayerUpdatesCore.calculateDeltas === "function") {
-            deltas = global2.DSFeaturePlayerUpdatesCore.calculateDeltas(
-              update.currentSnapshot || {},
-              update.proposedValues || {}
-            );
-          }
           var row = document.createElement("div");
           row.className = "review-comparison-row";
           row.setAttribute("data-update-id", update.id || "");
+          var draftProposed = _cloneProposedValues(update.reviewedProposedValues || update.proposedValues || {});
+          var editingField = null;
           var header = document.createElement("div");
           header.className = "review-player-header";
           var nameEl = document.createElement("span");
@@ -17014,19 +17110,18 @@
           header.appendChild(nameEl);
           var sourceBadge = document.createElement("span");
           sourceBadge.className = "review-source-badge review-source-badge--" + (update.contextType || "unknown");
-          sourceBadge.textContent = update.contextType === "personal" ? global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_source_personal") : "Personal" : global2.DSI18N && global2.DSI18N.t ? global2.DSI18N.t("player_updates_source_alliance") : "Alliance";
+          sourceBadge.textContent = update.contextType === "personal" ? _t("player_updates_source_personal", "Personal") : _t("player_updates_source_alliance", "Alliance");
           header.appendChild(sourceBadge);
           row.appendChild(header);
           var table = document.createElement("table");
           table.className = "review-comparison-table";
           var thead = document.createElement("thead");
           var headRow = document.createElement("tr");
-          var DSI18N = global2.DSI18N || {};
           [
-            DSI18N.t ? DSI18N.t("player_updates_col_field") : "Field",
-            DSI18N.t ? DSI18N.t("player_updates_col_current") : "Current",
-            DSI18N.t ? DSI18N.t("player_updates_col_proposed") : "Proposed",
-            DSI18N.t ? DSI18N.t("player_updates_col_change") : "Change"
+            _t("player_updates_col_field", "Field"),
+            _t("player_updates_col_current", "Current"),
+            _t("player_updates_col_proposed", "Proposed"),
+            _t("player_updates_col_change", "Change")
           ].forEach(function(label) {
             var th = document.createElement("th");
             th.textContent = label;
@@ -17035,51 +17130,201 @@
           thead.appendChild(headRow);
           table.appendChild(thead);
           var tbody = document.createElement("tbody");
-          if (deltas) {
-            let fmtVal2 = function(v) {
-              return v !== null && Number.isFinite(v) ? String(v) : "\u2014";
-            }, fmtDelta2 = function(v) {
-              if (v === null || !Number.isFinite(v)) return "\u2014";
-              return (v > 0 ? "+" : "") + String(v);
-            }, buildDeltaRow2 = function(label, delta, isFlagged) {
-              var tr = document.createElement("tr");
-              if (isFlagged) {
-                tr.className = "flagged";
-              }
-              [label, fmtVal2(delta.old), fmtVal2(delta.new), fmtDelta2(delta.delta)].forEach(function(text) {
-                var td = document.createElement("td");
-                td.textContent = text;
-                tr.appendChild(td);
-              });
-              return tr;
-            };
-            var fmtVal = fmtVal2, fmtDelta = fmtDelta2, buildDeltaRow = buildDeltaRow2;
-            if (deltas.power) {
-              tbody.appendChild(buildDeltaRow2("Power", deltas.power, deltas.power.flagged));
-            }
-            if (deltas.thp) {
-              tbody.appendChild(buildDeltaRow2("THP", deltas.thp, deltas.thp.flagged));
-            }
-            if (deltas.troops) {
-              var troopsTr = document.createElement("tr");
-              if (deltas.troops.changed) {
-                troopsTr.className = "flagged";
-              }
-              [
-                "Troops",
-                String(deltas.troops.old || ""),
-                String(deltas.troops.new || ""),
-                deltas.troops.changed ? "Changed" : "Unchanged"
-              ].forEach(function(text) {
-                var td = document.createElement("td");
-                td.textContent = text;
-                troopsTr.appendChild(td);
-              });
-              tbody.appendChild(troopsTr);
-            }
-          }
           table.appendChild(tbody);
           row.appendChild(table);
+          var inlineError = document.createElement("div");
+          inlineError.className = "review-inline-error hidden";
+          function clearInlineError() {
+            inlineError.textContent = "";
+            inlineError.classList.add("hidden");
+          }
+          function showInlineError(message) {
+            inlineError.textContent = String(message || "");
+            inlineError.classList.remove("hidden");
+          }
+          function fmtVal(v) {
+            return v !== null && v !== void 0 && v !== "" && Number.isFinite(Number(v)) ? String(Number(v)) : "\u2014";
+          }
+          function fmtDelta(v) {
+            if (v === null || !Number.isFinite(v)) return "\u2014";
+            return (v > 0 ? "+" : "") + String(v);
+          }
+          function buildEditIconButton(titleKey, fallbackTitle) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "review-inline-icon-btn";
+            btn.setAttribute("title", _t(titleKey, fallbackTitle));
+            btn.setAttribute("aria-label", _t(titleKey, fallbackTitle));
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5 13.5 4.5 6 12H4v-2z"></path><path d="M10.5 3.5 12.5 5.5"></path></svg>';
+            return btn;
+          }
+          function buildMiniActionButton(kind, titleKey, fallbackTitle, svgPath) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "review-inline-icon-btn review-inline-icon-btn--" + kind;
+            btn.setAttribute("title", _t(titleKey, fallbackTitle));
+            btn.setAttribute("aria-label", _t(titleKey, fallbackTitle));
+            btn.innerHTML = svgPath;
+            return btn;
+          }
+          function renderProposedCell(field, proposedValue) {
+            var td = document.createElement("td");
+            var wrapper = document.createElement("div");
+            wrapper.className = "review-proposed-cell";
+            td.appendChild(wrapper);
+            if (editingField === field) {
+              let commitEdit2 = function() {
+                var nextDraft = _cloneProposedValues(draftProposed);
+                var rawValue = field === "troops" ? editor.value : editor.value;
+                nextDraft[field] = rawValue;
+                if (global2.DSFeaturePlayerUpdatesCore && typeof global2.DSFeaturePlayerUpdatesCore.normalizeProposedValues === "function") {
+                  nextDraft = global2.DSFeaturePlayerUpdatesCore.normalizeProposedValues(nextDraft);
+                }
+                var validation = global2.DSFeaturePlayerUpdatesCore && typeof global2.DSFeaturePlayerUpdatesCore.validateProposedValues === "function" ? global2.DSFeaturePlayerUpdatesCore.validateProposedValues(nextDraft) : { valid: true, errors: [] };
+                if (!validation.valid) {
+                  showInlineError(_t("player_updates_review_invalid_values", "Enter a valid power, THP, and troop type before reviewing."));
+                  return;
+                }
+                draftProposed = nextDraft;
+                editingField = null;
+                clearInlineError();
+                renderBody();
+              };
+              var commitEdit = commitEdit2;
+              var editor = document.createElement(field === "troops" ? "select" : "input");
+              editor.className = "review-inline-editor";
+              if (field === "troops") {
+                ["Tank", "Aero", "Missile"].forEach(function(optionValue) {
+                  var option = document.createElement("option");
+                  option.value = optionValue;
+                  option.textContent = optionValue;
+                  if (String(draftProposed[field] || "") === optionValue) {
+                    option.selected = true;
+                  }
+                  editor.appendChild(option);
+                });
+                editor.value = draftProposed[field] || "Tank";
+              } else {
+                editor.type = "number";
+                editor.min = "0";
+                editor.max = field === "power" ? "9999" : "99999";
+                editor.step = "0.01";
+                editor.value = draftProposed[field] != null ? String(draftProposed[field]) : "";
+              }
+              wrapper.appendChild(editor);
+              var actionWrap = document.createElement("div");
+              actionWrap.className = "review-inline-actions";
+              var saveBtn = buildMiniActionButton(
+                "save",
+                "player_updates_edit_save",
+                "Save edited value",
+                '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 6.5,11.5 13,4.5"></polyline></svg>'
+              );
+              var cancelBtn = buildMiniActionButton(
+                "cancel",
+                "player_updates_edit_cancel",
+                "Cancel edit",
+                '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>'
+              );
+              actionWrap.appendChild(saveBtn);
+              actionWrap.appendChild(cancelBtn);
+              wrapper.appendChild(actionWrap);
+              saveBtn.addEventListener("click", commitEdit2);
+              cancelBtn.addEventListener("click", function() {
+                editingField = null;
+                clearInlineError();
+                renderBody();
+              });
+              editor.addEventListener("keydown", function(event) {
+                if (event && event.key === "Enter") {
+                  commitEdit2();
+                } else if (event && event.key === "Escape") {
+                  editingField = null;
+                  clearInlineError();
+                  renderBody();
+                }
+              });
+              if (typeof editor.focus === "function") {
+                editor.focus();
+              }
+              return td;
+            }
+            var valueEl = document.createElement("span");
+            valueEl.className = "review-proposed-value";
+            valueEl.textContent = field === "troops" ? String(proposedValue || "\u2014") : fmtVal(proposedValue);
+            wrapper.appendChild(valueEl);
+            var editBtn = buildEditIconButton("player_updates_edit_value", "Edit proposed value");
+            editBtn.addEventListener("click", function() {
+              editingField = field;
+              clearInlineError();
+              renderBody();
+            });
+            wrapper.appendChild(editBtn);
+            return td;
+          }
+          function buildNumericRow(field, label, delta) {
+            var tr = document.createElement("tr");
+            if (delta.flagged) {
+              tr.className = "flagged";
+            }
+            var labelTd = document.createElement("td");
+            labelTd.textContent = label;
+            tr.appendChild(labelTd);
+            var currentTd = document.createElement("td");
+            currentTd.textContent = fmtVal(delta.old);
+            tr.appendChild(currentTd);
+            tr.appendChild(renderProposedCell(field, delta.new));
+            var changeTd = document.createElement("td");
+            changeTd.textContent = fmtDelta(delta.delta);
+            tr.appendChild(changeTd);
+            return tr;
+          }
+          function buildTroopsRow(delta) {
+            var tr = document.createElement("tr");
+            if (delta.changed) {
+              tr.className = "flagged";
+            }
+            var labelTd = document.createElement("td");
+            labelTd.textContent = _t("player_update_troops_label", "Troop Type");
+            tr.appendChild(labelTd);
+            var currentTd = document.createElement("td");
+            currentTd.textContent = String(delta.old || "\u2014");
+            tr.appendChild(currentTd);
+            tr.appendChild(renderProposedCell("troops", delta.new));
+            var changeTd = document.createElement("td");
+            changeTd.textContent = delta.changed ? _t("player_updates_changed", "Changed") : _t("player_updates_unchanged", "Unchanged");
+            tr.appendChild(changeTd);
+            return tr;
+          }
+          function renderBody() {
+            _clearChildren(tbody);
+            var deltas = null;
+            if (global2.DSFeaturePlayerUpdatesCore && typeof global2.DSFeaturePlayerUpdatesCore.calculateDeltas === "function") {
+              deltas = global2.DSFeaturePlayerUpdatesCore.calculateDeltas(
+                update.currentSnapshot || {},
+                draftProposed || {}
+              );
+            }
+            if (!deltas) {
+              return;
+            }
+            if (deltas.power) {
+              tbody.appendChild(buildNumericRow("power", _t("player_update_power_label", "1st Team Power (M)"), deltas.power));
+            }
+            if (deltas.thp) {
+              tbody.appendChild(buildNumericRow("thp", _t("player_update_thp_label", "THP"), deltas.thp));
+            }
+            if (deltas.troops) {
+              tbody.appendChild(buildTroopsRow(deltas.troops));
+            }
+            if (approveBtn) {
+              approveBtn.disabled = editingField !== null;
+            }
+            if (rejectBtn) {
+              rejectBtn.disabled = editingField !== null;
+            }
+          }
+          renderBody();
           var decisionGroup = document.createElement("div");
           decisionGroup.className = "review-decision-group";
           var approveBtn = document.createElement("button");
@@ -17099,7 +17344,7 @@
             if (global2.DSFeaturePlayerUpdatesController && typeof global2.DSFeaturePlayerUpdatesController.approveUpdate === "function") {
               approveBtn.disabled = true;
               rejectBtn.disabled = true;
-              global2.DSFeaturePlayerUpdatesController.approveUpdate(updateId).then(function(result) {
+              global2.DSFeaturePlayerUpdatesController.approveUpdate(updateId, draftProposed).then(function(result) {
                 if (result && result.cancelled) {
                   approveBtn.disabled = false;
                   rejectBtn.disabled = false;
@@ -17125,7 +17370,7 @@
             if (global2.DSFeaturePlayerUpdatesController && typeof global2.DSFeaturePlayerUpdatesController.rejectUpdate === "function") {
               rejectBtn.disabled = true;
               approveBtn.disabled = true;
-              global2.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
+              global2.DSFeaturePlayerUpdatesController.rejectUpdate(updateId, draftProposed).then(function(result) {
                 if (result && result.ok) {
                   if (typeof global2.refreshPlayerUpdatesPanel === "function") {
                     global2.refreshPlayerUpdatesPanel();
@@ -17144,6 +17389,8 @@
           decisionGroup.appendChild(approveBtn);
           decisionGroup.appendChild(rejectBtn);
           row.appendChild(decisionGroup);
+          row.appendChild(inlineError);
+          renderBody();
           return row;
         }
         function renderPendingBadge(container, count) {
@@ -17353,6 +17600,80 @@
             return { ok: false, error: err && err.message };
           });
         }
+        function _fallbackNormalizeProposedValues(values) {
+          if (!values || typeof values !== "object") {
+            return null;
+          }
+          var normalized = {
+            power: values.power,
+            thp: values.thp,
+            troops: values.troops
+          };
+          if (normalized.power !== null && normalized.power !== void 0 && normalized.power !== "") {
+            normalized.power = Number(normalized.power);
+          }
+          if (normalized.thp !== null && normalized.thp !== void 0 && normalized.thp !== "") {
+            normalized.thp = Number(normalized.thp);
+          }
+          if (typeof normalized.troops === "string") {
+            normalized.troops = normalized.troops.trim();
+          }
+          return normalized;
+        }
+        function _fallbackValidateProposedValues(values) {
+          var errors = [];
+          if (!values || typeof values !== "object") {
+            return { valid: false, errors: ["proposed values are required"] };
+          }
+          var power = Number(values.power);
+          if (values.power === null || values.power === void 0 || values.power === "" || !Number.isFinite(power)) {
+            errors.push("power must be a number");
+          } else if (power < 0 || power > 9999) {
+            errors.push("power must be between 0 and 9999");
+          }
+          var thp = Number(values.thp);
+          if (values.thp === null || values.thp === void 0 || values.thp === "" || !Number.isFinite(thp)) {
+            errors.push("thp must be a number");
+          } else if (thp < 0 || thp > 99999) {
+            errors.push("thp must be between 0 and 99999");
+          }
+          if (["Tank", "Aero", "Missile"].indexOf(values.troops) === -1) {
+            errors.push("troops must be one of: Tank, Aero, Missile");
+          }
+          return { valid: errors.length === 0, errors };
+        }
+        function _fallbackProposedValuesEqual(left, right) {
+          var a = _fallbackNormalizeProposedValues(left);
+          var b = _fallbackNormalizeProposedValues(right);
+          if (!a || !b) {
+            return false;
+          }
+          return a.power === b.power && a.thp === b.thp && a.troops === b.troops;
+        }
+        function _resolveReviewedProposedValues(update, reviewedValues) {
+          var base = update && update.proposedValues ? update.proposedValues : {};
+          if (!reviewedValues || typeof reviewedValues !== "object") {
+            return { ok: true, effective: base, reviewed: null };
+          }
+          var core = global2.DSFeaturePlayerUpdatesCore || {};
+          var normalize = typeof core.normalizeProposedValues === "function" ? core.normalizeProposedValues : _fallbackNormalizeProposedValues;
+          var validate = typeof core.validateProposedValues === "function" ? core.validateProposedValues : _fallbackValidateProposedValues;
+          var areEqual = typeof core.proposedValuesEqual === "function" ? core.proposedValuesEqual : _fallbackProposedValuesEqual;
+          var normalized = normalize(reviewedValues);
+          var validation = validate(normalized);
+          if (!validation.valid) {
+            return {
+              ok: false,
+              error: "player_updates_review_invalid_values",
+              details: validation.errors || []
+            };
+          }
+          return {
+            ok: true,
+            effective: normalized,
+            reviewed: areEqual(base, normalized) ? null : normalized
+          };
+        }
         function _retryWithCanonicalName(source, playerName, proposed, gameId, identifiers, initialResult) {
           if (!_isPlayerNotFoundResult(initialResult)) {
             return Promise.resolve(initialResult);
@@ -17407,10 +17728,14 @@
             return _retryWithCanonicalName(source, playerName, proposed, gameId, identifiers, result);
           });
         }
-        function _doApprove(updateId, update, allianceId, target) {
+        function _doApprove(updateId, update, allianceId, target, reviewedValues) {
           var currentUser = _gateway.getCurrentUser ? _gateway.getCurrentUser() : null;
           var reviewedBy = currentUser ? currentUser.uid : null;
-          var proposed = update.proposedValues || {};
+          var proposedResolution = _resolveReviewedProposedValues(update, reviewedValues);
+          if (!proposedResolution.ok) {
+            return Promise.resolve({ ok: false, error: proposedResolution.error, details: proposedResolution.details });
+          }
+          var proposed = proposedResolution.effective || {};
           var playerName = update.playerName;
           var identifiers = {
             playerKey: update.playerKey || "",
@@ -17475,6 +17800,9 @@
               reviewedAt: /* @__PURE__ */ new Date(),
               appliedTo: effectiveAppliedTo
             };
+            if (proposedResolution.reviewed) {
+              decision.reviewedProposedValues = proposedResolution.reviewed;
+            }
             if (contextType === "personal") {
               var ownerUid = update.ownerUid;
               return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null).then(function(statusResult) {
@@ -17511,7 +17839,7 @@
             }
           });
         }
-        function approveUpdate(updateId) {
+        function approveUpdate(updateId, reviewedValues) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
           var update = _pendingUpdateDocs[updateId];
           if (!update) return Promise.resolve({ ok: false, error: "update not found" });
@@ -17520,11 +17848,15 @@
             allianceId = update.allianceId || null;
           }
           var target = update.contextType === "alliance" ? "alliance" : "personal";
-          return _doApprove(updateId, update, allianceId, target);
+          return _doApprove(updateId, update, allianceId, target, reviewedValues);
         }
-        function rejectUpdate(updateId) {
+        function rejectUpdate(updateId, reviewedValues) {
           if (!_gateway || !updateId) return Promise.resolve({ ok: false, error: "not initialized" });
           var update = _pendingUpdateDocs[updateId];
+          var proposedResolution = _resolveReviewedProposedValues(update, reviewedValues);
+          if (update && !proposedResolution.ok) {
+            return Promise.resolve({ ok: false, error: proposedResolution.error, details: proposedResolution.details });
+          }
           var allianceId = _gateway.getAllianceId ? _gateway.getAllianceId(update && update.gameId ? { gameId: update.gameId } : void 0) : null;
           if (!allianceId && update && update.contextType === "alliance") {
             allianceId = update.allianceId || null;
@@ -17536,6 +17868,9 @@
             reviewedBy,
             reviewedAt: /* @__PURE__ */ new Date()
           };
+          if (proposedResolution.reviewed) {
+            decision.reviewedProposedValues = proposedResolution.reviewed;
+          }
           if (update && update.contextType === "personal") {
             var ownerUid = update.ownerUid;
             return _gateway.updatePersonalPendingUpdateStatus(ownerUid, updateId, decision, update.gameId || null).catch(function(err) {

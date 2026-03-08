@@ -88,6 +88,22 @@ service cloud.firestore {
         && pendingData.playerKey == tokenData.playerKey;
     }
 
+    function hasValidProposedValues(data) {
+      return data != null
+        && data.power is number
+        && data.power >= 0
+        && data.power <= 9999
+        && data.thp is number
+        && data.thp >= 0
+        && data.thp <= 99999
+        && data.troops in ['Tank', 'Aero', 'Missile'];
+    }
+
+    function hasValidReviewedProposedValues(data) {
+      return !('reviewedProposedValues' in data)
+        || hasValidProposedValues(data.reviewedProposedValues);
+    }
+
     function sharedInviteIsActive(data) {
       return data != null
         && data.active == true
@@ -145,18 +161,13 @@ service cloud.firestore {
                       && get(/databases/$(database)/documents/users/$(uid)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
                       && request.resource.data.status == 'pending'
                       && (request.resource.data.gameId is string || request.resource.data.gameId == null)
-                      && request.resource.data.proposedValues.power is number
-                      && request.resource.data.proposedValues.power >= 0
-                      && request.resource.data.proposedValues.power <= 9999
-                      && request.resource.data.proposedValues.thp is number
-                      && request.resource.data.proposedValues.thp >= 0
-                      && request.resource.data.proposedValues.thp <= 99999
-                      && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
-        allow read: if isSelf(uid);
-        allow update: if isSelf(uid)
-                      && request.resource.data.diff(resource.data)
-                             .affectedKeys()
-                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+                      && hasValidProposedValues(request.resource.data.proposedValues);
+          allow read: if isSelf(uid);
+          allow update: if isSelf(uid)
+                        && request.resource.data.diff(resource.data)
+                               .affectedKeys()
+                               .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo', 'reviewedProposedValues'])
+                        && hasValidReviewedProposedValues(request.resource.data);
       }
 
       match /games/{gameId} {
@@ -276,13 +287,7 @@ service cloud.firestore {
                         && request.resource.data.playerKey.size() > 0
                         && request.resource.data.gameId == gameId
                         && request.resource.data.status == 'pending'
-                        && request.resource.data.proposedValues.power is number
-                        && request.resource.data.proposedValues.power >= 0
-                        && request.resource.data.proposedValues.power <= 9999
-                        && request.resource.data.proposedValues.thp is number
-                        && request.resource.data.proposedValues.thp >= 0
-                        && request.resource.data.proposedValues.thp <= 99999
-                        && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+                        && hasValidProposedValues(request.resource.data.proposedValues);
           allow read: if isAllianceActor(
             get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)).data
           );
@@ -291,7 +296,8 @@ service cloud.firestore {
                           )
                           && request.resource.data.diff(resource.data)
                                  .affectedKeys()
-                                 .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+                                 .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo', 'reviewedProposedValues'])
+                          && hasValidReviewedProposedValues(request.resource.data);
         }
 
         match /shared_update_invites/{inviteId} {
@@ -425,18 +431,13 @@ service cloud.firestore {
                         && request.resource.data.playerKey.size() > 0
                         && request.resource.data.status == 'pending'
                         && (request.resource.data.gameId is string || request.resource.data.gameId == null)
-                        && request.resource.data.proposedValues.power is number
-                        && request.resource.data.proposedValues.power >= 0
-                        && request.resource.data.proposedValues.power <= 9999
-                        && request.resource.data.proposedValues.thp is number
-                        && request.resource.data.proposedValues.thp >= 0
-                        && request.resource.data.proposedValues.thp <= 99999
-                        && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+                        && hasValidProposedValues(request.resource.data.proposedValues);
           allow read: if isSelf(uid);
           allow update: if isSelf(uid)
                         && request.resource.data.diff(resource.data)
                                .affectedKeys()
-                               .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+                               .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo', 'reviewedProposedValues'])
+                        && hasValidReviewedProposedValues(request.resource.data);
         }
 
         match /shared_update_invites/{inviteId} {
@@ -580,18 +581,13 @@ service cloud.firestore {
                       && get(/databases/$(database)/documents/alliances/$(allianceId)/update_tokens/$(request.resource.data.tokenId)).data.gameId == request.resource.data.gameId
                       && request.resource.data.status == 'pending'
                       && (request.resource.data.gameId is string || request.resource.data.gameId == null)
-                      && request.resource.data.proposedValues.power is number
-                      && request.resource.data.proposedValues.power >= 0
-                      && request.resource.data.proposedValues.power <= 9999
-                      && request.resource.data.proposedValues.thp is number
-                      && request.resource.data.proposedValues.thp >= 0
-                      && request.resource.data.proposedValues.thp <= 99999
-                      && request.resource.data.proposedValues.troops in ['Tank', 'Aero', 'Missile'];
+                      && hasValidProposedValues(request.resource.data.proposedValues);
         allow read: if isAllianceMember(allianceId);
         allow update: if isAllianceMember(allianceId)
                       && request.resource.data.diff(resource.data)
                              .affectedKeys()
-                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo']);
+                             .hasOnly(['status', 'reviewedBy', 'reviewedAt', 'appliedTo', 'reviewedProposedValues'])
+                      && hasValidReviewedProposedValues(request.resource.data);
       }
     }
 

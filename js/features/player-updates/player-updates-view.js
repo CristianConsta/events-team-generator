@@ -40,6 +40,44 @@
         status.textContent = String(message || '');
     }
 
+    function _t(key, fallback) {
+        if (!(global.DSI18N && typeof global.DSI18N.t === 'function')) {
+            return fallback;
+        }
+        var translated = global.DSI18N.t(key);
+        return translated && translated !== key ? translated : fallback;
+    }
+
+    function _clearChildren(el) {
+        if (!el) {
+            return;
+        }
+        if (typeof el.replaceChildren === 'function') {
+            el.replaceChildren();
+            return;
+        }
+        if (typeof el.textContent === 'string') {
+            el.textContent = '';
+        }
+        if (Array.isArray(el.children)) {
+            el.children.length = 0;
+        }
+        if ('innerHTML' in el) {
+            el.innerHTML = '';
+        }
+    }
+
+    function _cloneProposedValues(values) {
+        if (!values || typeof values !== 'object') {
+            return { power: '', thp: '', troops: '' };
+        }
+        return {
+            power: values.power,
+            thp: values.thp,
+            troops: values.troops,
+        };
+    }
+
     // Render token generation modal with links.
     // container: HTMLElement, tokens: Array<{ playerName, link }>
     function renderTokenModal(container, tokens) {
@@ -105,7 +143,7 @@
         var refreshBtn = document.createElement('button');
         refreshBtn.className = 'btn btn-secondary btn-sm';
         refreshBtn.setAttribute('data-i18n', 'player_updates_refresh');
-        refreshBtn.textContent = global.DSI18N && global.DSI18N.t ? global.DSI18N.t('player_updates_refresh') : 'Refresh';
+        refreshBtn.textContent = _t('player_updates_refresh', 'Refresh');
         refreshBtn.addEventListener('click', function() {
             if (typeof global.refreshPlayerUpdatesPanel === 'function') {
                 global.refreshPlayerUpdatesPanel();
@@ -135,20 +173,11 @@
     function renderComparisonRow(update) {
         if (!update) return null;
 
-        var deltas = null;
-        if (
-            global.DSFeaturePlayerUpdatesCore
-            && typeof global.DSFeaturePlayerUpdatesCore.calculateDeltas === 'function'
-        ) {
-            deltas = global.DSFeaturePlayerUpdatesCore.calculateDeltas(
-                update.currentSnapshot || {},
-                update.proposedValues || {}
-            );
-        }
-
         var row = document.createElement('div');
         row.className = 'review-comparison-row';
         row.setAttribute('data-update-id', update.id || '');
+        var draftProposed = _cloneProposedValues(update.reviewedProposedValues || update.proposedValues || {});
+        var editingField = null;
 
         var header = document.createElement('div');
         header.className = 'review-player-header';
@@ -161,8 +190,8 @@
         var sourceBadge = document.createElement('span');
         sourceBadge.className = 'review-source-badge review-source-badge--' + (update.contextType || 'unknown');
         sourceBadge.textContent = update.contextType === 'personal'
-            ? ((global.DSI18N && global.DSI18N.t) ? global.DSI18N.t('player_updates_source_personal') : 'Personal')
-            : ((global.DSI18N && global.DSI18N.t) ? global.DSI18N.t('player_updates_source_alliance') : 'Alliance');
+            ? _t('player_updates_source_personal', 'Personal')
+            : _t('player_updates_source_alliance', 'Alliance');
         header.appendChild(sourceBadge);
 
         row.appendChild(header);
@@ -172,12 +201,11 @@
 
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
-        var DSI18N = global.DSI18N || {};
         [
-            DSI18N.t ? DSI18N.t('player_updates_col_field') : 'Field',
-            DSI18N.t ? DSI18N.t('player_updates_col_current') : 'Current',
-            DSI18N.t ? DSI18N.t('player_updates_col_proposed') : 'Proposed',
-            DSI18N.t ? DSI18N.t('player_updates_col_change') : 'Change',
+            _t('player_updates_col_field', 'Field'),
+            _t('player_updates_col_current', 'Current'),
+            _t('player_updates_col_proposed', 'Proposed'),
+            _t('player_updates_col_change', 'Change'),
         ].forEach(function(label) {
             var th = document.createElement('th');
             th.textContent = label;
@@ -187,52 +215,227 @@
         table.appendChild(thead);
 
         var tbody = document.createElement('tbody');
+        table.appendChild(tbody);
+        row.appendChild(table);
 
-        if (deltas) {
-            function fmtVal(v) { return v !== null && Number.isFinite(v) ? String(v) : '\u2014'; }
-            function fmtDelta(v) {
-                if (v === null || !Number.isFinite(v)) return '\u2014';
-                return (v > 0 ? '+' : '') + String(v);
-            }
+        var inlineError = document.createElement('div');
+        inlineError.className = 'review-inline-error hidden';
 
-            function buildDeltaRow(label, delta, isFlagged) {
-                var tr = document.createElement('tr');
-                if (isFlagged) { tr.className = 'flagged'; }
-                [label, fmtVal(delta.old), fmtVal(delta.new), fmtDelta(delta.delta)].forEach(function(text) {
-                    var td = document.createElement('td');
-                    td.textContent = text;
-                    tr.appendChild(td);
+        function clearInlineError() {
+            inlineError.textContent = '';
+            inlineError.classList.add('hidden');
+        }
+
+        function showInlineError(message) {
+            inlineError.textContent = String(message || '');
+            inlineError.classList.remove('hidden');
+        }
+
+        function fmtVal(v) {
+            return v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v))
+                ? String(Number(v))
+                : '\u2014';
+        }
+
+        function fmtDelta(v) {
+            if (v === null || !Number.isFinite(v)) return '\u2014';
+            return (v > 0 ? '+' : '') + String(v);
+        }
+
+        function buildEditIconButton(titleKey, fallbackTitle) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'review-inline-icon-btn';
+            btn.setAttribute('title', _t(titleKey, fallbackTitle));
+            btn.setAttribute('aria-label', _t(titleKey, fallbackTitle));
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5 13.5 4.5 6 12H4v-2z"></path><path d="M10.5 3.5 12.5 5.5"></path></svg>';
+            return btn;
+        }
+
+        function buildMiniActionButton(kind, titleKey, fallbackTitle, svgPath) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'review-inline-icon-btn review-inline-icon-btn--' + kind;
+            btn.setAttribute('title', _t(titleKey, fallbackTitle));
+            btn.setAttribute('aria-label', _t(titleKey, fallbackTitle));
+            btn.innerHTML = svgPath;
+            return btn;
+        }
+
+        function renderProposedCell(field, proposedValue) {
+            var td = document.createElement('td');
+            var wrapper = document.createElement('div');
+            wrapper.className = 'review-proposed-cell';
+            td.appendChild(wrapper);
+
+            if (editingField === field) {
+                var editor = document.createElement(field === 'troops' ? 'select' : 'input');
+                editor.className = 'review-inline-editor';
+                if (field === 'troops') {
+                    ['Tank', 'Aero', 'Missile'].forEach(function(optionValue) {
+                        var option = document.createElement('option');
+                        option.value = optionValue;
+                        option.textContent = optionValue;
+                        if (String(draftProposed[field] || '') === optionValue) {
+                            option.selected = true;
+                        }
+                        editor.appendChild(option);
+                    });
+                    editor.value = draftProposed[field] || 'Tank';
+                } else {
+                    editor.type = 'number';
+                    editor.min = '0';
+                    editor.max = field === 'power' ? '9999' : '99999';
+                    editor.step = '0.01';
+                    editor.value = draftProposed[field] != null ? String(draftProposed[field]) : '';
+                }
+                wrapper.appendChild(editor);
+
+                var actionWrap = document.createElement('div');
+                actionWrap.className = 'review-inline-actions';
+                var saveBtn = buildMiniActionButton(
+                    'save',
+                    'player_updates_edit_save',
+                    'Save edited value',
+                    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,8 6.5,11.5 13,4.5"></polyline></svg>'
+                );
+                var cancelBtn = buildMiniActionButton(
+                    'cancel',
+                    'player_updates_edit_cancel',
+                    'Cancel edit',
+                    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>'
+                );
+                actionWrap.appendChild(saveBtn);
+                actionWrap.appendChild(cancelBtn);
+                wrapper.appendChild(actionWrap);
+
+                function commitEdit() {
+                    var nextDraft = _cloneProposedValues(draftProposed);
+                    var rawValue = field === 'troops' ? editor.value : editor.value;
+                    nextDraft[field] = rawValue;
+                    if (global.DSFeaturePlayerUpdatesCore
+                        && typeof global.DSFeaturePlayerUpdatesCore.normalizeProposedValues === 'function') {
+                        nextDraft = global.DSFeaturePlayerUpdatesCore.normalizeProposedValues(nextDraft);
+                    }
+                    var validation = global.DSFeaturePlayerUpdatesCore
+                        && typeof global.DSFeaturePlayerUpdatesCore.validateProposedValues === 'function'
+                        ? global.DSFeaturePlayerUpdatesCore.validateProposedValues(nextDraft)
+                        : { valid: true, errors: [] };
+                    if (!validation.valid) {
+                        showInlineError(_t('player_updates_review_invalid_values', 'Enter a valid power, THP, and troop type before reviewing.'));
+                        return;
+                    }
+                    draftProposed = nextDraft;
+                    editingField = null;
+                    clearInlineError();
+                    renderBody();
+                }
+
+                saveBtn.addEventListener('click', commitEdit);
+                cancelBtn.addEventListener('click', function() {
+                    editingField = null;
+                    clearInlineError();
+                    renderBody();
                 });
-                return tr;
+                editor.addEventListener('keydown', function(event) {
+                    if (event && event.key === 'Enter') {
+                        commitEdit();
+                    } else if (event && event.key === 'Escape') {
+                        editingField = null;
+                        clearInlineError();
+                        renderBody();
+                    }
+                });
+                if (typeof editor.focus === 'function') {
+                    editor.focus();
+                }
+                return td;
             }
 
+            var valueEl = document.createElement('span');
+            valueEl.className = 'review-proposed-value';
+            valueEl.textContent = field === 'troops'
+                ? String(proposedValue || '\u2014')
+                : fmtVal(proposedValue);
+            wrapper.appendChild(valueEl);
+
+            var editBtn = buildEditIconButton('player_updates_edit_value', 'Edit proposed value');
+            editBtn.addEventListener('click', function() {
+                editingField = field;
+                clearInlineError();
+                renderBody();
+            });
+            wrapper.appendChild(editBtn);
+            return td;
+        }
+
+        function buildNumericRow(field, label, delta) {
+            var tr = document.createElement('tr');
+            if (delta.flagged) { tr.className = 'flagged'; }
+            var labelTd = document.createElement('td');
+            labelTd.textContent = label;
+            tr.appendChild(labelTd);
+            var currentTd = document.createElement('td');
+            currentTd.textContent = fmtVal(delta.old);
+            tr.appendChild(currentTd);
+            tr.appendChild(renderProposedCell(field, delta.new));
+            var changeTd = document.createElement('td');
+            changeTd.textContent = fmtDelta(delta.delta);
+            tr.appendChild(changeTd);
+            return tr;
+        }
+
+        function buildTroopsRow(delta) {
+            var tr = document.createElement('tr');
+            if (delta.changed) { tr.className = 'flagged'; }
+            var labelTd = document.createElement('td');
+            labelTd.textContent = _t('player_update_troops_label', 'Troop Type');
+            tr.appendChild(labelTd);
+            var currentTd = document.createElement('td');
+            currentTd.textContent = String(delta.old || '\u2014');
+            tr.appendChild(currentTd);
+            tr.appendChild(renderProposedCell('troops', delta.new));
+            var changeTd = document.createElement('td');
+            changeTd.textContent = delta.changed
+                ? _t('player_updates_changed', 'Changed')
+                : _t('player_updates_unchanged', 'Unchanged');
+            tr.appendChild(changeTd);
+            return tr;
+        }
+
+        function renderBody() {
+            _clearChildren(tbody);
+            var deltas = null;
+            if (
+                global.DSFeaturePlayerUpdatesCore
+                && typeof global.DSFeaturePlayerUpdatesCore.calculateDeltas === 'function'
+            ) {
+                deltas = global.DSFeaturePlayerUpdatesCore.calculateDeltas(
+                    update.currentSnapshot || {},
+                    draftProposed || {}
+                );
+            }
+            if (!deltas) {
+                return;
+            }
             if (deltas.power) {
-                tbody.appendChild(buildDeltaRow('Power', deltas.power, deltas.power.flagged));
+                tbody.appendChild(buildNumericRow('power', _t('player_update_power_label', '1st Team Power (M)'), deltas.power));
             }
             if (deltas.thp) {
-                tbody.appendChild(buildDeltaRow('THP', deltas.thp, deltas.thp.flagged));
+                tbody.appendChild(buildNumericRow('thp', _t('player_update_thp_label', 'THP'), deltas.thp));
             }
-
-            // Troops uses a different format (string values, changed flag)
             if (deltas.troops) {
-                var troopsTr = document.createElement('tr');
-                if (deltas.troops.changed) { troopsTr.className = 'flagged'; }
-                [
-                    'Troops',
-                    String(deltas.troops.old || ''),
-                    String(deltas.troops.new || ''),
-                    deltas.troops.changed ? 'Changed' : 'Unchanged',
-                ].forEach(function(text) {
-                    var td = document.createElement('td');
-                    td.textContent = text;
-                    troopsTr.appendChild(td);
-                });
-                tbody.appendChild(troopsTr);
+                tbody.appendChild(buildTroopsRow(deltas.troops));
+            }
+            if (approveBtn) {
+                approveBtn.disabled = editingField !== null;
+            }
+            if (rejectBtn) {
+                rejectBtn.disabled = editingField !== null;
             }
         }
 
-        table.appendChild(tbody);
-        row.appendChild(table);
+        renderBody();
 
         // Decision buttons (Approve / Reject)
         var decisionGroup = document.createElement('div');
@@ -260,7 +463,7 @@
                 && typeof global.DSFeaturePlayerUpdatesController.approveUpdate === 'function') {
                 approveBtn.disabled = true;
                 rejectBtn.disabled = true;
-                global.DSFeaturePlayerUpdatesController.approveUpdate(updateId).then(function(result) {
+                global.DSFeaturePlayerUpdatesController.approveUpdate(updateId, draftProposed).then(function(result) {
                     if (result && result.cancelled) {
                         approveBtn.disabled = false;
                         rejectBtn.disabled = false;
@@ -288,7 +491,7 @@
                 && typeof global.DSFeaturePlayerUpdatesController.rejectUpdate === 'function') {
                 rejectBtn.disabled = true;
                 approveBtn.disabled = true;
-                global.DSFeaturePlayerUpdatesController.rejectUpdate(updateId).then(function(result) {
+                global.DSFeaturePlayerUpdatesController.rejectUpdate(updateId, draftProposed).then(function(result) {
                     if (result && result.ok) {
                         if (typeof global.refreshPlayerUpdatesPanel === 'function') {
                             global.refreshPlayerUpdatesPanel();
@@ -308,6 +511,8 @@
         decisionGroup.appendChild(approveBtn);
         decisionGroup.appendChild(rejectBtn);
         row.appendChild(decisionGroup);
+        row.appendChild(inlineError);
+        renderBody();
         return row;
     }
 

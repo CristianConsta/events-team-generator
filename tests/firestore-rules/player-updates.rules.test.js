@@ -689,6 +689,22 @@ test('pending_updates: alliance member can update pending_updates (approve)', as
     );
 });
 
+test('pending_updates: alliance member can update reviewedProposedValues during review', async () => {
+    const db = authedDb(MEMBER_UID);
+    await assertSucceeds(
+        db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_seeded`).update({
+            status: 'approved',
+            reviewedBy: MEMBER_UID,
+            reviewedAt: new Date(),
+            reviewedProposedValues: {
+                power: 3100,
+                thp: 30100,
+                troops: 'Aero',
+            },
+        })
+    );
+});
+
 test('pending_updates: non-member CANNOT read pending_updates', async () => {
     const db = authedDb(OUTSIDER_UID);
     await assertFails(
