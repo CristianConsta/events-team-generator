@@ -66,6 +66,7 @@ js/
     player-table.js         # Player data model
     firestore-utils.js      # Firestore query and snapshot utilities
     reliability.js          # Data reliability checks and retries
+    theme-colors.js         # Runtime bridge for reading CSS tokens in JS
   services/
     firebase-service.js # Adapter wrapping FirebaseManager (enables testing)
   features/
@@ -84,6 +85,8 @@ js/
       events-manager-actions.js
       events-manager-controller.js
       events-registry-controller.js
+      events-image-processor.js
+      events-map-controller.js
     generator/          # Team generation feature
       download-controller.js
       generator-actions.js
@@ -124,6 +127,8 @@ js/
     bootstrap/          # App shell bootstrap (IIFE and ESM variants)
     navigation/         # Navigation controller
     overlays/           # Modal and notifications-sheet controllers
+    theme-controller.js # Theme switching and persistence
+    game-metadata-admin-controller.js # Game metadata admin
   ui/
     alliance-panel-ui.js
     event-buildings-editor-ui.js
@@ -244,28 +249,9 @@ Run E2E tests: `npm run test:e2e`
 - `scripts/PATH_TO_SERVICE_ACCOUNT.json` — **gitignored**, service account for migration scripts.
 - GitHub Actions creates `firebase-config.js` from the `FIREBASE_CONFIG_JS` secret at deploy time.
 
-## Firestore Data Model (brief)
+## Firestore Data Model
 
-```
-users/{uid}/
-  players/{playerId}        # Player records (max 100 per user)
-  events/{eventId}          # Custom event configs
-  app_config/settings       # User preferences
-
-alliances/{allianceId}/
-  members/{uid}             # Alliance membership
-  invitations/{inviteId}    # Pending invites
-
-games/{gameId}/
-  event_history/{historyId}   # All history records (solo + alliance, shared collection)
-    player_stats/{playerDocId}# Per-player attendance status
-
-update_tokens/{tokenId}     # One-time tokens for player-facing updates
-  {auto-generated fields}   # Secure link for player to update own data
-
-pending_updates/{docId}     # Queue of pending player updates
-  {auto-generated fields}   # Batched for reliability
-```
+See the detailed Firestore Data Model section below (after the Codebase Feature Map) for the full collection hierarchy, field schemas, and collection→code mapping.
 
 ## Bundle Boot Sequence (critical knowledge)
 
@@ -307,6 +293,21 @@ Key design decisions:
 - **Bundle is built once** in lint-and-unit and passed via `actions/upload-artifact` to deploy job. Never rebuild in deploy.
 - **Sparse checkout** in deploy job — only fetches files needed for `_site/`, not the full repo.
 - **Deploy files list** must stay in sync with what `index.html` and `player-update.html` load via `<script>`/`<link>` tags. When adding a new top-level JS/CSS file, update the `Stage deploy files` step.
+
+## Implementation Rules
+
+These rules apply to ALL future code changes in this repository:
+
+1. **NO DUPLICATION.** Grep the codebase for existing code before creating new. Reuse when there's overlap. Never duplicate without explicitly stating why. If functionality is too different to reuse directly, extract shared logic into clean, composable functions.
+2. **SECURITY-FIRST.** Secrets in env vars only (never commit `firebase-config.js`). Validate input server-side. Parameterized queries. No custom crypto. Sanitize user-provided data before writing to Firestore or rendering to DOM. Rely on Firestore Security Rules for access control — not client-side checks alone. Refer to community best practices before inventing custom flows.
+3. **SINGLE RESPONSIBILITY.** One function, one job. Name by sole purpose. Keep testable in isolation. Validate input, handle database logic, and manage side effects in separate functions.
+4. **FRAMEWORK-FIRST.** Check if the framework already does it. Use community libraries before building custom. List the standard option first; only go custom with strong justification. In this repo, browser dependencies must be vendored (see `vendor/`), not installed via npm.
+5. **END-TO-END.** Complete one feature fully before starting the next. Commit every 30 minutes of work. Test before moving on — new logic must include corresponding unit or feature tests, bug fixes must include a regression test that fails without the fix.
+6. **LEARN FROM MISTAKES.** After each validated bug fix, append an entry to `.planning/codebase/mistakes.md` documenting: what went wrong, root cause, and how to avoid it. Consult this file before new implementations to avoid repeating past errors.
+7. **When rules clash, apply this priority:**
+   - *DRY vs. SRP:* If extracting duplicate code would create one giant, complex function, keep some duplication. Two simple functions beat one monster function.
+   - *Security vs. Simplicity:* Always choose security. Secure complexity beats simple vulnerability every time.
+   - *Framework vs. Custom:* If a framework solution feels like overkill, use it anyway. What seems like overkill today saves weeks of maintenance tomorrow.
 
 ## What NOT to Do
 
