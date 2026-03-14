@@ -119,3 +119,15 @@ test('restoreMediaInHtml handles no placeholders', () => {
     var result = wiki._restoreMediaInHtml(html, []);
     assert.equal(result, '<p>No media here</p>');
 });
+
+test('resolveDeepLApiBase falls back to the default worker URL', () => {
+    const wiki = loadEventWiki();
+    assert.equal(wiki._resolveDeepLApiBase(), 'https://deepl-proxy.cristianconsta.workers.dev');
+});
+
+test('resolveDeepLApiBase respects a configured proxy override', () => {
+    global.DEEPL_PROXY_URL = 'https://example.workers.dev/translate';
+    const wiki = loadEventWiki();
+    assert.equal(wiki._resolveDeepLApiBase(), 'https://example.workers.dev/translate');
+    delete global.DEEPL_PROXY_URL;
+});

@@ -6,7 +6,6 @@
     var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română' };
     var MEDIA_PLACEHOLDER_RE = /\{\{MEDIA_(\d+)\}\}/g;
     var DEEPL_PROXY_URL = 'https://deepl-proxy.cristianconsta.workers.dev';
-    var DEEPL_API_BASE = global.DEEPL_PROXY_URL || DEEPL_PROXY_URL;
 
     // DeepL uses uppercase language codes; EN-US for target English
     var DEEPL_LANG_MAP = { en: 'EN', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };
@@ -526,13 +525,29 @@
         });
     }
 
+    function resolveDeepLApiBase() {
+        var configured = typeof global.DEEPL_PROXY_URL === 'string'
+            ? global.DEEPL_PROXY_URL.trim()
+            : '';
+        return configured || DEEPL_PROXY_URL;
+    }
+
+    function isDirectDeepLEndpoint(url) {
+        return /^https:\/\/api(?:-free)?\.deepl\.com\/v2\/translate\/?$/i.test(url || '');
+    }
+
     async function translateHtmlWithDeepL(html, sourceLang, targetLang) {
         if (!html || !html.trim()) return '';
+        var apiBase = resolveDeepLApiBase();
+
+        if (isDirectDeepLEndpoint(apiBase)) {
+            throw new Error('DeepL browser translation must use the proxy endpoint, not the direct DeepL API URL.');
+        }
 
         var srcCode = DEEPL_LANG_MAP[sourceLang] || 'EN';
         var tgtCode = DEEPL_TARGET_MAP[targetLang] || targetLang.toUpperCase();
 
-        var response = await fetch(DEEPL_API_BASE, {
+        var response = await fetch(apiBase, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -827,5 +842,6 @@
         _extractMediaFromHtml: extractMediaFromHtml,
         _restoreMediaInHtml: restoreMediaInHtml,
         _simpleHash: simpleHash,
+        _resolveDeepLApiBase: resolveDeepLApiBase,
     };
 })(window);
