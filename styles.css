@@ -1939,9 +1939,8 @@ select {
         opacity: 1;
     }
     /* Offset main content for sidebar */
-    #userHeader,
-    .container {
-        margin-left: 56px;
+    #mainApp {
+        padding-left: 56px;
     }
     body {
         padding-left: 0;
