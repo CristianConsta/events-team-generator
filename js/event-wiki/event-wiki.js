@@ -458,7 +458,7 @@
 
         try {
             if (!global.firebase.apps.length) {
-                global.firebase.initializeApp(global.firebaseConfig);
+                global.firebase.initializeApp(global.FIREBASE_CONFIG);
             }
             state.db = global.firebase.firestore();
         } catch (err) {
