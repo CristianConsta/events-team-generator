@@ -601,7 +601,8 @@ const translations = {
         wiki_translate_error: 'Translation failed',
         wiki_content_language_label: 'Content language',
         wiki_translations_outdated: 'Translations may be outdated',
-        wiki_retranslate_btn: 'Re-translate'
+        wiki_retranslate_btn: 'Re-translate',
+        wiki_visit_platform: 'Visit Platform'
     },
     fr: {
         app_title: 'Video Games Events Players Selection',
@@ -1201,7 +1202,8 @@ const translations = {
         wiki_translate_error: 'La traduction a echoue',
         wiki_content_language_label: 'Langue du contenu',
         wiki_translations_outdated: 'Les traductions peuvent etre obsoletes',
-        wiki_retranslate_btn: 'Retraduire'
+        wiki_retranslate_btn: 'Retraduire',
+        wiki_visit_platform: 'Visiter la plateforme'
     },
     de: {
         app_title: 'Video Games Events Players Selection',
@@ -1801,7 +1803,8 @@ const translations = {
         wiki_translate_error: 'Uebersetzung fehlgeschlagen',
         wiki_content_language_label: 'Inhaltssprache',
         wiki_translations_outdated: 'Uebersetzungen sind moeglicherweise veraltet',
-        wiki_retranslate_btn: 'Erneut uebersetzen'
+        wiki_retranslate_btn: 'Erneut uebersetzen',
+        wiki_visit_platform: 'Plattform besuchen'
     },
     it: {
         app_title: 'Video Games Events Players Selection',
@@ -2401,7 +2404,8 @@ const translations = {
         wiki_translate_error: 'Traduzione fallita',
         wiki_content_language_label: 'Lingua del contenuto',
         wiki_translations_outdated: 'Le traduzioni potrebbero essere obsolete',
-        wiki_retranslate_btn: 'Ritraduci'
+        wiki_retranslate_btn: 'Ritraduci',
+        wiki_visit_platform: 'Visita la piattaforma'
     },
     ko: {
         app_title: 'Video Games Events Players Selection',
@@ -3001,7 +3005,8 @@ const translations = {
         wiki_translate_error: '번역 실패',
         wiki_content_language_label: '콘텐츠 언어',
         wiki_translations_outdated: '번역이 오래되었을 수 있습니다',
-        wiki_retranslate_btn: '다시 번역'
+        wiki_retranslate_btn: '다시 번역',
+        wiki_visit_platform: '플랫폼 방문'
     },
     ro: {
         app_title: 'Video Games Events Players Selection',
@@ -3601,7 +3606,8 @@ const translations = {
         wiki_translate_error: 'Traducerea a esuat',
         wiki_content_language_label: 'Limba continutului',
         wiki_translations_outdated: 'Traducerile ar putea fi depsite',
-        wiki_retranslate_btn: 'Retraduce'
+        wiki_retranslate_btn: 'Retraduce',
+        wiki_visit_platform: 'Viziteaza platforma'
     }
 };
 
