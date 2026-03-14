@@ -664,6 +664,8 @@ function bindStaticUiActions() {
     on('sidebarAllianceBtn', 'click', showAlliancePage);
     on('sidebarSettingsBtn', 'click', openSettingsModal);
     on('sidebarSupportBtn', 'click', showSupportPage);
+    on('sidebarGameMetadataBtn', 'click', openGameMetadataOverlay);
+    on('sidebarSignOutBtn', 'click', function() { handleSignOut(); });
     on('sidebarEventHistoryBtn', 'click', function() {
         hideAllMainPages();
         if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === 'function') {

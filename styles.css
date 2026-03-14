@@ -1938,10 +1938,12 @@ select {
     .app-sidebar.sidebar-expanded .sidebar-badge {
         opacity: 1;
     }
-    /* Offset main content for sidebar */
-    #userHeader,
-    .container {
+    /* Offset main content for sidebar — use padding so auto centering still works */
+    #userHeader {
         margin-left: 56px;
+    }
+    .container {
+        padding-left: 56px;
     }
     body {
         padding-left: 0;
@@ -2002,6 +2004,12 @@ select {
 .sidebar-nav-item.active {
     background: rgba(var(--ds-accent-primary-rgb), 0.14);
     color: var(--ds-accent-primary);
+}
+.sidebar-nav-item--danger {
+    color: var(--ds-text-danger, #ef4444);
+}
+.sidebar-nav-item--danger:hover {
+    background: rgba(239, 68, 68, 0.12);
 }
 .sidebar-icon {
     width: 20px;
