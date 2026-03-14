@@ -5,7 +5,11 @@
     var SUPPORTED_LANGS = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
     var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română' };
     var MEDIA_PLACEHOLDER_RE = /\{\{MEDIA_(\d+)\}\}/g;
-    var TRANSLATE_API_BASE = 'https://translate.googleapis.com/translate_a/single';
+    var DEEPL_API_BASE = 'https://api-free.deepl.com/v2/translate';
+
+    // DeepL uses uppercase language codes; EN-US for target English
+    var DEEPL_LANG_MAP = { en: 'EN', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };
+    var DEEPL_TARGET_MAP = { en: 'EN-US', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };
 
     // ── State ──────────────────────────────────────────────────────────────
     var state = {
@@ -521,51 +525,55 @@
         });
     }
 
-    async function translateText(text, sourceLang, targetLang) {
-        if (!text || !text.trim()) return '';
-        var response = await fetch(TRANSLATE_API_BASE +
-            '?client=gtx&sl=' + encodeURIComponent(sourceLang) +
-            '&tl=' + encodeURIComponent(targetLang) +
-            '&dt=t&q=' + encodeURIComponent(text));
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        var data = await response.json();
-        var result = '';
-        if (data && data[0]) {
-            data[0].forEach(function(segment) {
-                if (segment && segment[0]) result += segment[0];
-            });
-        }
-        return result;
-    }
+    async function translateHtmlWithDeepL(html, sourceLang, targetLang) {
+        var apiKey = global.DEEPL_API_KEY;
+        if (!apiKey) throw new Error('DeepL API key not configured');
+        if (!html || !html.trim()) return '';
 
-    async function translateDomTextNodes(node, sourceLang, targetLang) {
-        for (var i = 0; i < node.childNodes.length; i++) {
-            var child = node.childNodes[i];
-            if (child.nodeType === 3) {
-                var text = child.textContent;
-                MEDIA_PLACEHOLDER_RE.lastIndex = 0;
-                if (text.trim() && !MEDIA_PLACEHOLDER_RE.test(text)) {
-                    child.textContent = await translateText(text, sourceLang, targetLang);
-                }
-            } else if (child.nodeType === 1) {
-                var tag = child.tagName;
-                if (tag !== 'CODE' && tag !== 'PRE') {
-                    await translateDomTextNodes(child, sourceLang, targetLang);
-                }
-            }
+        var srcCode = DEEPL_LANG_MAP[sourceLang] || 'EN';
+        var tgtCode = DEEPL_TARGET_MAP[targetLang] || targetLang.toUpperCase();
+
+        var response = await fetch(DEEPL_API_BASE, {
+            method: 'POST',
+            headers: {
+                'Authorization': 'DeepL-Auth-Key ' + apiKey,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: [html],
+                source_lang: srcCode,
+                target_lang: tgtCode,
+                tag_handling: 'html',
+            }),
+        });
+        if (!response.ok) {
+            var errBody = '';
+            try { errBody = await response.text(); } catch (e) { /* ignore */ }
+            throw new Error('DeepL HTTP ' + response.status + ': ' + errBody);
         }
+        var data = await response.json();
+        if (data && data.translations && data.translations[0]) {
+            return data.translations[0].text;
+        }
+        throw new Error('Unexpected DeepL response format');
     }
 
     async function translateHtmlContent(html, sourceLang, targetLang) {
+        // Extract media (images/videos with large base64 data) to save API characters
         var extracted = extractMediaFromHtml(html);
-        var container = global.document.createElement('div');
-        container.innerHTML = extracted.cleanHtml;
-        await translateDomTextNodes(container, sourceLang, targetLang);
-        return restoreMediaInHtml(container.innerHTML, extracted.mediaElements);
+        var translated = await translateHtmlWithDeepL(
+            extracted.cleanHtml, sourceLang, targetLang
+        );
+        return restoreMediaInHtml(translated, extracted.mediaElements);
     }
 
     async function translateToAllLanguages() {
         if (!state.wikiData || !state.wikiData.content) return;
+        if (!global.DEEPL_API_KEY) {
+            showToast('DeepL API key not configured');
+            console.error('Translation requires window.DEEPL_API_KEY to be set in firebase-config.js');
+            return;
+        }
         var sourceLang = state.wikiData.contentLanguage || 'en';
         var targetLangs = SUPPORTED_LANGS.filter(function(l) { return l !== sourceLang; });
         var progressEl = $('wikiTranslateProgress');
