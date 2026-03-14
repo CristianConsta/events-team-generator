@@ -938,6 +938,12 @@ function bindStaticUiActions() {
         }
         deleteSelectedEvent();
     });
+    on('eventWikiBtn', 'click', () => {
+        const controller = getEventsManagerFeatureController();
+        if (controller && typeof controller.openEventWiki === 'function') {
+            controller.openEventWiki();
+        }
+    });
 
     on('mapCoordinatesBtn', 'click', () => {
         const controller = getEventsManagerFeatureController();
@@ -1423,6 +1429,7 @@ function getEventsManagerFeatureController() {
             cancelEdit: cancelEventEditing,
             deleteEvent: deleteSelectedEvent,
             openCoordinatesPicker: openCoordinatesPickerFromEditor,
+            openEventWiki: function() { window.DSEventsRegistryController.openEventWiki(); },
         });
     }
     return eventsManagerFeatureController;
