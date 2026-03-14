@@ -125,6 +125,90 @@ body {
     flex-wrap: wrap;
 }
 
+/* ── Translation tabs ──────────────────────────────────────────────────── */
+
+.wiki-translation-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding: 4px;
+    background: var(--ds-surface-1);
+    border-radius: 8px;
+}
+
+.wiki-translation-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ds-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.wiki-translation-tab:hover {
+    background: var(--ds-surface-raised, rgba(255,255,255,0.06));
+    color: var(--ds-text-primary);
+}
+
+.wiki-translation-tab.active {
+    background: var(--ds-accent-secondary);
+    color: var(--ds-surface-base);
+}
+
+/* ── Translation stale warning ─────────────────────────────────────────── */
+
+.wiki-translation-stale {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: rgba(240, 192, 64, 0.1);
+    border: 1px solid rgba(240, 192, 64, 0.4);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--ds-text-secondary);
+}
+
+.wiki-btn-small {
+    padding: 4px 10px;
+    min-height: 32px;
+    font-size: 12px;
+}
+
+/* ── Editor language row ───────────────────────────────────────────────── */
+
+.wiki-editor-language-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--ds-text-secondary);
+}
+
+.wiki-editor-language-row select {
+    background: var(--ds-surface-1);
+    color: var(--ds-text-primary);
+    border: 1px solid var(--ds-border-default);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+/* ── Translate progress ────────────────────────────────────────────────── */
+
+.wiki-translate-progress {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--ds-accent-secondary);
+    text-align: center;
+}
+
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 
 .wiki-btn {
