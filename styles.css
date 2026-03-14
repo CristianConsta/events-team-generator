@@ -2731,6 +2731,25 @@ select {
     color: var(--ds-text-muted);
     opacity: 1;
 }
+.events-list-wiki-link {
+    display: inline-flex;
+    align-items: center;
+    margin-left: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ds-accent-secondary);
+    text-decoration: none;
+    border: 1px solid var(--ds-accent-secondary);
+    border-radius: 6px;
+    white-space: nowrap;
+    min-height: 28px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.events-list-wiki-link:hover {
+    background: var(--ds-accent-secondary);
+    color: var(--ds-surface-base);
+}
 .event-media-grid {
     display: grid;
     grid-template-columns: minmax(120px, 1fr) minmax(0, 4fr);
