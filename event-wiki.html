@@ -50,7 +50,9 @@
                 <button type="button" id="wikiSignInBtn" class="wiki-btn wiki-btn-primary hidden" data-i18n="wiki_sign_in_btn">Sign in with Google</button>
                 <button type="button" id="wikiEditBtn" class="wiki-btn wiki-btn-secondary hidden" data-i18n="wiki_edit_btn">Edit</button>
                 <button type="button" id="wikiShareBtn" class="wiki-btn wiki-btn-secondary hidden" data-i18n="wiki_share_btn">Share Link</button>
+                <button type="button" id="wikiTranslateBtn" class="wiki-btn wiki-btn-secondary hidden" data-i18n="wiki_translate_btn">Translate to All Languages</button>
             </div>
+            <div id="wikiTranslateProgress" class="wiki-translate-progress hidden"></div>
         </div>
 
         <!-- Loading state -->
@@ -60,6 +62,11 @@
 
         <!-- Read mode -->
         <div id="wikiContent" class="wiki-content hidden">
+            <div id="wikiTranslationTabs" class="wiki-translation-tabs hidden"></div>
+            <div id="wikiTranslationStale" class="wiki-translation-stale hidden">
+                <span data-i18n="wiki_translations_outdated">Translations may be outdated</span>
+                <button type="button" id="wikiRetranslateBtn" class="wiki-btn wiki-btn-secondary wiki-btn-small" data-i18n="wiki_retranslate_btn">Re-translate</button>
+            </div>
             <div id="wikiContentBody" class="wiki-content-body ql-editor"></div>
             <div id="wikiMeta" class="wiki-meta hidden"></div>
         </div>
@@ -73,6 +80,17 @@
 
         <!-- Edit mode -->
         <div id="wikiEditorSection" class="wiki-editor-section hidden">
+            <div class="wiki-editor-language-row">
+                <label for="wikiContentLanguage" data-i18n="wiki_content_language_label">Content language</label>
+                <select id="wikiContentLanguage">
+                    <option value="en">English</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="ko">Korean</option>
+                    <option value="ro">Romanian</option>
+                </select>
+            </div>
             <div id="wikiEditorToolbar"></div>
             <div id="wikiEditor" class="wiki-editor-container"></div>
             <div class="wiki-editor-actions">

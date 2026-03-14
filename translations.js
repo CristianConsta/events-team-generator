@@ -594,7 +594,14 @@ const translations = {
         wiki_link_copied: 'Wiki link copied to clipboard',
         wiki_editor_placeholder: 'Write your strategy guide...',
         events_manager_wiki_link: 'Wiki',
-        events_manager_wiki_btn: 'Wiki'
+        events_manager_wiki_btn: 'Wiki',
+        wiki_translate_btn: 'Translate to All Languages',
+        wiki_translate_progress: 'Translating... ({current}/{total})',
+        wiki_translate_success: 'Translations generated for {count} languages',
+        wiki_translate_error: 'Translation failed',
+        wiki_content_language_label: 'Content language',
+        wiki_translations_outdated: 'Translations may be outdated',
+        wiki_retranslate_btn: 'Re-translate'
     },
     fr: {
         app_title: 'Video Games Events Players Selection',
@@ -1187,7 +1194,14 @@ const translations = {
         wiki_link_copied: 'Lien du wiki copie dans le presse-papiers',
         wiki_editor_placeholder: 'Redigez votre guide de strategie...',
         events_manager_wiki_link: 'Wiki',
-        events_manager_wiki_btn: 'Wiki'
+        events_manager_wiki_btn: 'Wiki',
+        wiki_translate_btn: 'Traduire dans toutes les langues',
+        wiki_translate_progress: 'Traduction... ({current}/{total})',
+        wiki_translate_success: 'Traductions generees pour {count} langues',
+        wiki_translate_error: 'La traduction a echoue',
+        wiki_content_language_label: 'Langue du contenu',
+        wiki_translations_outdated: 'Les traductions peuvent etre obsoletes',
+        wiki_retranslate_btn: 'Retraduire'
     },
     de: {
         app_title: 'Video Games Events Players Selection',
@@ -1780,7 +1794,14 @@ const translations = {
         wiki_link_copied: 'Wiki-Link in die Zwischenablage kopiert',
         wiki_editor_placeholder: 'Schreiben Sie Ihren Strategieleitfaden...',
         events_manager_wiki_link: 'Wiki',
-        events_manager_wiki_btn: 'Wiki'
+        events_manager_wiki_btn: 'Wiki',
+        wiki_translate_btn: 'In alle Sprachen uebersetzen',
+        wiki_translate_progress: 'Uebersetzen... ({current}/{total})',
+        wiki_translate_success: 'Uebersetzungen fuer {count} Sprachen erstellt',
+        wiki_translate_error: 'Uebersetzung fehlgeschlagen',
+        wiki_content_language_label: 'Inhaltssprache',
+        wiki_translations_outdated: 'Uebersetzungen sind moeglicherweise veraltet',
+        wiki_retranslate_btn: 'Erneut uebersetzen'
     },
     it: {
         app_title: 'Video Games Events Players Selection',
@@ -2373,7 +2394,14 @@ const translations = {
         wiki_link_copied: 'Link del wiki copiato negli appunti',
         wiki_editor_placeholder: 'Scrivi la tua guida strategica...',
         events_manager_wiki_link: 'Wiki',
-        events_manager_wiki_btn: 'Wiki'
+        events_manager_wiki_btn: 'Wiki',
+        wiki_translate_btn: 'Traduci in tutte le lingue',
+        wiki_translate_progress: 'Traduzione... ({current}/{total})',
+        wiki_translate_success: 'Traduzioni generate per {count} lingue',
+        wiki_translate_error: 'Traduzione fallita',
+        wiki_content_language_label: 'Lingua del contenuto',
+        wiki_translations_outdated: 'Le traduzioni potrebbero essere obsolete',
+        wiki_retranslate_btn: 'Ritraduci'
     },
     ko: {
         app_title: 'Video Games Events Players Selection',
@@ -2966,7 +2994,14 @@ const translations = {
         wiki_link_copied: '위키 링크가 클립보드에 복사되었습니다',
         wiki_editor_placeholder: '전략 가이드를 작성하세요...',
         events_manager_wiki_link: '위키',
-        events_manager_wiki_btn: '위키'
+        events_manager_wiki_btn: '위키',
+        wiki_translate_btn: '모든 언어로 번역',
+        wiki_translate_progress: '번역 중... ({current}/{total})',
+        wiki_translate_success: '{count}개 언어로 번역 완료',
+        wiki_translate_error: '번역 실패',
+        wiki_content_language_label: '콘텐츠 언어',
+        wiki_translations_outdated: '번역이 오래되었을 수 있습니다',
+        wiki_retranslate_btn: '다시 번역'
     },
     ro: {
         app_title: 'Video Games Events Players Selection',
@@ -3559,7 +3594,14 @@ const translations = {
         wiki_link_copied: 'Link-ul wiki a fost copiat in clipboard',
         wiki_editor_placeholder: 'Scrie ghidul tau de strategie...',
         events_manager_wiki_link: 'Wiki',
-        events_manager_wiki_btn: 'Wiki'
+        events_manager_wiki_btn: 'Wiki',
+        wiki_translate_btn: 'Traduce in toate limbile',
+        wiki_translate_progress: 'Se traduce... ({current}/{total})',
+        wiki_translate_success: 'Traduceri generate pentru {count} limbi',
+        wiki_translate_error: 'Traducerea a esuat',
+        wiki_content_language_label: 'Limba continutului',
+        wiki_translations_outdated: 'Traducerile ar putea fi depsite',
+        wiki_retranslate_btn: 'Retraduce'
     }
 };
 

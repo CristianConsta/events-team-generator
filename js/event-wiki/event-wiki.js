@@ -1,6 +1,12 @@
 (function initEventWiki(global) {
     'use strict';
 
+    // ── Constants ────────────────────────────────────────────────────────────
+    var SUPPORTED_LANGS = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+    var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română' };
+    var MEDIA_PLACEHOLDER_RE = /\{\{MEDIA_(\d+)\}\}/g;
+    var TRANSLATE_API_BASE = 'https://translate.googleapis.com/translate_a/single';
+
     // ── State ──────────────────────────────────────────────────────────────
     var state = {
         gameId: '',
@@ -13,6 +19,7 @@
         isAuthorized: false,
         currentUser: null,
         db: null,
+        activeViewLang: '',
     };
 
     // ── Helpers ────────────────────────────────────────────────────────────
@@ -107,10 +114,13 @@
         if (!docRef || !state.quillEditor || !state.currentUser) return;
         var content = state.quillEditor.root.innerHTML;
         if (content === '<p><br></p>') content = '';
+        var contentLangSelect = $('wikiContentLanguage');
+        var contentLanguage = (contentLangSelect && contentLangSelect.value) || 'en';
         var payload = {
             eventId: state.eventId,
             gameId: state.gameId,
             content: content,
+            contentLanguage: contentLanguage,
             published: true,
             lastEditedBy: state.currentUser.uid,
             lastEditedByName: state.currentUser.displayName || '',
@@ -189,6 +199,7 @@
 
     function renderReadMode() {
         renderHeader();
+        state.activeViewLang = '';
         var contentBody = $('wikiContentBody');
         if (contentBody && state.wikiData && state.wikiData.content) {
             contentBody.innerHTML = state.wikiData.content;
@@ -204,6 +215,7 @@
             show('wikiMeta');
         }
 
+        renderTranslationTabs();
         showState('wikiContent');
         updateAuthUI();
     }
@@ -243,6 +255,7 @@
                 if (state.wikiData) {
                     show('wikiEditBtn');
                     show('wikiShareBtn');
+                    show('wikiTranslateBtn');
                 } else {
                     // Show create button in empty state
                     show('wikiCreateBtn');
@@ -252,6 +265,7 @@
             show('wikiSignInBtn');
             hide('wikiEditBtn');
             hide('wikiShareBtn');
+            hide('wikiTranslateBtn');
         }
     }
 
@@ -340,6 +354,10 @@
     function enterEditMode() {
         state.isEditing = true;
         initQuillEditor();
+        var contentLangSelect = $('wikiContentLanguage');
+        if (contentLangSelect) {
+            contentLangSelect.value = (state.wikiData && state.wikiData.contentLanguage) || 'en';
+        }
         if (state.wikiData && state.wikiData.content) {
             state.quillEditor.root.innerHTML = state.wikiData.content;
         } else {
@@ -360,6 +378,193 @@
         state.isEditing = false;
         hide('wikiEditorSection');
         show('wikiAuthBar');
+    }
+
+    // ── Translation ────────────────────────────────────────────────────────
+
+    function simpleHash(str) {
+        var hash = 0;
+        for (var i = 0; i < str.length; i++) {
+            hash = ((hash << 5) - hash) + str.charCodeAt(i);
+            hash |= 0;
+        }
+        return String(hash);
+    }
+
+    function extractMediaFromHtml(html) {
+        var container = global.document.createElement('div');
+        container.innerHTML = html;
+        var mediaElements = [];
+        var mediaNodes = container.querySelectorAll('img, iframe, video, source');
+        for (var i = 0; i < mediaNodes.length; i++) {
+            var node = mediaNodes[i];
+            var placeholder = '{{MEDIA_' + mediaElements.length + '}}';
+            mediaElements.push(node.outerHTML);
+            var span = global.document.createElement('span');
+            span.textContent = placeholder;
+            node.parentNode.replaceChild(span, node);
+        }
+        return { cleanHtml: container.innerHTML, mediaElements: mediaElements };
+    }
+
+    function restoreMediaInHtml(html, mediaElements) {
+        return html.replace(MEDIA_PLACEHOLDER_RE, function(match, index) {
+            var i = parseInt(index, 10);
+            return (i < mediaElements.length) ? mediaElements[i] : match;
+        });
+    }
+
+    async function translateText(text, sourceLang, targetLang) {
+        if (!text || !text.trim()) return '';
+        var response = await fetch(TRANSLATE_API_BASE +
+            '?client=gtx&sl=' + encodeURIComponent(sourceLang) +
+            '&tl=' + encodeURIComponent(targetLang) +
+            '&dt=t&q=' + encodeURIComponent(text));
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        var result = '';
+        if (data && data[0]) {
+            data[0].forEach(function(segment) {
+                if (segment && segment[0]) result += segment[0];
+            });
+        }
+        return result;
+    }
+
+    async function translateDomTextNodes(node, sourceLang, targetLang) {
+        for (var i = 0; i < node.childNodes.length; i++) {
+            var child = node.childNodes[i];
+            if (child.nodeType === 3) {
+                var text = child.textContent;
+                if (text.trim() && !MEDIA_PLACEHOLDER_RE.test(text)) {
+                    child.textContent = await translateText(text, sourceLang, targetLang);
+                }
+            } else if (child.nodeType === 1) {
+                var tag = child.tagName;
+                if (tag !== 'CODE' && tag !== 'PRE') {
+                    await translateDomTextNodes(child, sourceLang, targetLang);
+                }
+            }
+        }
+    }
+
+    async function translateHtmlContent(html, sourceLang, targetLang) {
+        var extracted = extractMediaFromHtml(html);
+        var container = global.document.createElement('div');
+        container.innerHTML = extracted.cleanHtml;
+        await translateDomTextNodes(container, sourceLang, targetLang);
+        return restoreMediaInHtml(container.innerHTML, extracted.mediaElements);
+    }
+
+    async function translateToAllLanguages() {
+        if (!state.wikiData || !state.wikiData.content) return;
+        var sourceLang = state.wikiData.contentLanguage || 'en';
+        var targetLangs = SUPPORTED_LANGS.filter(function(l) { return l !== sourceLang; });
+        var progressEl = $('wikiTranslateProgress');
+        var translateBtn = $('wikiTranslateBtn');
+
+        if (translateBtn) translateBtn.disabled = true;
+        show('wikiTranslateProgress');
+
+        var translations = {};
+        try {
+            for (var i = 0; i < targetLangs.length; i++) {
+                var lang = targetLangs[i];
+                if (progressEl) {
+                    progressEl.textContent = tLocal('wiki_translate_progress')
+                        .replace('{current}', String(i + 1))
+                        .replace('{total}', String(targetLangs.length));
+                }
+                translations[lang] = await translateHtmlContent(
+                    state.wikiData.content, sourceLang, lang
+                );
+                // Small delay between languages to avoid rate limiting
+                if (i < targetLangs.length - 1) {
+                    await new Promise(function(r) { setTimeout(r, 200); });
+                }
+            }
+            var docRef = getWikiDocRef();
+            if (docRef) {
+                await docRef.set({
+                    translations: translations,
+                    translatedAt: global.firebase.firestore.FieldValue.serverTimestamp(),
+                    translatedFromContentHash: simpleHash(state.wikiData.content),
+                }, { merge: true });
+                state.wikiData.translations = translations;
+                state.wikiData.translatedFromContentHash = simpleHash(state.wikiData.content);
+                renderTranslationTabs();
+                showToast(tLocal('wiki_translate_success')
+                    .replace('{count}', String(targetLangs.length)));
+            }
+        } catch (err) {
+            console.error('Translation failed:', err);
+            showToast(tLocal('wiki_translate_error'));
+        } finally {
+            if (translateBtn) translateBtn.disabled = false;
+            hide('wikiTranslateProgress');
+        }
+    }
+
+    function renderTranslationTabs() {
+        var tabsEl = $('wikiTranslationTabs');
+        if (!tabsEl) return;
+        if (!state.wikiData || !state.wikiData.translations ||
+            Object.keys(state.wikiData.translations).length === 0) {
+            hide('wikiTranslationTabs');
+            hide('wikiTranslationStale');
+            return;
+        }
+
+        var sourceLang = state.wikiData.contentLanguage || 'en';
+        var availableLangs = [sourceLang].concat(
+            Object.keys(state.wikiData.translations).sort()
+        );
+
+        tabsEl.innerHTML = '';
+        availableLangs.forEach(function(lang) {
+            var btn = global.document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'wiki-translation-tab';
+            btn.textContent = LANG_NAMES[lang] || lang;
+            btn.dataset.lang = lang;
+            if (lang === (state.activeViewLang || sourceLang)) {
+                btn.classList.add('active');
+            }
+            btn.addEventListener('click', function() {
+                switchTranslationView(lang);
+            });
+            tabsEl.appendChild(btn);
+        });
+        show('wikiTranslationTabs');
+
+        // Show stale warning if content changed since translation
+        var staleEl = $('wikiTranslationStale');
+        if (staleEl && state.wikiData.translatedFromContentHash) {
+            var isStale = simpleHash(state.wikiData.content) !== state.wikiData.translatedFromContentHash;
+            staleEl.classList.toggle('hidden', !isStale);
+        }
+    }
+
+    function switchTranslationView(lang) {
+        var contentBody = $('wikiContentBody');
+        if (!contentBody || !state.wikiData) return;
+
+        var sourceLang = state.wikiData.contentLanguage || 'en';
+        state.activeViewLang = lang;
+
+        if (lang === sourceLang) {
+            contentBody.innerHTML = state.wikiData.content || '';
+        } else if (state.wikiData.translations && state.wikiData.translations[lang]) {
+            contentBody.innerHTML = state.wikiData.translations[lang];
+        }
+
+        var tabsEl = $('wikiTranslationTabs');
+        if (tabsEl) {
+            var tabs = tabsEl.querySelectorAll('.wiki-translation-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.toggle('active', tabs[i].dataset.lang === lang);
+            }
+        }
     }
 
     // ── Share ──────────────────────────────────────────────────────────────
@@ -410,6 +615,12 @@
 
         var shareBtn = $('wikiShareBtn');
         if (shareBtn) shareBtn.addEventListener('click', handleShare);
+
+        var translateBtn = $('wikiTranslateBtn');
+        if (translateBtn) translateBtn.addEventListener('click', translateToAllLanguages);
+
+        var retranslateBtn = $('wikiRetranslateBtn');
+        if (retranslateBtn) retranslateBtn.addEventListener('click', translateToAllLanguages);
     }
 
     // ── Init ───────────────────────────────────────────────────────────────
@@ -488,5 +699,10 @@
         setTimeout(init, 0);
     }
 
-    global.DSEventWiki = { init: init };
+    global.DSEventWiki = {
+        init: init,
+        _extractMediaFromHtml: extractMediaFromHtml,
+        _restoreMediaInHtml: restoreMediaInHtml,
+        _simpleHash: simpleHash,
+    };
 })(window);
