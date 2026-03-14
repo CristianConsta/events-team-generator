@@ -504,16 +504,29 @@
                 }, { merge: true });
                 state.wikiData.translations = translations;
                 state.wikiData.translatedFromContentHash = simpleHash(state.wikiData.content);
+                // Show completion state before rendering tabs
+                if (progressEl) {
+                    progressEl.textContent = '\u2705 ' + tLocal('wiki_translate_success')
+                        .replace('{count}', String(targetLangs.length));
+                    progressEl.classList.add('wiki-translate-done');
+                }
                 renderTranslationTabs();
-                showToast(tLocal('wiki_translate_success')
-                    .replace('{count}', String(targetLangs.length)));
+                // Keep the success message visible briefly, then hide
+                await new Promise(function(r) { setTimeout(r, 2500); });
             }
         } catch (err) {
             console.error('Translation failed:', err);
-            showToast(tLocal('wiki_translate_error'));
+            if (progressEl) {
+                progressEl.textContent = '\u274C ' + tLocal('wiki_translate_error');
+                progressEl.classList.add('wiki-translate-fail');
+            }
+            await new Promise(function(r) { setTimeout(r, 2500); });
         } finally {
             if (translateBtn) translateBtn.disabled = false;
             hide('wikiTranslateProgress');
+            if (progressEl) {
+                progressEl.classList.remove('wiki-translate-done', 'wiki-translate-fail');
+            }
         }
     }
 

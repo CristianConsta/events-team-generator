@@ -223,6 +223,17 @@ body {
     font-size: 13px;
     color: var(--ds-accent-secondary);
     text-align: center;
+    font-weight: 500;
+}
+
+.wiki-translate-progress.wiki-translate-done {
+    color: var(--ds-status-success, #4caf50);
+    font-weight: 600;
+}
+
+.wiki-translate-progress.wiki-translate-fail {
+    color: var(--ds-status-error, #f44336);
+    font-weight: 600;
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
