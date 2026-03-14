@@ -110,9 +110,22 @@ body {
 }
 
 .wiki-event-chars {
-    font-size: 14px;
-    opacity: 0.6;
-    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.wiki-hero-icon {
+    width: 28px;
+    height: 28px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    transition: transform 0.2s ease;
+}
+
+.wiki-hero-icon:hover {
+    transform: scale(1.2);
 }
 
 /* ── Auth bar ──────────────────────────────────────────────────────────── */
@@ -517,8 +530,9 @@ body {
         font-size: 28px;
     }
 
-    .wiki-event-chars {
-        font-size: 15px;
+    .wiki-hero-icon {
+        width: 32px;
+        height: 32px;
     }
 
     .wiki-content-body {
@@ -540,8 +554,9 @@ body {
         font-size: 32px;
     }
 
-    .wiki-event-chars {
-        font-size: 16px;
+    .wiki-hero-icon {
+        width: 36px;
+        height: 36px;
     }
 
     .wiki-content-body {

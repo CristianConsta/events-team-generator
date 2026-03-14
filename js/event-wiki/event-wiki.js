@@ -170,9 +170,105 @@
 
     // ── Rendering ──────────────────────────────────────────────────────────
 
+    // ── Inline SVG hero silhouettes ────────────────────────────────────────
+    // Stylised mini-characters inspired by post-apocalyptic game archetypes.
+    // Each is a self-contained 28×28 SVG that works at small sizes.
+
+    function heroSvg(paths, accent) {
+        return '<svg class="wiki-hero-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+            paths.map(function(p) {
+                return '<path d="' + p.d + '" fill="' + (p.fill || accent) + '"' +
+                    (p.opacity ? ' opacity="' + p.opacity + '"' : '') + '/>';
+            }).join('') + '</svg>';
+    }
+
+    var LAST_WAR_HEROES = [
+        // Scout — goggles, short hair, utility vest
+        heroSvg([
+            // Head
+            { d: 'M14 4a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z', fill: '#f5d0a9' },
+            // Hair (green, short)
+            { d: 'M10.5 6.5c0-2 1.5-3.5 3.5-3.5s3.5 1.2 3.5 3c0 0-1-.8-3.5-.8s-3.5 1.3-3.5 1.3z', fill: '#7bc47f' },
+            // Goggles
+            { d: 'M10.5 7.5a1.2 1.2 0 0 1 2.4 0M15.1 7.5a1.2 1.2 0 0 1 2.4 0', fill: '#d4a030' },
+            { d: 'M10.5 7.2h7', fill: '#d4a030', opacity: '0.6' },
+            // Body — vest
+            { d: 'M9 13c0 0 1.5-1 5-1s5 1 5 1v9c0 1-1 2-2.5 2h-5C10 24 9 23 9 22z', fill: '#8b7355' },
+            // Shirt under vest
+            { d: 'M11.5 13.5v5h5v-5z', fill: '#ffffff', opacity: '0.9' },
+            // Belt
+            { d: 'M9 19h10v1.5H9z', fill: '#5a4a3a' },
+            // Legs
+            { d: 'M10.5 24v3h2v-3zM15.5 24v3h2v-3z', fill: '#7a6b55' },
+        ], '#8b7355'),
+        // Commander — flowing red hair, leather jacket, confident
+        heroSvg([
+            // Head
+            { d: 'M14 4a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z', fill: '#f5d0a9' },
+            // Hair (red, flowing)
+            { d: 'M9.5 6c0-2.5 2-4.5 4.5-4.5s4.5 1.8 4.5 4c0 0 .5 2-1 4 0 0 1.5-1.5 1.5-4.5 0 0-.5-4-5-4s-5 3.5-5 5c0 0 .2-1 .5 0z', fill: '#e63946' },
+            { d: 'M9 8c-.5 1.5-.5 3 0 5l1-1c-.3-1.2-.3-2.5 0-3.5z', fill: '#e63946', opacity: '0.7' },
+            // Jacket
+            { d: 'M8.5 13c0 0 1.5-1 5.5-1s5.5 1 5.5 1v10c0 1-1 2-3 2h-5c-2 0-3-1-3-2z', fill: '#c0392b' },
+            // Jacket lapels
+            { d: 'M12 13l2 4 2-4z', fill: '#4a4a4a', opacity: '0.8' },
+            // Belt
+            { d: 'M8.5 20h11v1H8.5z', fill: '#3d2b1f' },
+            // Legs
+            { d: 'M10.5 24v3h2v-3zM15.5 24v3h2v-3z', fill: '#f0e6d3' },
+        ], '#c0392b'),
+        // Operative — blonde wavy hair, blue jacket, tactical
+        heroSvg([
+            // Head
+            { d: 'M14 4a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z', fill: '#f5d0a9' },
+            // Hair (blonde, wavy)
+            { d: 'M10 5.5c0-2.5 1.8-4 4-4s4 1.5 4 3.5c0 0 .8 1.5 0 4 0 0 1-2 1-4s-1.5-4.5-5-4.5-5 3-5 5c0 1 .5 2 .5 2 -.3-1.5.5-2.5.5-2.5z', fill: '#f0c67d' },
+            { d: 'M18.5 9c.5 1 .3 3-.5 4l1-1c.5-1.2.3-2.2-.5-3z', fill: '#f0c67d', opacity: '0.7' },
+            // Jacket (blue)
+            { d: 'M8.5 13c0 0 1.5-1 5.5-1s5.5 1 5.5 1v10c0 1-1 2-3 2h-5c-2 0-3-1-3-2z', fill: '#5b7db1' },
+            // Inner shirt
+            { d: 'M12 13.5v4h4v-4z', fill: '#87ceeb', opacity: '0.7' },
+            // Belt
+            { d: 'M8.5 20h11v1H8.5z', fill: '#3d3d5c' },
+            // Legs
+            { d: 'M10.5 24v3h2v-3zM15.5 24v3h2v-3z', fill: '#6b7b8d' },
+        ], '#5b7db1'),
+    ];
+
+    var CANYON_HEROES = [
+        // Ranger — rugged, bow-wielding mountain type
+        heroSvg([
+            { d: 'M14 4a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z', fill: '#d4a574' },
+            { d: 'M10 6c0-2 1.8-3.5 4-3.5s4 1.5 4 3c0 0-1.5-1-4-1s-4 1.5-4 1.5z', fill: '#5a3a1a' },
+            { d: 'M9 13c0 0 1.5-1 5-1s5 1 5 1v9c0 1-1 2-2.5 2h-5C10 24 9 23 9 22z', fill: '#5c7a3a' },
+            { d: 'M9 19h10v1H9z', fill: '#3a2a1a' },
+            { d: 'M10.5 24v3h2v-3zM15.5 24v3h2v-3z', fill: '#4a5a3a' },
+            // Bow
+            { d: 'M21 5c0 4-1 8-1 12', fill: 'none' },
+            { d: 'M20.5 5q1 6 0 12', fill: '#8b6914', opacity: '0.8' },
+        ], '#5c7a3a'),
+        // Storm chaser — wind-swept, adventurous
+        heroSvg([
+            { d: 'M14 4a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z', fill: '#f5d0a9' },
+            { d: 'M10 5c0-2 2-3.5 4-3.5s4 1 4 3c0 0-1-1.5-4-1s-4 1.5-4 1.5z', fill: '#2c3e50' },
+            { d: 'M8.5 13c0 0 2-1 5.5-1s5.5 1 5.5 1v10c0 1-1 2-3 2h-5c-2 0-3-1-3-2z', fill: '#2c3e50' },
+            { d: 'M12 14v4h4v-4z', fill: '#e67e22', opacity: '0.8' },
+            { d: 'M8.5 20h11v1H8.5z', fill: '#1a1a2e' },
+            { d: 'M10.5 24v3h2v-3zM15.5 24v3h2v-3z', fill: '#34495e' },
+        ], '#2c3e50'),
+        // Demolitions — explosive specialist
+        heroSvg([
+            { d: 'M14 4a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z', fill: '#d4a574' },
+            { d: 'M10 6.5c0-2.5 1.8-4 4-4s4 1.5 4 3.5c0 0-1-.5-4-.5s-4 1-4 1z', fill: '#8b0000' },
+            { d: 'M8.5 13c0 0 2-1 5.5-1s5.5 1 5.5 1v10c0 1-1 2-3 2h-5c-2 0-3-1-3-2z', fill: '#4a4a4a' },
+            { d: 'M9 18h10v1.5H9z', fill: '#c0392b' },
+            { d: 'M10.5 24v3h2v-3zM15.5 24v3h2v-3z', fill: '#3a3a3a' },
+        ], '#4a4a4a'),
+    ];
+
     var GAME_FLAVOR_CHARS = {
-        last_war: '\u2694\uFE0F \uD83C\uDFF0 \uD83D\uDCA3 \uD83D\uDEE1\uFE0F',
-        canyon_storm: '\u26F0\uFE0F \uD83C\uDF2A\uFE0F \uD83D\uDCA5 \uD83C\uDFF9',
+        last_war: LAST_WAR_HEROES.join(' '),
+        canyon_storm: CANYON_HEROES.join(' '),
     };
 
     function renderHeader() {
@@ -201,7 +297,7 @@
             }
         }
         if (eventChars) {
-            eventChars.textContent = GAME_FLAVOR_CHARS[state.gameId] || '';
+            eventChars.innerHTML = GAME_FLAVOR_CHARS[state.gameId] || '';
         }
         show('wikiHeader');
     }
