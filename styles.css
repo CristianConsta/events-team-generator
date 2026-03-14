@@ -3763,6 +3763,30 @@ button.btn-confirm-pending {
     body.notifications-sheet-open #notificationsPanel {
         box-shadow: 0 -10px 26px rgba(2, 6, 14, 0.5);
     }
+
+    /* ── Modals → Bottom Sheet on mobile ── */
+    .coord-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+    .modal-shell,
+    .modal-shell--settings,
+    .modal-shell--upload-target,
+    .modal-shell--apply-target {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 16px 16px 0 0;
+        max-height: 85dvh;
+        overflow-y: auto;
+        animation: slide-up-sheet 0.25s ease;
+    }
+    .game-selector-modal {
+        width: 100%;
+        max-width: 100%;
+        border-radius: 16px 16px 0 0;
+        max-height: 85dvh;
+        animation: slide-up-sheet 0.25s ease;
+    }
 }
 
 /* =============================================
