@@ -882,6 +882,12 @@
                 eventEditorCurrentId: eventEditorCurrentId,
                 generateAvatarDataUrl: generateEventAvatarDataUrl,
                 translate: deps.t,
+                getWikiUrl: function (eventId) {
+                    if (global.FirebaseService && typeof global.FirebaseService.getEventWikiUrl === 'function') {
+                        return global.FirebaseService.getEventWikiUrl(eventId);
+                    }
+                    return '';
+                },
                 onSelectEvent: function (eventId) {
                     deps.setEventEditorCurrentId(eventId);
                     switchEvent(eventId);
