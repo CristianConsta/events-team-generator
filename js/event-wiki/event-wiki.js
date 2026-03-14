@@ -256,6 +256,7 @@
 
         if (state.currentUser) {
             hide('wikiSignInBtn');
+            hide('wikiVisitPlatformBtn');
             var userEl = $('wikiAuthUser');
             if (userEl) {
                 userEl.textContent = state.currentUser.displayName || state.currentUser.email || '';
@@ -271,7 +272,8 @@
                 }
             }
         } else {
-            show('wikiSignInBtn');
+            hide('wikiSignInBtn');
+            show('wikiVisitPlatformBtn');
             hide('wikiEditBtn');
             hide('wikiShareBtn');
             hide('wikiTranslateBtn');
@@ -445,6 +447,7 @@
             var child = node.childNodes[i];
             if (child.nodeType === 3) {
                 var text = child.textContent;
+                MEDIA_PLACEHOLDER_RE.lastIndex = 0;
                 if (text.trim() && !MEDIA_PLACEHOLDER_RE.test(text)) {
                     child.textContent = await translateText(text, sourceLang, targetLang);
                 }
