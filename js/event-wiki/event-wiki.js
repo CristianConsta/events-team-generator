@@ -5,7 +5,8 @@
     var SUPPORTED_LANGS = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
     var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română' };
     var MEDIA_PLACEHOLDER_RE = /\{\{MEDIA_(\d+)\}\}/g;
-    var DEEPL_API_BASE = 'https://api-free.deepl.com/v2/translate';
+    var DEEPL_PROXY_URL = 'https://deepl-proxy.cristianconsta.workers.dev';
+    var DEEPL_API_BASE = global.DEEPL_PROXY_URL || DEEPL_PROXY_URL;
 
     // DeepL uses uppercase language codes; EN-US for target English
     var DEEPL_LANG_MAP = { en: 'EN', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };
@@ -526,8 +527,6 @@
     }
 
     async function translateHtmlWithDeepL(html, sourceLang, targetLang) {
-        var apiKey = global.DEEPL_API_KEY;
-        if (!apiKey) throw new Error('DeepL API key not configured');
         if (!html || !html.trim()) return '';
 
         var srcCode = DEEPL_LANG_MAP[sourceLang] || 'EN';
@@ -536,7 +535,6 @@
         var response = await fetch(DEEPL_API_BASE, {
             method: 'POST',
             headers: {
-                'Authorization': 'DeepL-Auth-Key ' + apiKey,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -569,11 +567,7 @@
 
     async function translateToAllLanguages() {
         if (!state.wikiData || !state.wikiData.content) return;
-        if (!global.DEEPL_API_KEY) {
-            showToast('DeepL API key not configured');
-            console.error('Translation requires window.DEEPL_API_KEY to be set in firebase-config.js');
-            return;
-        }
+        // Translation is handled by the server-side proxy (no client API key needed)
         var sourceLang = state.wikiData.contentLanguage || 'en';
         var targetLangs = SUPPORTED_LANGS.filter(function(l) { return l !== sourceLang; });
         var progressEl = $('wikiTranslateProgress');
