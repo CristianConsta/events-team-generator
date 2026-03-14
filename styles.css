@@ -1938,12 +1938,10 @@ select {
     .app-sidebar.sidebar-expanded .sidebar-badge {
         opacity: 1;
     }
-    /* Offset main content for sidebar — use padding so auto centering still works */
-    #userHeader {
-        margin-left: 56px;
-    }
+    /* Offset main content for sidebar */
+    #userHeader,
     .container {
-        padding-left: 56px;
+        margin-left: 56px;
     }
     body {
         padding-left: 0;
