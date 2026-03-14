@@ -47,24 +47,31 @@
     --motion-fast: 140ms;
     --motion-medium: 170ms;
     --motion-slow: 240ms;
-    /* Button sizing scale */
-    --btn-height-sm: 34px;
-    --btn-height-md: 40px;
-    --btn-height-lg: 44px;
-    --btn-height-xl: 52px;
-    --btn-padding-sm: 6px 10px;
-    --btn-padding-md: 10px 14px;
+    /* Spacing scale (8px grid) */
+    --ds-space-xs:  4px;
+    --ds-space-sm:  8px;
+    --ds-space-md:  16px;
+    --ds-space-lg:  24px;
+    --ds-space-xl:  32px;
+    --ds-space-2xl: 48px;
+    /* Button sizing scale — 44px minimum for WCAG 2.5.5 touch targets */
+    --btn-height-sm: 40px;
+    --btn-height-md: 44px;
+    --btn-height-lg: 48px;
+    --btn-height-xl: 56px;
+    --btn-padding-sm: 8px 12px;
+    --btn-padding-md: 10px 16px;
     --btn-padding-lg: 13px 22px;
     --btn-font-sm: 13px;
     --btn-font-md: 14px;
     --btn-font-lg: 15px;
-    /* Typography scale */
+    /* Typography scale — 1.333 ratio (Perfect Fourth) for clear hierarchy */
     --text-xs: 11px;
     --text-sm: 13px;
     --text-base: 15px;
-    --text-lg: 18px;
-    --text-xl: 22px;
-    --text-2xl: 28px;
+    --text-lg: 20px;
+    --text-xl: 27px;
+    --text-2xl: 36px;
     /* === Design System Tokens === */
     --ds-surface-base: #070c19;
     --ds-surface-raised: #152040;
@@ -582,16 +589,16 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--ds-space-md);
     flex-wrap: wrap;
 }
 .screen-body {
     display: grid;
-    gap: 12px;
+    gap: var(--ds-space-md);
 }
 .screen-actions {
     display: flex;
-    gap: 10px;
+    gap: var(--ds-space-sm);
     flex-wrap: wrap;
     align-items: center;
 }
@@ -606,10 +613,10 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: var(--ds-space-md);
     flex-wrap: wrap;
-    margin-bottom: 18px;
-    padding: 2px 2px 10px;
+    margin-bottom: var(--ds-space-lg);
+    padding: 2px 2px var(--ds-space-sm);
     border-bottom: 1px solid rgba(var(--ds-accent-primary-rgb), 0.2);
 }
 .page-header h1 { margin: 0; }
@@ -659,10 +666,10 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
 }
 .section-help {
     opacity: 0.9;
-    margin-bottom: 20px;
+    margin-bottom: var(--ds-space-md);
 }
 .section-help-tight {
-    margin: 10px 0 0;
+    margin: var(--ds-space-sm) 0 0;
 }
 .inline-title {
     display: inline;
@@ -724,8 +731,8 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
         linear-gradient(180deg, var(--ds-surface-1) 0%, transparent 100%),
         var(--ds-surface-overlay);
     border-radius: var(--radius-lg);
-    padding: 28px;
-    margin: 18px 0;
+    padding: var(--ds-space-lg);
+    margin: var(--ds-space-lg) 0;
     backdrop-filter: blur(12px);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.12);
     box-shadow: var(--ds-shadow-elev);
@@ -740,7 +747,7 @@ h1 { text-align: center; color: var(--ds-accent-primary); font-size: 2.5rem; mar
     border-radius: 2px;
     background: linear-gradient(90deg, rgba(var(--ds-accent-primary-rgb), 0), rgba(var(--ds-accent-primary-rgb), 0.75), rgba(var(--ds-accent-primary-rgb), 0));
 }
-.card h2 { color: var(--ds-accent-primary); margin-bottom: 15px; letter-spacing: 0.2px; }
+.card h2 { color: var(--ds-accent-primary); margin-bottom: var(--ds-space-md); letter-spacing: 0.2px; }
 /* ── Buttons ── */
 button {
     background: linear-gradient(135deg, var(--ds-button-primary-start), var(--ds-button-primary-end));
@@ -753,7 +760,7 @@ button {
     letter-spacing: 0.2px;
     cursor: pointer;
     transition: transform var(--motion-medium), box-shadow var(--motion-medium), filter var(--motion-medium), border-color var(--motion-medium);
-    margin: 10px 5px;
+    margin: var(--ds-space-sm) var(--ds-space-xs);
     min-height: var(--btn-height-lg);
     box-shadow: var(--ds-shadow-soft);
 }
@@ -2225,6 +2232,7 @@ select {
     margin: 0;
     color: var(--ds-accent-primary);
     letter-spacing: 0.3px;
+    font-size: var(--text-xl);
 }
 
 /* ── Notification Bell ── */
