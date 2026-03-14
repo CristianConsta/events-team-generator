@@ -5,7 +5,7 @@
     var SUPPORTED_LANGS = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
     var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română' };
     var MEDIA_PLACEHOLDER_RE = /\{\{MEDIA_(\d+)\}\}/g;
-    var DEEPL_PROXY_URL = 'https://deepl-proxy.cristianconsta.workers.dev';
+    var DEEPL_PROXY_URL = 'https://deepl-proxy.constantinescu-cristian.workers.dev';
 
     // DeepL uses uppercase language codes; EN-US for target English
     var DEEPL_LANG_MAP = { en: 'EN', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };

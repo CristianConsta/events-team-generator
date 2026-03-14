@@ -122,7 +122,7 @@ test('restoreMediaInHtml handles no placeholders', () => {
 
 test('resolveDeepLApiBase falls back to the default worker URL', () => {
     const wiki = loadEventWiki();
-    assert.equal(wiki._resolveDeepLApiBase(), 'https://deepl-proxy.cristianconsta.workers.dev');
+    assert.equal(wiki._resolveDeepLApiBase(), 'https://deepl-proxy.constantinescu-cristian.workers.dev');
 });
 
 test('resolveDeepLApiBase respects a configured proxy override', () => {
