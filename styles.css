@@ -788,6 +788,14 @@ button.secondary:hover {
     outline-color: var(--ds-accent-secondary);
 }
 .hidden { display: none !important; }
+/* ── View entrance animation ── */
+.view-section:not(.hidden) {
+    animation: view-fade-in 0.2s ease-out;
+}
+@keyframes view-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
 /* ── Overlays & Modals ── */
 .coord-overlay {
     position: fixed;
@@ -4499,6 +4507,50 @@ button.btn-confirm-pending {
     border-radius: 50%;
     animation: loading-spin 0.8s linear infinite;
     margin-bottom: 8px;
+}
+
+/* ── Empty state illustration block ── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--ds-space-xl) var(--ds-space-md);
+    text-align: center;
+    gap: var(--ds-space-sm);
+}
+.empty-state-icon {
+    font-size: 36px;
+    opacity: 0.35;
+    margin-bottom: var(--ds-space-xs);
+}
+.empty-state-title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--ds-text-secondary);
+    margin: 0;
+}
+.empty-state-desc {
+    font-size: var(--text-sm);
+    color: var(--ds-text-muted);
+    max-width: 320px;
+    margin: 0;
+}
+
+/* ── Subtle pulse for loading buttons ── */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+}
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+    background: currentColor;
+    opacity: 0.08;
 }
 
 /* ── Login Provider Icon ── */
