@@ -593,7 +593,8 @@ const translations = {
         wiki_share_btn: 'Share Link',
         wiki_link_copied: 'Wiki link copied to clipboard',
         wiki_editor_placeholder: 'Write your strategy guide...',
-        events_manager_wiki_link: 'Wiki'
+        events_manager_wiki_link: 'Wiki',
+        events_manager_wiki_btn: 'Wiki'
     },
     fr: {
         app_title: 'Video Games Events Players Selection',
@@ -1185,7 +1186,8 @@ const translations = {
         wiki_share_btn: 'Partager le lien',
         wiki_link_copied: 'Lien du wiki copie dans le presse-papiers',
         wiki_editor_placeholder: 'Redigez votre guide de strategie...',
-        events_manager_wiki_link: 'Wiki'
+        events_manager_wiki_link: 'Wiki',
+        events_manager_wiki_btn: 'Wiki'
     },
     de: {
         app_title: 'Video Games Events Players Selection',
@@ -1777,7 +1779,8 @@ const translations = {
         wiki_share_btn: 'Link teilen',
         wiki_link_copied: 'Wiki-Link in die Zwischenablage kopiert',
         wiki_editor_placeholder: 'Schreiben Sie Ihren Strategieleitfaden...',
-        events_manager_wiki_link: 'Wiki'
+        events_manager_wiki_link: 'Wiki',
+        events_manager_wiki_btn: 'Wiki'
     },
     it: {
         app_title: 'Video Games Events Players Selection',
@@ -2369,7 +2372,8 @@ const translations = {
         wiki_share_btn: 'Condividi link',
         wiki_link_copied: 'Link del wiki copiato negli appunti',
         wiki_editor_placeholder: 'Scrivi la tua guida strategica...',
-        events_manager_wiki_link: 'Wiki'
+        events_manager_wiki_link: 'Wiki',
+        events_manager_wiki_btn: 'Wiki'
     },
     ko: {
         app_title: 'Video Games Events Players Selection',
@@ -2961,7 +2965,8 @@ const translations = {
         wiki_share_btn: '링크 공유',
         wiki_link_copied: '위키 링크가 클립보드에 복사되었습니다',
         wiki_editor_placeholder: '전략 가이드를 작성하세요...',
-        events_manager_wiki_link: '위키'
+        events_manager_wiki_link: '위키',
+        events_manager_wiki_btn: '위키'
     },
     ro: {
         app_title: 'Video Games Events Players Selection',
@@ -3553,7 +3558,8 @@ const translations = {
         wiki_share_btn: 'Partajeaza link',
         wiki_link_copied: 'Link-ul wiki a fost copiat in clipboard',
         wiki_editor_placeholder: 'Scrie ghidul tau de strategie...',
-        events_manager_wiki_link: 'Wiki'
+        events_manager_wiki_link: 'Wiki',
+        events_manager_wiki_btn: 'Wiki'
     }
 };
 
