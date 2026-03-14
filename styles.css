@@ -1159,11 +1159,15 @@ select {
 .players-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
+    margin-top: var(--ds-space-md);
     border-radius: 12px;
-    overflow: hidden;
     background: var(--ds-surface-raised);
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.22);
+}
+.players-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 .players-table th {
     background: linear-gradient(180deg, rgba(var(--ds-accent-primary-rgb), 0.3), rgba(var(--ds-accent-primary-rgb), 0.18));
@@ -1195,27 +1199,40 @@ select {
     color: var(--ds-text-primary);
 }
 @media (min-width: 769px) {
+    /* Right-align numeric columns (Power, THP) for easier scanning */
     #playersTable th:nth-child(2),
     #playersTable th:nth-child(3),
-    #playersTable th:nth-child(4),
     #playersTable td:nth-child(2),
     #playersTable td:nth-child(3),
-    #playersTable td:nth-child(4),
     #playersMgmtTable th:nth-child(2),
     #playersMgmtTable th:nth-child(3),
-    #playersMgmtTable th:nth-child(4),
     #playersMgmtTable td:nth-child(2),
-    #playersMgmtTable td:nth-child(3),
+    #playersMgmtTable td:nth-child(3) {
+        text-align: right;
+    }
+    /* Center-align Troop Type column */
+    #playersTable th:nth-child(4),
+    #playersTable td:nth-child(4),
+    #playersMgmtTable th:nth-child(4),
     #playersMgmtTable td:nth-child(4) {
         text-align: center;
     }
     #playersTable th:nth-child(2) .table-head-content,
     #playersTable th:nth-child(3) .table-head-content,
-    #playersTable th:nth-child(4) .table-head-content,
     #playersMgmtTable th:nth-child(2) .table-head-content,
-    #playersMgmtTable th:nth-child(3) .table-head-content,
+    #playersMgmtTable th:nth-child(3) .table-head-content {
+        justify-content: flex-end;
+    }
+    #playersTable th:nth-child(4) .table-head-content,
     #playersMgmtTable th:nth-child(4) .table-head-content {
         justify-content: center;
+    }
+    /* Tabular number alignment for numeric cells */
+    #playersTable td:nth-child(2),
+    #playersTable td:nth-child(3),
+    #playersMgmtTable td:nth-child(2),
+    #playersMgmtTable td:nth-child(3) {
+        font-variant-numeric: tabular-nums;
     }
 }
 .players-table tr:hover {
@@ -2794,11 +2811,67 @@ select {
     font-size: 13px;
     min-height: 36px;
 }
+/* ── Generator Config Details (Progressive Disclosure) ── */
+.generator-config-details {
+    margin: 0 0 var(--ds-space-md);
+    border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.22);
+    border-radius: 12px;
+    background: var(--ds-surface-1);
+    overflow: hidden;
+}
+.generator-config-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-sm);
+    padding: 12px var(--ds-space-md);
+    cursor: pointer;
+    font-weight: 700;
+    font-size: var(--text-base);
+    color: var(--ds-accent-primary);
+    list-style: none;
+    user-select: none;
+}
+.generator-config-summary::-webkit-details-marker {
+    display: none;
+}
+.generator-config-summary-text {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-sm);
+    min-width: 0;
+}
+.generator-config-event-name {
+    font-size: var(--text-lg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.generator-config-meta {
+    font-size: var(--text-sm);
+    color: var(--ds-text-muted);
+    font-weight: 400;
+    white-space: nowrap;
+}
+.generator-config-chevron {
+    flex: 0 0 16px;
+    color: var(--ds-text-muted);
+    transition: transform var(--motion-fast) ease;
+}
+.generator-config-details[open] .generator-config-chevron {
+    transform: rotate(180deg);
+}
+.generator-config-body {
+    padding: 0 var(--ds-space-md) var(--ds-space-md);
+    display: grid;
+    gap: var(--ds-space-sm);
+}
+
 .assignment-algorithm-controls {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
-    margin: 0 0 12px;
+    margin: 0;
     padding: 12px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.28);
     border-radius: 12px;

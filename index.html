@@ -561,22 +561,34 @@
             <div id="generatorPage" class="app-view">
                 <!-- Player Selection Section -->
                 <div id="selectionSection" class="card screen-panel hidden">
-                    <div class="assignment-algorithm-controls">
-                        <span class="assignment-algorithm-label" data-i18n="assignment_algorithm_label">Assignment Algorithm</span>
-                        <fieldset class="assignment-algorithm-group" aria-describedby="assignmentAlgorithmHelp">
-                            <legend class="sr-only" data-i18n="assignment_algorithm_label">Assignment Algorithm</legend>
-                            <label class="assignment-algorithm-option" for="assignmentAlgorithmBalanced">
-                                <input type="radio" id="assignmentAlgorithmBalanced" name="assignmentAlgorithm" value="balanced" checked>
-                                <span class="assignment-algorithm-option-text" data-i18n="assignment_algorithm_balanced">Balanced (Recommended)</span>
-                            </label>
-                            <label class="assignment-algorithm-option" for="assignmentAlgorithmAggressive">
-                                <input type="radio" id="assignmentAlgorithmAggressive" name="assignmentAlgorithm" value="aggressive">
-                                <span class="assignment-algorithm-option-text" data-i18n="assignment_algorithm_aggressive">Aggressive</span>
-                            </label>
-                        </fieldset>
-                        <p id="assignmentAlgorithmHelp" class="assignment-algorithm-help" data-i18n="assignment_algorithm_help">Balanced keeps troop-mix-aware pairing. Aggressive fills Team-type buildings first using top power/THP players, then fills Building-type rows by priority with remaining players.</p>
-                    </div>
-                    <div class="event-selector event-selector-inline" id="selectionEventSelector"></div>
+                    <!-- Collapsible Event Configuration Bar -->
+                    <details id="generatorConfigDetails" class="generator-config-details">
+                        <summary class="generator-config-summary">
+                            <span class="generator-config-summary-text">
+                                <span class="generator-config-event-name" id="generatorConfigEventName" data-i18n="select_players_for_event_title">Select players for the event</span>
+                                <span class="generator-config-meta" id="generatorConfigMeta"></span>
+                            </span>
+                            <svg class="generator-config-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </summary>
+                        <div class="generator-config-body">
+                            <div class="event-selector event-selector-inline" id="selectionEventSelector"></div>
+                            <div class="assignment-algorithm-controls">
+                                <span class="assignment-algorithm-label" data-i18n="assignment_algorithm_label">Assignment Algorithm</span>
+                                <fieldset class="assignment-algorithm-group" aria-describedby="assignmentAlgorithmHelp">
+                                    <legend class="sr-only" data-i18n="assignment_algorithm_label">Assignment Algorithm</legend>
+                                    <label class="assignment-algorithm-option" for="assignmentAlgorithmBalanced">
+                                        <input type="radio" id="assignmentAlgorithmBalanced" name="assignmentAlgorithm" value="balanced" checked>
+                                        <span class="assignment-algorithm-option-text" data-i18n="assignment_algorithm_balanced">Balanced (Recommended)</span>
+                                    </label>
+                                    <label class="assignment-algorithm-option" for="assignmentAlgorithmAggressive">
+                                        <input type="radio" id="assignmentAlgorithmAggressive" name="assignmentAlgorithm" value="aggressive">
+                                        <span class="assignment-algorithm-option-text" data-i18n="assignment_algorithm_aggressive">Aggressive</span>
+                                    </label>
+                                </fieldset>
+                                <p id="assignmentAlgorithmHelp" class="assignment-algorithm-help" data-i18n="assignment_algorithm_help">Balanced keeps troop-mix-aware pairing. Aggressive fills Team-type buildings first using top power/THP players, then fills Building-type rows by priority with remaining players.</p>
+                            </div>
+                        </div>
+                    </details>
                     <div class="screen-header">
                         <h2 class="section-title" data-i18n="select_players_for_event_title">Select players for the event</h2>
                     </div>
