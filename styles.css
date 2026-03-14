@@ -1250,16 +1250,16 @@ select {
 /* ── Players Management ── */
 .players-mgmt-layout {
     display: grid;
-    gap: 12px;
+    gap: var(--ds-space-md);
 }
 #playersMgmtSourceControls {
-    margin-bottom: 12px;
+    margin-bottom: var(--ds-space-md);
 }
 .players-mgmt-surface {
     border-radius: 12px;
     border: 1px solid rgba(var(--ds-accent-primary-rgb), 0.2);
     background: var(--ds-surface-raised);
-    padding: 12px;
+    padding: var(--ds-space-md);
 }
 .players-mgmt-inline-header {
     all: unset;
@@ -1416,8 +1416,13 @@ select {
 .players-mgmt-filters {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 10px;
-    margin-bottom: 12px;
+    gap: var(--ds-space-sm);
+    margin-bottom: var(--ds-space-md);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--ds-surface-raised);
+    padding: var(--ds-space-sm) 0;
 }
 .players-mgmt-filters button {
     min-height: 42px;
