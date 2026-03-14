@@ -74,22 +74,30 @@ body {
 
 .wiki-event-info {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
+    justify-content: center;
 }
 
 .wiki-event-logo {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 12px;
     object-fit: cover;
     border: 2px solid var(--ds-border-default);
     background: var(--ds-surface-raised);
+    flex-shrink: 0;
 }
 
 .wiki-event-logo[src="data:,"] {
     display: none;
+}
+
+.wiki-event-title-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 
 .wiki-event-name {
@@ -97,6 +105,14 @@ body {
     font-size: 24px;
     font-weight: 700;
     color: var(--ds-text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.wiki-event-chars {
+    font-size: 14px;
+    opacity: 0.6;
+    letter-spacing: 2px;
 }
 
 /* ── Auth bar ──────────────────────────────────────────────────────────── */
@@ -482,12 +498,16 @@ body {
     }
 
     .wiki-event-logo {
-        width: 80px;
-        height: 80px;
+        width: 72px;
+        height: 72px;
     }
 
     .wiki-event-name {
         font-size: 28px;
+    }
+
+    .wiki-event-chars {
+        font-size: 15px;
     }
 
     .wiki-content-body {
@@ -500,19 +520,17 @@ body {
         padding: 32px;
     }
 
-    .wiki-event-info {
-        flex-direction: row;
-        gap: 16px;
-    }
-
     .wiki-event-logo {
-        width: 96px;
-        height: 96px;
+        width: 88px;
+        height: 88px;
     }
 
     .wiki-event-name {
         font-size: 32px;
-        text-align: left;
+    }
+
+    .wiki-event-chars {
+        font-size: 16px;
     }
 
     .wiki-content-body {

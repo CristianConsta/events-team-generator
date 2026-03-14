@@ -170,6 +170,11 @@
 
     // ── Rendering ──────────────────────────────────────────────────────────
 
+    var GAME_FLAVOR_CHARS = {
+        last_war: '\u2694\uFE0F \uD83C\uDFF0 \uD83D\uDCA3 \uD83D\uDEE1\uFE0F',
+        canyon_storm: '\u26F0\uFE0F \uD83C\uDF2A\uFE0F \uD83D\uDCA5 \uD83C\uDFF9',
+    };
+
     function renderHeader() {
         var headerEl = $('wikiHeader');
         if (!headerEl) return;
@@ -177,6 +182,7 @@
         var gameBadge = $('wikiGameBadge');
         var eventName = $('wikiEventName');
         var eventLogo = $('wikiEventLogo');
+        var eventChars = $('wikiEventChars');
 
         if (gameBadge) {
             var gameName = (state.wikiData && state.wikiData.gameName) || state.gameId || '';
@@ -193,6 +199,9 @@
             } else {
                 eventLogo.src = 'data:,';
             }
+        }
+        if (eventChars) {
+            eventChars.textContent = GAME_FLAVOR_CHARS[state.gameId] || '';
         }
         show('wikiHeader');
     }
