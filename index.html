@@ -884,6 +884,8 @@
                                 <label for="eventAssignmentAlgorithmInput" data-i18n="events_manager_algorithm_label">Assignment Algorithm</label>
                                 <select id="eventAssignmentAlgorithmInput" aria-label="Assignment Algorithm"></select>
                             </div>
+                            <details class="event-editor-section" open>
+                                <summary class="event-editor-section-summary" data-i18n="events_manager_media_section">Media</summary>
                             <div class="event-media-grid">
                                 <div class="event-media-block">
                                     <div class="event-media-label" data-i18n="events_manager_logo_label">Event Avatar</div>
@@ -921,8 +923,9 @@
                                     <input id="eventMapInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
                                 </div>
                             </div>
-                            <div class="event-buildings-block">
-                                <h4 class="event-buildings-title" data-i18n="events_manager_buildings_title">Buildings</h4>
+                            </details>
+                            <details class="event-editor-section" open>
+                                <summary class="event-editor-section-summary" data-i18n="events_manager_buildings_title">Buildings</summary>
                                 <p class="event-buildings-help" data-i18n="events_manager_buildings_help">Define building name, #Players, and priority for this event.</p>
                                 <div class="responsive-table-wrap">
                                     <table class="players-table responsive-table-card" id="eventBuildingsEditorTable">
@@ -949,7 +952,7 @@
                                         <span class="sr-only" data-i18n="events_manager_add_building">Add Building</span>
                                     </button>
                                 </div>
-                            </div>
+                            </details>
                             <div class="event-editor-actions">
                                 <button id="eventSaveBtn" type="button" title="Save event" aria-label="Save event"><span class="action-btn-text" data-i18n="events_manager_save_event">Save Event</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3,1h8l4,4v8a2,2 0 0 1-2,2H3a2,2 0 0 1-2,-2V3a2,2 0 0 1 2,-2z"/><rect x="5" y="1" width="6" height="5" rx="0.5"/><rect x="4" y="9" width="8" height="4" rx="1"/></svg></span></button>
                                 <button id="eventCancelEditBtn" class="secondary hidden" type="button" title="Cancel editing" aria-label="Cancel editing"><span class="action-btn-text" data-i18n="settings_cancel">Cancel</span><span class="action-btn-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg></span></button>

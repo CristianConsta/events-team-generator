@@ -2640,6 +2640,37 @@ select {
     opacity: 0.8;
     margin-bottom: 8px;
 }
+/* ── Collapsible event editor sections ── */
+.event-editor-section {
+    margin-top: var(--ds-space-md);
+    border: 1px solid var(--ds-border-default);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.event-editor-section-summary {
+    padding: 12px var(--ds-space-md);
+    font-weight: 600;
+    font-size: var(--text-base);
+    cursor: pointer;
+    background: var(--ds-surface-1);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.event-editor-section-summary::-webkit-details-marker { display: none; }
+.event-editor-section-summary::before {
+    content: '▶';
+    font-size: 10px;
+    transition: transform 0.2s ease;
+    opacity: 0.6;
+}
+.event-editor-section[open] > .event-editor-section-summary::before {
+    transform: rotate(90deg);
+}
+.event-editor-section > :not(summary) {
+    padding: 0 var(--ds-space-md) var(--ds-space-md);
+}
 .event-buildings-block {
     margin-top: 16px;
 }
