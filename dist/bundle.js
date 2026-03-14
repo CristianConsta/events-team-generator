@@ -49,6 +49,7 @@
         const GAME_SOLOPLAYER_PLAYERS_SUBCOLLECTION = "players";
         const GAME_ALLIANCE_PLAYERS_SUBCOLLECTION = "alliance_players";
         const GAME_EVENT_HISTORY_SUBCOLLECTION = "event_history";
+        const GAME_EVENT_WIKI_SUBCOLLECTION = "event_wiki";
         const MULTIGAME_FLAG_DEFAULTS = Object.freeze({
           MULTIGAME_ENABLED: false,
           MULTIGAME_READ_FALLBACK_ENABLED: false,
@@ -346,6 +347,36 @@
           }
           return invitesRef.doc(normalizedInviteId).collection("candidates");
         }
+        function getSoloEventWikiCollectionRef(gameId, uid) {
+          const soloRef = getSoloplayerDocRef(gameId, uid);
+          if (!soloRef) {
+            return null;
+          }
+          return soloRef.collection(GAME_EVENT_WIKI_SUBCOLLECTION);
+        }
+        function getSoloEventWikiDocRef(gameId, uid, eventId) {
+          const collRef = getSoloEventWikiCollectionRef(gameId, uid);
+          const normalizedId = typeof eventId === "string" ? eventId.trim() : "";
+          if (!collRef || !normalizedId) {
+            return null;
+          }
+          return collRef.doc(normalizedId);
+        }
+        function getAllianceEventWikiCollectionRef(gameId, allianceId) {
+          const allianceRef = getGameAllianceDocRef(gameId, allianceId);
+          if (!allianceRef) {
+            return null;
+          }
+          return allianceRef.collection(GAME_EVENT_WIKI_SUBCOLLECTION);
+        }
+        function getAllianceEventWikiDocRef(gameId, allianceId, eventId) {
+          const collRef = getAllianceEventWikiCollectionRef(gameId, allianceId);
+          const normalizedId = typeof eventId === "string" ? eventId.trim() : "";
+          if (!collRef || !normalizedId) {
+            return null;
+          }
+          return collRef.doc(normalizedId);
+        }
         function resolveScopedActiveGameStorageKey(userOrUid) {
           const userUid = normalizeUid(
             typeof userOrUid === "string" ? userOrUid : userOrUid && typeof userOrUid === "object" ? userOrUid.uid : ""
@@ -594,6 +625,10 @@
           getGameAlliancePendingUpdatesCollectionRef,
           getGameAllianceSharedUpdateInvitesCollectionRef,
           getGameAllianceSharedUpdateInviteCandidatesCollectionRef,
+          getSoloEventWikiCollectionRef,
+          getSoloEventWikiDocRef,
+          getAllianceEventWikiCollectionRef,
+          getAllianceEventWikiDocRef,
           // game context resolvers
           resolveScopedActiveGameStorageKey,
           resolveGameplayContext,
@@ -813,7 +848,7 @@
   // firebase-module.js
   var require_firebase_module = __commonJS({
     "firebase-module.js"() {
-      var FirebaseManager = function() {
+      var FirebaseManager = (function() {
         var DSFirebaseInfra = typeof window !== "undefined" && window.DSFirebaseInfra || typeof global !== "undefined" && global.DSFirebaseInfra;
         var DSFirebaseAuth = typeof window !== "undefined" && window.DSFirebaseAuth || typeof global !== "undefined" && global.DSFirebaseAuth;
         let firebaseConfig = null;
@@ -6621,6 +6656,122 @@
             return { ok: false, error: err.message };
           }
         }
+        async function loadEventWiki(eventId, context) {
+          if (!db || !eventId) {
+            return { success: false, error: "Not available" };
+          }
+          try {
+            var gameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            var source = getPlayerSource(context);
+            var docRef = null;
+            if (source === "alliance" && allianceId) {
+              docRef = getAllianceEventWikiDocRef(gameId, allianceId, eventId);
+            } else {
+              var user = currentUser;
+              if (!user) {
+                return { success: false, error: "Not signed in" };
+              }
+              docRef = getSoloEventWikiDocRef(gameId, user.uid, eventId);
+            }
+            if (!docRef) {
+              return { success: false, error: "Invalid path" };
+            }
+            var snap = await docRef.get();
+            if (!snap.exists) {
+              return { success: true, data: null };
+            }
+            return { success: true, data: snap.data() };
+          } catch (err) {
+            console.error("loadEventWiki error:", err);
+            return { success: false, error: err.message };
+          }
+        }
+        async function saveEventWiki(eventId, wikiData, context) {
+          if (!db || !eventId || !wikiData) {
+            return { success: false, error: "Not available" };
+          }
+          try {
+            var gameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            var source = getPlayerSource(context);
+            var user = currentUser;
+            if (!user) {
+              return { success: false, error: "Not signed in" };
+            }
+            var docRef = null;
+            if (source === "alliance" && allianceId) {
+              docRef = getAllianceEventWikiDocRef(gameId, allianceId, eventId);
+            } else {
+              docRef = getSoloEventWikiDocRef(gameId, user.uid, eventId);
+            }
+            if (!docRef) {
+              return { success: false, error: "Invalid path" };
+            }
+            var payload = Object.assign({}, wikiData, {
+              eventId,
+              gameId,
+              lastEditedBy: user.uid,
+              lastEditedByName: user.displayName || "",
+              lastEditedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              ownerType: source === "alliance" && allianceId ? "alliance" : "personal"
+            });
+            var snap = await docRef.get();
+            if (!snap.exists) {
+              payload.createdBy = user.uid;
+              payload.createdByName = user.displayName || "";
+              payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            }
+            await docRef.set(payload, { merge: true });
+            return { success: true };
+          } catch (err) {
+            console.error("saveEventWiki error:", err);
+            return { success: false, error: err.message };
+          }
+        }
+        async function deleteEventWiki(eventId, context) {
+          if (!db || !eventId) {
+            return { success: false, error: "Not available" };
+          }
+          try {
+            var gameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+            var source = getPlayerSource(context);
+            var user = currentUser;
+            if (!user) {
+              return { success: false, error: "Not signed in" };
+            }
+            var docRef = null;
+            if (source === "alliance" && allianceId) {
+              docRef = getAllianceEventWikiDocRef(gameId, allianceId, eventId);
+            } else {
+              docRef = getSoloEventWikiDocRef(gameId, user.uid, eventId);
+            }
+            if (!docRef) {
+              return { success: false, error: "Invalid path" };
+            }
+            await docRef.delete();
+            return { success: true };
+          } catch (err) {
+            console.error("deleteEventWiki error:", err);
+            return { success: false, error: err.message };
+          }
+        }
+        function getEventWikiUrl(eventId, context) {
+          var gameId = normalizeGameId(activeGameplayGameId) || DEFAULT_GAME_ID;
+          var source = getPlayerSource(context);
+          var base = "event-wiki.html";
+          var params = "game=" + encodeURIComponent(gameId) + "&event=" + encodeURIComponent(eventId);
+          if (source === "alliance" && allianceId) {
+            params += "&aid=" + encodeURIComponent(allianceId);
+          } else if (currentUser) {
+            params += "&uid=" + encodeURIComponent(currentUser.uid);
+          }
+          return base + "?" + params;
+        }
+        function getSoloEventWikiDocRef(gameId, uid, eventId) {
+          return DSFirebaseInfra.getSoloEventWikiDocRef(gameId, uid, eventId);
+        }
+        function getAllianceEventWikiDocRef(gameId, allianceId2, eventId) {
+          return DSFirebaseInfra.getAllianceEventWikiDocRef(gameId, allianceId2, eventId);
+        }
         function subscribePendingUpdatesCount(allianceIdParam, uidParam, callback) {
           if (typeof uidParam === "function") {
             callback = uidParam;
@@ -7051,6 +7202,11 @@
           createPersonalPendingUpdate,
           loadPersonalPendingUpdates,
           updatePersonalPendingUpdateStatus,
+          // Event Wiki
+          loadEventWiki,
+          saveEventWiki,
+          deleteEventWiki,
+          getEventWikiUrl,
           // Game-centric path builders (v2 migration)
           getGameUserStateDocRef,
           getSoloplayerDocRef,
@@ -7068,7 +7224,7 @@
           getGameAllianceSharedUpdateInviteCandidatesCollectionRef,
           GAME_CENTRIC_MIGRATION_VERSION
         };
-      }();
+      })();
       if (typeof window !== "undefined") {
         window.FirebaseManager = FirebaseManager;
       }
@@ -7130,6 +7286,7 @@
           nav_group_views: "Views",
           nav_group_data: "Data",
           nav_group_account: "Account",
+          nav_more: "More",
           configuration_page_title: "Configuration",
           players_management_page_title: "Players Management",
           players_list_title: "Players List",
@@ -7478,6 +7635,7 @@
           events_manager_map_placeholder: "No map uploaded",
           events_manager_map_upload: "Upload Map",
           events_manager_map_remove: "Remove Map",
+          events_manager_media_section: "Media",
           events_manager_buildings_title: "Buildings",
           events_manager_buildings_help: "Define building name, #Players, priority, and map visibility for this event.",
           events_manager_actions: "Actions",
@@ -7654,7 +7812,38 @@
           freshness_dot_fresh: "Updated recently",
           freshness_dot_stale: "Not updated in over 30 days",
           freshness_dot_very_stale: "Not updated in over 90 days",
-          freshness_dot_never: "Never updated via self-update"
+          freshness_dot_never: "Never updated via self-update",
+          wiki_page_title: "Event Wiki",
+          wiki_loading: "Loading wiki...",
+          wiki_empty_title: "No Wiki Yet",
+          wiki_empty_description: "No strategy wiki has been published for this event.",
+          wiki_create_btn: "Create Wiki",
+          wiki_edit_btn: "Edit",
+          wiki_delete_btn: "Delete Wiki",
+          wiki_save_btn: "Save",
+          wiki_cancel_btn: "Cancel",
+          wiki_sign_in_prompt: "Sign in to edit this wiki",
+          wiki_sign_in_btn: "Sign in with Google",
+          wiki_delete_confirm: "Are you sure you want to delete this wiki?",
+          wiki_save_success: "Wiki saved successfully",
+          wiki_save_error: "Failed to save wiki",
+          wiki_delete_success: "Wiki deleted",
+          wiki_load_error: "Failed to load wiki",
+          wiki_not_authorized: "You are not authorized to edit this wiki",
+          wiki_last_edited_by: "Last edited by {name}",
+          wiki_share_btn: "Share Link",
+          wiki_link_copied: "Wiki link copied to clipboard",
+          wiki_editor_placeholder: "Write your strategy guide...",
+          events_manager_wiki_link: "Wiki",
+          events_manager_wiki_btn: "Wiki",
+          wiki_translate_btn: "Translate to All Languages",
+          wiki_translate_progress: "Translating... ({current}/{total})",
+          wiki_translate_success: "Translations generated for {count} languages",
+          wiki_translate_error: "Translation failed",
+          wiki_content_language_label: "Content language",
+          wiki_translations_outdated: "Translations may be outdated",
+          wiki_retranslate_btn: "Re-translate",
+          wiki_visit_platform: "Visit Platform"
         },
         fr: {
           app_title: "Video Games Events Players Selection",
@@ -7698,6 +7887,7 @@
           nav_group_views: "Vues",
           nav_group_data: "Donn\xE9es",
           nav_group_account: "Compte",
+          nav_more: "Plus",
           configuration_page_title: "Configuration",
           players_management_page_title: "Gestion des joueurs",
           players_list_title: "Liste des joueurs",
@@ -8046,6 +8236,7 @@
           events_manager_map_placeholder: "Aucune carte televersee",
           events_manager_map_upload: "Televerser carte",
           events_manager_map_remove: "Retirer carte",
+          events_manager_media_section: "Medias",
           events_manager_buildings_title: "Batiments",
           events_manager_buildings_help: "Definissez le nom du batiment, #Players et la priorite pour cet evenement.",
           events_manager_actions: "Actions",
@@ -8222,7 +8413,38 @@
           freshness_dot_fresh: "Mis a jour recemment",
           freshness_dot_stale: "Pas mis a jour depuis plus de 30 jours",
           freshness_dot_very_stale: "Pas mis a jour depuis plus de 90 jours",
-          freshness_dot_never: "Jamais mis a jour via auto-mise a jour"
+          freshness_dot_never: "Jamais mis a jour via auto-mise a jour",
+          wiki_page_title: "Wiki Evenement",
+          wiki_loading: "Chargement du wiki...",
+          wiki_empty_title: "Pas encore de Wiki",
+          wiki_empty_description: "Aucun wiki de strategie n'a ete publie pour cet evenement.",
+          wiki_create_btn: "Creer un Wiki",
+          wiki_edit_btn: "Modifier",
+          wiki_delete_btn: "Supprimer le Wiki",
+          wiki_save_btn: "Enregistrer",
+          wiki_cancel_btn: "Annuler",
+          wiki_sign_in_prompt: "Connectez-vous pour modifier ce wiki",
+          wiki_sign_in_btn: "Se connecter avec Google",
+          wiki_delete_confirm: "Etes-vous sur de vouloir supprimer ce wiki ?",
+          wiki_save_success: "Wiki enregistre avec succes",
+          wiki_save_error: "Echec de l'enregistrement du wiki",
+          wiki_delete_success: "Wiki supprime",
+          wiki_load_error: "Echec du chargement du wiki",
+          wiki_not_authorized: "Vous n'etes pas autorise a modifier ce wiki",
+          wiki_last_edited_by: "Derniere modification par {name}",
+          wiki_share_btn: "Partager le lien",
+          wiki_link_copied: "Lien du wiki copie dans le presse-papiers",
+          wiki_editor_placeholder: "Redigez votre guide de strategie...",
+          events_manager_wiki_link: "Wiki",
+          events_manager_wiki_btn: "Wiki",
+          wiki_translate_btn: "Traduire dans toutes les langues",
+          wiki_translate_progress: "Traduction... ({current}/{total})",
+          wiki_translate_success: "Traductions generees pour {count} langues",
+          wiki_translate_error: "La traduction a echoue",
+          wiki_content_language_label: "Langue du contenu",
+          wiki_translations_outdated: "Les traductions peuvent etre obsoletes",
+          wiki_retranslate_btn: "Retraduire",
+          wiki_visit_platform: "Visiter la plateforme"
         },
         de: {
           app_title: "Video Games Events Players Selection",
@@ -8266,6 +8488,7 @@
           nav_group_views: "Ansichten",
           nav_group_data: "Daten",
           nav_group_account: "Konto",
+          nav_more: "Mehr",
           configuration_page_title: "Konfiguration",
           players_management_page_title: "Spielerverwaltung",
           players_list_title: "Spielerliste",
@@ -8614,6 +8837,7 @@
           events_manager_map_placeholder: "Keine Karte hochgeladen",
           events_manager_map_upload: "Karte hochladen",
           events_manager_map_remove: "Karte entfernen",
+          events_manager_media_section: "Medien",
           events_manager_buildings_title: "Gebaeude",
           events_manager_buildings_help: "Definieren Sie Gebaeudename, #Players und Prioritaet fuer dieses Event.",
           events_manager_actions: "Aktionen",
@@ -8790,7 +9014,38 @@
           freshness_dot_fresh: "Kuerzlich aktualisiert",
           freshness_dot_stale: "Seit mehr als 30 Tagen nicht aktualisiert",
           freshness_dot_very_stale: "Seit mehr als 90 Tagen nicht aktualisiert",
-          freshness_dot_never: "Noch nie per Selbst-Update aktualisiert"
+          freshness_dot_never: "Noch nie per Selbst-Update aktualisiert",
+          wiki_page_title: "Event-Wiki",
+          wiki_loading: "Wiki wird geladen...",
+          wiki_empty_title: "Noch kein Wiki",
+          wiki_empty_description: "Fur dieses Event wurde noch kein Strategie-Wiki veroffentlicht.",
+          wiki_create_btn: "Wiki erstellen",
+          wiki_edit_btn: "Bearbeiten",
+          wiki_delete_btn: "Wiki loschen",
+          wiki_save_btn: "Speichern",
+          wiki_cancel_btn: "Abbrechen",
+          wiki_sign_in_prompt: "Melden Sie sich an, um dieses Wiki zu bearbeiten",
+          wiki_sign_in_btn: "Mit Google anmelden",
+          wiki_delete_confirm: "Sind Sie sicher, dass Sie dieses Wiki loschen mochten?",
+          wiki_save_success: "Wiki erfolgreich gespeichert",
+          wiki_save_error: "Wiki konnte nicht gespeichert werden",
+          wiki_delete_success: "Wiki geloscht",
+          wiki_load_error: "Wiki konnte nicht geladen werden",
+          wiki_not_authorized: "Sie sind nicht berechtigt, dieses Wiki zu bearbeiten",
+          wiki_last_edited_by: "Zuletzt bearbeitet von {name}",
+          wiki_share_btn: "Link teilen",
+          wiki_link_copied: "Wiki-Link in die Zwischenablage kopiert",
+          wiki_editor_placeholder: "Schreiben Sie Ihren Strategieleitfaden...",
+          events_manager_wiki_link: "Wiki",
+          events_manager_wiki_btn: "Wiki",
+          wiki_translate_btn: "In alle Sprachen uebersetzen",
+          wiki_translate_progress: "Uebersetzen... ({current}/{total})",
+          wiki_translate_success: "Uebersetzungen fuer {count} Sprachen erstellt",
+          wiki_translate_error: "Uebersetzung fehlgeschlagen",
+          wiki_content_language_label: "Inhaltssprache",
+          wiki_translations_outdated: "Uebersetzungen sind moeglicherweise veraltet",
+          wiki_retranslate_btn: "Erneut uebersetzen",
+          wiki_visit_platform: "Plattform besuchen"
         },
         it: {
           app_title: "Video Games Events Players Selection",
@@ -8834,6 +9089,7 @@
           nav_group_views: "Viste",
           nav_group_data: "Dati",
           nav_group_account: "Account",
+          nav_more: "Altro",
           configuration_page_title: "Configurazione",
           players_management_page_title: "Gestione giocatori",
           players_list_title: "Elenco giocatori",
@@ -9182,6 +9438,7 @@
           events_manager_map_placeholder: "Nessuna mappa caricata",
           events_manager_map_upload: "Carica mappa",
           events_manager_map_remove: "Rimuovi mappa",
+          events_manager_media_section: "Media",
           events_manager_buildings_title: "Edifici",
           events_manager_buildings_help: "Definisci nome edificio, #Players e priorita per questo evento.",
           events_manager_actions: "Azioni",
@@ -9358,7 +9615,38 @@
           freshness_dot_fresh: "Aggiornato di recente",
           freshness_dot_stale: "Non aggiornato da piu di 30 giorni",
           freshness_dot_very_stale: "Non aggiornato da piu di 90 giorni",
-          freshness_dot_never: "Mai aggiornato tramite auto-aggiornamento"
+          freshness_dot_never: "Mai aggiornato tramite auto-aggiornamento",
+          wiki_page_title: "Wiki Evento",
+          wiki_loading: "Caricamento wiki...",
+          wiki_empty_title: "Nessun Wiki",
+          wiki_empty_description: "Nessun wiki strategico e stato pubblicato per questo evento.",
+          wiki_create_btn: "Crea Wiki",
+          wiki_edit_btn: "Modifica",
+          wiki_delete_btn: "Elimina Wiki",
+          wiki_save_btn: "Salva",
+          wiki_cancel_btn: "Annulla",
+          wiki_sign_in_prompt: "Accedi per modificare questo wiki",
+          wiki_sign_in_btn: "Accedi con Google",
+          wiki_delete_confirm: "Sei sicuro di voler eliminare questo wiki?",
+          wiki_save_success: "Wiki salvato con successo",
+          wiki_save_error: "Impossibile salvare il wiki",
+          wiki_delete_success: "Wiki eliminato",
+          wiki_load_error: "Impossibile caricare il wiki",
+          wiki_not_authorized: "Non sei autorizzato a modificare questo wiki",
+          wiki_last_edited_by: "Ultima modifica di {name}",
+          wiki_share_btn: "Condividi link",
+          wiki_link_copied: "Link del wiki copiato negli appunti",
+          wiki_editor_placeholder: "Scrivi la tua guida strategica...",
+          events_manager_wiki_link: "Wiki",
+          events_manager_wiki_btn: "Wiki",
+          wiki_translate_btn: "Traduci in tutte le lingue",
+          wiki_translate_progress: "Traduzione... ({current}/{total})",
+          wiki_translate_success: "Traduzioni generate per {count} lingue",
+          wiki_translate_error: "Traduzione fallita",
+          wiki_content_language_label: "Lingua del contenuto",
+          wiki_translations_outdated: "Le traduzioni potrebbero essere obsolete",
+          wiki_retranslate_btn: "Ritraduci",
+          wiki_visit_platform: "Visita la piattaforma"
         },
         ko: {
           app_title: "Video Games Events Players Selection",
@@ -9402,6 +9690,7 @@
           nav_group_views: "\uBCF4\uAE30",
           nav_group_data: "\uB370\uC774\uD130",
           nav_group_account: "\uACC4\uC815",
+          nav_more: "\uB354 \uBCF4\uAE30",
           configuration_page_title: "\uC124\uC815",
           players_management_page_title: "\uD50C\uB808\uC774\uC5B4 \uAD00\uB9AC",
           players_list_title: "\uD50C\uB808\uC774\uC5B4 \uBAA9\uB85D",
@@ -9750,6 +10039,7 @@
           events_manager_map_placeholder: "No map uploaded",
           events_manager_map_upload: "Upload Map",
           events_manager_map_remove: "Remove Map",
+          events_manager_media_section: "Media",
           events_manager_buildings_title: "Buildings",
           events_manager_buildings_help: "Define building name, #Players, and priority for this event.",
           events_manager_actions: "Actions",
@@ -9926,7 +10216,38 @@
           freshness_dot_fresh: "\uCD5C\uADFC\uC5D0 \uC5C5\uB370\uC774\uD2B8\uB428",
           freshness_dot_stale: "30\uC77C \uC774\uC0C1 \uC5C5\uB370\uC774\uD2B8\uB418\uC9C0 \uC54A\uC74C",
           freshness_dot_very_stale: "90\uC77C \uC774\uC0C1 \uC5C5\uB370\uC774\uD2B8\uB418\uC9C0 \uC54A\uC74C",
-          freshness_dot_never: "\uC790\uAC00 \uC5C5\uB370\uC774\uD2B8\uB85C \uC5C5\uB370\uC774\uD2B8\uB41C \uC801 \uC5C6\uC74C"
+          freshness_dot_never: "\uC790\uAC00 \uC5C5\uB370\uC774\uD2B8\uB85C \uC5C5\uB370\uC774\uD2B8\uB41C \uC801 \uC5C6\uC74C",
+          wiki_page_title: "\uC774\uBCA4\uD2B8 \uC704\uD0A4",
+          wiki_loading: "\uC704\uD0A4 \uB85C\uB529 \uC911...",
+          wiki_empty_title: "\uC704\uD0A4 \uC5C6\uC74C",
+          wiki_empty_description: "\uC774 \uC774\uBCA4\uD2B8\uC5D0 \uB300\uD55C \uC804\uB7B5 \uC704\uD0A4\uAC00 \uC544\uC9C1 \uAC8C\uC2DC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.",
+          wiki_create_btn: "\uC704\uD0A4 \uB9CC\uB4E4\uAE30",
+          wiki_edit_btn: "\uD3B8\uC9D1",
+          wiki_delete_btn: "\uC704\uD0A4 \uC0AD\uC81C",
+          wiki_save_btn: "\uC800\uC7A5",
+          wiki_cancel_btn: "\uCDE8\uC18C",
+          wiki_sign_in_prompt: "\uC774 \uC704\uD0A4\uB97C \uD3B8\uC9D1\uD558\uB824\uBA74 \uB85C\uADF8\uC778\uD558\uC138\uC694",
+          wiki_sign_in_btn: "Google\uB85C \uB85C\uADF8\uC778",
+          wiki_delete_confirm: "\uC774 \uC704\uD0A4\uB97C \uC0AD\uC81C\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C?",
+          wiki_save_success: "\uC704\uD0A4\uAC00 \uC131\uACF5\uC801\uC73C\uB85C \uC800\uC7A5\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+          wiki_save_error: "\uC704\uD0A4 \uC800\uC7A5 \uC2E4\uD328",
+          wiki_delete_success: "\uC704\uD0A4 \uC0AD\uC81C\uB428",
+          wiki_load_error: "\uC704\uD0A4 \uB85C\uB4DC \uC2E4\uD328",
+          wiki_not_authorized: "\uC774 \uC704\uD0A4\uB97C \uD3B8\uC9D1\uD560 \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4",
+          wiki_last_edited_by: "{name}\uC774(\uAC00) \uB9C8\uC9C0\uB9C9\uC73C\uB85C \uD3B8\uC9D1",
+          wiki_share_btn: "\uB9C1\uD06C \uACF5\uC720",
+          wiki_link_copied: "\uC704\uD0A4 \uB9C1\uD06C\uAC00 \uD074\uB9BD\uBCF4\uB4DC\uC5D0 \uBCF5\uC0AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4",
+          wiki_editor_placeholder: "\uC804\uB7B5 \uAC00\uC774\uB4DC\uB97C \uC791\uC131\uD558\uC138\uC694...",
+          events_manager_wiki_link: "\uC704\uD0A4",
+          events_manager_wiki_btn: "\uC704\uD0A4",
+          wiki_translate_btn: "\uBAA8\uB4E0 \uC5B8\uC5B4\uB85C \uBC88\uC5ED",
+          wiki_translate_progress: "\uBC88\uC5ED \uC911... ({current}/{total})",
+          wiki_translate_success: "{count}\uAC1C \uC5B8\uC5B4\uB85C \uBC88\uC5ED \uC644\uB8CC",
+          wiki_translate_error: "\uBC88\uC5ED \uC2E4\uD328",
+          wiki_content_language_label: "\uCF58\uD150\uCE20 \uC5B8\uC5B4",
+          wiki_translations_outdated: "\uBC88\uC5ED\uC774 \uC624\uB798\uB418\uC5C8\uC744 \uC218 \uC788\uC2B5\uB2C8\uB2E4",
+          wiki_retranslate_btn: "\uB2E4\uC2DC \uBC88\uC5ED",
+          wiki_visit_platform: "\uD50C\uB7AB\uD3FC \uBC29\uBB38"
         },
         ro: {
           app_title: "Video Games Events Players Selection",
@@ -9970,6 +10291,7 @@
           nav_group_views: "Vizualiz\u0103ri",
           nav_group_data: "Date",
           nav_group_account: "Cont",
+          nav_more: "Mai mult",
           configuration_page_title: "Configurare",
           players_management_page_title: "Management jucatori",
           players_list_title: "Lista juc\u0103tori",
@@ -10318,6 +10640,7 @@
           events_manager_map_placeholder: "Nicio harta incarcata",
           events_manager_map_upload: "Incarca harta",
           events_manager_map_remove: "Elimina harta",
+          events_manager_media_section: "Media",
           events_manager_buildings_title: "Cladiri",
           events_manager_buildings_help: "Defineste numele cladirii, #Players si prioritatea pentru acest eveniment.",
           events_manager_actions: "Actiuni",
@@ -10494,7 +10817,38 @@
           freshness_dot_fresh: "Actualizat recent",
           freshness_dot_stale: "Neactualizat de peste 30 de zile",
           freshness_dot_very_stale: "Neactualizat de peste 90 de zile",
-          freshness_dot_never: "Niciodata actualizat prin auto-actualizare"
+          freshness_dot_never: "Niciodata actualizat prin auto-actualizare",
+          wiki_page_title: "Wiki Eveniment",
+          wiki_loading: "Se incarca wiki-ul...",
+          wiki_empty_title: "Niciun Wiki",
+          wiki_empty_description: "Niciun wiki de strategie nu a fost publicat pentru acest eveniment.",
+          wiki_create_btn: "Creeaza Wiki",
+          wiki_edit_btn: "Editeaza",
+          wiki_delete_btn: "Sterge Wiki",
+          wiki_save_btn: "Salveaza",
+          wiki_cancel_btn: "Anuleaza",
+          wiki_sign_in_prompt: "Conecteaza-te pentru a edita acest wiki",
+          wiki_sign_in_btn: "Conectare cu Google",
+          wiki_delete_confirm: "Esti sigur ca vrei sa stergi acest wiki?",
+          wiki_save_success: "Wiki salvat cu succes",
+          wiki_save_error: "Salvarea wiki-ului a esuat",
+          wiki_delete_success: "Wiki sters",
+          wiki_load_error: "Incarcarea wiki-ului a esuat",
+          wiki_not_authorized: "Nu esti autorizat sa editezi acest wiki",
+          wiki_last_edited_by: "Ultima editare de {name}",
+          wiki_share_btn: "Partajeaza link",
+          wiki_link_copied: "Link-ul wiki a fost copiat in clipboard",
+          wiki_editor_placeholder: "Scrie ghidul tau de strategie...",
+          events_manager_wiki_link: "Wiki",
+          events_manager_wiki_btn: "Wiki",
+          wiki_translate_btn: "Traduce in toate limbile",
+          wiki_translate_progress: "Se traduce... ({current}/{total})",
+          wiki_translate_success: "Traduceri generate pentru {count} limbi",
+          wiki_translate_error: "Traducerea a esuat",
+          wiki_content_language_label: "Limba continutului",
+          wiki_translations_outdated: "Traducerile ar putea fi depsite",
+          wiki_retranslate_btn: "Retraduce",
+          wiki_visit_platform: "Viziteaza platforma"
         }
       };
       if (typeof window !== "undefined") {
@@ -14395,6 +14749,11 @@
               if (typeof dependencies.openCoordinatesPicker === "function") {
                 dependencies.openCoordinatesPicker();
               }
+            },
+            openEventWiki: function openEventWiki() {
+              if (typeof dependencies.openEventWiki === "function") {
+                dependencies.openEventWiki();
+              }
             }
           };
         }
@@ -15016,7 +15375,7 @@
           Object.keys(legacyRegistry).forEach(function(eventId) {
             nextRegistry[eventId] = Object.assign({}, legacyRegistry[eventId]);
           });
-          var storedEvents = function() {
+          var storedEvents = (function() {
             var FirebaseService2 = deps.getFirebaseService();
             if (!FirebaseService2 || !FirebaseService2.getAllEventData) {
               return {};
@@ -15026,7 +15385,7 @@
               return {};
             }
             return normalizeStoredEventsData(FirebaseService2.getAllEventData(gameplayContext2));
-          }();
+          })();
           Object.keys(storedEvents).forEach(function(eventId) {
             var stored = storedEvents[eventId];
             var base = nextRegistry[eventId] || {};
@@ -15273,6 +15632,14 @@
             cancelBtn.title = deps.t("settings_cancel");
             cancelBtn.setAttribute("aria-label", deps.t("settings_cancel"));
           }
+          var wikiBtn = document.getElementById("eventWikiBtn");
+          if (wikiBtn) {
+            var showWikiBtn = !isNewDraft;
+            wikiBtn.classList.toggle("hidden", !showWikiBtn);
+            wikiBtn.disabled = !showWikiBtn;
+            wikiBtn.title = deps.t("events_manager_wiki_btn");
+            wikiBtn.setAttribute("aria-label", deps.t("events_manager_wiki_btn"));
+          }
           var logoUploadBtn = document.getElementById("eventLogoUploadBtn");
           var logoRandomBtn = document.getElementById("eventLogoRandomBtn");
           var addBuildingBtn = document.getElementById("eventAddBuildingBtn");
@@ -15349,6 +15716,18 @@
             switchEvent(eventEditorCurrentId);
           }
           deps.openCoordinatesPicker();
+        }
+        function openEventWiki() {
+          var eventEditorCurrentId = deps.getEventEditorCurrentId();
+          if (!eventEditorCurrentId) {
+            return;
+          }
+          if (global2.FirebaseService && typeof global2.FirebaseService.getEventWikiUrl === "function") {
+            var url = global2.FirebaseService.getEventWikiUrl(eventEditorCurrentId);
+            if (url) {
+              global2.open(url, "_blank", "noopener,noreferrer");
+            }
+          }
         }
         function createEditorBuildingRow(rowData) {
           if (global2.DSEventBuildingsEditorUI && typeof global2.DSEventBuildingsEditorUI.createEditorBuildingRow === "function") {
@@ -15523,6 +15902,12 @@
               eventEditorCurrentId,
               generateAvatarDataUrl: generateEventAvatarDataUrl,
               translate: deps.t,
+              getWikiUrl: function(eventId) {
+                if (global2.FirebaseService && typeof global2.FirebaseService.getEventWikiUrl === "function") {
+                  return global2.FirebaseService.getEventWikiUrl(eventId);
+                }
+                return "";
+              },
               onSelectEvent: function(eventId) {
                 deps.setEventEditorCurrentId(eventId);
                 switchEvent(eventId);
@@ -15900,6 +16285,7 @@
           enterEventEditMode,
           cancelEventEditing,
           openCoordinatesPickerFromEditor,
+          openEventWiki,
           // building editor
           createEditorBuildingRow,
           renderEventBuildingsEditor,
@@ -16468,9 +16854,11 @@
             _unsubscribePendingCount = _gateway.subscribePendingFinalizationCount(
               allianceId,
               function onPendingCount(count) {
-                var badgeContainer = document.getElementById("eventHistoryPendingBadge");
-                if (global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderPendingBadge === "function") {
-                  global2.DSFeatureEventHistoryView.renderPendingBadge(badgeContainer, count);
+                var renderBadge = global2.DSFeatureEventHistoryView && typeof global2.DSFeatureEventHistoryView.renderPendingBadge === "function" ? global2.DSFeatureEventHistoryView.renderPendingBadge : null;
+                if (renderBadge) {
+                  renderBadge(document.getElementById("eventHistoryPendingBadge"), count);
+                  renderBadge(document.getElementById("sidebarHistoryBadge"), count);
+                  renderBadge(document.getElementById("moreSheetHistoryBadge"), count);
                 }
               }
             );
@@ -16807,16 +17195,10 @@
                 var newEntry = {
                   historyId,
                   status: doc.status,
-                  eventName: _currentHistoryDoc && _currentHistoryDoc.eventName || null,
-                  playerSource: _currentHistoryDoc && _currentHistoryDoc.playerSource || "alliance"
+                  eventName: _currentHistoryDoc && _currentHistoryDoc.eventName || null
                 };
                 var updatedHistory = [newEntry].concat(recentHistory);
-                var sourceFilter = allianceId ? "alliance" : "personal";
-                var scoringHistory = updatedHistory.filter(function(e) {
-                  return (e.playerSource || "alliance") === sourceFilter;
-                });
-                var newStats = reliability.recalculatePlayerStats(scoringHistory, existing);
-                newStats.recentHistory = updatedHistory.slice(0, 10);
+                var newStats = reliability.recalculatePlayerStats(updatedHistory, existing);
                 playerStatsUpdates.push({ docId, stats: newStats });
               });
             }
@@ -17657,9 +18039,11 @@
           if (!_gateway || typeof _gateway.subscribePendingUpdatesCount !== "function") return;
           if (!allianceId && !uid) return;
           _badgeUnsub = _gateway.subscribePendingUpdatesCount(allianceId, uid, function(count) {
-            var badge = document.getElementById("playerUpdatesPendingBadge");
-            if (global2.DSFeaturePlayerUpdatesView && typeof global2.DSFeaturePlayerUpdatesView.renderPendingBadge === "function") {
-              global2.DSFeaturePlayerUpdatesView.renderPendingBadge(badge, count);
+            var renderBadge = global2.DSFeaturePlayerUpdatesView && typeof global2.DSFeaturePlayerUpdatesView.renderPendingBadge === "function" ? global2.DSFeaturePlayerUpdatesView.renderPendingBadge : null;
+            if (renderBadge) {
+              renderBadge(document.getElementById("playerUpdatesPendingBadge"), count);
+              renderBadge(document.getElementById("sidebarUpdatesBadge"), count);
+              renderBadge(document.getElementById("moreSheetUpdatesBadge"), count);
             }
           });
         }
@@ -18830,6 +19214,7 @@
           };
           const onStartNewEvent = typeof config.onStartNewEvent === "function" ? config.onStartNewEvent : function noopStart() {
           };
+          const getWikiUrl = typeof config.getWikiUrl === "function" ? config.getWikiUrl : null;
           const t2 = getTranslator(config.translate);
           listEl.innerHTML = "";
           eventIds.forEach((eventId) => {
@@ -18859,6 +19244,22 @@
             textWrap.appendChild(meta);
             button.appendChild(avatar);
             button.appendChild(textWrap);
+            if (getWikiUrl) {
+              const wikiUrl = getWikiUrl(eventId);
+              if (wikiUrl) {
+                const wikiLink = document.createElement("a");
+                wikiLink.className = "events-list-wiki-link";
+                wikiLink.href = wikiUrl;
+                wikiLink.target = "_blank";
+                wikiLink.rel = "noopener noreferrer";
+                wikiLink.title = t2("events_manager_wiki_link");
+                wikiLink.textContent = t2("events_manager_wiki_link");
+                wikiLink.addEventListener("click", function(e) {
+                  e.stopPropagation();
+                });
+                button.appendChild(wikiLink);
+              }
+            }
             listEl.appendChild(button);
           });
           const newEventBtn = document.createElement("button");
@@ -20138,6 +20539,30 @@
             }
           };
         }
+        function fallbackWikiGateway(gatewayUtils) {
+          return {
+            loadEventWiki: async function loadEventWiki(eventId, context) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.loadEventWiki(eventId, context);
+              }, gatewayUtils.notLoadedResult());
+            },
+            saveEventWiki: async function saveEventWiki(eventId, wikiData, context) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.saveEventWiki(eventId, wikiData, context);
+              }, gatewayUtils.notLoadedResult());
+            },
+            deleteEventWiki: async function deleteEventWiki(eventId, context) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.deleteEventWiki(eventId, context);
+              }, gatewayUtils.notLoadedResult());
+            },
+            getEventWikiUrl: function getEventWikiUrl(eventId, context) {
+              return gatewayUtils.withManager(function(svc) {
+                return svc.getEventWikiUrl(eventId, context);
+              }, "");
+            }
+          };
+        }
         function fallbackPlayerUpdatesGateway(gatewayUtils) {
           return {
             createUpdateToken: async function createUpdateToken(allianceId, playerName, options) {
@@ -20232,6 +20657,7 @@
         const notificationsGateway = fromFactory("DSSharedFirebaseNotificationsGateway", fallbackNotificationsGateway);
         const eventHistoryGateway = fromFactory("DSSharedFirebaseEventHistoryGateway", fallbackEventHistoryGateway);
         const playerUpdatesGateway = fromFactory("DSSharedFirebasePlayerUpdatesGateway", fallbackPlayerUpdatesGateway);
+        const wikiGateway = fromFactory("DSSharedFirebaseWikiGateway", fallbackWikiGateway);
         function normalizeFeatureFlagValue(value, fallbackValue) {
           if (typeof value === "boolean") {
             return value;
@@ -21011,6 +21437,18 @@
             }
             return { success: false, error: "Unknown source: " + source };
           }
+        };
+        FirebaseService2.loadEventWiki = function loadEventWiki(eventId, context) {
+          return wikiGateway.loadEventWiki(eventId, context);
+        };
+        FirebaseService2.saveEventWiki = function saveEventWiki(eventId, wikiData, context) {
+          return wikiGateway.saveEventWiki(eventId, wikiData, context);
+        };
+        FirebaseService2.deleteEventWiki = function deleteEventWiki(eventId, context) {
+          return wikiGateway.deleteEventWiki(eventId, context);
+        };
+        FirebaseService2.getEventWikiUrl = function getEventWikiUrl(eventId, context) {
+          return wikiGateway.getEventWikiUrl(eventId, context);
         };
         global2.FirebaseService = FirebaseService2;
       })(window);
@@ -22006,13 +22444,16 @@
           return uid === GAME_METADATA_SUPER_ADMIN_UID;
         }
         function syncGameMetadataMenuAvailability() {
-          var navGameMetadataBtn = document.getElementById("navGameMetadataBtn");
-          if (!navGameMetadataBtn) {
-            return;
-          }
           var allowed = isGameMetadataSuperAdmin(getCurrentAuthUser());
-          navGameMetadataBtn.classList.toggle("hidden", !allowed);
-          navGameMetadataBtn.disabled = !allowed;
+          var targets = [
+            document.getElementById("navGameMetadataBtn"),
+            document.getElementById("sidebarGameMetadataBtn")
+          ];
+          targets.forEach(function(btn) {
+            if (!btn) return;
+            btn.classList.toggle("hidden", !allowed);
+            btn.disabled = !allowed;
+          });
           if (!allowed) {
             closeGameMetadataOverlay();
           }
@@ -23437,9 +23878,92 @@
           closeNavigationMenu();
         });
         on("mobileNavGeneratorBtn", "click", showGeneratorPage);
-        on("mobileNavConfigBtn", "click", showConfigurationPage);
         on("mobileNavPlayersBtn", "click", showPlayersManagementPage);
-        on("mobileNavAllianceBtn", "click", showAlliancePage);
+        on("mobileNavHistoryBtn", "click", function() {
+          hideAllMainPages();
+          if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === "function") {
+            window._eventHistoryController.showEventHistoryView();
+          }
+          var eventHistoryView = document.getElementById("eventHistoryView");
+          if (eventHistoryView) eventHistoryView.classList.remove("hidden");
+          resumePendingOnboardingStep();
+          closeMobileMoreSheet();
+        });
+        on("mobileNavMoreBtn", "click", toggleMobileMoreSheet);
+        on("sidebarGeneratorBtn", "click", showGeneratorPage);
+        on("sidebarPlayersBtn", "click", showPlayersManagementPage);
+        on("sidebarConfigBtn", "click", showConfigurationPage);
+        on("sidebarAllianceBtn", "click", showAlliancePage);
+        on("sidebarSettingsBtn", "click", openSettingsModal);
+        on("sidebarSupportBtn", "click", showSupportPage);
+        on("sidebarGameMetadataBtn", "click", openGameMetadataOverlay);
+        on("sidebarSignOutBtn", "click", function() {
+          handleSignOut();
+        });
+        on("sidebarEventHistoryBtn", "click", function() {
+          hideAllMainPages();
+          if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === "function") {
+            window._eventHistoryController.showEventHistoryView();
+          }
+          var eventHistoryView = document.getElementById("eventHistoryView");
+          if (eventHistoryView) eventHistoryView.classList.remove("hidden");
+          resumePendingOnboardingStep();
+        });
+        on("sidebarPlayerUpdatesBtn", "click", function() {
+          hideAllMainPages();
+          const playerUpdatesReviewView = document.getElementById("playerUpdatesReviewView");
+          if (playerUpdatesReviewView) {
+            var allViewSections = document.querySelectorAll(".view-section");
+            allViewSections.forEach(function(s) {
+              s.classList.add("hidden");
+            });
+            playerUpdatesReviewView.classList.remove("hidden");
+          }
+          refreshPlayerUpdatesPanel();
+        });
+        on("moreSheetConfigBtn", "click", function() {
+          closeMobileMoreSheet();
+          showConfigurationPage();
+        });
+        on("moreSheetAllianceBtn", "click", function() {
+          closeMobileMoreSheet();
+          showAlliancePage();
+        });
+        on("moreSheetEventHistoryBtn", "click", function() {
+          closeMobileMoreSheet();
+          hideAllMainPages();
+          if (window._eventHistoryController && typeof window._eventHistoryController.showEventHistoryView === "function") {
+            window._eventHistoryController.showEventHistoryView();
+          }
+          var eventHistoryView = document.getElementById("eventHistoryView");
+          if (eventHistoryView) eventHistoryView.classList.remove("hidden");
+          resumePendingOnboardingStep();
+        });
+        on("moreSheetPlayerUpdatesBtn", "click", function() {
+          closeMobileMoreSheet();
+          hideAllMainPages();
+          const playerUpdatesReviewView = document.getElementById("playerUpdatesReviewView");
+          if (playerUpdatesReviewView) {
+            var allViewSections = document.querySelectorAll(".view-section");
+            allViewSections.forEach(function(s) {
+              s.classList.add("hidden");
+            });
+            playerUpdatesReviewView.classList.remove("hidden");
+          }
+          refreshPlayerUpdatesPanel();
+        });
+        on("moreSheetSettingsBtn", "click", function() {
+          closeMobileMoreSheet();
+          openSettingsModal();
+        });
+        on("moreSheetSupportBtn", "click", function() {
+          closeMobileMoreSheet();
+          showSupportPage();
+        });
+        on("moreSheetSignOutBtn", "click", function() {
+          closeMobileMoreSheet();
+          handleSignOut();
+        });
         on("navGameMetadataBtn", "click", openGameMetadataOverlay);
         on("navSettingsBtn", "click", openSettingsModal);
         on("navSwitchGameBtn", "click", () => {
@@ -23725,6 +24249,12 @@
             return;
           }
           deleteSelectedEvent();
+        });
+        on("eventWikiBtn", "click", () => {
+          const controller = getEventsManagerFeatureController();
+          if (controller && typeof controller.openEventWiki === "function") {
+            controller.openEventWiki();
+          }
         });
         on("mapCoordinatesBtn", "click", () => {
           const controller = getEventsManagerFeatureController();
@@ -24124,7 +24654,10 @@
             saveEvent: saveEventDefinition,
             cancelEdit: cancelEventEditing,
             deleteEvent: deleteSelectedEvent,
-            openCoordinatesPicker: openCoordinatesPickerFromEditor
+            openCoordinatesPicker: openCoordinatesPickerFromEditor,
+            openEventWiki: function() {
+              window.DSEventsRegistryController.openEventWiki();
+            }
           });
         }
         return eventsManagerFeatureController;
@@ -24246,6 +24779,28 @@
           openNavigationMenu();
         }
       }
+      function toggleMobileMoreSheet() {
+        var sheet = document.getElementById("mobileMoreSheet");
+        if (!sheet) return;
+        var isOpen = !sheet.classList.contains("hidden");
+        sheet.classList.toggle("hidden", isOpen);
+        var moreBtn = document.getElementById("mobileNavMoreBtn");
+        if (moreBtn) moreBtn.setAttribute("aria-expanded", isOpen ? "false" : "true");
+        if (!isOpen) {
+          sheet.addEventListener("click", function onScrimClick(e) {
+            if (e.target === sheet) {
+              closeMobileMoreSheet();
+              sheet.removeEventListener("click", onScrimClick);
+            }
+          });
+        }
+      }
+      function closeMobileMoreSheet() {
+        var sheet = document.getElementById("mobileMoreSheet");
+        if (sheet) sheet.classList.add("hidden");
+        var moreBtn = document.getElementById("mobileNavMoreBtn");
+        if (moreBtn) moreBtn.setAttribute("aria-expanded", "false");
+      }
       function syncNavigationMenuState() {
         if (window.DSShellNavigationController && typeof window.DSShellNavigationController.syncNavigationButtons === "function") {
           window.DSShellNavigationController.syncNavigationButtons({
@@ -24257,9 +24812,13 @@
               { view: "alliance", button: document.getElementById("navAllianceBtn") },
               { view: "support", button: document.getElementById("navSupportBtn") },
               { view: "generator", button: document.getElementById("mobileNavGeneratorBtn") },
-              { view: "configuration", button: document.getElementById("mobileNavConfigBtn") },
               { view: "players", button: document.getElementById("mobileNavPlayersBtn") },
-              { view: "alliance", button: document.getElementById("mobileNavAllianceBtn") }
+              // Sidebar buttons
+              { view: "generator", button: document.getElementById("sidebarGeneratorBtn") },
+              { view: "players", button: document.getElementById("sidebarPlayersBtn") },
+              { view: "configuration", button: document.getElementById("sidebarConfigBtn") },
+              { view: "alliance", button: document.getElementById("sidebarAllianceBtn") },
+              { view: "support", button: document.getElementById("sidebarSupportBtn") }
             ]
           });
           return;
