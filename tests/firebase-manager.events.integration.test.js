@@ -2199,6 +2199,11 @@ async function setupUploadScopeHarness(options) {
       });
       return byName;
     },
+    addRemoteAlliancePlayer(name, power) {
+      alliancePlayersSubcollectionState.set(global.DSFirebaseInfra.getPlayerDocId(name), {
+        name, power, troops: 'Tank', thp: 100,
+      });
+    },
     getAlliancePlayerDatabaseState() {
       const byName = {};
       alliancePlayersSubcollectionState.forEach((payload) => {
@@ -2648,3 +2653,41 @@ test('init() enables experimentalAutoDetectLongPolling so Safari does not fail t
   assert.equal(global.FirebaseManager.init(), true);
   assert.deepEqual(settingsArgs, { experimentalAutoDetectLongPolling: true, merge: true });
 });
+
+
+test('alliance add from empty local roster preserves unseen server players', async () => {
+  const harness = await setupUploadScopeHarness();
+  await global.FirebaseManager.loadAllianceData({ gameId: 'desert_ops' });
+  harness.addRemoteAlliancePlayer('Unseen', 200);
+  harness.clearWrites();
+  const result = await global.FirebaseManager.upsertPlayerEntry('alliance', '', {
+    name: 'New', power: 50, troops: 'Tank', thp: 100,
+  }, { gameId: 'desert_ops' });
+  assert.equal(result.success, true);
+  assert.equal(harness.getAlliancePlayerDatabaseState().Unseen.power, 200);
+  assert.ok(harness.getAlliancePlayerDatabaseState().New);
+  assert.equal(harness.writes.filter(w => w.type === 'batch.delete').length, 0);
+  assert.equal(harness.writes.filter(w => w.type === 'batch.set').length, 1);
+});
+
+for (const action of ['edit', 'rename', 'delete']) {
+  test(`alliance ${action} preserves remote additions and edits absent from local state`, async () => {
+    const harness = await setupUploadScopeHarness();
+    await global.FirebaseManager.uploadAlliancePlayerDatabase(harness.file, { gameId: 'desert_ops' });
+    harness.addRemoteAlliancePlayer('Unseen', 200);
+    harness.clearWrites();
+    const result = action === 'delete'
+      ? await global.FirebaseManager.removePlayerEntry('alliance', 'Upload Player', { gameId: 'desert_ops' })
+      : await global.FirebaseManager.upsertPlayerEntry('alliance', 'Upload Player', {
+        name: action === 'rename' ? 'Renamed' : 'Upload Player', power: 70, troops: 'Tank', thp: 100,
+      }, { gameId: 'desert_ops' });
+    assert.equal(result.success, true);
+    const players = harness.getAlliancePlayerDatabaseState();
+    assert.equal(players.Unseen.power, 200);
+    assert.equal(Boolean(players['Upload Player']), action === 'edit');
+    if (action === 'rename') assert.equal(players.Renamed.power, 70);
+    const deletes = harness.writes.filter(w => w.type === 'batch.delete');
+    assert.equal(deletes.length, action === 'edit' ? 0 : 1);
+    assert.ok(deletes.every(w => w.path.endsWith('/' + global.DSFirebaseInfra.getPlayerDocId('Upload Player'))));
+  });
+}

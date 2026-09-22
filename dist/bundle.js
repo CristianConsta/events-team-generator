@@ -3115,7 +3115,7 @@
               return;
             }
             allianceData = __spreadProps(__spreadValues({}, data), {
-              playerDatabase: {}
+              playerDatabase: allianceData && allianceData.playerDatabase ? allianceData.playerDatabase : {}
             });
             activeAllianceDocScope = requestedScope;
             if (typeof data.name === "string" && data.name.trim()) {
@@ -4265,7 +4265,7 @@
           }
           return null;
         }
-        async function persistPlayerDatabaseForSource(source, nextDatabase, context) {
+        async function persistPlayerDatabaseForSource(source, nextDatabase, context, mutation) {
           const gameId = getResolvedGameId("persistPlayerDatabaseForSource", context);
           if (source === "personal") {
             const previousDatabase = playerDatabase;
@@ -4289,26 +4289,30 @@
             if (!playersCollectionRef) {
               return { success: false, error: "invalid-alliance-context", errorKey: "invalid-alliance-context" };
             }
+            if (!mutation) {
+              return { success: false, error: "missing-player-mutation" };
+            }
             try {
               const apSnapshot = await playersCollectionRef.get();
-              const desiredDocs = /* @__PURE__ */ new Map();
-              Object.keys(nextDatabase).forEach((playerName) => {
-                const payload = createPlayerDocPayload(playerName, nextDatabase[playerName]);
-                if (!payload) {
-                  return;
+              const mergedDatabase = {};
+              apSnapshot.docs.forEach((doc) => {
+                const entry = doc.data();
+                if (entry && entry.name) {
+                  mergedDatabase[entry.name] = entry;
                 }
-                desiredDocs.set(getPlayerDocId(playerName), payload);
               });
               const apBatch = db.batch();
-              desiredDocs.forEach((payload, docId) => {
-                apBatch.set(playersCollectionRef.doc(docId), payload, { merge: true });
-              });
-              apSnapshot.docs.forEach((doc) => {
-                if (!desiredDocs.has(doc.id)) {
-                  apBatch.delete(doc.ref);
-                }
-              });
+              if (mutation.removeName) {
+                apBatch.delete(playersCollectionRef.doc(getPlayerDocId(mutation.removeName)));
+                delete mergedDatabase[mutation.removeName];
+              }
+              if (mutation.upsertName) {
+                const payload = createPlayerDocPayload(mutation.upsertName, nextDatabase[mutation.upsertName]);
+                apBatch.set(playersCollectionRef.doc(getPlayerDocId(mutation.upsertName)), payload, { merge: true });
+                mergedDatabase[mutation.upsertName] = nextDatabase[mutation.upsertName];
+              }
               await apBatch.commit();
+              nextDatabase = normalizePlayerDatabaseMap(mergedDatabase);
             } catch (subcollectionWriteErr) {
               return {
                 success: false,
@@ -4385,7 +4389,10 @@
             thp,
             lastUpdated: nowIso
           };
-          const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context);
+          const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context, {
+            upsertName: nextName,
+            removeName: previousName && previousName !== nextName ? previousName : null
+          });
           if (!persistResult.success) {
             return persistResult;
           }
@@ -4414,7 +4421,7 @@
             return { success: false, errorKey: "players_list_error_not_found" };
           }
           delete nextDatabase[normalizedName];
-          const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context);
+          const persistResult = await persistPlayerDatabaseForSource(normalizedSource, nextDatabase, context, { removeName: normalizedName });
           if (!persistResult.success) {
             return persistResult;
           }
