@@ -25077,11 +25077,13 @@
       function updateFloatingButtonsVisibility() {
         const bar = document.getElementById("floatingButtons");
         const selectionSection = document.getElementById("selectionSection");
+        const generatorPage = document.getElementById("generatorPage");
         if (!bar || !selectionSection) {
           return;
         }
         const hasPlayers = Array.isArray(allPlayers) && allPlayers.length > 0;
-        const shouldShow = getCurrentPageViewState() === "generator" && !selectionSection.classList.contains("hidden") && hasPlayers;
+        const generatorVisible = !generatorPage || !generatorPage.classList.contains("hidden");
+        const shouldShow = getCurrentPageViewState() === "generator" && generatorVisible && !selectionSection.classList.contains("hidden") && hasPlayers;
         bar.style.display = shouldShow ? "flex" : "none";
         var mobileNav = document.getElementById("mobileBottomNav");
         if (mobileNav) {
