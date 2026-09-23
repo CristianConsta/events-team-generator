@@ -30,3 +30,4 @@ test-results/
 .eslintcache
 coverage/
 .worktrees/
+.claude/worktrees/
