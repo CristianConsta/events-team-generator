@@ -101,7 +101,7 @@ test('event_history: alliance member can create event_history with matching crea
     await assertSucceeds(
         db.collection(`alliances/${ALLIANCE_ID}/event_history`).doc('new_history_1').set({
             eventName: 'Canyon Storm #1',
-            createdBy: MEMBER_UID,
+            createdByUid: MEMBER_UID,
             finalized: false,
         })
     );
@@ -112,7 +112,7 @@ test('event_history: alliance member CANNOT create with mismatched createdBy', a
     await assertFails(
         db.collection(`alliances/${ALLIANCE_ID}/event_history`).doc('bad_history_1').set({
             eventName: 'Canyon Storm #1',
-            createdBy: OUTSIDER_UID,  // wrong uid
+            createdByUid: OUTSIDER_UID,  // wrong uid
             finalized: false,
         })
     );
@@ -123,7 +123,7 @@ test('event_history: non-member CANNOT create event_history', async () => {
     await assertFails(
         db.collection(`alliances/${ALLIANCE_ID}/event_history`).doc('bad_history_2').set({
             eventName: 'Desert Storm #2',
-            createdBy: OUTSIDER_UID,
+            createdByUid: OUTSIDER_UID,
             finalized: false,
         })
     );

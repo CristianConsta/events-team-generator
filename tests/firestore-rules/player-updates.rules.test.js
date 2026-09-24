@@ -102,6 +102,24 @@ test.after(async () => {
     if (testEnv) await testEnv.cleanup();
 });
 
+test('DEBUG: inspect token_valid data + anon read', async () => {
+    let stored = null;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        const snap = await ctx.firestore().doc(`alliances/${ALLIANCE_ID}/update_tokens/token_valid`).get();
+        stored = snap.exists ? snap.data() : null;
+    });
+    console.log('DEBUG token_valid exists:', !!stored);
+    console.log('DEBUG token_valid keys:', stored ? Object.keys(stored).join(',') : 'n/a');
+    console.log('DEBUG expiresAt type:', stored && stored.expiresAt ? typeof stored.expiresAt : 'missing');
+    const db = anonDb('debug_anon_probe');
+    try {
+        await db.doc(`alliances/${ALLIANCE_ID}/update_tokens/token_valid`).get();
+        console.log('DEBUG anon read: SUCCEEDED');
+    } catch (err) {
+        console.log('DEBUG anon read FAILED:', err && err.message ? err.message : String(err));
+    }
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -253,6 +271,7 @@ test('update_tokens: anonymous user can update token to mark as used (only used,
     const db = anonDb('anon_uid_uses_token');
     await assertSucceeds(
         db.doc(`alliances/${ALLIANCE_ID}/update_tokens/token_to_use`).update({
+            submissionCount: 1,
             used: true,
             usedAt: new Date(),
             usedByAnonUid: 'anon_uid_uses_token',
