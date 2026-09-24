@@ -102,62 +102,6 @@ test.after(async () => {
     if (testEnv) await testEnv.cleanup();
 });
 
-test('DEBUG: inspect token_valid data + anon read', async () => {
-    let stored = null;
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        const snap = await ctx.firestore().doc(`alliances/${ALLIANCE_ID}/update_tokens/token_valid`).get();
-        stored = snap.exists ? snap.data() : null;
-    });
-    console.log('DEBUG token_valid exists:', !!stored);
-    console.log('DEBUG token_valid keys:', stored ? Object.keys(stored).join(',') : 'n/a');
-    console.log('DEBUG expiresAt type:', stored && stored.expiresAt ? typeof stored.expiresAt : 'missing');
-    const db = anonDb('debug_anon_probe');
-    try {
-        await db.doc(`alliances/${ALLIANCE_ID}/update_tokens/token_valid`).get();
-        console.log('DEBUG anon read: SUCCEEDED');
-    } catch (err) {
-        console.log('DEBUG anon read FAILED:', err && err.message ? err.message : String(err));
-    }
-});
-
-test('DEBUG: anon read of shared invite (tests isAnonymous for read)', async () => {
-    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/debug_invite`, {
-        contextType: 'alliance',
-        allianceId: ALLIANCE_ID,
-        gameId: 'last_war',
-        active: true,
-        expiresAt: futureTimestamp(),
-        allowNewPlayers: true,
-    });
-    const db = anonDb('debug_anon_read_probe');
-    try {
-        await db.doc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/debug_invite`).get();
-        console.log('DEBUG anon read of invite: SUCCEEDED');
-    } catch (err) {
-        console.log('DEBUG anon read of invite FAILED:', err && err.message ? err.message : String(err));
-    }
-});
-
-test('DEBUG: anon read token with explicit submissionCount/maxSubmissions', async () => {
-    await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/debug_token_full`, {
-        token: 'debug_full_value',
-        playerName: 'Alice',
-        playerKey: 'alice_key',
-        gameId: 'last_war',
-        used: false,
-        expiresAt: futureTimestamp(),
-        submissionCount: 0,
-        maxSubmissions: 2,
-    });
-    const db = anonDb('debug_anon_full_probe');
-    try {
-        await db.doc(`alliances/${ALLIANCE_ID}/update_tokens/debug_token_full`).get();
-        console.log('DEBUG anon read token_full: SUCCEEDED');
-    } catch (err) {
-        console.log('DEBUG anon read token_full FAILED:', err && err.message ? err.message : String(err));
-    }
-});
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

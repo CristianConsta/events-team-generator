@@ -60,17 +60,19 @@ service cloud.firestore {
     }
 
     function tokenSubmissionCount(data) {
-      return data != null
+      return (data != null
+        && 'submissionCount' in data
         && data.submissionCount is int
-        && data.submissionCount >= 0
+        && data.submissionCount >= 0)
         ? data.submissionCount
         : 0;
     }
 
     function tokenMaxSubmissions(data) {
-      return data != null
+      return (data != null
+        && 'maxSubmissions' in data
         && data.maxSubmissions is int
-        && data.maxSubmissions > 0
+        && data.maxSubmissions > 0)
         ? data.maxSubmissions
         : 1;
     }
