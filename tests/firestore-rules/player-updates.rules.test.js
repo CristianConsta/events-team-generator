@@ -33,6 +33,11 @@ test.before(async () => {
             rules: fs.readFileSync(RULES_PATH, 'utf8'),
         },
     });
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}`, {
+        gameId: 'last_war',
+        createdBy: MEMBER_UID,
+        members: { [MEMBER_UID]: true },
+    });
 });
 
 test.after(async () => {
@@ -72,18 +77,6 @@ function futureTimestamp() {
 function pastTimestamp() {
     return new Date(Date.now() - 48 * 60 * 60 * 1000);
 }
-
-// ---------------------------------------------------------------------------
-// Setup: seed the alliance doc with MEMBER_UID as a member.
-// ---------------------------------------------------------------------------
-
-test.before(async () => {
-    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}`, {
-        gameId: 'last_war',
-        createdBy: MEMBER_UID,
-        members: { [MEMBER_UID]: true },
-    });
-});
 
 // ---------------------------------------------------------------------------
 // update_tokens — create

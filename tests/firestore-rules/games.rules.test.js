@@ -25,6 +25,10 @@ test.before(async () => {
             rules: fs.readFileSync(RULES_PATH, 'utf8'),
         },
     });
+    await seedDoc(`games/${GAME_ID}`, {
+        name: 'Last War',
+        createdBy: SUPER_ADMIN_UID,
+    });
 });
 
 test.after(async () => {
@@ -48,17 +52,6 @@ function authedDb(uid) {
 function unauthDb() {
     return testEnv.unauthenticatedContext().firestore();
 }
-
-// ---------------------------------------------------------------------------
-// Setup: seed a game doc to use in read/update/delete tests.
-// ---------------------------------------------------------------------------
-
-test.before(async () => {
-    await seedDoc(`games/${GAME_ID}`, {
-        name: 'Last War',
-        createdBy: SUPER_ADMIN_UID,
-    });
-});
 
 // ---------------------------------------------------------------------------
 // games/{gameId} — read
