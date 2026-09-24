@@ -952,3 +952,82 @@ test('approveUpdate for alliance context returns underlying alliance error on fa
     assert.equal(result.ok, false);
     assert.equal(result.error, 'players_list_error_no_alliance');
 });
+
+test('approveUpdate for new player (alliance context) applies to both personal and alliance DBs', async function () {
+    setupGlobals();
+    var personalApplyCalled = false;
+    var allianceApplyCalled = false;
+    var decisionCaptured = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return 'alliance-123'; },
+        applyPlayerUpdateToPersonal: function () {
+            personalApplyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            allianceApplyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+        updatePendingUpdateStatus: function (allianceId, updateId, decision) {
+            decisionCaptured = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-new-player-alliance-1',
+        contextType: 'alliance',
+        allianceId: 'alliance-123',
+        playerName: 'NewGuy',
+        isNewPlayer: true,
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-new-player-alliance-1');
+    assert.equal(result.ok, true);
+    assert.equal(personalApplyCalled, true);
+    assert.equal(allianceApplyCalled, true);
+    assert.ok(decisionCaptured);
+    assert.equal(decisionCaptured.appliedTo, 'both');
+});
+
+test('approveUpdate for new player (personal context) applies to personal only', async function () {
+    setupGlobals();
+    var personalApplyCalled = false;
+    var allianceApplyCalled = false;
+    var decisionCaptured = null;
+    var ctrl = loadController();
+    ctrl.init(createMockGateway({
+        getAllianceId: function () { return null; },
+        applyPlayerUpdateToPersonal: function () {
+            personalApplyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+        applyPlayerUpdateToAlliance: function () {
+            allianceApplyCalled = true;
+            return Promise.resolve({ ok: true });
+        },
+        updatePersonalPendingUpdateStatus: function (uid, updateId, decision) {
+            decisionCaptured = decision;
+            return Promise.resolve({ ok: true });
+        },
+    }));
+
+    ctrl.setPendingUpdateDocs([{
+        id: 'update-new-player-personal-1',
+        contextType: 'personal',
+        ownerUid: 'test-user-123',
+        playerName: 'SoloNewGuy',
+        isNewPlayer: true,
+        proposedValues: { power: 100, thp: 500, troops: 'Tank' },
+    }]);
+
+    var result = await ctrl.approveUpdate('update-new-player-personal-1');
+    assert.equal(result.ok, true);
+    assert.equal(personalApplyCalled, true);
+    assert.equal(allianceApplyCalled, false);
+    assert.ok(decisionCaptured);
+    assert.equal(decisionCaptured.appliedTo, 'personal');
+});
+

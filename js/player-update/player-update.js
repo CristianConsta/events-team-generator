@@ -45,7 +45,7 @@
     }
 
     function showState(stateName) {
-        var stateIds = ['updateLoading', 'updateClaim', 'updateForm', 'updateSuccess', 'updateError'];
+        var stateIds = ['updateLoading', 'updateClaim', 'updateForm', 'updateAddSelf', 'updateSuccess', 'updateError'];
         stateIds.forEach(function (id) {
             var el = getEl(id);
             if (!el) {
@@ -564,6 +564,16 @@
                                 empty.className = 'update-shared-hint';
                                 empty.textContent = tLocal('player_update_shared_no_results');
                                 resultsEl.appendChild(empty);
+                                if (inviteContext.inviteDoc && inviteContext.inviteDoc.allowNewPlayers === true) {
+                                    var addSelfBtn = global.document.createElement('button');
+                                    addSelfBtn.type = 'button';
+                                    addSelfBtn.className = 'update-primary-btn update-add-self-btn';
+                                    addSelfBtn.textContent = tLocal('player_update_shared_add_self_cta');
+                                    addSelfBtn.onclick = function() {
+                                        startSelfAddFlow(firebase, anonUid, inviteContext);
+                                    };
+                                    resultsEl.appendChild(addSelfBtn);
+                                }
                                 return;
                             }
                             candidates.slice(0, 3).forEach(function(candidate) {
@@ -586,6 +596,177 @@
         }).catch(function() {
             showError(ERROR_CODES.NETWORK_ERROR);
         });
+    }
+
+    function getSelfAddPlayerKey(playerName) {
+        if (global.DSFirebaseInfra && typeof global.DSFirebaseInfra.getPlayerDocId === 'function') {
+            return global.DSFirebaseInfra.getPlayerDocId(playerName);
+        }
+        return '';
+    }
+
+    function startSelfAddFlow(firebase, anonUid, inviteContext) {
+        var candidatesRef = buildSharedInviteCandidatesRef(
+            firebase,
+            inviteContext.isPersonal,
+            inviteContext.gameId,
+            inviteContext.uidParam,
+            inviteContext.aid,
+            inviteContext.sharedId
+        );
+        var form = getEl('updateAddSelfForm');
+        if (!form) {
+            showError(ERROR_CODES.NETWORK_ERROR);
+            return;
+        }
+        showState('updateAddSelf');
+
+        var backBtn = getEl('updateAddSelfBackBtn');
+        if (backBtn) {
+            backBtn.onclick = function() {
+                showState('updateClaim');
+            };
+        }
+
+        var nameEl = getEl('updateAddSelfName');
+        var powerEl = getEl('updateAddSelfPower');
+        var thpEl = getEl('updateAddSelfThp');
+        var troopsEl = getEl('updateAddSelfTroops');
+
+        [nameEl, powerEl, thpEl].forEach(function(el) {
+            if (el) { el.value = ''; }
+        });
+        if (troopsEl) { troopsEl.value = ''; }
+        clearFieldError(nameEl, 'errorAddSelfName');
+        clearFieldError(powerEl, 'errorAddSelfPower');
+        clearFieldError(thpEl, 'errorAddSelfThp');
+        clearFieldError(troopsEl, 'errorAddSelfTroops');
+
+        if (powerEl) {
+            powerEl.oninput = function() {
+                powerEl.value = sanitizeNumericStatInput(powerEl.value);
+                clearFieldError(powerEl, 'errorAddSelfPower');
+            };
+        }
+        if (thpEl) {
+            thpEl.oninput = function() {
+                thpEl.value = sanitizeNumericStatInput(thpEl.value);
+                clearFieldError(thpEl, 'errorAddSelfThp');
+            };
+        }
+        if (nameEl) {
+            nameEl.oninput = function() {
+                clearFieldError(nameEl, 'errorAddSelfName');
+            };
+        }
+
+        form.onsubmit = function(event) {
+            event.preventDefault();
+            var normalizedName = nameEl ? String(nameEl.value || '').trim() : '';
+            if (!normalizedName) {
+                setFieldError(nameEl, 'errorAddSelfName', tLocal('players_list_error_name_required'));
+                return;
+            }
+            if (normalizedName.length > 50) {
+                setFieldError(nameEl, 'errorAddSelfName', tLocal('players_list_error_name_required'));
+                return;
+            }
+            var powerRaw = powerEl ? String(powerEl.value || '').trim() : '';
+            var thpRaw = thpEl ? String(thpEl.value || '').trim() : '';
+            var troopsVal = troopsEl ? troopsEl.value : '';
+            if (!powerRaw) {
+                setFieldError(powerEl, 'errorAddSelfPower', tLocal('player_update_error_power_required'));
+                return;
+            }
+            if (!isValidNumericStatInput(powerRaw)) {
+                setFieldError(powerEl, 'errorAddSelfPower', tLocal('player_update_error_numeric_format'));
+                return;
+            }
+            if (!thpRaw) {
+                setFieldError(thpEl, 'errorAddSelfThp', tLocal('player_update_error_thp_required'));
+                return;
+            }
+            if (!isValidNumericStatInput(thpRaw)) {
+                setFieldError(thpEl, 'errorAddSelfThp', tLocal('player_update_error_numeric_format'));
+                return;
+            }
+            if (!troopsVal) {
+                setFieldError(troopsEl, 'errorAddSelfTroops', tLocal('player_update_error_troops_required'));
+                return;
+            }
+            var playerKey = getSelfAddPlayerKey(normalizedName);
+            if (!playerKey) {
+                setFieldError(nameEl, 'errorAddSelfName', tLocal('players_list_error_name_required'));
+                return;
+            }
+
+            var submitBtn = form.querySelector('button[type="submit"]');
+            var originalBtnText = submitBtn ? submitBtn.textContent : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = tOrFallback('player_update_submitting', 'Submitting...');
+            }
+
+            var duplicateCheck = (candidatesRef && typeof candidatesRef.doc === 'function')
+                ? candidatesRef.doc(playerKey).get().catch(function() { return null; })
+                : Promise.resolve(null);
+            duplicateCheck.then(function(snapshot) {
+                if (snapshot && snapshot.exists) {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalBtnText;
+                    }
+                    setFieldError(nameEl, 'errorAddSelfName', tLocal('player_update_error_name_exists'));
+                    return;
+                }
+                var proposed = {
+                    power: Number(powerRaw),
+                    thp: Number(thpRaw),
+                    troops: troopsVal,
+                };
+                var pendingUpdateDoc = {
+                    contextType: inviteContext.isPersonal ? 'personal' : 'alliance',
+                    ownerUid: inviteContext.isPersonal ? inviteContext.uidParam : null,
+                    allianceId: inviteContext.isPersonal ? null : inviteContext.aid,
+                    playerName: normalizedName,
+                    gameId: inviteContext.gameId,
+                    proposedValues: proposed,
+                    currentSnapshot: {},
+                    playerKey: playerKey,
+                    submittedAt: firebase.firestore.Timestamp.now(),
+                    submittedByAnonUid: anonUid,
+                    status: 'pending',
+                    tokenId: 'shared:' + inviteContext.sharedId,
+                    sharedInviteId: inviteContext.sharedId,
+                    isNewPlayer: true,
+                };
+                var newPendingRef = buildNewPendingRef(
+                    firebase,
+                    inviteContext.isPersonal,
+                    inviteContext.uidParam,
+                    inviteContext.aid,
+                    inviteContext.gameId
+                );
+                writePendingUpdateWithFallback({
+                    newPendingRef: newPendingRef,
+                    pendingUpdateDoc: pendingUpdateDoc,
+                })
+                    .then(function() {
+                        var successMsgEl = getEl('updateSuccessMessage');
+                        if (successMsgEl) {
+                            successMsgEl.textContent = tOrFallback('player_update_add_self_success', 'Your request has been sent for review.');
+                        }
+                        showState('updateSuccess');
+                    })
+                    .catch(function() {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalBtnText;
+                        }
+                        showError(ERROR_CODES.NETWORK_ERROR);
+                    });
+            });
+        };
     }
 
     function setCurrentStatValue(elementId, value) {
@@ -616,6 +797,9 @@
                 inputEl.classList.add('field-input-error');
             } else {
                 inputEl.classList.remove('field-input-error');
+            }
+            if (typeof inputEl.setAttribute === 'function') {
+                inputEl.setAttribute('aria-invalid', message ? 'true' : 'false');
             }
         }
     }

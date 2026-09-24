@@ -195,6 +195,13 @@
             : _t('player_updates_source_alliance', 'Alliance');
         header.appendChild(sourceBadge);
 
+        if (update.isNewPlayer === true) {
+            var newPlayerBadge = document.createElement('span');
+            newPlayerBadge.className = 'review-new-player-badge';
+            newPlayerBadge.textContent = _t('player_updates_new_player_badge', 'New player');
+            header.appendChild(newPlayerBadge);
+        }
+
         row.appendChild(header);
 
         var table = document.createElement('table');
