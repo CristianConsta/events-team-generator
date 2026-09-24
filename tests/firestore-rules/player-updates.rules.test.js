@@ -138,6 +138,26 @@ test('DEBUG: anon read of shared invite (tests isAnonymous for read)', async () 
     }
 });
 
+test('DEBUG: anon read token with explicit submissionCount/maxSubmissions', async () => {
+    await seedDoc(`alliances/${ALLIANCE_ID}/update_tokens/debug_token_full`, {
+        token: 'debug_full_value',
+        playerName: 'Alice',
+        playerKey: 'alice_key',
+        gameId: 'last_war',
+        used: false,
+        expiresAt: futureTimestamp(),
+        submissionCount: 0,
+        maxSubmissions: 2,
+    });
+    const db = anonDb('debug_anon_full_probe');
+    try {
+        await db.doc(`alliances/${ALLIANCE_ID}/update_tokens/debug_token_full`).get();
+        console.log('DEBUG anon read token_full: SUCCEEDED');
+    } catch (err) {
+        console.log('DEBUG anon read token_full FAILED:', err && err.message ? err.message : String(err));
+    }
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
