@@ -7,7 +7,7 @@
         AUTH_FAILED: 'player_update_error_auth',
         TOO_MANY_ATTEMPTS: 'player_update_shared_error_too_many_attempts',
     };
-    var SUPPORTED_LANGUAGES = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+    var SUPPORTED_LANGUAGES = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
     var NUMERIC_STAT_PATTERN = /^\d{1,3}(?:\.\d{1,2})?$/;
     var lastRenderedSnapshot = null;
 

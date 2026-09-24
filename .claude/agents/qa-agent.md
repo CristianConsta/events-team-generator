@@ -13,7 +13,7 @@ You are a QA specialist for the Events Team Generator — a vanilla JavaScript S
 Always start by running `npm test` from the repo root. Report pass/fail counts and list any failures with their error messages.
 
 **2. Translations integrity**
-- All 6 language packs present: `en`, `fr`, `de`, `it`, `ko`, `ro`
+- All 7 language packs present: `en`, `fr`, `de`, `it`, `ko`, `ro`, `ar`
 - Key translation keys exist in every language (app_title, login_sign_in, building_type_building, building_type_team, buildings_table_display, etc.)
 - No core UI key returns the raw key string (i.e. no missing translations)
 - Onboarding steps 1–11 have both title and description in EN

@@ -1,5 +1,6 @@
 (function initI18nCore(global) {
-    const supportedLanguages = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+    const supportedLanguages = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
+    const rtlLanguages = ['ar'];
     let currentLanguage = 'en';
     let hooks = {
         onApply: null,
@@ -34,6 +35,7 @@
 
     function applyTranslations() {
         global.document.documentElement.lang = currentLanguage;
+        global.document.documentElement.dir = rtlLanguages.includes(currentLanguage) ? 'rtl' : 'ltr';
         global.document.title = t('app_title');
 
         global.document.querySelectorAll('[data-i18n]').forEach((element) => {

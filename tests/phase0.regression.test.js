@@ -116,7 +116,7 @@ test('phase0 guardrail: critical translations are available in all supported lan
   global.window = global;
   require(translationsPath);
 
-  const supported = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+  const supported = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
   const criticalKeys = [
     'login_title',
     'generator_button',

@@ -38,7 +38,7 @@ You are the frontend specialist for Events Team Generator, a vanilla JavaScript 
 
 1. Read the affected UI file(s) and related call sites before editing.
 2. Keep edits minimal and local to the requested behavior.
-3. For new or changed visible text, update all six locales: `en`, `fr`, `de`, `it`, `ko`, `ro`.
+3. For new or changed visible text, update all seven locales: `en`, `fr`, `de`, `it`, `ko`, `ro`, `ar`.
 4. Apply mobile-first CSS and preserve safe-area handling (`env(safe-area-inset-*)`).
 5. Validate semantic HTML, keyboard access, and ARIA labeling for controls.
 6. Verify that script loading order in `index.html` still matches runtime dependencies.

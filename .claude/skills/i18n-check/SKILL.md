@@ -1,6 +1,6 @@
 ---
 name: i18n-check
-description: Check for missing translation keys across all 6 language packs (EN, FR, DE, IT, KO, RO) in translations.js. Reports which languages are missing which keys and gives a PASS/FAIL verdict.
+description: Check for missing translation keys across all 7 language packs (EN, FR, DE, IT, KO, RO, AR) in translations.js. Reports which languages are missing which keys and gives a PASS/FAIL verdict.
 ---
 
 Check the `translations.js` file for missing translation keys across all 6 supported languages.
@@ -64,5 +64,5 @@ PASS / FAIL — [N] languages complete, [N] have gaps
 ## Key facts about this codebase
 - `translations.js` is NOT an IIFE — it defines a plain `translations` const and sets `window.translations = translations`
 - The translations object lives at `window.translations`
-- The 6 language codes are: `en`, `fr`, `de`, `it`, `ko`, `ro`
+- The 7 language codes are: `en`, `fr`, `de`, `it`, `ko`, `ro`, `ar`
 - EN is the canonical reference — other languages should have every key EN has
