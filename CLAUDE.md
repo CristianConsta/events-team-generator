@@ -158,9 +158,10 @@ dist/                   # Generated bundle (do not edit manually)
 ### i18n
 - HTML elements use `data-i18n="key"` attributes
 - Applied by calling `DSI18N.applyTranslations()`
-- Supported languages: EN, FR, DE, IT, KO, RO
+- Supported languages: EN, FR, DE, IT, KO, RO, AR
 - All user-visible strings must be added to `translations.js`
-- **MANDATORY**: When adding or modifying any i18n key, you MUST add the translation for ALL 6 languages (EN, FR, DE, IT, KO, RO). Never add a key to only one language. The `tests/i18n-keys.core.test.js` test enforces parity and will fail if any language is missing a key.
+- **MANDATORY**: When adding or modifying any i18n key, you MUST add the translation for ALL 7 languages (EN, FR, DE, IT, KO, RO, AR). Never add a key to only one language. The `tests/i18n-keys.core.test.js` test enforces parity and will fail if any language is missing a key.
+- Arabic (`ar`) is right-to-left: `js/core/i18n.js` sets `document.documentElement.dir` to `rtl` for `ar` and `ltr` otherwise.
 
 ### Theming & CSS Variables
 - **All color values must use `--ds-*` design tokens** — never hardcode hex/rgba in `styles.css` or JS canvas code. The only place raw color values belong is in token declarations inside `:root` blocks.
@@ -183,7 +184,7 @@ dist/                   # Generated bundle (do not edit manually)
   1. `DSThemeController.SUPPORTED_THEMES` Set in `js/shell/theme-controller.js`
   2. `USER_PROFILE_THEMES` Set in `firebase-module.js` (line ~67) — controls which themes `normalizeUserProfile()` accepts. Missing entries silently fall back to `'standard'`.
   3. `<option>` in `#settingsThemeSelect` in `index.html`
-  4. i18n key `settings_theme_{name}` in `translations.js` (all 6 languages)
+  4. i18n key `settings_theme_{name}` in `translations.js` (all 7 languages)
   5. `:root[data-theme='{name}']` CSS block in both `styles.css` and `theme-variables.css`
 
 ## Adding New Pages
@@ -210,7 +211,7 @@ Every top-level page/view in `index.html` **must** be placed inside the `<div cl
 1. Place inside `.container` or wrap in `<div class="container">` — ensures max-width matches the header
 2. Use `class="view-section hidden"` on the outermost div — `hidden` by default, toggled by navigation
 3. Use `app-view screen-shell` → `page-header screen-header` → `card screen-panel` nesting for consistent spacing
-4. Add `data-i18n` attributes for the title — with translations in all 6 languages
+4. Add `data-i18n` attributes for the title — with translations in all 7 languages
 5. Add the page ID to `hideAllMainPages()` in `app.js` so it hides when navigating away
 6. Add the page ID to `setPageView()` in `app.js` if it should be treated as a named page view
 7. Add a nav button handler in `bindStaticUiActions()` (app.js) or `initializeApplicationUiRuntime()`

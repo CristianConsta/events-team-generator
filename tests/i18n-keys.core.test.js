@@ -17,8 +17,8 @@ const translations = loadTranslations();
 const langs = Object.keys(translations);
 const enKeys = Object.keys(translations.en).sort();
 
-test('translations.js has all 6 expected languages', () => {
-    const expected = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+test('translations.js has all 7 expected languages', () => {
+    const expected = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
     for (const lang of expected) {
         assert.ok(translations[lang], `missing language: ${lang}`);
     }

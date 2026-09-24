@@ -747,10 +747,10 @@ test('revokeToken: does not throw when gateway.getAllianceId returns null', asyn
 });
 
 // ---------------------------------------------------------------------------
-// 14. Translation keys — 8 new keys exist as non-empty strings in all 6 packs
+// 14. Translation keys — 8 new keys exist as non-empty strings in all 7 packs
 // ---------------------------------------------------------------------------
 
-test('translation keys: review panel keys exist as non-empty strings in all 6 language packs', () => {
+test('translation keys: review panel keys exist as non-empty strings in all 7 language packs', () => {
     delete require.cache[require.resolve(translationsPath)];
     // translations.js declares `const translations = { ... }` then exports or uses it on window
     // We need to load it and access the translations object.
@@ -787,7 +787,7 @@ test('translation keys: review panel keys exist as non-empty strings in all 6 la
         'player_updates_review_invalid_values',
     ];
 
-    const LANG_CODES = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+    const LANG_CODES = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
 
     LANG_CODES.forEach(function (lang) {
         assert.ok(translations[lang], 'Language pack must exist: ' + lang);

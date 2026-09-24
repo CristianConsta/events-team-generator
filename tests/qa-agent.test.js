@@ -97,12 +97,12 @@ function makeDocument(extra) {
 
 // ─── 1. i18n / Translations integrity ────────────────────────────────────────
 
-test('qa: translations — all 6 language packs present', () => {
+test('qa: translations — all 7 language packs present', () => {
   global.window = global;
   delete global.translations;
   loadModule(paths.translations);
 
-  const supported = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+  const supported = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
   supported.forEach((lang) => {
     assert.ok(global.translations[lang], `Missing language pack: ${lang}`);
     assert.equal(typeof global.translations[lang], 'object');
@@ -115,7 +115,7 @@ test('qa: translations — every language has app_title', () => {
   global.window = global;
   loadModule(paths.translations);
 
-  ['en', 'fr', 'de', 'it', 'ko', 'ro'].forEach((lang) => {
+  ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'].forEach((lang) => {
     assert.ok(
       global.translations[lang].app_title,
       `${lang} missing app_title`
@@ -129,7 +129,7 @@ test('qa: translations — new building_type_building key exists in all language
   global.window = global;
   loadModule(paths.translations);
 
-  ['en', 'fr', 'de', 'it', 'ko', 'ro'].forEach((lang) => {
+  ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'].forEach((lang) => {
     assert.ok(
       global.translations[lang].building_type_building,
       `${lang} missing building_type_building`
@@ -147,7 +147,7 @@ test('qa: translations — buildings_table_display key exists in all languages',
   global.window = global;
   loadModule(paths.translations);
 
-  ['en', 'fr', 'de', 'it', 'ko', 'ro'].forEach((lang) => {
+  ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'].forEach((lang) => {
     assert.ok(
       global.translations[lang].buildings_table_display,
       `${lang} missing buildings_table_display`
@@ -842,7 +842,7 @@ test('qa: accessibility — form inputs have associated labels or placeholders',
 
 // ─── 12. i18n engine — language switching QA ─────────────────────────────────
 
-test('qa: i18n — switching between all 6 languages does not throw', () => {
+test('qa: i18n — switching between all 7 languages does not throw', () => {
   global.window = global;
   loadModule(paths.translations);
   loadModule(paths.i18n);
@@ -853,7 +853,7 @@ test('qa: i18n — switching between all 6 languages does not throw', () => {
   global.localStorage = makeLocalStorage({});
   global.DSI18N.init({});
 
-  const langs = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
+  const langs = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
   langs.forEach((lang) => {
     assert.doesNotThrow(
       () => global.DSI18N.setLanguage(lang),

@@ -2,14 +2,14 @@
     'use strict';
 
     // ── Constants ────────────────────────────────────────────────────────────
-    var SUPPORTED_LANGS = ['en', 'fr', 'de', 'it', 'ko', 'ro'];
-    var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română' };
+    var SUPPORTED_LANGS = ['en', 'fr', 'de', 'it', 'ko', 'ro', 'ar'];
+    var LANG_NAMES = { en: 'English', fr: 'Français', de: 'Deutsch', it: 'Italiano', ko: '한국어', ro: 'Română', ar: 'العربية' };
     var MEDIA_PLACEHOLDER_RE = /\{\{MEDIA_(\d+)\}\}/g;
     var DEEPL_PROXY_URL = 'https://deepl-proxy.constantinescu-cristian.workers.dev';
 
     // DeepL uses uppercase language codes; EN-US for target English
-    var DEEPL_LANG_MAP = { en: 'EN', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };
-    var DEEPL_TARGET_MAP = { en: 'EN-US', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO' };
+    var DEEPL_LANG_MAP = { en: 'EN', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO', ar: 'AR' };
+    var DEEPL_TARGET_MAP = { en: 'EN-US', fr: 'FR', de: 'DE', it: 'IT', ko: 'KO', ro: 'RO', ar: 'AR' };
 
     // ── State ──────────────────────────────────────────────────────────────
     var state = {
