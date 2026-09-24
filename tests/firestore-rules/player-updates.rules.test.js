@@ -725,3 +725,152 @@ test('pending_updates: unauthenticated user CANNOT read pending_updates', async 
         db.doc(`alliances/${ALLIANCE_ID}/pending_updates/update_seeded`).get()
     );
 });
+
+// ---------------------------------------------------------------------------
+// pending_updates — new-player self-add via shared invite (isNewPlayer)
+// ---------------------------------------------------------------------------
+
+const ALLIANCE_SELF_ADD_INVITE = 'shared_self_add_alliance';
+const ALLIANCE_SELF_ADD_DISABLED_INVITE = 'shared_self_add_disabled';
+const ALLIANCE_SELF_ADD_INACTIVE_INVITE = 'shared_self_add_inactive';
+const PERSONAL_SELF_ADD_INVITE = 'shared_self_add_personal';
+
+function newPlayerUpdateDoc(overrides) {
+    const base = {
+        isNewPlayer: true,
+        tokenId: 'shared:whatever',
+        sharedInviteId: ALLIANCE_SELF_ADD_INVITE,
+        playerName: 'NewPlayer',
+        playerKey: 'new_player_key',
+        gameId: 'last_war',
+        status: 'pending',
+        proposedValues: { power: 1234, thp: 45678, troops: 'Tank' },
+    };
+    return Object.assign(base, overrides || {});
+}
+
+test('pending_updates (new player): anon CAN create via alliance shared invite with allowNewPlayers', async () => {
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/${ALLIANCE_SELF_ADD_INVITE}`, {
+        contextType: 'alliance',
+        allianceId: ALLIANCE_ID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('anon_self_add_1');
+    await assertSucceeds(
+        db.doc(`games/last_war/alliances/${ALLIANCE_ID}/pending_updates/self_add_ok`).set(
+            newPlayerUpdateDoc()
+        )
+    );
+});
+
+test('pending_updates (new player): anon CANNOT create when allowNewPlayers is false', async () => {
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/${ALLIANCE_SELF_ADD_DISABLED_INVITE}`, {
+        contextType: 'alliance',
+        allianceId: ALLIANCE_ID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: false,
+    });
+    const db = anonDb('anon_self_add_2');
+    await assertFails(
+        db.doc(`games/last_war/alliances/${ALLIANCE_ID}/pending_updates/self_add_disabled`).set(
+            newPlayerUpdateDoc({ sharedInviteId: ALLIANCE_SELF_ADD_DISABLED_INVITE })
+        )
+    );
+});
+
+test('pending_updates (new player): anon CANNOT create when invite is inactive', async () => {
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/${ALLIANCE_SELF_ADD_INACTIVE_INVITE}`, {
+        contextType: 'alliance',
+        allianceId: ALLIANCE_ID,
+        gameId: 'last_war',
+        active: false,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('anon_self_add_3');
+    await assertFails(
+        db.doc(`games/last_war/alliances/${ALLIANCE_ID}/pending_updates/self_add_inactive`).set(
+            newPlayerUpdateDoc({ sharedInviteId: ALLIANCE_SELF_ADD_INACTIVE_INVITE })
+        )
+    );
+});
+
+test('pending_updates (new player): anon CANNOT create with out-of-range power', async () => {
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/${ALLIANCE_SELF_ADD_INVITE}`, {
+        contextType: 'alliance',
+        allianceId: ALLIANCE_ID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('anon_self_add_4');
+    await assertFails(
+        db.doc(`games/last_war/alliances/${ALLIANCE_ID}/pending_updates/self_add_bad_power`).set(
+            newPlayerUpdateDoc({ proposedValues: { power: 10000, thp: 45678, troops: 'Tank' } })
+        )
+    );
+});
+
+test('pending_updates (new player): anon CANNOT create with status != pending', async () => {
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/${ALLIANCE_SELF_ADD_INVITE}`, {
+        contextType: 'alliance',
+        allianceId: ALLIANCE_ID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('anon_self_add_5');
+    await assertFails(
+        db.doc(`games/last_war/alliances/${ALLIANCE_ID}/pending_updates/self_add_bad_status`).set(
+            newPlayerUpdateDoc({ status: 'approved' })
+        )
+    );
+});
+
+test('pending_updates (new player, personal): anon CAN create via personal shared invite', async () => {
+    await seedDoc(`games/last_war/soloplayers/${PERSONAL_UID}/shared_update_invites/${PERSONAL_SELF_ADD_INVITE}`, {
+        contextType: 'personal',
+        ownerUid: PERSONAL_UID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('anon_self_add_6');
+    await assertSucceeds(
+        db.doc(`games/last_war/soloplayers/${PERSONAL_UID}/pending_updates/self_add_personal_ok`).set(
+            newPlayerUpdateDoc({
+                ownerUid: PERSONAL_UID,
+                sharedInviteId: PERSONAL_SELF_ADD_INVITE,
+            })
+        )
+    );
+});
+
+test('pending_updates (new player, personal): anon CANNOT create with wrong ownerUid', async () => {
+    await seedDoc(`games/last_war/soloplayers/${PERSONAL_UID}/shared_update_invites/${PERSONAL_SELF_ADD_INVITE}`, {
+        contextType: 'personal',
+        ownerUid: PERSONAL_UID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('anon_self_add_7');
+    await assertFails(
+        db.doc(`games/last_war/soloplayers/${PERSONAL_UID}/pending_updates/self_add_personal_bad_owner`).set(
+            newPlayerUpdateDoc({
+                ownerUid: 'some_other_uid',
+                sharedInviteId: PERSONAL_SELF_ADD_INVITE,
+            })
+        )
+    );
+});
+

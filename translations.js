@@ -612,7 +612,13 @@ const translations = {
         wiki_content_language_label: 'Content language',
         wiki_translations_outdated: 'Translations may be outdated',
         wiki_retranslate_btn: 'Re-translate',
-        wiki_visit_platform: 'Visit Platform'
+        wiki_visit_platform: 'Visit Platform',
+        players_shared_invite_allow_new_players: 'Allow new players to self-register',
+        player_update_shared_add_self_cta: 'Add yourself',
+        player_update_add_self_title: 'Add Yourself',
+        player_update_add_self_note: 'You\'ll be added after your leader approves.',
+        player_update_error_name_exists: 'A player with this name already exists.',
+        player_updates_new_player_badge: 'New player',
     },
     fr: {
         app_title: 'Video Games Events Players Selection',
@@ -1225,7 +1231,13 @@ const translations = {
         wiki_content_language_label: 'Langue du contenu',
         wiki_translations_outdated: 'Les traductions peuvent etre obsoletes',
         wiki_retranslate_btn: 'Retraduire',
-        wiki_visit_platform: 'Visiter la plateforme'
+        wiki_visit_platform: 'Visiter la plateforme',
+        players_shared_invite_allow_new_players: 'Autoriser les nouveaux joueurs à s\'inscrire',
+        player_update_shared_add_self_cta: 'S\'ajouter',
+        player_update_add_self_title: 'S\'ajouter',
+        player_update_add_self_note: 'Vous serez ajouté après approbation de votre chef.',
+        player_update_error_name_exists: 'Un joueur avec ce nom existe déjà.',
+        player_updates_new_player_badge: 'Nouveau joueur',
 
     },
     de: {
@@ -1839,7 +1851,13 @@ const translations = {
         wiki_content_language_label: 'Inhaltssprache',
         wiki_translations_outdated: 'Uebersetzungen sind moeglicherweise veraltet',
         wiki_retranslate_btn: 'Erneut uebersetzen',
-        wiki_visit_platform: 'Plattform besuchen'
+        wiki_visit_platform: 'Plattform besuchen',
+        players_shared_invite_allow_new_players: 'Neue Spieler zur Selbstregistrierung zulassen',
+        player_update_shared_add_self_cta: 'Selbst hinzufügen',
+        player_update_add_self_title: 'Selbst hinzufügen',
+        player_update_add_self_note: 'Du wirst nach Freigabe durch deinen Anführer hinzugefügt.',
+        player_update_error_name_exists: 'Ein Spieler mit diesem Namen existiert bereits.',
+        player_updates_new_player_badge: 'Neuer Spieler',
 
     },
     it: {
@@ -2453,7 +2471,13 @@ const translations = {
         wiki_content_language_label: 'Lingua del contenuto',
         wiki_translations_outdated: 'Le traduzioni potrebbero essere obsolete',
         wiki_retranslate_btn: 'Ritraduci',
-        wiki_visit_platform: 'Visita la piattaforma'
+        wiki_visit_platform: 'Visita la piattaforma',
+        players_shared_invite_allow_new_players: 'Consenti ai nuovi giocatori di registrarsi',
+        player_update_shared_add_self_cta: 'Aggiungiti',
+        player_update_add_self_title: 'Aggiungiti',
+        player_update_add_self_note: 'Sarai aggiunto dopo l\'approvazione del tuo capo.',
+        player_update_error_name_exists: 'Esiste già un giocatore con questo nome.',
+        player_updates_new_player_badge: 'Nuovo giocatore',
 
     },
     ko: {
@@ -3067,7 +3091,13 @@ const translations = {
         wiki_content_language_label: '콘텐츠 언어',
         wiki_translations_outdated: '번역이 오래되었을 수 있습니다',
         wiki_retranslate_btn: '다시 번역',
-        wiki_visit_platform: '플랫폼 방문'
+        wiki_visit_platform: '플랫폼 방문',
+        players_shared_invite_allow_new_players: '새 플레이어 자가 등록 허용',
+        player_update_shared_add_self_cta: '직접 추가',
+        player_update_add_self_title: '직접 추가',
+        player_update_add_self_note: '리더 승인 후 추가됩니다.',
+        player_update_error_name_exists: '이 이름의 플레이어가 이미 있습니다.',
+        player_updates_new_player_badge: '새 플레이어',
 
     },
     ro: {
@@ -3681,7 +3711,13 @@ const translations = {
         wiki_content_language_label: 'Limba continutului',
         wiki_translations_outdated: 'Traducerile ar putea fi depsite',
         wiki_retranslate_btn: 'Retraduce',
-        wiki_visit_platform: 'Viziteaza platforma'
+        wiki_visit_platform: 'Viziteaza platforma',
+        players_shared_invite_allow_new_players: 'Permite jucătorilor noi să se autoînregistreze',
+        player_update_shared_add_self_cta: 'Adaugă-te',
+        player_update_add_self_title: 'Adaugă-te',
+        player_update_add_self_note: 'Vei fi adăugat după aprobarea liderului.',
+        player_update_error_name_exists: 'Există deja un jucător cu acest nume.',
+        player_updates_new_player_badge: 'Jucător nou',
 
     },
     ar: {
@@ -4292,6 +4328,12 @@ const translations = {
         wiki_translations_outdated: 'قد تكون الترجمات قديمة',
         wiki_retranslate_btn: 'إعادة الترجمة',
         wiki_visit_platform: 'زيارة المنصة',
+        players_shared_invite_allow_new_players: 'السماح للاعبين الجدد بالتسجيل الذاتي',
+        player_update_shared_add_self_cta: 'أضِف نفسك',
+        player_update_add_self_title: 'أضِف نفسك',
+        player_update_add_self_note: 'ستتم إضافتك بعد موافقة قائدك.',
+        player_update_error_name_exists: 'يوجد بالفعل لاعب بهذا الاسم.',
+        player_updates_new_player_badge: 'لاعب جديد',
     }
 };
 

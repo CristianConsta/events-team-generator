@@ -110,6 +110,11 @@ service cloud.firestore {
         && data.expiresAt > request.time;
     }
 
+    function sharedInviteAllowsNewPlayers(data) {
+      return data != null
+        && data.allowNewPlayers == true;
+    }
+
     match /users/{uid} {
       allow read, write: if isSelf(uid);
 
@@ -282,6 +287,18 @@ service cloud.firestore {
                             )
                             && get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(request.resource.data.sharedInviteId)/candidates/$(request.resource.data.playerKey)).data.playerName == request.resource.data.playerName
                           )
+                          || (
+                            request.resource.data.isNewPlayer == true
+                            && request.resource.data.sharedInviteId is string
+                            && request.resource.data.sharedInviteId.size() > 0
+                            && request.resource.data.tokenId.matches('^shared:.*$')
+                            && sharedInviteIsActive(
+                              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
+                            )
+                            && sharedInviteAllowsNewPlayers(
+                              get(/databases/$(database)/documents/games/$(gameId)/alliances/$(allianceId)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
+                            )
+                          )
                         )
                         && request.resource.data.playerKey is string
                         && request.resource.data.playerKey.size() > 0
@@ -441,6 +458,18 @@ service cloud.firestore {
                               get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
                             )
                             && get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(request.resource.data.sharedInviteId)/candidates/$(request.resource.data.playerKey)).data.playerName == request.resource.data.playerName
+                          )
+                          || (
+                            request.resource.data.isNewPlayer == true
+                            && request.resource.data.sharedInviteId is string
+                            && request.resource.data.sharedInviteId.size() > 0
+                            && request.resource.data.tokenId.matches('^shared:.*$')
+                            && sharedInviteIsActive(
+                              get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
+                            )
+                            && sharedInviteAllowsNewPlayers(
+                              get(/databases/$(database)/documents/games/$(gameId)/soloplayers/$(uid)/shared_update_invites/$(request.resource.data.sharedInviteId)).data
+                            )
                           )
                         )
                         && request.resource.data.playerKey is string

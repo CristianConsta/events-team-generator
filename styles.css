@@ -1319,6 +1319,24 @@ select {
     justify-content: space-between;
     gap: 14px;
 }
+.players-mgmt-allow-new-players {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 0.875rem;
+    color: var(--ds-text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.players-mgmt-allow-new-players input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--ds-accent-primary);
+    cursor: pointer;
+}
 .players-mgmt-shared-invite-btn {
     position: relative;
     z-index: 1;
@@ -3205,6 +3223,15 @@ button.btn-confirm-pending {
 .review-source-badge--alliance {
     background: rgba(100, 160, 255, 0.15);
     color: var(--ds-accent-secondary);
+}
+.review-new-player-badge {
+    font-size: 11px;
+    border-radius: 4px;
+    padding: 2px 7px;
+    margin-left: 8px;
+    background: rgba(var(--ds-state-success-rgb), 0.18);
+    color: var(--ds-state-success);
+    vertical-align: middle;
 }
 .event-history-source-badge {
     font-size: 11px;

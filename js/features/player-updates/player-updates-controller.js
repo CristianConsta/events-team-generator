@@ -484,6 +484,9 @@
             allianceId = update.allianceId || null;
         }
         var target = (update.contextType === 'alliance') ? 'alliance' : 'personal';
+        if (update.isNewPlayer === true && update.contextType === 'alliance') {
+            target = 'both';
+        }
         return _doApprove(updateId, update, allianceId, target, reviewedValues);
     }
 

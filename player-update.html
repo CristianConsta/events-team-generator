@@ -106,6 +106,30 @@
                 <button type="submit" data-i18n="player_update_submit_btn">Submit Update</button>
             </form>
         </div>
+        <div id="updateAddSelf" class="update-state-form hidden">
+            <h1 data-i18n="player_update_add_self_title">Add Yourself</h1>
+            <p class="update-shared-intro" data-i18n="player_update_add_self_note">You'll be added after your leader approves.</p>
+            <form id="updateAddSelfForm" novalidate>
+                <label for="updateAddSelfName" data-i18n="players_list_add_name_placeholder">Player Name</label>
+                <input type="text" id="updateAddSelfName" maxlength="50" autocomplete="off" data-i18n-placeholder="players_list_add_name_placeholder" placeholder="Player Name">
+                <span class="field-error" id="errorAddSelfName"></span>
+                <label for="updateAddSelfPower" data-i18n="player_update_power_label">1st Team Power (M)</label>
+                <input type="text" id="updateAddSelfPower" inputmode="decimal" maxlength="6" pattern="^\d{1,3}(\.\d{1,2})?$" required data-i18n-placeholder="player_update_power_placeholder" placeholder="e.g. 350.50" autocomplete="off">
+                <span class="field-error" id="errorAddSelfPower"></span>
+                <label for="updateAddSelfThp" data-i18n="player_update_thp_label">THP</label>
+                <input type="text" id="updateAddSelfThp" inputmode="decimal" maxlength="6" pattern="^\d{1,3}(\.\d{1,2})?$" required data-i18n-placeholder="player_update_thp_placeholder" placeholder="e.g. 120.75" autocomplete="off">
+                <span class="field-error" id="errorAddSelfThp"></span>
+                <label for="updateAddSelfTroops" data-i18n="player_update_troops_label">Troop Type</label>
+                <select id="updateAddSelfTroops" required>
+                    <option value="" selected data-i18n="player_update_troops_placeholder">Select troop type</option>
+                    <option value="Tank" data-i18n="troops_filter_tank">Tank</option>
+                    <option value="Aero" data-i18n="troops_filter_aero">Aero</option>
+                    <option value="Missile" data-i18n="troops_filter_missile">Missile</option>
+                </select>
+                <span class="field-error" id="errorAddSelfTroops"></span>
+                <button type="submit" data-i18n="players_list_add_button">Add Player</button>
+            </form>
+        </div>
         <div id="updateSuccess" class="update-state-success hidden">
             <p data-i18n="player_update_success">Your stats have been submitted for review. Thank you!</p>
             <button id="updateDoneBtn" class="update-secondary-btn" data-i18n="player_update_done_btn">Done</button>
@@ -119,6 +143,7 @@
     <script defer src="vendor/firebase-auth-compat.js"></script>
     <script defer src="vendor/firebase-firestore-compat.js"></script>
     <script defer src="firebase-config.js"></script>
+    <script defer src="firebase-infra.js"></script>
     <script defer src="translations.js"></script>
     <script defer src="js/core/i18n.js"></script>
     <script defer src="js/player-update/player-update.js"></script>

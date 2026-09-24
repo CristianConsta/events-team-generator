@@ -2919,6 +2919,8 @@ async function handlePlayersManagementSharedInvite(button) {
     const source = getPlayersManagementActiveSource();
     const gameplayContext = getGameplayContext('playersMgmtSharedInviteStatus');
     const players = buildSharedInvitePlayerPayload(source);
+    const allowNewPlayersInput = document.getElementById('playersMgmtAllowNewPlayers');
+    const allowNewPlayers = !!(allowNewPlayersInput && allowNewPlayersInput.checked);
     if (!gameplayContext) {
         return;
     }
@@ -2951,6 +2953,7 @@ async function handlePlayersManagementSharedInvite(button) {
                 gameId: gameId,
                 expiryHours: 48,
                 maxVerificationAttempts: 3,
+                allowNewPlayers: allowNewPlayers,
             });
             if (!result || !result.success) {
                 showMessage('playersMgmtSharedInviteStatus', t('invite_error'), 'error');
@@ -2971,6 +2974,7 @@ async function handlePlayersManagementSharedInvite(button) {
                 gameId: gameId,
                 expiryHours: 48,
                 maxVerificationAttempts: 3,
+                allowNewPlayers: allowNewPlayers,
             });
             if (!result || !result.success) {
                 showMessage('playersMgmtSharedInviteStatus', t('invite_error'), 'error');
