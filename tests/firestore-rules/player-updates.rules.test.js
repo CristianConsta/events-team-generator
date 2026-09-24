@@ -120,6 +120,24 @@ test('DEBUG: inspect token_valid data + anon read', async () => {
     }
 });
 
+test('DEBUG: anon read of shared invite (tests isAnonymous for read)', async () => {
+    await seedDoc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/debug_invite`, {
+        contextType: 'alliance',
+        allianceId: ALLIANCE_ID,
+        gameId: 'last_war',
+        active: true,
+        expiresAt: futureTimestamp(),
+        allowNewPlayers: true,
+    });
+    const db = anonDb('debug_anon_read_probe');
+    try {
+        await db.doc(`games/last_war/alliances/${ALLIANCE_ID}/shared_update_invites/debug_invite`).get();
+        console.log('DEBUG anon read of invite: SUCCEEDED');
+    } catch (err) {
+        console.log('DEBUG anon read of invite FAILED:', err && err.message ? err.message : String(err));
+    }
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
