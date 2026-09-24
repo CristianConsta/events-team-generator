@@ -602,7 +602,7 @@
         if (global.DSFirebaseInfra && typeof global.DSFirebaseInfra.getPlayerDocId === 'function') {
             return global.DSFirebaseInfra.getPlayerDocId(playerName);
         }
-        return String(playerName || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        return '';
     }
 
     function startSelfAddFlow(firebase, anonUid, inviteContext) {
@@ -620,6 +620,13 @@
             return;
         }
         showState('updateAddSelf');
+
+        var backBtn = getEl('updateAddSelfBackBtn');
+        if (backBtn) {
+            backBtn.onclick = function() {
+                showState('updateClaim');
+            };
+        }
 
         var nameEl = getEl('updateAddSelfName');
         var powerEl = getEl('updateAddSelfPower');
@@ -745,6 +752,10 @@
                     pendingUpdateDoc: pendingUpdateDoc,
                 })
                     .then(function() {
+                        var successMsgEl = getEl('updateSuccessMessage');
+                        if (successMsgEl) {
+                            successMsgEl.textContent = tOrFallback('player_update_add_self_success', 'Your request has been sent for review.');
+                        }
                         showState('updateSuccess');
                     })
                     .catch(function() {
@@ -786,6 +797,9 @@
                 inputEl.classList.add('field-input-error');
             } else {
                 inputEl.classList.remove('field-input-error');
+            }
+            if (typeof inputEl.setAttribute === 'function') {
+                inputEl.setAttribute('aria-invalid', message ? 'true' : 'false');
             }
         }
     }

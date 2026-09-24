@@ -485,6 +485,9 @@
         }
         var target = (update.contextType === 'alliance') ? 'alliance' : 'personal';
         if (update.isNewPlayer === true && update.contextType === 'alliance') {
+            // New self-registered players land in both the alliance DB and the
+            // approver's own personal DB (applyPlayerUpdateToPersonal writes to
+            // currentUser). Personal-context invites stay personal-only.
             target = 'both';
         }
         return _doApprove(updateId, update, allianceId, target, reviewedValues);

@@ -619,6 +619,8 @@ const translations = {
         player_update_add_self_note: 'You\'ll be added after your leader approves.',
         player_update_error_name_exists: 'A player with this name already exists.',
         player_updates_new_player_badge: 'New player',
+        player_update_add_self_success: 'Your request has been sent for review. You\'ll be added after your leader approves.',
+        player_update_add_self_back: 'Back',
     },
     fr: {
         app_title: 'Video Games Events Players Selection',
@@ -1238,6 +1240,8 @@ const translations = {
         player_update_add_self_note: 'Vous serez ajouté après approbation de votre chef.',
         player_update_error_name_exists: 'Un joueur avec ce nom existe déjà.',
         player_updates_new_player_badge: 'Nouveau joueur',
+        player_update_add_self_success: 'Votre demande a été envoyée pour examen. Vous serez ajouté après approbation de votre chef.',
+        player_update_add_self_back: 'Retour',
 
     },
     de: {
@@ -1858,6 +1862,8 @@ const translations = {
         player_update_add_self_note: 'Du wirst nach Freigabe durch deinen Anführer hinzugefügt.',
         player_update_error_name_exists: 'Ein Spieler mit diesem Namen existiert bereits.',
         player_updates_new_player_badge: 'Neuer Spieler',
+        player_update_add_self_success: 'Deine Anfrage wurde zur Prüfung gesendet. Du wirst nach Freigabe durch deinen Anführer hinzugefügt.',
+        player_update_add_self_back: 'Zurück',
 
     },
     it: {
@@ -2478,6 +2484,8 @@ const translations = {
         player_update_add_self_note: 'Sarai aggiunto dopo l\'approvazione del tuo capo.',
         player_update_error_name_exists: 'Esiste già un giocatore con questo nome.',
         player_updates_new_player_badge: 'Nuovo giocatore',
+        player_update_add_self_success: 'La tua richiesta è stata inviata per la revisione. Sarai aggiunto dopo l\'approvazione del tuo capo.',
+        player_update_add_self_back: 'Indietro',
 
     },
     ko: {
@@ -3098,6 +3106,8 @@ const translations = {
         player_update_add_self_note: '리더 승인 후 추가됩니다.',
         player_update_error_name_exists: '이 이름의 플레이어가 이미 있습니다.',
         player_updates_new_player_badge: '새 플레이어',
+        player_update_add_self_success: '요청이 검토를 위해 전송되었습니다. 리더 승인 후 추가됩니다.',
+        player_update_add_self_back: '뒤로',
 
     },
     ro: {
@@ -3718,6 +3728,8 @@ const translations = {
         player_update_add_self_note: 'Vei fi adăugat după aprobarea liderului.',
         player_update_error_name_exists: 'Există deja un jucător cu acest nume.',
         player_updates_new_player_badge: 'Jucător nou',
+        player_update_add_self_success: 'Cererea ta a fost trimisă spre revizuire. Vei fi adăugat după aprobarea liderului.',
+        player_update_add_self_back: 'Înapoi',
 
     },
     ar: {
@@ -4334,6 +4346,8 @@ const translations = {
         player_update_add_self_note: 'ستتم إضافتك بعد موافقة قائدك.',
         player_update_error_name_exists: 'يوجد بالفعل لاعب بهذا الاسم.',
         player_updates_new_player_badge: 'لاعب جديد',
+        player_update_add_self_success: 'تم إرسال طلبك للمراجعة. ستتم إضافتك بعد موافقة قائدك.',
+        player_update_add_self_back: 'رجوع',
     }
 };
 
